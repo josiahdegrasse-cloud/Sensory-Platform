@@ -1,0 +1,980 @@
+import { useState, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Button } from "./ui/button";
+import { FlaskConical, AlertCircle, Upload, X, Check } from "lucide-react";
+import { SAMPLES } from "../data/samples";
+import {
+  ScatterChart,
+  Scatter,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
+} from "recharts";
+import { JargonTooltip } from "./jargon-tooltip";
+
+interface ETongueMeasurement {
+  sampleId: string;
+  sourness: number;
+  bitterness: number;
+  saltiness: number;
+  umami: number;
+  sweetness: number;
+  type?: string;
+  category?: string;
+}
+
+interface GCMSCompound {
+  name: string;
+  concentration: number;
+  aroma: string;
+  threshold: number;
+}
+
+interface ChemicalComposition {
+  protein: number;
+  fat: number;
+  moisture: number;
+  pH: number;
+  saltContent: number;
+  calciumMg: number;
+}
+
+const MOCK_ETONGUE_DATA: ETongueMeasurement[] = [
+  { sampleId: "S1", sourness: 2.3, bitterness: 3.1, saltiness: 4.2, umami: 2.8, sweetness: 1.5, type: "pbca", category: "Coconut-based" },
+  { sampleId: "S2", sourness: 2.8, bitterness: 3.4, saltiness: 3.9, umami: 3.1, sweetness: 1.3, type: "pbca", category: "Coconut-based" },
+  { sampleId: "S3", sourness: 4.5, bitterness: 2.9, saltiness: 3.6, umami: 2.4, sweetness: 1.8, type: "pbca", category: "Coconut-based" },
+  { sampleId: "S4", sourness: 2.1, bitterness: 3.6, saltiness: 4.1, umami: 3.3, sweetness: 1.4, type: "pbca", category: "Coconut-based" },
+  { sampleId: "S5", sourness: 3.2, bitterness: 2.7, saltiness: 3.4, umami: 3.8, sweetness: 2.1, type: "pbca", category: "Cashew-based" },
+  { sampleId: "S6", sourness: 3.5, bitterness: 2.9, saltiness: 3.6, umami: 3.5, sweetness: 2.3, type: "pbca", category: "Cashew-based" },
+  { sampleId: "S7", sourness: 3.8, bitterness: 3.2, saltiness: 3.3, umami: 3.6, sweetness: 2.0, type: "pbca", category: "Cashew-based" },
+  { sampleId: "S8", sourness: 3.1, bitterness: 2.5, saltiness: 3.7, umami: 4.1, sweetness: 2.4, type: "pbca", category: "Coconut-based" },
+  { sampleId: "S9", sourness: 2.9, bitterness: 3.3, saltiness: 3.8, umami: 2.9, sweetness: 1.7, type: "pbca", category: "Coconut-based" },
+  { sampleId: "S10", sourness: 3.4, bitterness: 3.0, saltiness: 3.5, umami: 3.2, sweetness: 1.9, type: "pbca", category: "Cashew-based" },
+  { sampleId: "S11", sourness: 2.6, bitterness: 3.5, saltiness: 4.0, umami: 2.7, sweetness: 1.6, type: "pbca", category: "Coconut-based" },
+  { sampleId: "S12", sourness: 3.7, bitterness: 2.8, saltiness: 3.4, umami: 3.4, sweetness: 2.2, type: "pbca", category: "Cashew-based" },
+  { sampleId: "D1", sourness: 2.2, bitterness: 2.1, saltiness: 4.5, umami: 4.3, sweetness: 2.0, type: "dairy", category: "Dairy" },
+  { sampleId: "D2", sourness: 2.4, bitterness: 2.3, saltiness: 4.4, umami: 4.2, sweetness: 2.1, type: "dairy", category: "Dairy" },
+];
+
+const MOCK_GCMS_DATA: Record<string, GCMSCompound[]> = {
+  S3: [
+    { name: "Butyric acid", concentration: 12.4, aroma: "rancid", threshold: 8.0 },
+    { name: "Hexanal", concentration: 6.8, aroma: "cardboard", threshold: 5.0 },
+  ],
+  S7: [
+    { name: "Acetaldehyde", concentration: 8.1, aroma: "fermented", threshold: 3.5 },
+  ],
+};
+
+const MOCK_COMPOSITION_DATA: Record<string, ChemicalComposition> = {
+  S1: { protein: 18.2, fat: 22.5, moisture: 42.1, pH: 5.8, saltContent: 1.8, calciumMg: 485 },
+  S2: { protein: 19.1, fat: 23.8, moisture: 40.5, pH: 5.7, saltContent: 1.9, calciumMg: 502 },
+  S3: { protein: 17.5, fat: 21.2, moisture: 43.8, pH: 5.9, saltContent: 1.7, calciumMg: 468 },
+  S4: { protein: 18.8, fat: 22.1, moisture: 41.2, pH: 5.8, saltContent: 1.8, calciumMg: 491 },
+  S5: { protein: 16.4, fat: 24.5, moisture: 44.2, pH: 6.0, saltContent: 1.6, calciumMg: 445 },
+  S6: { protein: 17.2, fat: 25.1, moisture: 43.5, pH: 6.1, saltContent: 1.7, calciumMg: 458 },
+  S7: { protein: 16.8, fat: 24.8, moisture: 44.0, pH: 6.0, saltContent: 1.6, calciumMg: 452 },
+  S8: { protein: 18.5, fat: 22.8, moisture: 41.8, pH: 5.8, saltContent: 1.8, calciumMg: 488 },
+  S9: { protein: 19.0, fat: 23.2, moisture: 41.0, pH: 5.7, saltContent: 1.9, calciumMg: 498 },
+  S10: { protein: 17.0, fat: 24.2, moisture: 43.8, pH: 6.0, saltContent: 1.7, calciumMg: 460 },
+  S11: { protein: 18.6, fat: 22.4, moisture: 41.5, pH: 5.8, saltContent: 1.8, calciumMg: 490 },
+  S12: { protein: 16.9, fat: 24.6, moisture: 43.9, pH: 6.0, saltContent: 1.7, calciumMg: 455 },
+  D1: { protein: 24.9, fat: 33.1, moisture: 37.0, pH: 5.2, saltContent: 1.8, calciumMg: 721 },
+  D2: { protein: 25.2, fat: 33.5, moisture: 36.5, pH: 5.1, saltContent: 1.9, calciumMg: 735 },
+};
+
+function parseCSVLine(line: string) {
+  const result: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    const next = line[i + 1];
+
+    if (char === '"' && inQuotes && next === '"') {
+      current += '"';
+      i++;
+    } else if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === "," && !inQuotes) {
+      result.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+
+  result.push(current.trim());
+  return result.map((value) => value.replace(/^"(.*)"$/, "$1"));
+}
+
+function normalize(value?: string) {
+  return (value || "").trim();
+}
+
+function inferType(sampleId: string, csvType?: string) {
+  const normalized = normalize(csvType).toLowerCase();
+  if (normalized === "dairy") return "dairy";
+  if (
+    normalized === "pbca" ||
+    normalized === "plant-based" ||
+    normalized === "plant base"
+  ) {
+    return "pbca";
+  }
+  return sampleId.toUpperCase().startsWith("D") ? "dairy" : "pbca";
+}
+
+function inferCategory(sampleId: string, csvCategory?: string, type?: string) {
+  const normalized = normalize(csvCategory);
+  if (normalized) return normalized;
+  if (type === "dairy") return "Dairy";
+  return "Coconut-based";
+}
+
+function getPointColor(type?: string, category?: string) {
+  if (type === "dairy" || category === "Dairy") return "#10b981";
+  if (category === "Cashew-based") return "#f59e0b";
+  return "#3b82f6";
+}
+
+export function Stage1Instrumental() {
+  const [selectedSamples, setSelectedSamples] = useState<string[]>(["S3"]);
+  const [eTongueData, setETongueData] = useState<ETongueMeasurement[]>(MOCK_ETONGUE_DATA);
+  const [gcmsData, setGcmsData] = useState<Record<string, GCMSCompound[]>>(MOCK_GCMS_DATA);
+  const [compositionData, setCompositionData] = useState<Record<string, ChemicalComposition>>(MOCK_COMPOSITION_DATA);
+  const [uploadedFile, setUploadedFile] = useState<string | null>(null);
+  const [previewData, setPreviewData] = useState<Record<string, string>[]>([]);
+  const [showPreview, setShowPreview] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const [compareMode, setCompareMode] = useState(false);
+
+  const handleDrag = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFile(e.dataTransfer.files[0]);
+    }
+  }, []);
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      handleFile(e.target.files[0]);
+    }
+  };
+
+  const handleFile = (file: File) => {
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      parseCSV(text);
+      setUploadedFile(file.name);
+    };
+
+    reader.readAsText(file);
+  };
+
+  const parseCSV = (text: string) => {
+    const lines = text
+      .split(/\r?\n/)
+      .filter((line) => line.trim().length > 0);
+
+    if (lines.length < 2) return;
+
+    const headers = parseCSVLine(lines[0]);
+    const data: Record<string, string>[] = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = parseCSVLine(lines[i]);
+      const row: Record<string, string> = {};
+
+      headers.forEach((header, idx) => {
+        row[header] = values[idx] ?? "";
+      });
+
+      data.push(row);
+    }
+
+    setPreviewData(data);
+    setShowPreview(true);
+  };
+
+  const importCSVData = () => {
+    const eTongueMap = new Map<string, ETongueMeasurement>();
+    const gcmsMap: Record<string, GCMSCompound[]> = {};
+    const compositionMap: Record<string, ChemicalComposition> = {};
+
+    previewData.forEach((row, index) => {
+      const sampleId =
+        row.sampleId ||
+        row.SampleID ||
+        row.sample ||
+        row.Sample ||
+        row.id ||
+        `Imported-${index + 1}`;
+
+      const type = inferType(sampleId, row.type || row.Type);
+      const category = inferCategory(sampleId, row.category || row.Category, type);
+
+      const sourness = parseFloat(row.sourness || row.Sourness || row.SOURNESS || "0");
+      const bitterness = parseFloat(row.bitterness || row.Bitterness || row.BITTERNESS || "0");
+      const saltiness = parseFloat(row.saltiness || row.Saltiness || row.SALTINESS || "0");
+      const umami = parseFloat(row.umami || row.Umami || row.UMAMI || "0");
+      const sweetness = parseFloat(row.sweetness || row.Sweetness || row.SWEETNESS || "0");
+
+      if (
+        !Number.isNaN(sourness) &&
+        !Number.isNaN(bitterness) &&
+        !Number.isNaN(saltiness) &&
+        !Number.isNaN(umami) &&
+        !Number.isNaN(sweetness)
+      ) {
+        if (!eTongueMap.has(sampleId)) {
+          eTongueMap.set(sampleId, {
+            sampleId,
+            sourness,
+            bitterness,
+            saltiness,
+            umami,
+            sweetness,
+            type,
+            category,
+          });
+        }
+      }
+
+      const compoundName = row.compound || row.Compound || row.name || row.Name;
+      const concentration = parseFloat(
+        row.concentration || row.Concentration || row.CONCENTRATION || "NaN"
+      );
+      const aroma = row.aroma || row.Aroma || row.odour || row.Odour || "";
+      const threshold = parseFloat(
+        row.threshold || row.Threshold || row.THRESHOLD || "NaN"
+      );
+
+      if (compoundName && !Number.isNaN(concentration)) {
+        if (!gcmsMap[sampleId]) {
+          gcmsMap[sampleId] = [];
+        }
+
+        gcmsMap[sampleId].push({
+          name: compoundName,
+          concentration,
+          aroma: aroma || "unknown",
+          threshold: Number.isNaN(threshold) ? 0 : threshold,
+        });
+      }
+
+      const protein = parseFloat(row.protein || row.Protein || "NaN");
+      const fat = parseFloat(row.fat || row.Fat || "NaN");
+      const moisture = parseFloat(row.moisture || row.Moisture || "NaN");
+      const pH = parseFloat(row.pH || row.PH || "NaN");
+      const saltContent = parseFloat(row.saltContent || row.SaltContent || "NaN");
+      const calciumMg = parseFloat(row.calciumMg || row.CalciumMg || "NaN");
+
+      if (
+        !Number.isNaN(protein) &&
+        !Number.isNaN(fat) &&
+        !Number.isNaN(moisture) &&
+        !Number.isNaN(pH) &&
+        !Number.isNaN(saltContent) &&
+        !Number.isNaN(calciumMg)
+      ) {
+        if (!compositionMap[sampleId]) {
+          compositionMap[sampleId] = {
+            protein,
+            fat,
+            moisture,
+            pH,
+            saltContent,
+            calciumMg,
+          };
+        }
+      }
+    });
+
+    const importedETongue = Array.from(eTongueMap.values());
+
+    if (importedETongue.length === 0) return;
+
+    setETongueData(importedETongue);
+    setGcmsData(gcmsMap);
+    setCompositionData(compositionMap);
+    setSelectedSamples([importedETongue[0].sampleId]);
+    setShowPreview(false);
+    setUploadedFile(null);
+  };
+
+  const displayedSamples = eTongueData.map((sample, idx) => {
+    const sampleInfo = SAMPLES.find((s) => s.id === sample.sampleId);
+    const type = sample.type || sampleInfo?.type || inferType(sample.sampleId);
+    const category =
+      sample.category || sampleInfo?.category || inferCategory(sample.sampleId, "", type);
+
+    return {
+      id: sample.sampleId,
+      uniqueKey: `${sample.sampleId}-${idx}`,
+      name: sampleInfo?.name || sample.sampleId,
+      category,
+      type,
+    };
+  });
+
+  const pcaData = eTongueData.map((sample, idx) => {
+    const pc1 = sample.saltiness * 0.5 + sample.umami * 0.4 - sample.sourness * 0.3;
+    const pc2 = sample.bitterness * 0.4 + sample.sourness * 0.35 - sample.sweetness * 0.25;
+    const sampleInfo = SAMPLES.find((s) => s.id === sample.sampleId);
+    const type = sample.type || sampleInfo?.type || inferType(sample.sampleId);
+    const category =
+      sample.category || sampleInfo?.category || inferCategory(sample.sampleId, "", type);
+
+    return {
+      id: `pca-${sample.sampleId}-${idx}`,
+      sampleId: sample.sampleId,
+      uniqueKey: `${sample.sampleId}-${idx}`,
+      name: sampleInfo?.name || sample.sampleId,
+      pc1: Number(pc1.toFixed(2)),
+      pc2: Number(pc2.toFixed(2)),
+      category,
+      type,
+    };
+  });
+
+  const selectedSampleData = eTongueData.find((s) => s.sampleId === selectedSamples[0]);
+  const selectedGCMSData = gcmsData[selectedSamples[0]] || [];
+  const selectedCompositionData = compositionData[selectedSamples[0]] || {};
+
+  const selectedSampleInfo = displayedSamples.find((sample) => sample.id === selectedSamples[0]);
+  const selectedColor = getPointColor(selectedSampleInfo?.type, selectedSampleInfo?.category);
+
+  const comparisonColors = ["#9333ea", "#ec4899"];
+
+  const radarData = selectedSampleData
+    ? [
+        { id: "sourness", taste: "Sourness", value: selectedSampleData.sourness, fullMark: 5 },
+        { id: "bitterness", taste: "Bitterness", value: selectedSampleData.bitterness, fullMark: 5 },
+        { id: "saltiness", taste: "Saltiness", value: selectedSampleData.saltiness, fullMark: 5 },
+        { id: "umami", taste: "Umami", value: selectedSampleData.umami, fullMark: 5 },
+        { id: "sweetness", taste: "Sweetness", value: selectedSampleData.sweetness, fullMark: 5 },
+      ]
+    : [];
+
+  const compareRadarSeries = compareMode
+    ? selectedSamples
+        .map((sampleId, idx) => {
+          const sample = eTongueData.find((s) => s.sampleId === sampleId);
+          if (!sample) return null;
+
+          return {
+            sampleId,
+            name: displayedSamples.find((s) => s.id === sampleId)?.name || sampleId,
+            color: comparisonColors[idx % comparisonColors.length],
+            dataKey: `sample_${idx}`,
+            values: {
+              Sourness: sample.sourness,
+              Bitterness: sample.bitterness,
+              Saltiness: sample.saltiness,
+              Umami: sample.umami,
+              Sweetness: sample.sweetness,
+            },
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null)
+    : [];
+
+  const compareRadarChartData = compareMode
+    ? [
+        { id: "sourness", taste: "Sourness", fullMark: 5 },
+        { id: "bitterness", taste: "Bitterness", fullMark: 5 },
+        { id: "saltiness", taste: "Saltiness", fullMark: 5 },
+        { id: "umami", taste: "Umami", fullMark: 5 },
+        { id: "sweetness", taste: "Sweetness", fullMark: 5 },
+      ].map((row) => {
+        const nextRow: Record<string, string | number> = { ...row };
+        compareRadarSeries.forEach((series) => {
+          nextRow[series.dataKey] = series.values[row.taste as keyof typeof series.values];
+        });
+        return nextRow;
+      })
+    : [];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900">Instrumental Testing</h1>
+          <p className="text-sm text-slate-600 mt-1">
+            High-precision sensory analysis using electronic tongue and GC-O equipment
+          </p>
+        </div>
+        <div>
+          <input
+            type="file"
+            accept=".csv"
+            onChange={handleFileInput}
+            className="hidden"
+            id="csv-upload-header"
+          />
+          <label htmlFor="csv-upload-header">
+            <Button className="cursor-pointer bg-purple-600 hover:bg-purple-700" asChild>
+              <span className="flex items-center gap-2">
+                <Upload className="size-4" />
+                Import CSV Data
+              </span>
+            </Button>
+          </label>
+        </div>
+      </div>
+
+      {uploadedFile && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between">
+          <span className="text-sm text-emerald-700">✓ {uploadedFile}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setUploadedFile(null)}
+          >
+            <X className="size-4" />
+          </Button>
+        </div>
+      )}
+
+      {showPreview && (
+        <Card className="border-4 border-purple-600">
+          <CardHeader className="bg-purple-50 border-b rounded-t-lg">
+            <div className="flex items-center justify-between">
+              <CardTitle>CSV Preview - Review Before Import</CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowPreview(false);
+                  setUploadedFile(null);
+                }}
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <div className="overflow-x-auto mb-4">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-100 border-b">
+                    {previewData.length > 0 &&
+                      Object.keys(previewData[0]).map((key) => (
+                        <th key={key} className="px-4 py-2 text-left font-semibold">
+                          {key}
+                        </th>
+                      ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewData.slice(0, 10).map((row, idx) => (
+                    <tr key={idx} className="border-b hover:bg-slate-50">
+                      {Object.values(row).map((val, vidx) => (
+                        <td key={vidx} className="px-4 py-2">
+                          {val}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {previewData.length > 10 && (
+                <p className="text-sm text-slate-500 mt-2 text-center">
+                  Showing 10 of {previewData.length} rows
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <Button onClick={importCSVData} className="bg-purple-600 hover:bg-purple-700">
+                Import Data
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowPreview(false);
+                  setUploadedFile(null);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+        className={`grid grid-cols-4 gap-6 transition-all ${
+          dragActive ? "ring-2 ring-purple-400 ring-offset-2 rounded-xl" : ""
+        }`}
+      >
+        <Card className="border-2 border-purple-300 shadow-sm">
+          <CardHeader className="bg-purple-50 border-b rounded-t-lg">
+            <div className="flex items-center justify-between mb-1">
+              <CardTitle className="text-lg">Sample Selection</CardTitle>
+              <Button
+                variant={compareMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  if (compareMode) {
+                    setCompareMode(false);
+                    setSelectedSamples([selectedSamples[0]]);
+                  } else {
+                    setCompareMode(true);
+                    if (selectedSamples.length === 0) {
+                      setSelectedSamples(["S3"]);
+                    }
+                  }
+                }}
+                className={compareMode ? "bg-purple-600 hover:bg-purple-700" : ""}
+              >
+                {compareMode ? "Comparing" : "Compare"}
+              </Button>
+            </div>
+            <p className="text-xs text-slate-600 mt-1">
+              {compareMode
+                ? `Select one comparison sample (${selectedSamples.length}/2 selected)`
+                : "Choose a sample to view detailed measurements"}
+            </p>
+          </CardHeader>
+          <CardContent className="pt-4 pr-2">
+            <div className="space-y-2 h-[620px] overflow-y-auto pr-2">
+              {displayedSamples.map((sample) => {
+                const hasOffNotes = gcmsData[sample.id]?.some(
+                  (c) => c.threshold > 0 && c.concentration > c.threshold
+                );
+                const isSelected = selectedSamples.includes(sample.id);
+
+                return (
+                  <button
+                    key={sample.uniqueKey}
+                    onClick={() => {
+                      if (compareMode) {
+                        if (isSelected) {
+                          if (selectedSamples.length > 1) {
+                            setSelectedSamples(
+                              selectedSamples.filter((id) => id !== sample.id)
+                            );
+                          }
+                        } else {
+                          if (selectedSamples.length === 0) {
+                            setSelectedSamples([sample.id]);
+                          } else {
+                            setSelectedSamples([selectedSamples[0], sample.id]);
+                          }
+                        }
+                      } else {
+                        setSelectedSamples([sample.id]);
+                      }
+                    }}
+                    className={`w-full text-left p-3 rounded-lg border-2 transition-all relative ${
+                      isSelected
+                        ? "border-purple-600 bg-purple-50"
+                        : "border-slate-200 hover:border-purple-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="font-bold text-slate-900">{sample.name}</div>
+                        <div className="text-xs text-slate-500">{sample.id}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {hasOffNotes && <AlertCircle className="size-5 text-rose-600" />}
+                        {compareMode && isSelected && (
+                          <div className="w-5 h-5 rounded-full bg-purple-600 flex items-center justify-center">
+                            <Check className="size-3 text-white" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="col-span-3 space-y-6">
+          <div className="grid grid-cols-3 gap-6">
+            <Card className="col-span-2 border-2 border-purple-300 shadow-sm">
+              <CardHeader className="bg-purple-50 border-b rounded-t-lg">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <FlaskConical className="size-5 text-purple-600" />
+                  Electronic Tongue Analysis
+                </CardTitle>
+                <p className="text-xs text-slate-600 mt-1">
+                  Quantitative measurement of five fundamental taste attributes
+                </p>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <ResponsiveContainer width="100%" height={380}>
+                  <RadarChart
+                    data={compareMode ? compareRadarChartData : radarData}
+                    margin={{ top: 30, right: 50, bottom: 30, left: 50 }}
+                  >
+                    <PolarGrid stroke="#e2e8f0" strokeWidth={1} />
+                    <PolarAngleAxis
+                      dataKey="taste"
+                      tick={{ fill: "#475569", fontSize: 13, fontWeight: 500 }}
+                    />
+                    <PolarRadiusAxis
+                      angle={90}
+                      domain={[0, 5]}
+                      tick={{ fill: "#94a3b8", fontSize: 11 }}
+                      tickCount={6}
+                    />
+                    {compareMode ? (
+                      compareRadarSeries.map((series) => (
+                        <Radar
+                          key={`radar-${series.sampleId}`}
+                          name={series.name}
+                          dataKey={series.dataKey}
+                          stroke={series.color}
+                          fill={series.color}
+                          fillOpacity={0.15}
+                          strokeWidth={2}
+                        />
+                      ))
+                    ) : (
+                      <Radar
+                        name={selectedSampleData?.sampleId || "Sample"}
+                        dataKey="value"
+                        stroke={selectedColor}
+                        fill={selectedColor}
+                        fillOpacity={0.3}
+                        strokeWidth={2}
+                      />
+                    )}
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload;
+                          return (
+                            <div className="bg-white p-3 shadow-lg rounded-lg border border-slate-200">
+                              <p className="font-semibold text-slate-900 text-sm">{data.taste}</p>
+                              {compareMode ? (
+                                <div className="space-y-1 mt-1">
+                                  {payload.map((entry: any, idx: number) => (
+                                    <p key={idx} className="font-semibold text-xs" style={{ color: entry.stroke }}>
+                                      {entry.name}: {Number(entry.value).toFixed(2)} / 5.0
+                                    </p>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="font-semibold text-sm" style={{ color: selectedColor }}>
+                                  {data.value.toFixed(2)} / 5.0
+                                </p>
+                              )}
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                  </RadarChart>
+                </ResponsiveContainer>
+
+                <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                  {compareMode && compareRadarSeries.length > 0 ? (
+                    compareRadarSeries.map((series) => (
+                      <div
+                        key={`legend-${series.sampleId}`}
+                        className="flex items-center gap-2 rounded-md border px-2 py-1.5"
+                        style={{ borderColor: `${series.color}40`, backgroundColor: `${series.color}10` }}
+                      >
+                        <div className="h-3 w-3 rounded-full" style={{ backgroundColor: series.color }}></div>
+                        <span className="font-medium text-slate-700">{series.name}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
+                        <div className="h-3 w-3 rounded-full bg-emerald-600"></div>
+                        <span className="font-medium text-slate-700">Dairy</span>
+                      </div>
+                      <div className="flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2">
+                        <div className="h-3 w-3 rounded-full bg-blue-600"></div>
+                        <span className="font-medium text-slate-700">Coconut-based</span>
+                      </div>
+                      <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+                        <div className="h-3 w-3 rounded-full bg-amber-600"></div>
+                        <span className="font-medium text-slate-700">Cashew-based</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 border-rose-300 shadow-sm">
+              <CardHeader className="bg-rose-50 border-b rounded-t-lg">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <FlaskConical className="size-5 text-rose-600" />
+                  Aroma Compound Detection
+                </CardTitle>
+                <p className="text-xs text-slate-600 mt-1">
+                  Volatile off-notes detected by GC-O
+                </p>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="space-y-2 max-h-[380px] overflow-y-auto pr-2">
+                  {selectedGCMSData.length > 0 ? (
+                    selectedGCMSData.map((compound, idx) => {
+                      const overThreshold =
+                        compound.threshold > 0
+                          ? compound.concentration > compound.threshold
+                          : false;
+
+                      return (
+                        <div
+                          key={`${compound.name}-${idx}`}
+                          className={`p-2 rounded-lg border text-xs ${
+                            overThreshold
+                              ? "border-rose-300 bg-rose-50"
+                              : "border-slate-200 bg-white"
+                          }`}
+                        >
+                          <div className="font-semibold text-slate-900 mb-0.5">
+                            {compound.name}
+                          </div>
+                          <div className="text-slate-600 mb-0.5">
+                            {compound.aroma}
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span
+                              className={
+                                overThreshold
+                                  ? "text-rose-600 font-semibold"
+                                  : "text-slate-700"
+                              }
+                            >
+                              {compound.concentration.toFixed(1)} ppm
+                            </span>
+                            {compound.threshold > 0 && (
+                              <span className="text-slate-500">
+                                ↑ {compound.threshold}
+                              </span>
+                            )}
+                          </div>
+                          {overThreshold && (
+                            <div className="mt-1 font-semibold text-rose-700 flex items-center gap-1">
+                              <AlertCircle className="size-3" />
+                              Over threshold
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-8">
+                      <FlaskConical className="size-12 text-slate-300 mx-auto mb-2" />
+                      <p className="text-sm text-slate-500">No off-notes detected</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="border-2 border-indigo-300 shadow-sm">
+            <CardHeader className="bg-indigo-50 border-b rounded-t-lg">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <FlaskConical className="size-5 text-indigo-600" />
+                Chemical Composition Analysis
+              </CardTitle>
+              <p className="text-xs text-slate-600 mt-1">
+                Proximate analysis and key chemical properties
+              </p>
+            </CardHeader>
+            <CardContent className="pt-4">
+              {selectedCompositionData && Object.keys(selectedCompositionData).length > 0 ? (
+                <div className="grid grid-cols-6 gap-4">
+                  <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                    <div className="text-xs text-slate-600 mb-1">Protein</div>
+                    <div className="text-2xl font-bold text-indigo-900">
+                      {selectedCompositionData.protein?.toFixed(1) || "—"}
+                      <span className="text-sm text-slate-600 ml-1">%</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                    <div className="text-xs text-slate-600 mb-1">Fat</div>
+                    <div className="text-2xl font-bold text-indigo-900">
+                      {selectedCompositionData.fat?.toFixed(1) || "—"}
+                      <span className="text-sm text-slate-600 ml-1">%</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                    <div className="text-xs text-slate-600 mb-1">Moisture</div>
+                    <div className="text-2xl font-bold text-indigo-900">
+                      {selectedCompositionData.moisture?.toFixed(1) || "—"}
+                      <span className="text-sm text-slate-600 ml-1">%</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                    <div className="text-xs text-slate-600 mb-1">pH</div>
+                    <div className="text-2xl font-bold text-indigo-900">
+                      {selectedCompositionData.pH?.toFixed(1) || "—"}
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                    <div className="text-xs text-slate-600 mb-1">Salt</div>
+                    <div className="text-2xl font-bold text-indigo-900">
+                      {selectedCompositionData.saltContent?.toFixed(1) || "—"}
+                      <span className="text-sm text-slate-600 ml-1">%</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                    <div className="text-xs text-slate-600 mb-1">Calcium</div>
+                    <div className="text-2xl font-bold text-indigo-900">
+                      {selectedCompositionData.calciumMg?.toFixed(0) || "—"}
+                      <span className="text-sm text-slate-600 ml-1">mg</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <FlaskConical className="size-12 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm text-slate-500">No composition data available</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      <Card className="border-2 border-blue-300 shadow-sm">
+        <CardHeader className="bg-blue-50 border-b rounded-t-lg">
+          <CardTitle className="text-lg flex items-center gap-2">
+            Taste Similarity Analysis (PCA)
+          </CardTitle>
+          <p className="text-xs text-slate-600 mt-1">
+            Comparison of plant-based formulations against dairy reference standards
+          </p>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <ResponsiveContainer width="100%" height={400}>
+            <ScatterChart margin={{ top: 10, right: 20, bottom: 40, left: 60 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis
+                type="number"
+                dataKey="pc1"
+                name="Savory Dimension"
+                domain={[-2, 2]}
+                tick={{ fill: "#475569", fontSize: 12 }}
+                label={{
+                  value: "PC1 - Savory Dimension",
+                  position: "insideBottom",
+                  offset: -5,
+                  style: { fill: "#475569", fontSize: 12, fontWeight: 500 }
+                }}
+              />
+              <YAxis
+                type="number"
+                dataKey="pc2"
+                name="Bitter-Sour Dimension"
+                domain={[-2, 2]}
+                tick={{ fill: "#475569", fontSize: 12 }}
+                label={{
+                  value: "PC2 - Bitter-Sour Dimension",
+                  angle: -90,
+                  position: "insideLeft",
+                  offset: 5,
+                  style: { fill: "#475569", fontSize: 12, fontWeight: 500 }
+                }}
+              />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    return (
+                      <div className="bg-white p-3 shadow-lg rounded-lg border border-slate-200">
+                        <p className="font-semibold text-slate-900">{data.name}</p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          PC1: {data.pc1} | PC2: {data.pc2}
+                        </p>
+                        <p className="text-xs text-slate-600 mt-1">{data.category}</p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Scatter data={pcaData.filter((d) => d.type === "pbca")}>
+                {pcaData.filter((d) => d.type === "pbca").map((entry) => (
+                  <Cell key={`cell-${entry.id}`} fill={getPointColor(entry.type, entry.category)} />
+                ))}
+              </Scatter>
+              <Scatter data={pcaData.filter((d) => d.type === "dairy")}>
+                {pcaData.filter((d) => d.type === "dairy").map((entry) => (
+                  <Cell key={`cell-${entry.id}`} fill={getPointColor(entry.type, entry.category)} />
+                ))}
+              </Scatter>
+            </ScatterChart>
+          </ResponsiveContainer>
+
+          <div className="mt-6 grid grid-cols-3 gap-4 text-sm">
+            <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-3 h-3 rounded-full bg-emerald-600"></div>
+                <span className="font-semibold">Dairy Reference</span>
+              </div>
+              <p className="text-xs text-slate-600">Real cheese baseline</p>
+            </div>
+
+            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-3 h-3 rounded-full bg-blue-600"></div>
+                <span className="font-semibold">Coconut-based</span>
+              </div>
+              <p className="text-xs text-slate-600">Coconut oil formulation</p>
+            </div>
+
+            <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-3 h-3 rounded-full bg-amber-600"></div>
+                <span className="font-semibold">Cashew-based</span>
+              </div>
+              <p className="text-xs text-slate-600">Cashew nut formulation</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

@@ -1,0 +1,637 @@
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Button } from './ui/button';
+import { Checkbox } from './ui/checkbox';
+import { Label } from './ui/label';
+import { Progress } from './ui/progress';
+import { useAuth } from '../contexts/auth-context';
+import { MOCK_PRODUCTS, DEFAULT_CATA_ATTRIBUTES, INTENSITY_ATTRIBUTES, ESSENSE25_EMOTIONS } from '../data/mock-users';
+import { CATA_DEFINITIONS, INTENSITY_DEFINITIONS, HEDONIC_DEFINITIONS, EMOTION_DEFINITIONS } from '../data/attribute-definitions';
+import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Edit2 } from 'lucide-react';
+import { Alert, AlertDescription } from './ui/alert';
+import { AttributeTooltip } from './attribute-tooltip';
+
+type FormData = {
+  selectedCata: string[];
+  intensityRatings: Record<string, number>;
+  hedonicScores: {
+    overall: number;
+    appearance: number;
+    aroma: number;
+    flavor: number;
+    texture: number;
+  };
+  emotions: Record<string, number>;
+};
+
+export function QuestionnaireForm() {
+  const { productId } = useParams<{ productId: string }>();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const product = MOCK_PRODUCTS.find(p => p.id === productId);
+  const [currentStep, setCurrentStep] = useState(1);
+  const [submitted, setSubmitted] = useState(false);
+  const [alreadyCompleted, setAlreadyCompleted] = useState(false);
+  const [existingResponseId, setExistingResponseId] = useState<string | null>(null);
+
+  // Form state
+  const [formData, setFormData] = useState<FormData>({
+    selectedCata: [],
+    intensityRatings: {},
+    hedonicScores: {
+      overall: 5,
+      appearance: 5,
+      aroma: 5,
+      flavor: 5,
+      texture: 5
+    },
+    emotions: {}
+  });
+
+  const cataAttributes = product?.customAttributes || DEFAULT_CATA_ATTRIBUTES;
+  const totalSteps = 5;
+
+  useEffect(() => {
+    // Check if already completed and load existing response
+    const completedKey = `completed_${user?.id}`;
+    const completed = JSON.parse(localStorage.getItem(completedKey) || '[]');
+
+    if (completed.includes(productId)) {
+      // Load existing response for potential editing
+      const responsesKey = 'questionnaire_responses';
+      const allResponses = JSON.parse(localStorage.getItem(responsesKey) || '[]');
+      const existingResponse = allResponses.find(
+        (r: any) => r.userId === user?.id && r.productId === productId
+      );
+
+      if (existingResponse) {
+        setExistingResponseId(existingResponse.id);
+        setFormData({
+          selectedCata: existingResponse.cataAttributes || [],
+          intensityRatings: existingResponse.intensityRatings || {},
+          hedonicScores: existingResponse.hedonicScores || {
+            overall: 5,
+            appearance: 5,
+            aroma: 5,
+            flavor: 5,
+            texture: 5
+          },
+          emotions: existingResponse.emotionalProfile || {}
+        });
+      }
+      setAlreadyCompleted(true);
+    }
+  }, [productId, user?.id]);
+
+  const handleCataToggle = (attr: string) => {
+    setFormData(prev => ({
+      ...prev,
+      selectedCata: prev.selectedCata.includes(attr)
+        ? prev.selectedCata.filter(a => a !== attr)
+        : [...prev.selectedCata, attr]
+    }));
+  };
+
+  const handleIntensityChange = (attr: string, value: number) => {
+    setFormData(prev => ({
+      ...prev,
+      intensityRatings: { ...prev.intensityRatings, [attr]: value }
+    }));
+  };
+
+  const handleHedonicChange = (aspect: string, value: number) => {
+    setFormData(prev => ({
+      ...prev,
+      hedonicScores: { ...prev.hedonicScores, [aspect]: value }
+    }));
+  };
+
+  const handleEmotionChange = (emotion: string, value: number) => {
+    setFormData(prev => ({
+      ...prev,
+      emotions: { ...prev.emotions, [emotion]: value }
+    }));
+  };
+
+  const handleNext = () => {
+    if (currentStep < totalSteps) {
+      setCurrentStep(currentStep + 1);
+      window.scrollTo(0, 0);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+      window.scrollTo(0, 0);
+    }
+  };
+
+  const handleSubmit = () => {
+    const response = {
+      id: existingResponseId || `r_${Date.now()}`,
+      userId: user?.id,
+      productId,
+      timestamp: new Date().toISOString(),
+      cataAttributes: formData.selectedCata,
+      intensityRatings: formData.intensityRatings,
+      hedonicScores: formData.hedonicScores,
+      emotionalProfile: formData.emotions
+    };
+
+    // Save or update response
+    const responsesKey = 'questionnaire_responses';
+    const existingResponses = JSON.parse(localStorage.getItem(responsesKey) || '[]');
+
+    if (existingResponseId) {
+      // Update existing response
+      const updatedResponses = existingResponses.map((r: any) =>
+        r.id === existingResponseId ? response : r
+      );
+      localStorage.setItem(responsesKey, JSON.stringify(updatedResponses));
+    } else {
+      // Add new response
+      localStorage.setItem(responsesKey, JSON.stringify([...existingResponses, response]));
+    }
+
+    // Mark as completed
+    const completedKey = `completed_${user?.id}`;
+    const completed = JSON.parse(localStorage.getItem(completedKey) || '[]');
+    if (!completed.includes(productId)) {
+      localStorage.setItem(completedKey, JSON.stringify([...completed, productId]));
+    }
+
+    setSubmitted(true);
+
+    // Redirect after 3 seconds
+    setTimeout(() => {
+      navigate('/panelist');
+    }, 3000);
+  };
+
+  const jumpToStep = (step: number) => {
+    setCurrentStep(step);
+    window.scrollTo(0, 0);
+  };
+
+  if (!product) {
+    return (
+      <div className="max-w-4xl mx-auto">
+        <Alert variant="destructive">
+          <AlertCircle className="size-4" />
+          <AlertDescription>Product not found</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (submitted) {
+    return (
+      <div className="max-w-4xl mx-auto">
+        <Card className="border-2 border-emerald-300 bg-emerald-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle2 className="size-6 text-emerald-600" />
+              Response {existingResponseId ? 'Updated' : 'Submitted'} Successfully!
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-slate-700 mb-2">
+              Thank you for {existingResponseId ? 'updating your' : 'completing the'} evaluation for <strong>{product.name}</strong>.
+            </p>
+            <p className="text-sm text-slate-600">
+              Redirecting to dashboard...
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const progressPercent = (currentStep / totalSteps) * 100;
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      {/* Header with Progress */}
+      <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300">
+        <CardHeader>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <CardTitle className="text-2xl">
+                {alreadyCompleted ? 'Edit Your Response' : 'Product Evaluation'}
+              </CardTitle>
+              <div className="space-y-1 text-sm text-slate-600 mt-2">
+                <p><strong>Product:</strong> {product.name}</p>
+                <p><strong>Your ID:</strong> {user?.panelistId}</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-3xl font-bold text-blue-600">
+                {currentStep}/{totalSteps}
+              </div>
+              <div className="text-xs text-slate-600 mt-1">Steps</div>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Progress value={progressPercent} className="h-2" />
+            <div className="text-xs text-slate-600 text-center">
+              {currentStep === 1 && 'CATA Attributes'}
+              {currentStep === 2 && 'Intensity Ratings'}
+              {currentStep === 3 && 'Hedonic Scores'}
+              {currentStep === 4 && 'Emotional Response'}
+              {currentStep === 5 && 'Review & Submit'}
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+
+      {alreadyCompleted && currentStep === 1 && (
+        <Alert className="border-blue-300 bg-blue-50">
+          <Edit2 className="size-4" />
+          <AlertDescription>
+            You've already submitted a response. You can review and update your answers before resubmitting.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Step 1: CATA */}
+      {currentStep === 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Step 1: Flavor & Aroma Attributes (CATA)</CardTitle>
+            <p className="text-sm text-slate-600">
+              Select ALL attributes that you perceive in this sample. Hover over any attribute for its definition.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {cataAttributes.map(attr => (
+                <div key={attr} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`cata-${attr}`}
+                    checked={formData.selectedCata.includes(attr)}
+                    onCheckedChange={() => handleCataToggle(attr)}
+                  />
+                  <Label htmlFor={`cata-${attr}`} className="text-sm cursor-pointer">
+                    <AttributeTooltip
+                      term={attr}
+                      definition={CATA_DEFINITIONS[attr] || 'Sensory attribute'}
+                    />
+                  </Label>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <p className="text-sm text-slate-600">
+                <strong>Selected:</strong> {formData.selectedCata.length} attributes
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step 2: Intensity */}
+      {currentStep === 2 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Step 2: Intensity Ratings</CardTitle>
+            <p className="text-sm text-slate-600">
+              Rate the intensity of each attribute. Hover over the attribute name for guidance.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {INTENSITY_ATTRIBUTES.map(attr => (
+                <div key={attr} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>
+                      <AttributeTooltip
+                        term={attr}
+                        definition={INTENSITY_DEFINITIONS[attr] || CATA_DEFINITIONS[attr] || 'Rate the intensity'}
+                      />
+                    </Label>
+                    <span className="text-sm font-bold text-purple-600">
+                      {formData.intensityRatings[attr] || 0}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="1"
+                    value={formData.intensityRatings[attr] || 0}
+                    onChange={(e) => handleIntensityChange(attr, parseInt(e.target.value))}
+                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                  />
+                  <div className="flex justify-between text-xs text-slate-500">
+                    <span>Not present (0)</span>
+                    <span>Extremely intense (10)</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step 3: Hedonic */}
+      {currentStep === 3 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Step 3: Hedonic Scores (Overall Liking)</CardTitle>
+            <p className="text-sm text-slate-600">
+              Rate how much you like or dislike each aspect. Hover for more information.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {Object.entries(formData.hedonicScores).map(([aspect, value]) => (
+                <div key={aspect} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="capitalize">
+                      <AttributeTooltip
+                        term={aspect.replace(/([A-Z])/g, ' $1').trim()}
+                        definition={HEDONIC_DEFINITIONS[aspect] || 'Rate your liking'}
+                      />
+                    </Label>
+                    <span className="text-sm font-bold text-blue-600">{value}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="9"
+                    step="0.5"
+                    value={value}
+                    onChange={(e) => handleHedonicChange(aspect, parseFloat(e.target.value))}
+                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  />
+                  <div className="flex justify-between text-xs text-slate-500">
+                    <span>Dislike extremely (1)</span>
+                    <span>Neither (5)</span>
+                    <span>Like extremely (9)</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step 4: Emotions */}
+      {currentStep === 4 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Step 4: Emotional Response (EsSense25)</CardTitle>
+            <p className="text-sm text-slate-600">
+              Rate how strongly you feel each emotion when tasting this product. Hover for definitions.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {/* Positive Emotions */}
+              <div>
+                <h4 className="font-bold text-emerald-700 mb-4">Positive Emotions</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {ESSENSE25_EMOTIONS.positive.map(emotion => (
+                    <div key={emotion} className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">
+                          <AttributeTooltip
+                            term={emotion}
+                            definition={EMOTION_DEFINITIONS[emotion] || emotion}
+                          />
+                        </Label>
+                        <span className="text-xs font-bold text-emerald-600">
+                          {formData.emotions[emotion] || 0}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="5"
+                        step="1"
+                        value={formData.emotions[emotion] || 0}
+                        onChange={(e) => handleEmotionChange(emotion, parseInt(e.target.value))}
+                        className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Negative Emotions */}
+              <div>
+                <h4 className="font-bold text-rose-700 mb-4">Negative Emotions</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {ESSENSE25_EMOTIONS.negative.map(emotion => (
+                    <div key={emotion} className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">
+                          <AttributeTooltip
+                            term={emotion}
+                            definition={EMOTION_DEFINITIONS[emotion] || emotion}
+                          />
+                        </Label>
+                        <span className="text-xs font-bold text-rose-600">
+                          {formData.emotions[emotion] || 0}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="5"
+                        step="1"
+                        value={formData.emotions[emotion] || 0}
+                        onChange={(e) => handleEmotionChange(emotion, parseInt(e.target.value))}
+                        className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-rose-600"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step 5: Review */}
+      {currentStep === 5 && (
+        <div className="space-y-6">
+          <Card className="border-2 border-emerald-300">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle2 className="size-6 text-emerald-600" />
+                Step 5: Review Your Responses
+              </CardTitle>
+              <p className="text-sm text-slate-600">
+                Please review your answers. Click on any section number to go back and make changes.
+              </p>
+            </CardHeader>
+          </Card>
+
+          {/* Review CATA */}
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => jumpToStep(1)}>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-sm font-bold">1</span>
+                  CATA Attributes
+                </CardTitle>
+                <Edit2 className="size-4 text-slate-400" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {formData.selectedCata.length > 0 ? (
+                  formData.selectedCata.map(attr => (
+                    <span key={attr} className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">
+                      {attr}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-sm text-slate-500 italic">No attributes selected</span>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Review Intensity */}
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => jumpToStep(2)}>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">2</span>
+                  Intensity Ratings
+                </CardTitle>
+                <Edit2 className="size-4 text-slate-400" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3">
+                {INTENSITY_ATTRIBUTES.map(attr => (
+                  <div key={attr} className="flex items-center justify-between text-sm">
+                    <span className="text-slate-700">{attr}:</span>
+                    <span className="font-bold text-purple-600">{formData.intensityRatings[attr] || 0}/10</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Review Hedonic */}
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => jumpToStep(3)}>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-sm font-bold">3</span>
+                  Hedonic Scores
+                </CardTitle>
+                <Edit2 className="size-4 text-slate-400" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3">
+                {Object.entries(formData.hedonicScores).map(([aspect, value]) => (
+                  <div key={aspect} className="flex items-center justify-between text-sm">
+                    <span className="text-slate-700 capitalize">{aspect.replace(/([A-Z])/g, ' $1').trim()}:</span>
+                    <span className="font-bold text-blue-600">{value}/9</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Review Emotions */}
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => jumpToStep(4)}>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-sm font-bold">4</span>
+                  Emotional Response
+                </CardTitle>
+                <Edit2 className="size-4 text-slate-400" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs font-bold text-emerald-700 mb-2">Positive Emotions:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {ESSENSE25_EMOTIONS.positive
+                      .filter(e => formData.emotions[e] > 0)
+                      .map(emotion => (
+                        <span key={emotion} className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-xs">
+                          {emotion} ({formData.emotions[emotion]})
+                        </span>
+                      ))}
+                    {ESSENSE25_EMOTIONS.positive.filter(e => formData.emotions[e] > 0).length === 0 && (
+                      <span className="text-xs text-slate-500 italic">None selected</span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-rose-700 mb-2">Negative Emotions:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {ESSENSE25_EMOTIONS.negative
+                      .filter(e => formData.emotions[e] > 0)
+                      .map(emotion => (
+                        <span key={emotion} className="px-2 py-1 bg-rose-100 text-rose-700 rounded text-xs">
+                          {emotion} ({formData.emotions[emotion]})
+                        </span>
+                      ))}
+                    {ESSENSE25_EMOTIONS.negative.filter(e => formData.emotions[e] > 0).length === 0 && (
+                      <span className="text-xs text-slate-500 italic">None selected</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Final Confirmation */}
+          <Card className="bg-gradient-to-r from-emerald-50 to-blue-50 border-2 border-emerald-300">
+            <CardContent className="pt-6 space-y-4">
+              <Alert className="border-amber-300 bg-amber-50">
+                <AlertCircle className="size-4" />
+                <AlertDescription>
+                  <strong>Are your responses accurate?</strong> Once submitted, you can still edit your response later if needed.
+                </AlertDescription>
+              </Alert>
+              <Button
+                onClick={handleSubmit}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-lg py-6"
+              >
+                <CheckCircle2 className="size-5 mr-2" />
+                {existingResponseId ? 'Update Response' : 'Submit Questionnaire'}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Navigation Buttons */}
+      <div className="flex gap-4">
+        <Button
+          variant="outline"
+          onClick={handleBack}
+          disabled={currentStep === 1}
+          className="flex-1"
+        >
+          <ChevronLeft className="size-4 mr-2" />
+          Back
+        </Button>
+        {currentStep < totalSteps && (
+          <Button
+            onClick={handleNext}
+            className="flex-1 bg-blue-600 hover:bg-blue-700"
+          >
+            Next
+            <ChevronRight className="size-4 ml-2" />
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}

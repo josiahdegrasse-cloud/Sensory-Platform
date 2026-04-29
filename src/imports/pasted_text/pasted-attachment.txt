@@ -1,0 +1,383 @@
+From the sources you uploaded, your project is much deeper than just “testing plant-based cheese.” It’s actually a methodology project about how we evaluate food flavor scientifically and efficiently. Below are the most important things you should understand so you can speak confidently about the project in class, presentations, or reports.
+
+1. The Core Problem Your Project Is Solving
+
+The project focuses on plant-based cheese alternatives (PBCAs), which currently perform poorly compared to dairy cheese in taste and texture. Studies show consumers often complain about:
+
+Off-flavours
+
+Rubbery textures
+
+Strange aftertaste
+
+Weak flavor intensity 
+
+ISSF_Technical_Review (1)
+
+Because of this, companies need better ways to test and improve flavor quickly.
+
+The problem with current testing
+
+The gold standard is a fully trained sensory panel, but it has big drawbacks:
+
+Takes 100+ hours of training
+
+Expensive
+
+Hard to recruit
+
+Slow to run repeatedly during product development 
+
+ISSF_Technical_Review (1)
+
+This makes it impractical for rapid product iteration, especially for startups and smaller food companies.
+
+2. The Big Idea of the Project
+
+Your project proposes a new system called:
+
+ISSF – Integrated Sensory Screening Framework
+
+This combines three things:
+
+Instrumental measurement (e-tongue)
+
+Chemical analysis
+
+Semi-trained human sensory panel
+
+All integrated using Human Factors Design (HFD) principles. 
+
+ISSF_Technical_Review (1)
+
+The idea is:
+
+Instead of relying only on experts, combine machines + normal human tasters in a smart system.
+
+If successful, this method could replace or partially replace fully trained panels for early-stage product testing.
+
+3. The Four-Stage Framework (The Most Important Concept)
+
+Your entire project revolves around four stages.
+
+Stage 1 — Instrumental Baseline
+
+Products are analyzed using:
+
+E-tongue taste sensors
+
+Chemical analysis
+
+GC-MS aroma analysis
+
+This creates a taste map for each product across several sensory dimensions. 
+
+ISSF_Technical_Review (1)
+
+This step identifies:
+
+which attributes vary most
+
+which products cluster together
+
+which products are outliers
+
+The data becomes a briefing for the human panel.
+
+Stage 2 — Semi-Trained Panel Evaluation
+
+Instead of expert tasters, the study uses a semi-trained panel (≈14 people).
+
+They evaluate products using:
+
+CATA (Check-All-That-Apply) attribute list
+
+Hedonic liking scales
+
+open comments 
+
+ISSF_Technical_Review (1)
+
+The CATA vocabulary is co-designed with panelists so the language is natural rather than scientific. 
+
+ISSF_Technical_Review (1)
+
+This is a major human factors innovation.
+
+Stage 3 — Emotional Response
+
+Panelists also complete an EsSense25 emotional profile.
+
+This measures emotions like:
+
+nostalgic
+
+aggressive
+
+wild
+
+happy
+
+disgusted
+
+Research shows emotional responses can differentiate foods even when liking scores are similar. 
+
+ISSF_Technical_Review (1)
+
+So the project captures sensory + emotional responses.
+
+Stage 4 — Data Integration
+
+Finally, three data streams are compared:
+
+Instrument data (e-tongue)
+
+Panel sensory attributes
+
+Emotional responses
+
+When they agree → strong signal
+When they disagree → methodological insight. 
+
+ISSF_Technical_Review (1)
+
+Example:
+
+e-tongue: low sourness
+
+panel: sour aftertaste
+
+This means either:
+
+the instrument misses something
+
+the vocabulary is wrong
+
+Then the protocol is refined in the next cycle.
+
+4. The Human Factors Contribution (Very Important for Your Class)
+
+Most sensory science research focuses on food chemistry.
+
+Your project instead treats the evaluation system itself as a design problem.
+
+Human Factors principles applied:
+
+1. Cognitive economy
+
+Ask humans only to do what they are good at.
+
+Machines → measure chemical signals
+Humans → interpret flavor experiences. 
+
+ISSF_Technical_Review (1)
+
+2. User-centered vocabulary
+
+Instead of forcing scientific terminology:
+
+Panelists help create the flavor lexicon.
+
+Example descriptors include:
+
+vinegar
+
+nutty
+
+musty
+
+cardboard
+
+rancid
+
+caramel
+
+yeast 
+
+Sensory Flavour Lexicon (2)
+
+This improves consistency and usability.
+
+3. Environment design
+
+Even the testing environment is designed:
+
+controlled lighting
+
+temperature
+
+palate cleansers
+
+sample order randomization 
+
+ISSF_Technical_Review (1)
+
+These reduce sensory bias.
+
+5. The Experimental Design
+
+Your study structure:
+
+Products
+
+12 plant-based cheeses
+
+3 product categories
+
+2 dairy reference cheeses 
+
+ISSF_Technical_Review (1)
+
+Panels
+
+Three groups:
+
+Panel	Size	Purpose
+Semi-trained panel	14	Main ISSF evaluation
+Trained panel	8	Benchmark comparison
+Consumer panel	60	Real-world validation
+Study cycles
+
+Three evaluation rounds:
+
+Test protocol
+
+Improve protocol
+
+Final validation
+
+This is an iterative design process.
+
+6. The Chemical / Instrumental Analysis
+
+The project uses advanced flavor analysis techniques.
+
+GC-MS with olfactometry
+
+Used to identify aroma compounds in cheese.
+
+Example process:
+
+incubate samples
+
+extract volatile compounds using SPME
+
+separate compounds in gas chromatography
+
+identify molecules with mass spectrometry
+
+human sniffs aroma port simultaneously 
+
+GCMS data - Cheese (2)
+
+This links chemical compounds to perceived smell.
+
+E-tongue
+
+An electronic sensor that detects taste dimensions like:
+
+bitterness
+
+sourness
+
+saltiness
+
+umami
+
+Products are compared to a dairy cheese reference benchmark. 
+
+ISSF_Technical_Review (1)
+
+7. The Statistical Methods
+
+You may be asked about these in class.
+
+Key analyses:
+
+PCA (Principal Component Analysis)
+Maps products in taste space.
+
+Cochran’s Q test
+Determines which attributes differentiate products.
+
+Correspondence Analysis
+Creates sensory maps from CATA data.
+
+Penalty Lift Analysis
+Identifies which attributes increase or decrease liking. 
+
+ISSF_Technical_Review (1)
+
+8. The Real-World Impact
+
+If this framework works, it could:
+
+dramatically reduce sensory testing costs
+
+enable faster food innovation
+
+help startups develop better plant-based foods
+
+bridge machine sensing and human perception
+
+This is why the research is important.
+
+9. The Big Thesis of the Project
+
+If you remember one sentence, remember this:
+
+A hybrid system combining instruments, semi-trained panels, and human-centered design can provide fast and reliable sensory screening for plant-based cheese products.
+
+10. The 5 Smart Things Most Students Miss
+
+These make you sound like you really understand the research.
+
+1. The project is NOT about cheese
+
+Cheese is just the test case.
+
+The real contribution is the evaluation framework.
+
+2. Human factors is the novelty
+
+Food science already has:
+
+e-tongues
+
+CATA
+
+sensory panels
+
+What’s new is designing the evaluation system around the user.
+
+3. Divergence between humans and machines is valuable
+
+Disagreement isn’t a failure.
+
+It reveals:
+
+measurement gaps
+
+vocabulary issues
+
+sensory complexity.
+
+4. The protocol itself evolves
+
+Most studies run once.
+
+Your system improves after each cycle.
+
+5. The long-term goal
+
+To create a standardized rapid sensory screening protocol that industry could adopt.
+
+✅ If you'd like, I can also show you:
+
+10 impressive talking points for your presentation
+
+3 big criticisms of the project (professors love hearing these)
+
+how to explain this project in 30 seconds for class discussion.
+
+Sources
