@@ -41,19 +41,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Safety timeout — never hang on loading forever
+    const timeout = setTimeout(() => setLoading(false), 5000);
+
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
-        const profile = await loadProfile(session.user);
-        setUser(profile);
+        try {
+          const profile = await loadProfile(session.user);
+          setUser(profile);
+        } catch (err) {
+          console.error('Failed to load profile:', err);
+        }
       }
+      clearTimeout(timeout);
+      setLoading(false);
+    }).catch(err => {
+      console.error('getSession failed:', err);
+      clearTimeout(timeout);
       setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_, session) => {
         if (session?.user) {
-          const profile = await loadProfile(session.user);
-          setUser(profile);
+          try {
+            const profile = await loadProfile(session.user);
+            setUser(profile);
+          } catch (err) {
+            console.error('Failed to load profile:', err);
+          }
         } else {
           setUser(null);
         }
@@ -61,7 +77,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
