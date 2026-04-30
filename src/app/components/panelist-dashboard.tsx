@@ -3,33 +3,31 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { useAuth } from '../contexts/auth-context';
-import { MOCK_PRODUCTS, MOCK_RESPONSES, Product } from '../data/mock-users';
+import { type Product, type QuestionnaireResponse } from '../data/mock-users';
+import { fetchActiveProducts, fetchUserResponses } from '../lib/database';
 import { CheckCircle2, Clock, ClipboardList, Edit2, Layers } from 'lucide-react';
 import { Link } from 'react-router';
 
 export function PanelistDashboard() {
   const { user } = useAuth();
-  const [completedProducts, setCompletedProducts] = useState<string[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [userResponses, setUserResponses] = useState<QuestionnaireResponse[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Load completed questionnaires from localStorage (both single and multi-sample)
-    const singleCompleted = JSON.parse(localStorage.getItem(`completed_${user?.id}`) || '[]');
-    const multiCompleted = JSON.parse(localStorage.getItem(`completed_multi_${user?.id}`) || '[]');
-    const allCompleted = [...singleCompleted, ...multiCompleted];
-
-    if (allCompleted.length > 0) {
-      setCompletedProducts(allCompleted);
-    } else {
-      // Pre-populate with mock data
-      const userResponses = MOCK_RESPONSES.filter(r => r.userId === user?.id);
-      const completed = userResponses.map(r => r.productId);
-      setCompletedProducts(completed);
-    }
+    if (!user?.id) return;
+    Promise.all([fetchActiveProducts(), fetchUserResponses(user.id)])
+      .then(([prods, responses]) => {
+        setProducts(prods);
+        setUserResponses(responses);
+        setLoading(false);
+      })
+      .catch(console.error);
   }, [user?.id]);
 
-  const activeProducts = MOCK_PRODUCTS.filter(p => p.status === 'active');
-  const availableProducts = activeProducts.filter(p => !completedProducts.includes(p.id));
-  const completedProductsList = activeProducts.filter(p => completedProducts.includes(p.id));
+  const completedProductIds = userResponses.map(r => r.productId);
+  const availableProducts = products.filter(p => !completedProductIds.includes(p.id));
+  const completedProductsList = products.filter(p => completedProductIds.includes(p.id));
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -50,13 +48,13 @@ export function PanelistDashboard() {
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-3xl font-bold text-emerald-600">{completedProducts.length}</div>
+            <div className="text-3xl font-bold text-emerald-600">{completedProductIds.length}</div>
             <div className="text-sm text-slate-600 mt-1">Completed</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-3xl font-bold text-purple-600">{activeProducts.length}</div>
+            <div className="text-3xl font-bold text-purple-600">{products.length}</div>
             <div className="text-sm text-slate-600 mt-1">Total Active Products</div>
           </CardContent>
         </Card>
@@ -152,7 +150,7 @@ export function PanelistDashboard() {
           </h2>
           <div className="grid gap-4">
             {completedProductsList.map(product => {
-              const response = MOCK_RESPONSES.find(r => r.userId === user?.id && r.productId === product.id);
+              const response = userResponses.find(r => r.productId === product.id);
               return (
                 <Card key={product.id} className={`border-2 ${
                   product.isMultiSample
@@ -233,7 +231,13 @@ export function PanelistDashboard() {
       )}
 
       {/* Empty State */}
-      {availableProducts.length === 0 && completedProductsList.length === 0 && (
+      {loading && (
+        <Card className="bg-slate-50">
+          <CardContent className="pt-12 pb-12 text-center text-slate-500">Loading questionnaires…</CardContent>
+        </Card>
+      )}
+
+      {!loading && availableProducts.length === 0 && completedProductsList.length === 0 && (
         <Card className="bg-slate-50">
           <CardContent className="pt-12 pb-12 text-center">
             <ClipboardList className="size-16 text-slate-400 mx-auto mb-4" />

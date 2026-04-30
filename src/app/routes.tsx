@@ -20,35 +20,21 @@ export const router = createBrowserRouter([
     path: "/",
     Component: MainLayout,
     children: [
-      // Overview: developer + admin only (panelists are redirected by MainLayout)
+      // Admin: all research + configuration views
       {
-        element: <ProtectedRoute allowedRoles={['developer', 'admin']} />,
+        element: <ProtectedRoute allowedRoles={['admin']} />,
         children: [
           { index: true, Component: OverviewDashboard },
-        ],
-      },
-
-      // Developer + admin: research and analysis routes
-      {
-        element: <ProtectedRoute allowedRoles={['developer', 'admin']} />,
-        children: [
           { path: "stage1", Component: Stage1Instrumental },
           { path: "stage2", Component: Stage2SemiTrained },
           { path: "survey-analysis", Component: SurveyAnalysis },
           { path: "decision", Component: Stage4Enhanced },
           { path: "dairy-comparison", Component: DairyComparison },
-        ],
-      },
-
-      // Admin-only: configuration
-      {
-        element: <ProtectedRoute allowedRoles={['admin']} />,
-        children: [
           { path: "admin", Component: AdminConfig },
         ],
       },
 
-      // Panelist-only: dashboard
+      // Panelist: dashboard only
       {
         element: <ProtectedRoute allowedRoles={['panelist']} />,
         children: [
@@ -56,7 +42,7 @@ export const router = createBrowserRouter([
         ],
       },
 
-      // Questionnaire routes: accessible to all authenticated roles
+      // All authenticated roles: questionnaire routes
       { path: "questionnaire-info/:productId", Component: QuestionnaireDescription },
       { path: "questionnaire/:productId", Component: QuestionnaireForm },
       { path: "multi-sample-info/:productId", Component: MultiSampleDescription },

@@ -5,7 +5,8 @@ import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
 import { useAuth } from '../contexts/auth-context';
-import { MOCK_PRODUCTS, DEFAULT_CATA_ATTRIBUTES, INTENSITY_ATTRIBUTES, ESSENSE25_EMOTIONS } from '../data/mock-users';
+import { DEFAULT_CATA_ATTRIBUTES, INTENSITY_ATTRIBUTES, ESSENSE25_EMOTIONS, type Product } from '../data/mock-users';
+import { fetchProduct, fetchUserResponse, upsertResponse } from '../lib/database';
 import { CATA_DEFINITIONS, INTENSITY_DEFINITIONS, HEDONIC_DEFINITIONS, EMOTION_DEFINITIONS } from '../data/attribute-definitions';
 import { AlertCircle, CheckCircle2, ChevronRight, Download } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
@@ -34,8 +35,13 @@ export function MultiSampleQuestionnaire() {
   const navigate = useNavigate();
   const { user } = useAuth();
   
-  const product = MOCK_PRODUCTS.find(p => p.id === productId);
-  
+  const [product, setProduct] = useState<Product | null>(null);
+
+  useEffect(() => {
+    if (!productId) return;
+    fetchProduct(productId).then(setProduct).catch(console.error);
+  }, [productId]);
+
   // Multi-sample flow state
   const [currentStep, setCurrentStep] = useState<Step>('intro');
   const [currentSampleIndex, setCurrentSampleIndex] = useState(0);
@@ -72,11 +78,10 @@ export function MultiSampleQuestionnaire() {
   const cataAttributes = product?.customAttributes || DEFAULT_CATA_ATTRIBUTES;
 
   useEffect(() => {
-    const completedKey = `completed_multi_${user?.id}`;
-    const completed = JSON.parse(localStorage.getItem(completedKey) || '[]');
-    if (completed.includes(productId)) {
-      setAlreadyCompleted(true);
-    }
+    if (!user?.id || !productId) return;
+    fetchUserResponse(user.id, productId).then(existing => {
+      if (existing) setAlreadyCompleted(true);
+    });
   }, [productId, user?.id]);
 
   const handleCataToggle = (attr: string) => {
@@ -156,33 +161,22 @@ export function MultiSampleQuestionnaire() {
     setCurrentStep('confirmation');
   };
 
-  const handleFinalSubmit = () => {
-    const fullResponse = {
-      id: `multi_r_${Date.now()}`,
-      userId: user?.id,
-      productId,
-      timestamp: new Date().toISOString(),
-      samples: sampleResponses,
-      differentSample,
-      ranking,
-      sessionType: '3-sample-sequential'
-    };
-
-    // Save to localStorage
-    const responsesKey = 'questionnaire_responses';
-    const existingResponses = JSON.parse(localStorage.getItem(responsesKey) || '[]');
-    localStorage.setItem(responsesKey, JSON.stringify([...existingResponses, fullResponse]));
-
-    // Mark as completed
-    const completedKey = `completed_multi_${user?.id}`;
-    const completed = JSON.parse(localStorage.getItem(completedKey) || '[]');
-    localStorage.setItem(completedKey, JSON.stringify([...completed, productId]));
-
-    setCurrentStep('submitted');
-    
-    setTimeout(() => {
-      navigate('/panelist');
-    }, 3000);
+  const handleFinalSubmit = async () => {
+    if (!user?.id || !productId) return;
+    try {
+      await upsertResponse({
+        userId: user.id,
+        productId,
+        cataAttributes: sampleResponses.flatMap(s => s.cataAttributes),
+        intensityRatings: sampleResponses[0]?.intensityRatings ?? {},
+        hedonicScores: sampleResponses[0]?.hedonicScores ?? { overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 },
+        emotionalProfile: sampleResponses[0]?.emotions ?? {},
+      });
+      setCurrentStep('submitted');
+      setTimeout(() => navigate('/panelist'), 3000);
+    } catch (err) {
+      console.error('Failed to submit multi-sample response:', err);
+    }
   };
 
   const exportSessionCSV = () => {

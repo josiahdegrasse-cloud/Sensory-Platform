@@ -10,7 +10,8 @@ import {
   Legend, Cell, LineChart, Line
 } from "recharts";
 import { ENHANCED_SENSORY_DATA } from "../data/enhanced-sensory";
-import { MOCK_PRODUCTS, ESSENSE25_EMOTIONS, type QuestionnaireResponse } from "../data/mock-users";
+import { ESSENSE25_EMOTIONS, type QuestionnaireResponse } from "../data/mock-users";
+import { fetchAllResponses, fetchProducts } from "../lib/database";
 import {
   Users, Heart, Smile, Frown, CheckSquare,
   TrendingUp, AlertCircle, Eye, EyeOff, Download, Layers, Target, Trophy
@@ -39,23 +40,21 @@ export function SurveyAnalysis() {
   const [liveAggregations, setLiveAggregations] = useState<LiveAggregation[]>([]);
   const [selectedLiveProductId, setSelectedLiveProductId] = useState('');
 
-  // Load multi-sample responses from localStorage
+  // Load all responses from Supabase once
   useEffect(() => {
-    const responsesKey = 'questionnaire_responses';
-    const allResponses = JSON.parse(localStorage.getItem(responsesKey) || '[]');
-    const multiResponses = allResponses.filter((r: any) => r.sessionType === '3-sample-sequential');
-    setMultiSampleResponses(multiResponses);
-    if (multiResponses.length > 0 && !selectedMultiProduct) {
-      setSelectedMultiProduct(multiResponses[0].productId);
-    }
+    fetchAllResponses().then(allResponses => {
+      const multiResponses = allResponses.filter((r: any) => (r as any).sessionType === '3-sample-sequential');
+      setMultiSampleResponses(multiResponses);
+      if (multiResponses.length > 0 && !selectedMultiProduct) {
+        setSelectedMultiProduct(multiResponses[0].productId);
+      }
+    }).catch(console.error);
   }, []);
 
-  // Load and aggregate single-sample questionnaire responses from localStorage
+  // Load and aggregate single-sample responses from Supabase
   useEffect(() => {
-    const allResponses: QuestionnaireResponse[] = JSON.parse(
-      localStorage.getItem('questionnaire_responses') || '[]'
-    );
-    const singleResponses = allResponses.filter((r: any) => !r.sessionType);
+    fetchAllResponses().then(allResponses => {
+    const singleResponses = allResponses.filter((r: any) => !(r as any).sessionType);
     if (singleResponses.length === 0) return;
 
     const grouped = new Map<string, QuestionnaireResponse[]>();
@@ -66,7 +65,7 @@ export function SurveyAnalysis() {
 
     const aggregations: LiveAggregation[] = [];
     grouped.forEach((resps, productId) => {
-      const product = MOCK_PRODUCTS.find(p => p.id === productId);
+      const product = { name: productId };
       const n = resps.length;
 
       const cata: Record<string, number> = {};
@@ -113,6 +112,7 @@ export function SurveyAnalysis() {
 
     setLiveAggregations(aggregations);
     if (aggregations.length > 0) setSelectedLiveProductId(aggregations[0].productId);
+    }).catch(console.error);
   }, []);
 
   // Get unique food types from samples
@@ -263,7 +263,10 @@ export function SurveyAnalysis() {
   };
 
   // Get multi-sample products
-  const multiSampleProducts = MOCK_PRODUCTS.filter(p => p.isMultiSample);
+  const [multiSampleProducts, setMultiSampleProducts] = useState<import('../data/mock-users').Product[]>([]);
+  useEffect(() => {
+    fetchProducts().then(all => setMultiSampleProducts(all.filter(p => p.isMultiSample))).catch(console.error);
+  }, []);
 
   return (
     <div className="space-y-6">

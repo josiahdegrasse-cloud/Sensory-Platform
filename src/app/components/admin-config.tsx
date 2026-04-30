@@ -5,22 +5,21 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Checkbox } from './ui/checkbox';
-import { MOCK_PRODUCTS, Product, DEFAULT_CATA_ATTRIBUTES } from '../data/mock-users';
+import { type Product, DEFAULT_CATA_ATTRIBUTES } from '../data/mock-users';
+import {
+  fetchProducts, insertProduct, updateProduct,
+  fetchTemplates, insertTemplate, deleteTemplate, type Template,
+} from '../lib/database';
 import { Plus, Settings, Trash2, Save, CheckCircle2, Bookmark, FolderOpen, Layers, ClipboardList } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { useAuth } from '../contexts/auth-context';
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
 
-interface QuestionnaireTemplate {
-  id: string;
-  name: string;
-  attributes: string[];
-  createdDate: string;
-}
+type QuestionnaireTemplate = Template;
 
 export function AdminConfig() {
   const { user } = useAuth();
-  const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [customAttributes, setCustomAttributes] = useState<string[]>([]);
   const [newProductName, setNewProductName] = useState('');
@@ -41,11 +40,7 @@ export function AdminConfig() {
   ]);
 
   useEffect(() => {
-    // Load products from localStorage
-    const saved = localStorage.getItem('issf_products');
-    if (saved) {
-      setProducts(JSON.parse(saved));
-    }
+    fetchProducts().then(setProducts).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -105,28 +100,31 @@ export function AdminConfig() {
     setConfirmationStep('configure');
   };
 
-  const finalizeProductCreation = () => {
+  const finalizeProductCreation = async () => {
     if (!pendingProduct) return;
-
-    const finalProduct = {
-      ...pendingProduct,
-      customAttributes: customAttributes
-    };
-
-    const updatedProducts = [...products, finalProduct];
-    setProducts(updatedProducts);
-    localStorage.setItem('issf_products', JSON.stringify(updatedProducts));
-
-    setNewProductName('');
-    setNewProductCategory('');
-    setShowConfirmation(false);
-    setPendingProduct(null);
-    setConfirmationStep('review');
-    setCustomAttributes([...DEFAULT_CATA_ATTRIBUTES]);
-    setProductType('single');
-    setSamples([{ id: '1', code: '', label: '' }]);
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
+    try {
+      const created = await insertProduct({
+        name: pendingProduct.name,
+        category: pendingProduct.category,
+        status: 'active',
+        customAttributes: customAttributes,
+        isMultiSample: pendingProduct.isMultiSample,
+        samples: pendingProduct.samples,
+      });
+      setProducts(prev => [created, ...prev]);
+      setNewProductName('');
+      setNewProductCategory('');
+      setShowConfirmation(false);
+      setPendingProduct(null);
+      setConfirmationStep('review');
+      setCustomAttributes([...DEFAULT_CATA_ATTRIBUTES]);
+      setProductType('single');
+      setSamples([{ id: '1', code: '', label: '' }]);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (err) {
+      console.error('Failed to create product:', err);
+    }
   };
 
   const cancelCreateProduct = () => {
@@ -138,20 +136,16 @@ export function AdminConfig() {
     setSamples([{ id: '1', code: '', label: '' }]);
   };
 
-  const handleSaveAttributes = () => {
+  const handleSaveAttributes = async () => {
     if (!selectedProduct) return;
-
-    const updatedProducts = products.map(p => 
-      p.id === selectedProduct 
-        ? { ...p, customAttributes: customAttributes }
-        : p
-    );
-
-    setProducts(updatedProducts);
-    localStorage.setItem('issf_products', JSON.stringify(updatedProducts));
-    
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
+    try {
+      const updated = await updateProduct(selectedProduct, { customAttributes });
+      setProducts(prev => prev.map(p => p.id === selectedProduct ? updated : p));
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (err) {
+      console.error('Failed to save attributes:', err);
+    }
   };
 
   const handleToggleAttribute = (attr: string) => {
@@ -172,58 +166,48 @@ export function AdminConfig() {
     setCustomAttributes(prev => prev.filter(a => a !== attr));
   };
 
-  const handleToggleProductStatus = (productId: string) => {
-    const updatedProducts = products.map(p =>
-      p.id === productId
-        ? { ...p, status: p.status === 'active' ? 'completed' : 'active' as 'active' | 'completed' }
-        : p
-    );
-    setProducts(updatedProducts);
-    localStorage.setItem('issf_products', JSON.stringify(updatedProducts));
+  const handleToggleProductStatus = async (productId: string) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    const newStatus: 'active' | 'completed' = product.status === 'active' ? 'completed' : 'active';
+    try {
+      const updated = await updateProduct(productId, { status: newStatus });
+      setProducts(prev => prev.map(p => p.id === productId ? updated : p));
+    } catch (err) {
+      console.error('Failed to update status:', err);
+    }
   };
 
-  const handleSaveTemplate = () => {
+  const handleSaveTemplate = async () => {
     if (!templateName || customAttributes.length === 0) return;
-
-    const newTemplate: QuestionnaireTemplate = {
-      id: `tmpl${Date.now()}`,
-      name: templateName,
-      attributes: customAttributes,
-      createdDate: new Date().toISOString()
-    };
-
-    const updatedTemplates = [...templates, newTemplate];
-    setTemplates(updatedTemplates);
-    localStorage.setItem('issf_templates', JSON.stringify(updatedTemplates));
-
-    setTemplateName('');
-    setShowTemplateSave(false);
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
+    try {
+      const created = await insertTemplate(templateName, customAttributes);
+      setTemplates(prev => [created, ...prev]);
+      setTemplateName('');
+      setShowTemplateSave(false);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (err) {
+      console.error('Failed to save template:', err);
+    }
   };
 
-  const handleLoadTemplate = (templateId: string) => {
+  const handleLoadTemplate = async (templateId: string) => {
     const template = templates.find(t => t.id === templateId);
-    if (template && selectedProduct) {
-      const updatedProducts = products.map(p =>
-        p.id === selectedProduct
-          ? { ...p, customAttributes: template.attributes }
-          : p
-      );
-      setProducts(updatedProducts);
-      localStorage.setItem('issf_products', JSON.stringify(updatedProducts));
+    if (!template || !selectedProduct) return;
+    try {
+      const updated = await updateProduct(selectedProduct, { customAttributes: template.attributes });
+      setProducts(prev => prev.map(p => p.id === selectedProduct ? updated : p));
       setCustomAttributes(template.attributes);
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
+    } catch (err) {
+      console.error('Failed to load template:', err);
     }
   };
 
   useEffect(() => {
-    // Load templates from localStorage
-    const saved = localStorage.getItem('issf_templates');
-    if (saved) {
-      setTemplates(JSON.parse(saved));
-    }
+    fetchTemplates().then(setTemplates).catch(console.error);
   }, []);
 
   return (
@@ -659,15 +643,7 @@ export function AdminConfig() {
                 <Label className="text-sm font-bold text-slate-700">
                   Available Templates ({templates.length})
                 </Label>
-                <div className="flex gap-2">
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => setTemplates([])}
-                  >
-                    Clear All Templates
-                  </Button>
-                </div>
+                <div />
               </div>
               
               <div className="grid grid-cols-3 gap-3 max-h-96 overflow-y-auto p-4 bg-slate-50 rounded-lg border border-slate-200">
@@ -680,11 +656,18 @@ export function AdminConfig() {
                       onClick={() => handleLoadTemplate(template.id)}
                     >
                       <FolderOpen className="size-4 mr-1" />
-                      Load Template
+                      Load
                     </Button>
-                    <Label htmlFor={`template-${template.id}`} className="text-sm cursor-pointer flex-1">
-                      {template.name}
-                    </Label>
+                    <span className="text-sm flex-1">{template.name}</span>
+                    <button
+                      onClick={async () => {
+                        await deleteTemplate(template.id);
+                        setTemplates(prev => prev.filter(t => t.id !== template.id));
+                      }}
+                      className="text-rose-500 hover:text-rose-700"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
                   </div>
                 ))}
               </div>

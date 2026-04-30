@@ -1,7 +1,7 @@
 import { Navigate, Outlet } from 'react-router';
 import { useAuth } from '../contexts/auth-context';
 
-type Role = 'panelist' | 'developer' | 'admin';
+type Role = 'panelist' | 'admin';
 
 export function ProtectedRoute({ allowedRoles }: { allowedRoles: Role[] }) {
   const { user } = useAuth();

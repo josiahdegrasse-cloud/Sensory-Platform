@@ -2,7 +2,9 @@ import { useParams, useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { useAuth } from '../contexts/auth-context';
-import { MOCK_PRODUCTS } from '../data/mock-users';
+import { type Product } from '../data/mock-users';
+import { fetchProduct } from '../lib/database';
+import { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle2, Clock, Layers, Target, Trophy } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
@@ -12,7 +14,14 @@ export function MultiSampleDescription() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const product = MOCK_PRODUCTS.find(p => p.id === productId);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    if (!productId) return;
+    fetchProduct(productId).then(p => { setProduct(p); setLoading(false); }).catch(() => setLoading(false));
+  }, [productId]);
+
+  if (loading) return <div className="max-w-4xl mx-auto p-8 text-slate-500">Loading…</div>;
 
   if (!product) {
     return (

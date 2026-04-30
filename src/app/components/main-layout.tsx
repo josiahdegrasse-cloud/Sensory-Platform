@@ -7,15 +7,14 @@ export function MainLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  
+
   const isActive = (path: string) => {
     if (path === "/" && location.pathname === "/") return true;
     if (path !== "/" && location.pathname.startsWith(path)) return true;
     return false;
   };
 
-  // Role-based navigation
-  const getDeveloperNavItems = () => [
+  const getAdminNavItems = () => [
     { path: "/", label: "Overview", icon: null },
     { path: "/stage1", label: "Machine Testing", icon: FlaskConical },
     { path: "/stage2", label: "Panelist Forms", icon: Users },
@@ -29,36 +28,21 @@ export function MainLayout() {
     { path: "/panelist", label: "My Questionnaires", icon: ClipboardList },
   ];
 
-  const getAdminNavItems = () => [
-    { path: "/stage1", label: "Machine Testing", icon: FlaskConical },
-    { path: "/survey-analysis", label: "Analyze Results", icon: BarChart3 },
-    { path: "/decision", label: "Final Decision", icon: GitMerge },
-    { path: "/admin", label: "Configure Products", icon: Settings },
-  ];
+  const navItems = user?.role === 'admin' ? getAdminNavItems() : getPanelistNavItems();
 
-  const navItems = 
-    user?.role === 'admin' ? getAdminNavItems() :
-    user?.role === 'developer' ? getDeveloperNavItems() :
-    getPanelistNavItems();
-
-  // Redirect based on role
   useEffect(() => {
     if (user?.role === 'panelist' && location.pathname === '/') {
       navigate('/panelist');
     }
-    if (user?.role === 'admin' && location.pathname === '/') {
-      navigate('/stage1');
-    }
   }, [user, location.pathname, navigate]);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/');
   };
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
@@ -70,8 +54,7 @@ export function MainLayout() {
               <div className="text-right">
                 <div className="text-sm font-bold text-slate-900">{user?.name}</div>
                 <div className="text-xs text-slate-500">
-                  {user?.role === 'panelist' ? `Panelist ${user?.panelistId}` : 
-                   user?.role === 'admin' ? 'Administrator' : user?.role}
+                  {user?.role === 'panelist' ? `Panelist ${user?.panelistId ?? ''}` : 'Administrator'}
                 </div>
               </div>
               <button
@@ -86,7 +69,6 @@ export function MainLayout() {
         </div>
       </header>
 
-      {/* Navigation */}
       <nav className="bg-slate-800">
         <div className="max-w-[1600px] mx-auto px-6">
           <div className="flex items-center gap-1">
@@ -112,7 +94,6 @@ export function MainLayout() {
         </div>
       </nav>
 
-      {/* Main Content */}
       <main className="max-w-[1600px] mx-auto px-6 py-8">
         <Outlet />
       </main>

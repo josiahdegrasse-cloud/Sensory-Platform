@@ -6,7 +6,8 @@ import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
 import { Progress } from './ui/progress';
 import { useAuth } from '../contexts/auth-context';
-import { MOCK_PRODUCTS, DEFAULT_CATA_ATTRIBUTES, INTENSITY_ATTRIBUTES, ESSENSE25_EMOTIONS } from '../data/mock-users';
+import { DEFAULT_CATA_ATTRIBUTES, INTENSITY_ATTRIBUTES, ESSENSE25_EMOTIONS, type Product } from '../data/mock-users';
+import { fetchProduct, fetchUserResponse, upsertResponse } from '../lib/database';
 import { CATA_DEFINITIONS, INTENSITY_DEFINITIONS, HEDONIC_DEFINITIONS, EMOTION_DEFINITIONS } from '../data/attribute-definitions';
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Edit2 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
@@ -30,7 +31,8 @@ export function QuestionnaireForm() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const product = MOCK_PRODUCTS.find(p => p.id === productId);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [productLoading, setProductLoading] = useState(true);
   const [currentStep, setCurrentStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
   const [alreadyCompleted, setAlreadyCompleted] = useState(false);
@@ -53,36 +55,28 @@ export function QuestionnaireForm() {
   const cataAttributes = product?.customAttributes || DEFAULT_CATA_ATTRIBUTES;
   const totalSteps = 5;
 
+  // Load product from Supabase
   useEffect(() => {
-    // Check if already completed and load existing response
-    const completedKey = `completed_${user?.id}`;
-    const completed = JSON.parse(localStorage.getItem(completedKey) || '[]');
+    if (!productId) return;
+    fetchProduct(productId)
+      .then(p => { setProduct(p); setProductLoading(false); })
+      .catch(() => setProductLoading(false));
+  }, [productId]);
 
-    if (completed.includes(productId)) {
-      // Load existing response for potential editing
-      const responsesKey = 'questionnaire_responses';
-      const allResponses = JSON.parse(localStorage.getItem(responsesKey) || '[]');
-      const existingResponse = allResponses.find(
-        (r: any) => r.userId === user?.id && r.productId === productId
-      );
-
-      if (existingResponse) {
-        setExistingResponseId(existingResponse.id);
-        setFormData({
-          selectedCata: existingResponse.cataAttributes || [],
-          intensityRatings: existingResponse.intensityRatings || {},
-          hedonicScores: existingResponse.hedonicScores || {
-            overall: 5,
-            appearance: 5,
-            aroma: 5,
-            flavor: 5,
-            texture: 5
-          },
-          emotions: existingResponse.emotionalProfile || {}
-        });
-      }
+  // Load existing response if any
+  useEffect(() => {
+    if (!user?.id || !productId) return;
+    fetchUserResponse(user.id, productId).then(existing => {
+      if (!existing) return;
+      setExistingResponseId(existing.id);
+      setFormData({
+        selectedCata: existing.cataAttributes || [],
+        intensityRatings: existing.intensityRatings || {},
+        hedonicScores: existing.hedonicScores || { overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 },
+        emotions: existing.emotionalProfile || {},
+      });
       setAlreadyCompleted(true);
-    }
+    });
   }, [productId, user?.id]);
 
   const handleCataToggle = (attr: string) => {
@@ -129,52 +123,33 @@ export function QuestionnaireForm() {
     }
   };
 
-  const handleSubmit = () => {
-    const response = {
-      id: existingResponseId || `r_${Date.now()}`,
-      userId: user?.id,
-      productId,
-      timestamp: new Date().toISOString(),
-      cataAttributes: formData.selectedCata,
-      intensityRatings: formData.intensityRatings,
-      hedonicScores: formData.hedonicScores,
-      emotionalProfile: formData.emotions
-    };
-
-    // Save or update response
-    const responsesKey = 'questionnaire_responses';
-    const existingResponses = JSON.parse(localStorage.getItem(responsesKey) || '[]');
-
-    if (existingResponseId) {
-      // Update existing response
-      const updatedResponses = existingResponses.map((r: any) =>
-        r.id === existingResponseId ? response : r
-      );
-      localStorage.setItem(responsesKey, JSON.stringify(updatedResponses));
-    } else {
-      // Add new response
-      localStorage.setItem(responsesKey, JSON.stringify([...existingResponses, response]));
+  const handleSubmit = async () => {
+    if (!user?.id || !productId) return;
+    try {
+      const saved = await upsertResponse({
+        userId: user.id,
+        productId,
+        cataAttributes: formData.selectedCata,
+        intensityRatings: formData.intensityRatings,
+        hedonicScores: formData.hedonicScores,
+        emotionalProfile: formData.emotions,
+      });
+      setExistingResponseId(saved.id);
+      setSubmitted(true);
+      setTimeout(() => navigate('/panelist'), 3000);
+    } catch (err) {
+      console.error('Failed to submit response:', err);
     }
-
-    // Mark as completed
-    const completedKey = `completed_${user?.id}`;
-    const completed = JSON.parse(localStorage.getItem(completedKey) || '[]');
-    if (!completed.includes(productId)) {
-      localStorage.setItem(completedKey, JSON.stringify([...completed, productId]));
-    }
-
-    setSubmitted(true);
-
-    // Redirect after 3 seconds
-    setTimeout(() => {
-      navigate('/panelist');
-    }, 3000);
   };
 
   const jumpToStep = (step: number) => {
     setCurrentStep(step);
     window.scrollTo(0, 0);
   };
+
+  if (productLoading) {
+    return <div className="max-w-4xl mx-auto p-8 text-slate-500">Loading…</div>;
+  }
 
   if (!product) {
     return (
