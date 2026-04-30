@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { ENHANCED_SENSORY_DATA } from "../data/enhanced-sensory";
 import { ESSENSE25_EMOTIONS, type QuestionnaireResponse } from "../data/mock-users";
+import { getSampleColor, SAMPLE_TYPE_LEGEND } from "../utils/sample-colors";
 import { fetchAllResponses, fetchProducts } from "../lib/database";
 import {
   Users, Heart, Smile, Frown, CheckSquare,
@@ -36,25 +37,20 @@ export function SurveyAnalysis() {
   const [analysisType, setAnalysisType] = useState<'single' | 'multi'>('single');
   const [multiSampleResponses, setMultiSampleResponses] = useState<any[]>([]);
   const [selectedMultiProduct, setSelectedMultiProduct] = useState<string>('');
-  const [dataMode, setDataMode] = useState<'reference' | 'live'>('reference');
   const [liveAggregations, setLiveAggregations] = useState<LiveAggregation[]>([]);
-  const [selectedLiveProductId, setSelectedLiveProductId] = useState('');
 
-  // Load all responses from Supabase once
+  // Single fetch — split into multi-sample responses and single-sample aggregations
   useEffect(() => {
     fetchAllResponses().then(allResponses => {
+      // Multi-sample
       const multiResponses = allResponses.filter((r: any) => (r as any).sessionType === '3-sample-sequential');
       setMultiSampleResponses(multiResponses);
       if (multiResponses.length > 0 && !selectedMultiProduct) {
         setSelectedMultiProduct(multiResponses[0].productId);
       }
-    }).catch(console.error);
-  }, []);
 
-  // Load and aggregate single-sample responses from Supabase
-  useEffect(() => {
-    fetchAllResponses().then(allResponses => {
-    const singleResponses = allResponses.filter((r: any) => !(r as any).sessionType);
+      // Single-sample aggregation
+      const singleResponses = allResponses.filter((r: any) => !(r as any).sessionType);
     if (singleResponses.length === 0) return;
 
     const grouped = new Map<string, QuestionnaireResponse[]>();
@@ -110,8 +106,7 @@ export function SurveyAnalysis() {
       });
     });
 
-    setLiveAggregations(aggregations);
-    if (aggregations.length > 0) setSelectedLiveProductId(aggregations[0].productId);
+      setLiveAggregations(aggregations);
     }).catch(console.error);
   }, []);
 
@@ -181,22 +176,25 @@ export function SurveyAnalysis() {
   const topCataCount = cataAttributes.length > 0 ? cataAttributes[0].count : 0;
   const emotionalBalance = (selectedData.emotions.positive - selectedData.emotions.negative).toFixed(1);
 
-  // Unified display vars — switch between reference (static) and live (localStorage) data
-  const selectedLiveData = liveAggregations.find(a => a.productId === selectedLiveProductId);
+  // Auto-match: if panelists have submitted responses for this exact product name, use that data
+  const matchingLiveData = liveAggregations.find(
+    a => a.productName.toLowerCase() === selectedData.sampleName.toLowerCase()
+  );
+  const usingLiveData = !!matchingLiveData;
 
-  const activeCataAttributes = dataMode === 'live' && selectedLiveData
-    ? Object.entries(selectedLiveData.cata)
+  const activeCataAttributes = matchingLiveData
+    ? Object.entries(matchingLiveData.cata)
         .map(([attr, count]) => ({
           id: `cata-${attr}`,
           attribute: attr,
           count,
-          percentage: (count / selectedLiveData.n) * 100,
+          percentage: (count / matchingLiveData.n) * 100,
         }))
         .sort((a, b) => b.count - a.count)
     : cataAttributes;
 
-  const activeIntensityData = dataMode === 'live' && selectedLiveData
-    ? Object.entries(selectedLiveData.intensity).map(([key, value]) => ({
+  const activeIntensityData = matchingLiveData
+    ? Object.entries(matchingLiveData.intensity).map(([key, value]) => ({
         id: `intensity-${key}`,
         attribute: key,
         value: Number(value),
@@ -204,28 +202,25 @@ export function SurveyAnalysis() {
       }))
     : intensityData;
 
-  const activeHedonicData = dataMode === 'live' && selectedLiveData
+  const activeHedonicData = matchingLiveData
     ? [
-        { id: 'hedonic-overall',     category: 'Overall',    score: selectedLiveData.hedonic['overall'] ?? 0 },
-        { id: 'hedonic-appearance',  category: 'Appearance', score: selectedLiveData.hedonic['appearance'] ?? 0 },
-        { id: 'hedonic-aroma',       category: 'Aroma',      score: selectedLiveData.hedonic['aroma'] ?? 0 },
-        { id: 'hedonic-flavor',      category: 'Flavour',    score: selectedLiveData.hedonic['flavor'] ?? 0 },
-        { id: 'hedonic-texture',     category: 'Texture',    score: selectedLiveData.hedonic['texture'] ?? 0 },
+        { id: 'hedonic-overall',    category: 'Overall',    score: matchingLiveData.hedonic['overall'] ?? 0 },
+        { id: 'hedonic-appearance', category: 'Appearance', score: matchingLiveData.hedonic['appearance'] ?? 0 },
+        { id: 'hedonic-aroma',      category: 'Aroma',      score: matchingLiveData.hedonic['aroma'] ?? 0 },
+        { id: 'hedonic-flavor',     category: 'Flavour',    score: matchingLiveData.hedonic['flavor'] ?? 0 },
+        { id: 'hedonic-texture',    category: 'Texture',    score: matchingLiveData.hedonic['texture'] ?? 0 },
       ]
     : hedonicData;
 
-  const activeEmotions = dataMode === 'live' && selectedLiveData
-    ? selectedLiveData.emotions
-    : selectedData.emotions;
-
-  const activePanelistN = dataMode === 'live' && selectedLiveData ? selectedLiveData.n : RESEARCH_PANEL_N;
-  const activeSampleId  = dataMode === 'live' && selectedLiveData ? selectedLiveData.productId : selectedData.sampleId;
+  const activeEmotions    = matchingLiveData ? matchingLiveData.emotions : selectedData.emotions;
+  const activePanelistN   = matchingLiveData ? matchingLiveData.n : RESEARCH_PANEL_N;
+  const activeSampleId    = selectedData.sampleId;
 
   const activeAvgHedonic = (activeHedonicData.reduce((s, d) => s + d.score, 0) / activeHedonicData.length).toFixed(1);
   const activeAvgIntensity = activeIntensityData.length > 0
     ? (activeIntensityData.reduce((s, d) => s + d.value, 0) / activeIntensityData.length).toFixed(1)
     : '0.0';
-  const activeTopCataCount    = activeCataAttributes.length > 0 ? activeCataAttributes[0].count : 0;
+  const activeTopCataCount     = activeCataAttributes.length > 0 ? activeCataAttributes[0].count : 0;
   const activeEmotionalBalance = (activeEmotions.positive - activeEmotions.negative).toFixed(1);
 
   const exportSampleCSV = () => {
@@ -275,7 +270,7 @@ export function SurveyAnalysis() {
           <h1 className="text-3xl font-bold text-slate-900">Survey Data Analysis</h1>
           <p className="text-slate-600 mt-2">
             {analysisType === 'single'
-              ? `${dataMode === 'live' ? 'Live panel responses' : 'Reference panel data'} (n=${activePanelistN}) — CATA, Intensity, Hedonic, Emotional`
+              ? `${usingLiveData ? 'Live panel responses' : 'E-Tongue + GC-MS + Semi-trained Panel'} (n=${activePanelistN}) — CATA, Intensity, Hedonic, Emotional`
               : 'Multi-sample comparative evaluations - Discrimination, Ranking, Preferences'}
           </p>
         </div>
@@ -343,58 +338,12 @@ export function SurveyAnalysis() {
         </button>
       </div>
 
-      {analysisType === 'single' && liveAggregations.length > 0 && (
-        <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-lg border-2 border-emerald-300">
-          <div className="flex-1">
-            <div className="text-sm font-bold text-emerald-900">
-              Live Panel Data Available ({liveAggregations.reduce((s, a) => s + a.n, 0)} responses across {liveAggregations.length} product{liveAggregations.length > 1 ? 's' : ''})
-            </div>
-            <div className="text-xs text-emerald-700 mt-0.5">
-              Switch to view aggregated results from actual panelist submissions
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setDataMode('reference')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border-2 ${
-                dataMode === 'reference'
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-slate-700 border-slate-300 hover:border-blue-400'
-              }`}
-            >
-              Reference Data (n={RESEARCH_PANEL_N})
-            </button>
-            <button
-              onClick={() => setDataMode('live')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border-2 ${
-                dataMode === 'live'
-                  ? 'bg-emerald-600 text-white border-emerald-600'
-                  : 'bg-white text-slate-700 border-slate-300 hover:border-emerald-400'
-              }`}
-            >
-              Live Panel Data
-            </button>
-          </div>
-        </div>
-      )}
-
-      {analysisType === 'single' && dataMode === 'live' && liveAggregations.length > 0 && (
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-sm font-semibold text-slate-700">Product:</span>
-          {liveAggregations.map(agg => (
-            <button
-              key={agg.productId}
-              onClick={() => setSelectedLiveProductId(agg.productId)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border-2 ${
-                selectedLiveProductId === agg.productId
-                  ? 'bg-emerald-600 text-white border-emerald-600'
-                  : 'bg-white text-slate-700 border-slate-200 hover:border-emerald-400'
-              }`}
-            >
-              {agg.productName}
-              <span className="ml-1.5 text-xs opacity-75">(n={agg.n})</span>
-            </button>
-          ))}
+      {analysisType === 'single' && usingLiveData && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-300 rounded-lg text-sm">
+          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-emerald-800 font-medium">
+            Showing live panel responses for <strong>{selectedData.sampleName}</strong> (n={matchingLiveData?.n})
+          </span>
         </div>
       )}
 
@@ -427,22 +376,26 @@ export function SurveyAnalysis() {
         </CardHeader>
         <CardContent className="pt-4">
           <div className="grid grid-cols-7 gap-2">
-            {filteredSamples.map(sample => (
-              <button
-                key={sample.sampleId}
-                onClick={() => setSelectedSample(sample.sampleId)}
-                className={`p-3 rounded-lg border-2 transition-all text-center ${
-                  selectedSample === sample.sampleId
-                    ? "border-blue-600 bg-blue-50"
-                    : "border-slate-200 hover:border-blue-300"
-                }`}
-              >
-                <div className="font-bold text-slate-900 text-sm">{sample.sampleName}</div>
-                <div className="text-xs text-slate-600 mt-1">
-                  {sample.hedonic.overall.toFixed(1)}/9
-                </div>
-              </button>
-            ))}
+            {filteredSamples.map(sample => {
+              const typeColor = getSampleColor(sample.sampleName);
+              const isSelected = selectedSample === sample.sampleId;
+              return (
+                <button
+                  key={sample.sampleId}
+                  onClick={() => setSelectedSample(sample.sampleId)}
+                  className="p-3 rounded-lg border-2 transition-all text-center"
+                  style={{
+                    borderColor: isSelected ? typeColor : '#e2e8f0',
+                    backgroundColor: isSelected ? `${typeColor}18` : 'white',
+                  }}
+                >
+                  <div className="font-bold text-slate-900 text-xs leading-tight">{sample.sampleName}</div>
+                  <div className="text-xs mt-1 font-semibold" style={{ color: typeColor }}>
+                    {sample.hedonic.overall.toFixed(1)}/9
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
@@ -525,7 +478,7 @@ export function SurveyAnalysis() {
                   Check-All-That-Apply (CATA) Results
                 </CardTitle>
                 <p className="text-sm text-slate-600">
-                  Frequency of attribute selection across {activePanelistN} {dataMode === 'live' ? 'panelists' : 'semi-trained panelists'}
+                  Frequency of attribute selection across {activePanelistN} {usingLiveData ? 'panelists (live)' : 'semi-trained panelists'}
                 </p>
               </CardHeader>
               <CardContent>
@@ -610,7 +563,7 @@ export function SurveyAnalysis() {
                   Sensory Intensity Ratings (0-10 scale)
                 </CardTitle>
                 <p className="text-sm text-slate-600">
-                  Mean intensity scores from {activePanelistN} {dataMode === 'live' ? 'panelists' : 'semi-trained panelists'}
+                  Mean intensity scores from {activePanelistN} {usingLiveData ? 'panelists (live)' : 'semi-trained panelists'}
                 </p>
               </CardHeader>
               <CardContent>
@@ -852,20 +805,30 @@ export function SurveyAnalysis() {
               </LineChart>
             </ResponsiveContainer>
 
-            <div className="mt-6 grid grid-cols-7 gap-3">
+            {/* Color legend */}
+            <div className="mt-4 flex flex-wrap gap-3 px-1">
+              {SAMPLE_TYPE_LEGEND.map(({ label, color }) => (
+                <div key={label} className="flex items-center gap-1.5 text-xs text-slate-600">
+                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                  {label}
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 grid grid-cols-7 gap-3">
               {ENHANCED_SENSORY_DATA.map(sample => {
-                const avgScore = (sample.hedonic.overall + sample.hedonic.flavour + 
+                const avgScore = (sample.hedonic.overall + sample.hedonic.flavour +
                                  sample.hedonic.texture + sample.hedonic.appearance) / 4;
-                const color = avgScore >= 7 ? "emerald" : avgScore >= 5 ? "amber" : "rose";
-                
+                const typeColor = getSampleColor(sample.sampleName);
                 return (
-                  <div 
+                  <div
                     key={sample.sampleId}
-                    className={`p-3 bg-${color}-50 rounded-lg border border-${color}-200 text-center`}
+                    className="p-3 rounded-lg border-2 text-center"
+                    style={{ borderColor: typeColor, backgroundColor: `${typeColor}18` }}
                   >
-                    <div className="font-bold text-slate-900 text-sm mb-1">{sample.sampleName}</div>
-                    <div className={`text-2xl font-bold text-${color}-900`}>{avgScore.toFixed(1)}</div>
-                    <div className="text-xs text-slate-600 mt-1">Avg Hedonic</div>
+                    <div className="font-bold text-slate-900 text-xs mb-1 leading-tight">{sample.sampleName}</div>
+                    <div className="text-2xl font-bold mt-1" style={{ color: typeColor }}>{avgScore.toFixed(1)}</div>
+                    <div className="text-xs text-slate-500 mt-1">/ 9</div>
                   </div>
                 );
               })}

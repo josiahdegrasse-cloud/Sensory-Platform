@@ -86,7 +86,7 @@ export interface EnhancedSensoryProfile {
 export const ENHANCED_SENSORY_DATA: EnhancedSensoryProfile[] = [
   {
     sampleId: "S1",
-    sampleName: "Sample 1",
+    sampleName: "Coconut Cheddar v2.1",
     taste: { sourness: 2.3, bitterness: 3.1, astringency: 2.8, umami: 2.8, saltiness: 4.2, sweetness: 1.5, astringencyAftertaste: 2.4, umamiAftertaste: 3.1, bitternessAftertaste: 2.9, richness: 5.2 },
     composition: { salt: 1.8, fat: 24.5, protein: 8.2, starchDryMatter: 12.3 },
     gcmsOlfactometry: [
@@ -103,7 +103,7 @@ export const ENHANCED_SENSORY_DATA: EnhancedSensoryProfile[] = [
   },
   {
     sampleId: "S2",
-    sampleName: "Sample 2",
+    sampleName: "Cashew Mozzarella v1.2",
     taste: { sourness: 2.8, bitterness: 3.4, astringency: 3.1, umami: 3.1, saltiness: 3.9, sweetness: 1.3, astringencyAftertaste: 2.8, umamiAftertaste: 3.4, bitternessAftertaste: 3.2, richness: 4.8 },
     composition: { salt: 1.6, fat: 22.8, protein: 7.9, starchDryMatter: 11.7 },
     gcmsOlfactometry: [
@@ -120,7 +120,7 @@ export const ENHANCED_SENSORY_DATA: EnhancedSensoryProfile[] = [
   },
   {
     sampleId: "S3",
-    sampleName: "Sample 3",
+    sampleName: "Oat-Based Brie v1.0",
     taste: { sourness: 4.5, bitterness: 2.9, astringency: 3.6, umami: 2.4, saltiness: 3.6, sweetness: 1.8, astringencyAftertaste: 3.8, umamiAftertaste: 2.1, bitternessAftertaste: 3.4, richness: 3.2 },
     composition: { salt: 1.5, fat: 19.2, protein: 6.8, starchDryMatter: 14.8 },
     gcmsOlfactometry: [
@@ -139,7 +139,7 @@ export const ENHANCED_SENSORY_DATA: EnhancedSensoryProfile[] = [
   },
   {
     sampleId: "S4",
-    sampleName: "Sample 4",
+    sampleName: "Coconut Cheddar v3.0",
     taste: { sourness: 2.1, bitterness: 3.6, astringency: 2.9, umami: 3.3, saltiness: 4.1, sweetness: 1.4, astringencyAftertaste: 2.6, umamiAftertaste: 3.6, bitternessAftertaste: 3.3, richness: 5.4 },
     composition: { salt: 1.9, fat: 25.1, protein: 8.4, starchDryMatter: 11.9 },
     gcmsOlfactometry: [
@@ -156,7 +156,7 @@ export const ENHANCED_SENSORY_DATA: EnhancedSensoryProfile[] = [
   },
   {
     sampleId: "S5",
-    sampleName: "Sample 5",
+    sampleName: "Cashew Cream Cheese v2.0",
     taste: { sourness: 3.2, bitterness: 2.7, astringency: 2.4, umami: 3.8, saltiness: 3.4, sweetness: 2.1, astringencyAftertaste: 2.2, umamiAftertaste: 4.1, bitternessAftertaste: 2.5, richness: 6.1 },
     composition: { salt: 1.7, fat: 26.3, protein: 8.9, starchDryMatter: 10.8 },
     gcmsOlfactometry: [
@@ -174,7 +174,7 @@ export const ENHANCED_SENSORY_DATA: EnhancedSensoryProfile[] = [
   },
   {
     sampleId: "S6",
-    sampleName: "Sample 6",
+    sampleName: "Almond Gouda v1.0",
     taste: { sourness: 3.5, bitterness: 2.9, astringency: 2.6, umami: 3.5, saltiness: 3.6, sweetness: 2.3, astringencyAftertaste: 2.4, umamiAftertaste: 3.8, bitternessAftertaste: 2.7, richness: 5.8 },
     composition: { salt: 1.8, fat: 25.7, protein: 8.6, starchDryMatter: 11.2 },
     gcmsOlfactometry: [
@@ -192,7 +192,7 @@ export const ENHANCED_SENSORY_DATA: EnhancedSensoryProfile[] = [
   },
   {
     sampleId: "S7",
-    sampleName: "Sample 7",
+    sampleName: "Mixed Base Sharp Cheddar",
     taste: { sourness: 3.8, bitterness: 3.2, astringency: 3.4, umami: 3.6, saltiness: 3.3, sweetness: 2.0, astringencyAftertaste: 3.2, umamiAftertaste: 3.9, bitternessAftertaste: 3.0, richness: 5.1 },
     composition: { salt: 1.6, fat: 23.4, protein: 7.8, starchDryMatter: 12.9 },
     gcmsOlfactometry: [
@@ -210,7 +210,7 @@ export const ENHANCED_SENSORY_DATA: EnhancedSensoryProfile[] = [
   },
   {
     sampleId: "S8",
-    sampleName: "Sample 8",
+    sampleName: "Cashew Cream Cheese v2.1",
     taste: { sourness: 3.1, bitterness: 2.5, astringency: 2.3, umami: 4.1, saltiness: 3.7, sweetness: 2.4, astringencyAftertaste: 2.1, umamiAftertaste: 4.4, bitternessAftertaste: 2.3, richness: 6.4 },
     composition: { salt: 1.9, fat: 27.2, protein: 9.1, starchDryMatter: 10.4 },
     gcmsOlfactometry: [
@@ -228,7 +228,7 @@ export const ENHANCED_SENSORY_DATA: EnhancedSensoryProfile[] = [
   },
   {
     sampleId: "S9",
-    sampleName: "Sample 9",
+    sampleName: "Almond Feta v1.5",
     taste: { sourness: 2.9, bitterness: 3.3, astringency: 3.0, umami: 2.9, saltiness: 3.8, sweetness: 1.7, astringencyAftertaste: 2.8, umamiAftertaste: 3.2, bitternessAftertaste: 3.1, richness: 4.9 },
     composition: { salt: 1.7, fat: 23.9, protein: 8.0, starchDryMatter: 12.1 },
     gcmsOlfactometry: [
@@ -245,7 +245,7 @@ export const ENHANCED_SENSORY_DATA: EnhancedSensoryProfile[] = [
   },
   {
     sampleId: "S10",
-    sampleName: "Sample 10",
+    sampleName: "Coconut Parmesan v1.1",
     taste: { sourness: 3.4, bitterness: 3.0, astringency: 2.9, umami: 3.2, saltiness: 3.5, sweetness: 1.9, astringencyAftertaste: 2.7, umamiAftertaste: 3.5, bitternessAftertaste: 2.8, richness: 5.3 },
     composition: { salt: 1.7, fat: 24.6, protein: 8.2, starchDryMatter: 11.8 },
     gcmsOlfactometry: [
@@ -263,7 +263,7 @@ export const ENHANCED_SENSORY_DATA: EnhancedSensoryProfile[] = [
   },
   {
     sampleId: "S11",
-    sampleName: "Sample 11",
+    sampleName: "Mixed Base Gouda v1.0",
     taste: { sourness: 2.6, bitterness: 3.5, astringency: 3.2, umami: 2.7, saltiness: 4.0, sweetness: 1.6, astringencyAftertaste: 3.0, umamiAftertaste: 2.9, bitternessAftertaste: 3.3, richness: 4.7 },
     composition: { salt: 1.8, fat: 22.1, protein: 7.6, starchDryMatter: 13.2 },
     gcmsOlfactometry: [
@@ -280,7 +280,7 @@ export const ENHANCED_SENSORY_DATA: EnhancedSensoryProfile[] = [
   },
   {
     sampleId: "S12",
-    sampleName: "Sample 12",
+    sampleName: "Cashew Cheddar v2.0",
     taste: { sourness: 3.7, bitterness: 2.8, astringency: 2.5, umami: 3.4, saltiness: 3.4, sweetness: 2.2, astringencyAftertaste: 2.3, umamiAftertaste: 3.7, bitternessAftertaste: 2.6, richness: 5.9 },
     composition: { salt: 1.7, fat: 26.8, protein: 8.8, starchDryMatter: 10.9 },
     gcmsOlfactometry: [
