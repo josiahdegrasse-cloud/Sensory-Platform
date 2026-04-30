@@ -20,16 +20,14 @@ export const router = createBrowserRouter([
     path: "/",
     Component: MainLayout,
     children: [
-      // Admin: all research + configuration views
+      // Admin: machine testing, analysis, decision, configuration
       {
         element: <ProtectedRoute allowedRoles={['admin']} />,
         children: [
           { index: true, Component: OverviewDashboard },
           { path: "stage1", Component: Stage1Instrumental },
-          { path: "stage2", Component: Stage2SemiTrained },
           { path: "survey-analysis", Component: SurveyAnalysis },
           { path: "decision", Component: Stage4Enhanced },
-          { path: "dairy-comparison", Component: DairyComparison },
           { path: "admin", Component: AdminConfig },
         ],
       },

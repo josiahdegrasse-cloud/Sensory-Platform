@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
-import { FlaskConical, Users, BarChart3, GitMerge, ClipboardList, Settings, LogOut, ChevronRight } from "lucide-react";
+import { FlaskConical, BarChart3, GitMerge, ClipboardList, Settings, LogOut } from "lucide-react";
 import { useAuth } from "../contexts/auth-context";
 import { useEffect } from "react";
 
@@ -15,12 +15,9 @@ export function MainLayout() {
   };
 
   const getAdminNavItems = () => [
-    { path: "/", label: "Overview", icon: null },
     { path: "/stage1", label: "Machine Testing", icon: FlaskConical },
-    { path: "/stage2", label: "Panelist Forms", icon: Users },
     { path: "/survey-analysis", label: "Analyze Results", icon: BarChart3 },
     { path: "/decision", label: "Final Decision", icon: GitMerge },
-    { path: "/dairy-comparison", label: "Dairy Comparison", icon: ChevronRight },
     { path: "/admin", label: "Configure Products", icon: Settings },
   ];
 
@@ -33,6 +30,9 @@ export function MainLayout() {
   useEffect(() => {
     if (user?.role === 'panelist' && location.pathname === '/') {
       navigate('/panelist');
+    }
+    if (user?.role === 'admin' && location.pathname === '/') {
+      navigate('/stage1');
     }
   }, [user, location.pathname, navigate]);
 
