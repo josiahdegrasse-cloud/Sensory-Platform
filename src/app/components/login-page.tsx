@@ -18,9 +18,9 @@ export function LoginPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const success = await login(email, password);
-    if (!success) {
-      setError('Invalid email or password');
+    const errorMessage = await login(email, password);
+    if (errorMessage) {
+      setError(errorMessage);
     }
     setLoading(false);
   };

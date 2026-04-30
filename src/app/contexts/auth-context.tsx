@@ -12,7 +12,7 @@ export interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<string | null>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
   loading: boolean;
@@ -83,9 +83,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return !error;
+  const login = async (email: string, password: string): Promise<string | null> => {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      return error ? error.message : null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Unknown error';
+    }
   };
 
   const logout = async () => {
