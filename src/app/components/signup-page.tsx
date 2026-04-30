@@ -3,31 +3,61 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { useAuth } from '../contexts/auth-context';
-import { AlertCircle, FlaskConical } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { AlertCircle, CheckCircle2, FlaskConical } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 
 interface Props {
-  onSignup: () => void;
+  onBack: () => void;
 }
 
-export function LoginPage({ onSignup }: Props) {
+export function SignupPage({ onBack }: Props) {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const errorMessage = await login(email, password);
-    if (errorMessage) {
-      setError(errorMessage);
+
+    const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
+
+    if (signUpError) {
+      setError(signUpError.message);
+      setLoading(false);
+      return;
     }
+
+    if (data.user) {
+      await supabase.from('profiles').update({ name }).eq('id', data.user.id);
+    }
+
+    setSuccess(true);
     setLoading(false);
   };
+
+  if (success) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-slate-100 flex items-center justify-center p-6">
+        <div className="max-w-md w-full">
+          <Card className="shadow-2xl">
+            <CardContent className="pt-8 pb-8 text-center space-y-4">
+              <CheckCircle2 className="size-16 text-emerald-600 mx-auto" />
+              <h2 className="text-2xl font-bold text-slate-900">Account Created!</h2>
+              <p className="text-slate-600">Your panelist account is ready. Sign in to get started.</p>
+              <Button onClick={onBack} className="w-full bg-purple-600 hover:bg-purple-700">
+                Sign In
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-slate-100 flex items-center justify-center p-6">
@@ -39,13 +69,24 @@ export function LoginPage({ onSignup }: Props) {
                 <FlaskConical className="size-7 text-white" />
               </div>
               <div>
-                <CardTitle className="text-2xl">ISSF Platform</CardTitle>
-                <p className="text-sm text-slate-600">Sign in to continue</p>
+                <CardTitle className="text-2xl">Create Account</CardTitle>
+                <p className="text-sm text-slate-600">Join as a panelist</p>
               </div>
             </div>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="Your full name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -66,6 +107,7 @@ export function LoginPage({ onSignup }: Props) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  minLength={6}
                 />
               </div>
               {error && (
@@ -79,14 +121,14 @@ export function LoginPage({ onSignup }: Props) {
                 className="w-full bg-purple-600 hover:bg-purple-700"
                 disabled={loading}
               >
-                {loading ? 'Signing in…' : 'Sign In'}
+                {loading ? 'Creating account…' : 'Create Account'}
               </Button>
               <button
                 type="button"
-                onClick={onSignup}
+                onClick={onBack}
                 className="w-full text-sm text-slate-500 hover:text-slate-900"
               >
-                New panelist? Create an account
+                Already have an account? Sign in
               </button>
             </form>
           </CardContent>

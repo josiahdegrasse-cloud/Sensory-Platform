@@ -199,3 +199,40 @@ export async function deleteTemplate(id: string): Promise<void> {
   const { error } = await supabase.from('templates').delete().eq('id', id);
   if (error) throw error;
 }
+
+// ─── Panelists (admin view) ───────────────────────────────────────────────────
+
+export interface PanelistInfo {
+  id: string;
+  name: string;
+  panelistId: string | null;
+  completedCount: number;
+}
+
+export async function fetchPanelists(): Promise<PanelistInfo[]> {
+  const [{ data: profiles }, { data: responses }] = await Promise.all([
+    supabase.from('profiles').select('id, name, panelist_id').eq('role', 'panelist'),
+    supabase.from('responses').select('user_id'),
+  ]);
+
+  const counts: Record<string, number> = {};
+  (responses ?? []).forEach((r: Record<string, unknown>) => {
+    const uid = r.user_id as string;
+    counts[uid] = (counts[uid] || 0) + 1;
+  });
+
+  return (profiles ?? []).map((p: Record<string, unknown>) => ({
+    id: p.id as string,
+    name: (p.name as string) ?? 'Unknown',
+    panelistId: (p.panelist_id as string) ?? null,
+    completedCount: counts[p.id as string] ?? 0,
+  }));
+}
+
+export async function updatePanelistId(userId: string, panelistId: string): Promise<void> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ panelist_id: panelistId })
+    .eq('id', userId);
+  if (error) throw error;
+}

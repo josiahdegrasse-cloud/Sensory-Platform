@@ -9,8 +9,9 @@ import { type Product, DEFAULT_CATA_ATTRIBUTES } from '../data/mock-users';
 import {
   fetchProducts, insertProduct, updateProduct,
   fetchTemplates, insertTemplate, deleteTemplate, type Template,
+  fetchPanelists, updatePanelistId, type PanelistInfo,
 } from '../lib/database';
-import { Plus, Settings, Trash2, Save, CheckCircle2, Bookmark, FolderOpen, Layers, ClipboardList } from 'lucide-react';
+import { Plus, Settings, Trash2, Save, CheckCircle2, Bookmark, FolderOpen, Layers, ClipboardList, Users } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { useAuth } from '../contexts/auth-context';
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
@@ -20,6 +21,9 @@ type QuestionnaireTemplate = Template;
 export function AdminConfig() {
   const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
+  const [panelists, setPanelists] = useState<PanelistInfo[]>([]);
+  const [editingPanelistId, setEditingPanelistId] = useState<string | null>(null);
+  const [panelistIdInput, setPanelistIdInput] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [customAttributes, setCustomAttributes] = useState<string[]>([]);
   const [newProductName, setNewProductName] = useState('');
@@ -41,6 +45,7 @@ export function AdminConfig() {
 
   useEffect(() => {
     fetchProducts().then(setProducts).catch(console.error);
+    fetchPanelists().then(setPanelists).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -219,6 +224,62 @@ export function AdminConfig() {
           ✓ Administrator Access: Full configuration control
         </p>
       </div>
+
+      {/* Panelist Management */}
+      <Card className="border-2 border-blue-300">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="size-5 text-blue-600" />
+            Panelists ({panelists.length})
+          </CardTitle>
+          <p className="text-sm text-slate-600">All registered panelists and their survey completion status</p>
+        </CardHeader>
+        <CardContent>
+          {panelists.length === 0 ? (
+            <p className="text-sm text-slate-500 text-center py-4">No panelists have signed up yet</p>
+          ) : (
+            <div className="space-y-2">
+              {panelists.map(p => (
+                <div key={p.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+                  <div>
+                    <div className="font-medium text-slate-900">{p.name}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      {p.panelistId ? `ID: ${p.panelistId}` : 'No panelist ID set'} · {p.completedCount} survey{p.completedCount !== 1 ? 's' : ''} completed
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {editingPanelistId === p.id ? (
+                      <>
+                        <Input
+                          className="w-28 h-8 text-sm"
+                          placeholder="e.g. P006"
+                          value={panelistIdInput}
+                          onChange={e => setPanelistIdInput(e.target.value)}
+                        />
+                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={async () => {
+                          await updatePanelistId(p.id, panelistIdInput);
+                          setPanelists(prev => prev.map(x => x.id === p.id ? { ...x, panelistId: panelistIdInput } : x));
+                          setEditingPanelistId(null);
+                        }}>
+                          Save
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setEditingPanelistId(null)}>Cancel</Button>
+                      </>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={() => {
+                        setEditingPanelistId(p.id);
+                        setPanelistIdInput(p.panelistId ?? '');
+                      }}>
+                        {p.panelistId ? 'Edit ID' : 'Assign ID'}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {showSuccess && (
         <Alert className="border-emerald-300 bg-emerald-50">
