@@ -21,11 +21,14 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 async function loadProfile(supabaseUser: SupabaseUser): Promise<User | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('profiles')
     .select('*')
     .eq('id', supabaseUser.id)
     .single();
+  if (error) {
+    console.error('loadProfile error:', error.message, error.code);
+  }
   if (!data) return null;
   return {
     id: supabaseUser.id,
