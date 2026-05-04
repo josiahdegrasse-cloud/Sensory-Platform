@@ -81,6 +81,17 @@ export function LoginPage({ onSignup }: Props) {
               >
                 {loading ? 'Signing in…' : 'Sign In'}
               </Button>
+              <div className="border-t border-slate-100 pt-3">
+                <p className="text-xs text-slate-400 text-center mb-2">Demo account</p>
+                <button
+                  type="button"
+                  onClick={() => { setEmail('demo.panelist@issf.com'); setPassword('Demo2024!'); }}
+                  className="w-full px-3 py-2 text-sm bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg transition-colors"
+                >
+                  Fill in Demo Panelist credentials
+                </button>
+              </div>
+
               <button
                 type="button"
                 onClick={onSignup}
