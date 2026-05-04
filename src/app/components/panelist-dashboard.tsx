@@ -131,7 +131,7 @@ export function PanelistDashboard() {
                         : 'bg-blue-600 hover:bg-blue-700'
                     }`}>
                       {product.isMultiSample ? <Layers className="size-5 mr-2" /> : <ClipboardList className="size-5 mr-2" />}
-                      Start Evaluation
+                      {product.isMultiSample ? 'Begin Comparison Study' : 'Begin Product Evaluation'}
                     </Button>
                   </Link>
                 </CardContent>

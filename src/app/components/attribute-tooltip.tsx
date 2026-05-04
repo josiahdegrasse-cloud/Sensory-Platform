@@ -1,4 +1,3 @@
-import { HelpCircle } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -13,13 +12,12 @@ interface AttributeTooltipProps {
 
 export function AttributeTooltip({ term, definition }: AttributeTooltipProps) {
   return (
-    <TooltipProvider delayDuration={200}>
+    <TooltipProvider delayDuration={150}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="inline-flex items-center gap-1 cursor-help">
-            <span>{term}</span>
-            <HelpCircle className="size-3.5 text-slate-400 hover:text-blue-600 transition-colors" />
-          </div>
+          <span className="inline-flex items-center gap-0.5 cursor-help border-b border-dotted border-slate-400 hover:border-blue-500 hover:text-blue-700 transition-colors">
+            {term}
+          </span>
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-xs">
           <p className="text-sm">{definition}</p>
