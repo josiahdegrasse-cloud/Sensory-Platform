@@ -13,6 +13,11 @@ import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Edit2 } from 'luc
 import { Alert, AlertDescription } from './ui/alert';
 import { AttributeTooltip } from './attribute-tooltip';
 
+function sliderFill(value: number, min: number, max: number, color: string): React.CSSProperties {
+  const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
+  return { background: `linear-gradient(to right, ${color} 0%, ${color} ${pct}%, #e2e8f0 ${pct}%, #e2e8f0 100%)` };
+}
+
 type FormData = {
   selectedCata: string[];
   intensityRatings: Record<string, number>;
@@ -46,7 +51,7 @@ export function QuestionnaireForm() {
     selectedCata: [],
     intensityRatings: {},
     hedonicScores: {
-      overall: 5,
+      overall: 3,
       appearance: 5,
       aroma: 5,
       flavor: 5,
@@ -78,7 +83,7 @@ export function QuestionnaireForm() {
         setFormData({
           selectedCata: existing.cataAttributes || [],
           intensityRatings: existing.intensityRatings || {},
-          hedonicScores: existing.hedonicScores || { overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 },
+          hedonicScores: existing.hedonicScores || { overall: 3, appearance: 5, aroma: 5, flavor: 5, texture: 5 },
           emotions: existing.emotionalProfile || {},
           comments: '',
         });
@@ -357,7 +362,7 @@ export function QuestionnaireForm() {
             <button
               onClick={() => {
                 localStorage.removeItem(`qs_draft_${productId}`);
-                setFormData({ selectedCata: [], intensityRatings: {}, hedonicScores: { overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 }, emotions: {}, comments: '' });
+                setFormData({ selectedCata: [], intensityRatings: {}, hedonicScores: { overall: 3, appearance: 5, aroma: 5, flavor: 5, texture: 5 }, emotions: {}, comments: '' });
                 setShowDraftBanner(false);
               }}
               className="ml-4 text-xs text-amber-700 underline hover:text-amber-900 whitespace-nowrap"
@@ -443,7 +448,8 @@ export function QuestionnaireForm() {
                       step="1"
                       value={formData.intensityRatings[attr] ?? 1}
                       onChange={(e) => handleIntensityChange(attr, parseInt(e.target.value))}
-                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                      style={sliderFill(formData.intensityRatings[attr] ?? 1, 1, 5, '#9333ea')}
+                      className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-purple-600"
                     />
                     <div className="flex justify-between text-xs text-slate-500">
                       <span>1 — Not present</span>
@@ -490,7 +496,8 @@ export function QuestionnaireForm() {
                     step="1"
                     value={value}
                     onChange={(e) => handleHedonicChange(aspect, parseInt(e.target.value))}
-                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    style={sliderFill(value, 1, 5, '#2563eb')}
+                    className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-600"
                   />
                   <div className="flex justify-between text-xs text-slate-500">
                     <span>1 — Dislike extremely</span>
@@ -545,7 +552,8 @@ export function QuestionnaireForm() {
                         step="1"
                         value={formData.emotions[emotion] ?? 1}
                         onChange={(e) => handleEmotionChange(emotion, parseInt(e.target.value))}
-                        className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                        style={sliderFill(formData.emotions[emotion] ?? 1, 1, 5, '#059669')}
+                        className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-emerald-600"
                       />
                     </div>
                   ))}
@@ -576,7 +584,8 @@ export function QuestionnaireForm() {
                         step="1"
                         value={formData.emotions[emotion] ?? 1}
                         onChange={(e) => handleEmotionChange(emotion, parseInt(e.target.value))}
-                        className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-rose-600"
+                        style={sliderFill(formData.emotions[emotion] ?? 1, 1, 5, '#e11d48')}
+                        className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-rose-600"
                       />
                       <div className="flex justify-between text-xs text-slate-400">
                         <span>1 — Not at all</span><span>5 — Very strongly</span>

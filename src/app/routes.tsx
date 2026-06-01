@@ -12,6 +12,7 @@ import { MultiSampleDescription } from "./components/multi-sample-description";
 import { MultiSampleQuestionnaire } from "./components/multi-sample-questionnaire";
 import { DairyComparison } from "./components/dairy-comparison";
 import { AdminConfig } from "./components/admin-config";
+import { ConceptTesting } from "./components/concept-testing";
 import { NotFound } from "./components/not-found";
 import { ProtectedRoute } from "./components/protected-route";
 
@@ -29,6 +30,7 @@ export const router = createBrowserRouter([
           { path: "survey-analysis", Component: SurveyAnalysis },
           { path: "decision", Component: Stage4Enhanced },
           { path: "admin", Component: AdminConfig },
+          { path: "concept-testing", Component: ConceptTesting },
         ],
       },
 

@@ -13,6 +13,11 @@ import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
 import { AttributeTooltip } from './attribute-tooltip';
 
+function sliderFill(value: number, min: number, max: number, color: string): React.CSSProperties {
+  const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
+  return { background: `linear-gradient(to right, ${color} 0%, ${color} ${pct}%, #e2e8f0 ${pct}%, #e2e8f0 100%)` };
+}
+
 type Step = 'intro' | 'sample' | 'cleanse' | 'discrimination' | 'ranking' | 'confirmation' | 'submitted';
 
 interface SampleResponse {
@@ -61,7 +66,7 @@ export function MultiSampleQuestionnaire() {
   const [selectedCata, setSelectedCata] = useState<string[]>([]);
   const [intensityRatings, setIntensityRatings] = useState<Record<string, number>>({});
   const [hedonicScores, setHedonicScores] = useState({
-    overall: 5,
+    overall: 3,
     appearance: 5,
     aroma: 5,
     flavor: 5,
@@ -427,7 +432,8 @@ export function MultiSampleQuestionnaire() {
                     step="1"
                     value={intensityRatings[attr] || 0}
                     onChange={(e) => handleIntensityChange(attr, parseInt(e.target.value))}
-                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                    style={sliderFill(intensityRatings[attr] || 0, 0, 10, '#9333ea')}
+                    className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-purple-600"
                   />
                   <div className="flex justify-between text-xs text-slate-500">
                     <span>Not present (0)</span>
@@ -467,7 +473,8 @@ export function MultiSampleQuestionnaire() {
                     step="0.5"
                     value={value}
                     onChange={(e) => setHedonicScores(prev => ({ ...prev, [aspect]: parseFloat(e.target.value) }))}
-                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    style={sliderFill(value, 1, 9, '#2563eb')}
+                    className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-600"
                   />
                   <div className="flex justify-between text-xs text-slate-500">
                     <span>Dislike extremely (1)</span>
@@ -513,7 +520,8 @@ export function MultiSampleQuestionnaire() {
                         step="1"
                         value={emotions[emotion] || 0}
                         onChange={(e) => handleEmotionChange(emotion, parseInt(e.target.value))}
-                        className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                        style={sliderFill(emotions[emotion] || 0, 0, 5, '#059669')}
+                        className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-emerald-600"
                       />
                     </div>
                   ))}
@@ -542,7 +550,8 @@ export function MultiSampleQuestionnaire() {
                         step="1"
                         value={emotions[emotion] || 0}
                         onChange={(e) => handleEmotionChange(emotion, parseInt(e.target.value))}
-                        className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-rose-600"
+                        style={sliderFill(emotions[emotion] || 0, 0, 5, '#e11d48')}
+                        className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-rose-600"
                       />
                     </div>
                   ))}
