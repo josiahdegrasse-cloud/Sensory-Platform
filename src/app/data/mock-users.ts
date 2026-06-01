@@ -16,6 +16,7 @@ export interface QuestionnaireResponse {
   userId: string;
   productId: string;
   timestamp: string;
+  runNumber: number;
   cataAttributes: string[];
   intensityRatings: Record<string, number>;
   hedonicScores: {
@@ -26,6 +27,7 @@ export interface QuestionnaireResponse {
     texture: number;
   };
   emotionalProfile: Record<string, number>;
+  comments?: string;
 }
 
 export const DEFAULT_CATA_ATTRIBUTES = [

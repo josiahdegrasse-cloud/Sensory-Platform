@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -6,14 +6,14 @@ import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
 import { useAuth } from '../contexts/auth-context';
 import { DEFAULT_CATA_ATTRIBUTES, INTENSITY_ATTRIBUTES, ESSENSE25_EMOTIONS, type Product } from '../data/mock-users';
-import { fetchProduct, fetchUserResponse, upsertResponse } from '../lib/database';
+import { fetchProduct, fetchLatestUserResponse, insertResponse } from '../lib/database';
 import { CATA_DEFINITIONS, INTENSITY_DEFINITIONS, HEDONIC_DEFINITIONS, EMOTION_DEFINITIONS } from '../data/attribute-definitions';
 import { AlertCircle, CheckCircle2, ChevronRight, Download } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
 import { AttributeTooltip } from './attribute-tooltip';
 
-type Step = 'intro' | 'sample' | 'discrimination' | 'ranking' | 'confirmation' | 'submitted';
+type Step = 'intro' | 'sample' | 'cleanse' | 'discrimination' | 'ranking' | 'confirmation' | 'submitted';
 
 interface SampleResponse {
   sampleId: string;
@@ -74,12 +74,31 @@ export function MultiSampleQuestionnaire() {
   
   // Ranking state
   const [ranking, setRanking] = useState<string[]>([]);
-  
+
+  // Palate cleanse countdown
+  const [cleanseCountdown, setCleanseCountdown] = useState(30);
+  const cleanseIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (currentStep !== 'cleanse') return;
+    setCleanseCountdown(30);
+    cleanseIntervalRef.current = setInterval(() => {
+      setCleanseCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(cleanseIntervalRef.current!);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => { if (cleanseIntervalRef.current) clearInterval(cleanseIntervalRef.current); };
+  }, [currentStep]);
+
   const cataAttributes = product?.customAttributes || DEFAULT_CATA_ATTRIBUTES;
 
   useEffect(() => {
     if (!user?.id || !productId) return;
-    fetchUserResponse(user.id, productId).then(existing => {
+    fetchLatestUserResponse(user.id, productId).then(existing => {
       if (existing) setAlreadyCompleted(true);
     });
   }, [productId, user?.id]);
@@ -125,12 +144,16 @@ export function MultiSampleQuestionnaire() {
 
   const handleContinueFromSample = () => {
     saveSampleResponse();
-    
     if (currentSampleIndex < samples.length - 1) {
-      setCurrentSampleIndex(prev => prev + 1);
+      setCurrentStep('cleanse');
     } else {
       setCurrentStep('discrimination');
     }
+  };
+
+  const handleContinueFromCleanse = () => {
+    setCurrentSampleIndex(prev => prev + 1);
+    setCurrentStep('sample');
   };
 
   const handleContinueFromDiscrimination = () => {
@@ -164,7 +187,7 @@ export function MultiSampleQuestionnaire() {
   const handleFinalSubmit = async () => {
     if (!user?.id || !productId) return;
     try {
-      await upsertResponse({
+      await insertResponse({
         userId: user.id,
         productId,
         cataAttributes: sampleResponses.flatMap(s => s.cataAttributes),
@@ -307,7 +330,7 @@ export function MultiSampleQuestionnaire() {
   // Sample evaluation screen
   if (currentStep === 'sample') {
     const currentSample = samples[currentSampleIndex];
-    const progress = Math.round(((currentSampleIndex + 1) / 5) * 100); // 5 total steps
+    const progress = Math.round(((currentSampleIndex + 1) / samples.length) * 100);
     
     return (
       <div className="max-w-4xl mx-auto space-y-6">
@@ -528,6 +551,41 @@ export function MultiSampleQuestionnaire() {
             >
               {currentSampleIndex < samples.length - 1 ? 'Continue to Next Sample' : 'Continue to Discrimination Test'}
               <ChevronRight className="size-5 ml-2" />
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Palate cleanse interstitial
+  if (currentStep === 'cleanse') {
+    const nextSampleCode = samples[currentSampleIndex + 1]?.code ?? '';
+    return (
+      <div className="max-w-4xl mx-auto">
+        <Card className="border-2 border-blue-300 bg-gradient-to-br from-blue-50 to-slate-50">
+          <CardHeader className="text-center pb-4">
+            <CardTitle className="text-2xl text-blue-900">Palate Cleanse Required</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6 text-center">
+            <p className="text-slate-700 text-base">
+              Take a sip of water and eat a plain cracker. Wait 30 seconds before continuing.
+            </p>
+            <div className="flex items-center justify-center">
+              <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl font-bold border-4 ${
+                cleanseCountdown > 0 ? 'border-blue-400 text-blue-700 bg-blue-100' : 'border-emerald-400 text-emerald-700 bg-emerald-100'
+              }`}>
+                {cleanseCountdown > 0 ? cleanseCountdown : '✓'}
+              </div>
+            </div>
+            <Button
+              onClick={handleContinueFromCleanse}
+              disabled={cleanseCountdown > 0}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-lg py-6 disabled:opacity-50"
+            >
+              {cleanseCountdown > 0
+                ? `Wait ${cleanseCountdown}s…`
+                : `Continue to Sample ${nextSampleCode}`}
             </Button>
           </CardContent>
         </Card>

@@ -10,6 +10,7 @@ import {
   fetchProducts, insertProduct, updateProduct,
   fetchTemplates, insertTemplate, deleteTemplate, type Template,
   fetchPanelists, updatePanelistId, type PanelistInfo,
+  fetchPanelistReliability, type PanelistReliability,
 } from '../lib/database';
 import { Plus, Settings, Trash2, Save, CheckCircle2, Bookmark, FolderOpen, Layers, ClipboardList, Users } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
@@ -22,6 +23,7 @@ export function AdminConfig() {
   const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [panelists, setPanelists] = useState<PanelistInfo[]>([]);
+  const [reliability, setReliability] = useState<PanelistReliability[]>([]);
   const [editingPanelistId, setEditingPanelistId] = useState<string | null>(null);
   const [panelistIdInput, setPanelistIdInput] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
@@ -46,6 +48,7 @@ export function AdminConfig() {
   useEffect(() => {
     fetchProducts().then(setProducts).catch(console.error);
     fetchPanelists().then(setPanelists).catch(console.error);
+    fetchPanelistReliability().then(setReliability).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -239,10 +242,22 @@ export function AdminConfig() {
             <p className="text-sm text-slate-500 text-center py-4">No panelists have signed up yet</p>
           ) : (
             <div className="space-y-2">
-              {panelists.map(p => (
+              {panelists.map(p => {
+                const rel = reliability.find(r => r.userId === p.id);
+                const reliabilityBadge = rel == null ? null : rel.meanDeviation === null
+                  ? <Badge variant="outline" className="text-slate-500 border-slate-300 text-xs">Insufficient data</Badge>
+                  : rel.meanDeviation < 1.0
+                    ? <Badge className="bg-emerald-600 text-xs">Consistent</Badge>
+                    : rel.meanDeviation <= 2.0
+                      ? <Badge className="bg-amber-600 text-xs">Variable</Badge>
+                      : <Badge className="bg-rose-600 text-xs">Outlier — review</Badge>;
+                return (
                 <div key={p.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
                   <div>
-                    <div className="font-medium text-slate-900">{p.name}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-slate-900">{p.name}</span>
+                      {reliabilityBadge}
+                    </div>
                     <div className="text-xs text-slate-500 mt-0.5">
                       {p.panelistId ? `ID: ${p.panelistId}` : 'No panelist ID set'} · {p.completedCount} survey{p.completedCount !== 1 ? 's' : ''} completed
                     </div>
@@ -275,7 +290,8 @@ export function AdminConfig() {
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>

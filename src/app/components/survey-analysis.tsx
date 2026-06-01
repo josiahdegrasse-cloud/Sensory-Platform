@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useAuth } from '../contexts/auth-context';
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -7,7 +8,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
-  Legend, Cell, LineChart, Line
+  Legend, Cell, LineChart, Line, ErrorBar
 } from "recharts";
 import { ENHANCED_SENSORY_DATA } from "../data/enhanced-sensory";
 import { ESSENSE25_EMOTIONS, type QuestionnaireResponse } from "../data/mock-users";
@@ -15,7 +16,7 @@ import { getSampleColor, SAMPLE_TYPE_LEGEND } from "../utils/sample-colors";
 import { fetchAllResponses, fetchProducts } from "../lib/database";
 import {
   Users, Heart, Smile, Frown, CheckSquare,
-  TrendingUp, AlertCircle, Eye, EyeOff, Download, Layers, Target, Trophy
+  TrendingUp, AlertCircle, Eye, EyeOff, Download, Layers, Target, Trophy, MessageCircle
 } from "lucide-react";
 
 const RESEARCH_PANEL_N = 14;
@@ -27,10 +28,12 @@ interface LiveAggregation {
   cata: Record<string, number>;
   intensity: Record<string, number>;
   hedonic: Record<string, number>;
+  hedonicSD: Record<string, number>;
   emotions: { positive: number; negative: number };
 }
 
 export function SurveyAnalysis() {
+  const { user } = useAuth();
   const [selectedSample, setSelectedSample] = useState<string>("S1");
   const [showAllSamples, setShowAllSamples] = useState(false);
   const [foodTypeFilter, setFoodTypeFilter] = useState<string>("all");
@@ -38,6 +41,7 @@ export function SurveyAnalysis() {
   const [multiSampleResponses, setMultiSampleResponses] = useState<any[]>([]);
   const [selectedMultiProduct, setSelectedMultiProduct] = useState<string>('');
   const [liveAggregations, setLiveAggregations] = useState<LiveAggregation[]>([]);
+  const [commentsByProduct, setCommentsByProduct] = useState<Record<string, string[]>>({});
 
   // Single fetch — split into multi-sample responses and single-sample aggregations
   useEffect(() => {
@@ -83,6 +87,13 @@ export function SurveyAnalysis() {
       resps.forEach(r => {
         hedonicKeys.forEach(k => { hedonicSums[k] += (r.hedonicScores as Record<string, number>)?.[k] || 0; });
       });
+      const hedonicMeans = Object.fromEntries(hedonicKeys.map(k => [k, hedonicSums[k] / n]));
+      const hedonicSDs: Record<string, number> = {};
+      hedonicKeys.forEach(k => {
+        const vals = resps.map(r => (r.hedonicScores as Record<string, number>)?.[k] || 0);
+        const mean = hedonicMeans[k];
+        hedonicSDs[k] = Math.sqrt(vals.reduce((acc, v) => acc + (v - mean) ** 2, 0) / n);
+      });
 
       let posSum = 0, negSum = 0;
       resps.forEach(r => {
@@ -99,6 +110,7 @@ export function SurveyAnalysis() {
           Object.entries(intensityTotals).map(([k, v]) => [k, v.sum / v.count])
         ),
         hedonic: Object.fromEntries(hedonicKeys.map(k => [k, hedonicSums[k] / n])),
+        hedonicSD: hedonicSDs,
         emotions: {
           positive: posSum / (n * ESSENSE25_EMOTIONS.positive.length),
           negative: negSum / (n * ESSENSE25_EMOTIONS.negative.length),
@@ -107,19 +119,39 @@ export function SurveyAnalysis() {
     });
 
       setLiveAggregations(aggregations);
+
+      const commentsMap: Record<string, string[]> = {};
+      singleResponses.forEach(r => {
+        if (r.comments && r.comments.trim()) {
+          if (!commentsMap[r.productId]) commentsMap[r.productId] = [];
+          commentsMap[r.productId].push(r.comments.trim());
+        }
+      });
+      setCommentsByProduct(commentsMap);
     }).catch(console.error);
   }, []);
 
-  // Get unique food types from samples
-  const foodTypes = ["all", "Cheese", "Bread"];
+  // Derive unique base types from sample names
+  const foodTypes = ["all", ...Array.from(new Set(
+    ENHANCED_SENSORY_DATA.map(s => {
+      const n = s.sampleName.toLowerCase();
+      if (n.includes('dairy') || n.includes('control')) return 'Dairy Control';
+      if (n.includes('coconut')) return 'Coconut';
+      if (n.includes('cashew')) return 'Cashew';
+      if (n.includes('almond')) return 'Almond';
+      if (n.includes('oat')) return 'Oat';
+      if (n.includes('mixed')) return 'Mixed Base';
+      return 'Other';
+    })
+  ))];
 
-  // Filter samples by food type
-  const filteredSamples = foodTypeFilter === "all" 
-    ? ENHANCED_SENSORY_DATA 
+  const filteredSamples = foodTypeFilter === "all"
+    ? ENHANCED_SENSORY_DATA
     : ENHANCED_SENSORY_DATA.filter(s => {
-        // Add logic to filter by category if you have that data
-        // For now, showing all for demonstration
-        return true;
+        const n = s.sampleName.toLowerCase();
+        const type = foodTypeFilter.toLowerCase();
+        if (type === 'dairy control') return n.includes('dairy') || n.includes('control');
+        return n.includes(type.split(' ')[0]);
       });
 
   const selectedData = filteredSamples.find(s => s.sampleId === selectedSample);
@@ -132,7 +164,7 @@ export function SurveyAnalysis() {
       id: `cata-${attr}`,
       attribute: attr,
       count: count,
-      percentage: (count / 14) * 100 // 14 panelists
+      percentage: (count / RESEARCH_PANEL_N) * 100
     }))
     .sort((a, b) => b.count - a.count);
 
@@ -144,12 +176,12 @@ export function SurveyAnalysis() {
     fullMark: 10
   }));
 
-  // Hedonic scores
+  // Hedonic scores (sd = 0.8 placeholder for static mock data)
   const hedonicData = [
-    { id: 'hedonic-appearance', category: "Appearance", score: selectedData.hedonic.appearance },
-    { id: 'hedonic-flavour', category: "Flavour", score: selectedData.hedonic.flavour },
-    { id: 'hedonic-texture', category: "Texture", score: selectedData.hedonic.texture },
-    { id: 'hedonic-overall', category: "Overall", score: selectedData.hedonic.overall }
+    { id: 'hedonic-appearance', category: "Appearance", score: selectedData.hedonic.appearance, sd: 0.8 },
+    { id: 'hedonic-flavour', category: "Flavour", score: selectedData.hedonic.flavour, sd: 0.8 },
+    { id: 'hedonic-texture', category: "Texture", score: selectedData.hedonic.texture, sd: 0.8 },
+    { id: 'hedonic-overall', category: "Overall", score: selectedData.hedonic.overall, sd: 0.8 }
   ];
 
   // All samples comparison for hedonic overall
@@ -204,11 +236,11 @@ export function SurveyAnalysis() {
 
   const activeHedonicData = matchingLiveData
     ? [
-        { id: 'hedonic-overall',    category: 'Overall',    score: matchingLiveData.hedonic['overall'] ?? 0 },
-        { id: 'hedonic-appearance', category: 'Appearance', score: matchingLiveData.hedonic['appearance'] ?? 0 },
-        { id: 'hedonic-aroma',      category: 'Aroma',      score: matchingLiveData.hedonic['aroma'] ?? 0 },
-        { id: 'hedonic-flavor',     category: 'Flavour',    score: matchingLiveData.hedonic['flavor'] ?? 0 },
-        { id: 'hedonic-texture',    category: 'Texture',    score: matchingLiveData.hedonic['texture'] ?? 0 },
+        { id: 'hedonic-overall',    category: 'Overall',    score: matchingLiveData.hedonic['overall'] ?? 0,    sd: matchingLiveData.hedonicSD['overall'] ?? 0 },
+        { id: 'hedonic-appearance', category: 'Appearance', score: matchingLiveData.hedonic['appearance'] ?? 0, sd: matchingLiveData.hedonicSD['appearance'] ?? 0 },
+        { id: 'hedonic-aroma',      category: 'Aroma',      score: matchingLiveData.hedonic['aroma'] ?? 0,      sd: matchingLiveData.hedonicSD['aroma'] ?? 0 },
+        { id: 'hedonic-flavor',     category: 'Flavour',    score: matchingLiveData.hedonic['flavor'] ?? 0,     sd: matchingLiveData.hedonicSD['flavor'] ?? 0 },
+        { id: 'hedonic-texture',    category: 'Texture',    score: matchingLiveData.hedonic['texture'] ?? 0,    sd: matchingLiveData.hedonicSD['texture'] ?? 0 },
       ]
     : hedonicData;
 
@@ -257,6 +289,36 @@ export function SurveyAnalysis() {
     a.click();
   };
 
+  const exportAllDataCSV = () => {
+    const headers = ['ProductID', 'ProductName', 'PanelistID', 'RunNumber', 'AttributeType', 'Attribute', 'Value'];
+    const rows: string[] = [headers.join(',')];
+
+    liveAggregations.forEach(agg => {
+      const name = `"${agg.productName}"`;
+      Object.entries(agg.cata).forEach(([attr, count]) => rows.push([agg.productId, name, 'panel', 'latest', 'CATA', attr, count].join(',')));
+      Object.entries(agg.intensity).forEach(([attr, mean]) => rows.push([agg.productId, name, 'panel', 'latest', 'Intensity', attr, (mean as number).toFixed(2)].join(',')));
+      Object.entries(agg.hedonic).forEach(([dim, mean]) => rows.push([agg.productId, name, 'panel', 'latest', 'Hedonic', dim, (mean as number).toFixed(2)].join(',')));
+      rows.push([agg.productId, name, 'panel', 'latest', 'Emotion', 'positive', agg.emotions.positive.toFixed(2)].join(','));
+      rows.push([agg.productId, name, 'panel', 'latest', 'Emotion', 'negative', agg.emotions.negative.toFixed(2)].join(','));
+    });
+
+    ENHANCED_SENSORY_DATA.forEach(sample => {
+      const name = `"${sample.sampleName}"`;
+      Object.entries(sample.cata).forEach(([attr, count]) => rows.push([sample.sampleId, name, 'mock', 0, 'CATA', attr, count].join(',')));
+      Object.entries(sample.intensity).forEach(([attr, val]) => rows.push([sample.sampleId, name, 'mock', 0, 'Intensity', attr, val].join(',')));
+      Object.entries(sample.hedonic).forEach(([dim, val]) => rows.push([sample.sampleId, name, 'mock', 0, 'Hedonic', dim, val].join(',')));
+      rows.push([sample.sampleId, name, 'mock', 0, 'Emotion', 'positive', sample.emotions.positive].join(','));
+      rows.push([sample.sampleId, name, 'mock', 0, 'Emotion', 'negative', sample.emotions.negative].join(','));
+    });
+
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `issf-full-export-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+  };
+
   // Get multi-sample products
   const [multiSampleProducts, setMultiSampleProducts] = useState<import('../data/mock-users').Product[]>([]);
   useEffect(() => {
@@ -281,6 +343,12 @@ export function SurveyAnalysis() {
                 <Download className="size-4 mr-2" />
                 Export Sample CSV
               </Button>
+              {user?.role === 'admin' && (
+                <Button onClick={exportAllDataCSV} variant="outline">
+                  <Download className="size-4 mr-2" />
+                  Export All Data
+                </Button>
+              )}
               <Button
                 onClick={() => setShowAllSamples(!showAllSamples)}
                 variant="outline"
@@ -462,11 +530,19 @@ export function SurveyAnalysis() {
       {!showAllSamples ? (
         // Single Sample Detailed View
         <Tabs defaultValue="cata" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="cata">CATA Attributes</TabsTrigger>
             <TabsTrigger value="intensity">Intensity Ratings</TabsTrigger>
             <TabsTrigger value="hedonic">Hedonic Scores</TabsTrigger>
             <TabsTrigger value="emotional">Emotional Profile</TabsTrigger>
+            <TabsTrigger value="comments">
+              Comments
+              {usingLiveData && matchingLiveData && (commentsByProduct[matchingLiveData.productId]?.length ?? 0) > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-blue-600 text-white rounded-full">
+                  {commentsByProduct[matchingLiveData.productId].length}
+                </span>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           {/* CATA Analysis */}
@@ -642,12 +718,16 @@ export function SurveyAnalysis() {
                     <YAxis domain={[0, 9]} />
                     <RechartsTooltip />
                     <Bar dataKey="score" radius={[8, 8, 0, 0]}>
+                      <ErrorBar dataKey="sd" width={4} strokeWidth={2} stroke="#64748b" />
                       {activeHedonicData.map((entry) => (
                         <Cell key={`hedonic-bar-${entry.id}`} fill={getHedonicColor(entry.score)} />
                       ))}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+                <p className="text-xs text-slate-500 mt-2 text-center">
+                  Error bars show ±1 SD. Overlap between samples suggests no meaningful difference.
+                </p>
 
                 <div className="mt-6 grid grid-cols-4 gap-4">
                   {activeHedonicData.map(item => {
@@ -689,6 +769,59 @@ export function SurveyAnalysis() {
                     </div>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Panelist Comments */}
+          <TabsContent value="comments">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageCircle className="size-5 text-blue-600" />
+                  Panelist Comments
+                </CardTitle>
+                <p className="text-sm text-slate-600">
+                  Free-text feedback submitted by panelists for this sample
+                </p>
+              </CardHeader>
+              <CardContent>
+                {!usingLiveData || !matchingLiveData ? (
+                  <div className="py-12 text-center">
+                    <MessageCircle className="size-12 text-slate-300 mx-auto mb-3" />
+                    <p className="text-slate-500">No live responses for this sample yet.</p>
+                    <p className="text-sm text-slate-400 mt-1">Comments will appear once panelists submit evaluations.</p>
+                  </div>
+                ) : (() => {
+                  const comments = commentsByProduct[matchingLiveData.productId] ?? [];
+                  if (comments.length === 0) {
+                    return (
+                      <div className="py-12 text-center">
+                        <MessageCircle className="size-12 text-slate-300 mx-auto mb-3" />
+                        <p className="text-slate-500">No comments submitted yet.</p>
+                        <p className="text-sm text-slate-400 mt-1">{matchingLiveData.n} panelist{matchingLiveData.n !== 1 ? 's' : ''} responded but left no comments.</p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-semibold text-slate-700">{comments.length} comment{comments.length !== 1 ? 's' : ''}</span>
+                        <span className="text-xs text-slate-500">n={matchingLiveData.n} responses</span>
+                      </div>
+                      {comments.map((comment, idx) => (
+                        <div key={idx} className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                          <div className="flex items-start gap-3">
+                            <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
+                              {idx + 1}
+                            </div>
+                            <p className="text-sm text-slate-700 leading-relaxed">{comment}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </TabsContent>

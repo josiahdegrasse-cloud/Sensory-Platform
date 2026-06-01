@@ -1,3 +1,10 @@
+/*
+-- Run in Supabase SQL editor:
+-- ALTER TABLE responses ADD COLUMN IF NOT EXISTS run_number INTEGER NOT NULL DEFAULT 1;
+-- DROP INDEX IF EXISTS responses_user_id_product_id_key;
+-- CREATE UNIQUE INDEX responses_user_product_run ON responses(user_id, product_id, run_number);
+*/
+
 import { supabase } from './supabase';
 import type { Product, QuestionnaireResponse } from '../data/mock-users';
 
@@ -33,12 +40,14 @@ function toResponse(row: Record<string, unknown>): QuestionnaireResponse {
     userId: row.user_id as string,
     productId: row.product_id as string,
     timestamp: row.created_at as string,
+    runNumber: (row.run_number as number) ?? 1,
     cataAttributes: (row.cata_attributes as string[]) || [],
     intensityRatings: (row.intensity_ratings as Record<string, number>) || {},
     hedonicScores: (row.hedonic_scores as QuestionnaireResponse['hedonicScores']) || {
       overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5,
     },
     emotionalProfile: (row.emotional_profile as Record<string, number>) || {},
+    comments: (row.comments as string) ?? '',
   };
 }
 
@@ -122,7 +131,7 @@ export async function fetchUserResponses(userId: string): Promise<QuestionnaireR
   return (data ?? []).map(toResponse);
 }
 
-export async function fetchUserResponse(
+export async function fetchLatestUserResponse(
   userId: string,
   productId: string,
 ): Promise<QuestionnaireResponse | null> {
@@ -131,27 +140,55 @@ export async function fetchUserResponse(
     .select('*')
     .eq('user_id', userId)
     .eq('product_id', productId)
+    .order('run_number', { ascending: false })
+    .limit(1)
     .maybeSingle();
   if (error) throw error;
   return data ? toResponse(data) : null;
 }
 
-export async function upsertResponse(
-  response: Omit<QuestionnaireResponse, 'id' | 'timestamp'>,
-): Promise<QuestionnaireResponse> {
+export async function fetchUserResponseAtRun(
+  userId: string,
+  productId: string,
+  runNumber: number,
+): Promise<QuestionnaireResponse | null> {
   const { data, error } = await supabase
     .from('responses')
-    .upsert(
-      {
-        user_id: response.userId,
-        product_id: response.productId,
-        cata_attributes: response.cataAttributes,
-        intensity_ratings: response.intensityRatings,
-        hedonic_scores: response.hedonicScores,
-        emotional_profile: response.emotionalProfile,
-      },
-      { onConflict: 'user_id,product_id' },
-    )
+    .select('*')
+    .eq('user_id', userId)
+    .eq('product_id', productId)
+    .eq('run_number', runNumber)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? toResponse(data) : null;
+}
+
+export async function insertResponse(
+  response: Omit<QuestionnaireResponse, 'id' | 'timestamp' | 'runNumber'>,
+): Promise<QuestionnaireResponse> {
+  const { data: existing } = await supabase
+    .from('responses')
+    .select('run_number')
+    .eq('user_id', response.userId)
+    .eq('product_id', response.productId)
+    .order('run_number', { ascending: false })
+    .limit(1);
+
+  const runNumber =
+    existing && existing.length > 0 ? (existing[0].run_number as number) + 1 : 1;
+
+  const { data, error } = await supabase
+    .from('responses')
+    .insert({
+      user_id: response.userId,
+      product_id: response.productId,
+      run_number: runNumber,
+      cata_attributes: response.cataAttributes,
+      intensity_ratings: response.intensityRatings,
+      hedonic_scores: response.hedonicScores,
+      emotional_profile: response.emotionalProfile,
+      comments: response.comments ?? null,
+    })
     .select()
     .single();
   if (error) throw error;
@@ -235,4 +272,64 @@ export async function updatePanelistId(userId: string, panelistId: string): Prom
     .update({ panelist_id: panelistId })
     .eq('id', userId);
   if (error) throw error;
+}
+
+// ─── Panelist Reliability ─────────────────────────────────────────────────────
+
+export interface PanelistReliability {
+  userId: string;
+  name: string;
+  panelistId: string | null;
+  completedCount: number;
+  meanDeviation: number | null;
+}
+
+export async function fetchPanelistReliability(): Promise<PanelistReliability[]> {
+  const [{ data: profiles }, { data: responses }] = await Promise.all([
+    supabase.from('profiles').select('id, name, panelist_id').eq('role', 'panelist'),
+    supabase.from('responses').select('user_id, product_id, hedonic_scores'),
+  ]);
+
+  if (!profiles || !responses) return [];
+
+  const productSums: Record<string, { sum: number; count: number }> = {};
+  (responses as Record<string, unknown>[]).forEach(r => {
+    const pid = r.product_id as string;
+    const scores = r.hedonic_scores as Record<string, number> | null;
+    const overall = scores?.overall ?? 0;
+    if (!productSums[pid]) productSums[pid] = { sum: 0, count: 0 };
+    productSums[pid].sum += overall;
+    productSums[pid].count += 1;
+  });
+
+  const panelMeans: Record<string, number> = {};
+  Object.entries(productSums).forEach(([pid, { sum, count }]) => {
+    panelMeans[pid] = sum / count;
+  });
+
+  const panelistCounts: Record<string, number> = {};
+  const panelistDeviations: Record<string, number[]> = {};
+  (responses as Record<string, unknown>[]).forEach(r => {
+    const uid = r.user_id as string;
+    const pid = r.product_id as string;
+    const scores = r.hedonic_scores as Record<string, number> | null;
+    const overall = scores?.overall ?? 0;
+    const mean = panelMeans[pid];
+    if (mean === undefined) return;
+    panelistCounts[uid] = (panelistCounts[uid] || 0) + 1;
+    if (!panelistDeviations[uid]) panelistDeviations[uid] = [];
+    panelistDeviations[uid].push(Math.abs(overall - mean));
+  });
+
+  return (profiles as Record<string, unknown>[]).map(p => {
+    const uid = p.id as string;
+    const devs = panelistDeviations[uid] || [];
+    return {
+      userId: uid,
+      name: (p.name as string) ?? 'Unknown',
+      panelistId: (p.panelist_id as string) ?? null,
+      completedCount: panelistCounts[uid] || 0,
+      meanDeviation: devs.length >= 3 ? devs.reduce((a, b) => a + b, 0) / devs.length : null,
+    };
+  });
 }

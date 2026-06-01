@@ -26,7 +26,7 @@ export function PanelistDashboard() {
   }, [user?.id]);
 
   const completedProductIds = userResponses.map(r => r.productId);
-  const availableProducts = products.filter(p => !completedProductIds.includes(p.id));
+  const availableProducts = products.filter(p => !completedProductIds.includes(p.id) && p.status !== 'completed');
   const completedProductsList = products.filter(p => completedProductIds.includes(p.id));
 
   return (

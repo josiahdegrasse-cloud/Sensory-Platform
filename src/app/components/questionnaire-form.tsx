@@ -6,8 +6,8 @@ import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
 import { Progress } from './ui/progress';
 import { useAuth } from '../contexts/auth-context';
-import { DEFAULT_CATA_ATTRIBUTES, ESSENSE25_EMOTIONS, type Product } from '../data/mock-users';
-import { fetchProduct, fetchUserResponse, upsertResponse } from '../lib/database';
+import { DEFAULT_CATA_ATTRIBUTES, INTENSITY_ATTRIBUTES, ESSENSE25_EMOTIONS, type Product } from '../data/mock-users';
+import { fetchProduct, fetchLatestUserResponse, insertResponse } from '../lib/database';
 import { CATA_DEFINITIONS, INTENSITY_DEFINITIONS, HEDONIC_DEFINITIONS, EMOTION_DEFINITIONS } from '../data/attribute-definitions';
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Edit2 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
@@ -38,18 +38,19 @@ export function QuestionnaireForm() {
   const [currentStep, setCurrentStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
   const [alreadyCompleted, setAlreadyCompleted] = useState(false);
-  const [existingResponseId, setExistingResponseId] = useState<string | null>(null);
+  const [existingResponseDate, setExistingResponseDate] = useState<string | null>(null);
+  const [showDraftBanner, setShowDraftBanner] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState<FormData>({
     selectedCata: [],
     intensityRatings: {},
     hedonicScores: {
-      overall: 3,
-      appearance: 3,
-      aroma: 3,
-      flavor: 3,
-      texture: 3,
+      overall: 5,
+      appearance: 5,
+      aroma: 5,
+      flavor: 5,
+      texture: 5,
     },
     emotions: {},
     comments: '',
@@ -68,23 +69,38 @@ export function QuestionnaireForm() {
       .catch(() => setProductLoading(false));
   }, [productId]);
 
-  // Load existing response if any
+  // Load existing response or draft
   useEffect(() => {
     if (!user?.id || !productId) return;
-    fetchUserResponse(user.id, productId).then(existing => {
-      if (!existing) return;
-      setExistingResponseId(existing.id);
-      setFormData({
-        selectedCata: existing.cataAttributes || [],
-        intensityRatings: existing.intensityRatings || {},
-        hedonicScores: existing.hedonicScores || { overall: 3, appearance: 3, aroma: 3, flavor: 3, texture: 3 },
-        emotions: existing.emotionalProfile || {},
-        comments: '',
-      });
-      setShowIntro(false);
-      setAlreadyCompleted(true);
+    fetchLatestUserResponse(user.id, productId).then(existing => {
+      if (existing) {
+        setExistingResponseDate(existing.timestamp);
+        setFormData({
+          selectedCata: existing.cataAttributes || [],
+          intensityRatings: existing.intensityRatings || {},
+          hedonicScores: existing.hedonicScores || { overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 },
+          emotions: existing.emotionalProfile || {},
+          comments: '',
+        });
+        setShowIntro(false);
+        setAlreadyCompleted(true);
+      } else {
+        const draft = localStorage.getItem(`qs_draft_${productId}`);
+        if (draft) {
+          try {
+            setFormData(JSON.parse(draft) as FormData);
+            setShowDraftBanner(true);
+          } catch { /* ignore invalid JSON */ }
+        }
+      }
     });
   }, [productId, user?.id]);
+
+  // Persist draft on every formData change
+  useEffect(() => {
+    if (!productId) return;
+    localStorage.setItem(`qs_draft_${productId}`, JSON.stringify(formData));
+  }, [formData, productId]);
 
   const handleCataToggle = (attr: string) => {
     setFormData(prev => ({
@@ -130,22 +146,26 @@ export function QuestionnaireForm() {
     }
   };
 
+  const [submitError, setSubmitError] = useState('');
+
   const handleSubmit = async () => {
     if (!user?.id || !productId) return;
+    setSubmitError('');
     try {
-      const saved = await upsertResponse({
+      await insertResponse({
         userId: user.id,
         productId,
         cataAttributes: formData.selectedCata,
         intensityRatings: formData.intensityRatings,
         hedonicScores: formData.hedonicScores,
         emotionalProfile: formData.emotions,
+        comments: formData.comments,
       });
-      setExistingResponseId(saved.id);
+      localStorage.removeItem(`qs_draft_${productId}`);
       setSubmitted(true);
       setTimeout(() => navigate('/panelist'), 3000);
     } catch (err) {
-      console.error('Failed to submit response:', err);
+      setSubmitError(err instanceof Error ? err.message : 'Failed to save response. Please try again.');
     }
   };
 
@@ -233,6 +253,31 @@ export function QuestionnaireForm() {
     );
   }
 
+  if (product.status === 'completed') {
+    return (
+      <div className="max-w-4xl mx-auto">
+        <Card className="border-2 border-slate-300 bg-slate-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-slate-700">
+              <AlertCircle className="size-6 text-slate-500" />
+              Evaluation Session Closed
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-slate-700">
+              This evaluation session is closed. The study administrator has marked{' '}
+              <strong>{product.name}</strong> as complete. No further submissions are being accepted.
+            </p>
+            <Button variant="outline" onClick={() => navigate('/panelist')}>
+              <ChevronLeft className="size-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (submitted) {
     return (
       <div className="max-w-4xl mx-auto">
@@ -240,16 +285,14 @@ export function QuestionnaireForm() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckCircle2 className="size-6 text-emerald-600" />
-              Response {existingResponseId ? 'Updated' : 'Submitted'} Successfully!
+              Response Submitted Successfully!
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-slate-700 mb-2">
-              Thank you for {existingResponseId ? 'updating your' : 'completing the'} evaluation for <strong>{product.name}</strong>.
+              Thank you for completing the evaluation for <strong>{product.name}</strong>.
             </p>
-            <p className="text-sm text-slate-600">
-              Redirecting to dashboard...
-            </p>
+            <p className="text-sm text-slate-600">Redirecting to dashboard...</p>
           </CardContent>
         </Card>
       </div>
@@ -265,9 +308,7 @@ export function QuestionnaireForm() {
         <CardHeader>
           <div className="flex items-center justify-between mb-4">
             <div>
-              <CardTitle className="text-2xl">
-                {alreadyCompleted ? 'Edit Your Response' : 'Product Evaluation'}
-              </CardTitle>
+              <CardTitle className="text-2xl">Product Evaluation</CardTitle>
               <div className="space-y-1 text-sm text-slate-600 mt-2">
                 <p><strong>Product:</strong> {product.name}</p>
                 <p><strong>Your ID:</strong> {user?.panelistId}</p>
@@ -297,7 +338,28 @@ export function QuestionnaireForm() {
         <Alert className="border-blue-300 bg-blue-50">
           <Edit2 className="size-4" />
           <AlertDescription>
-            You've already submitted a response. You can review and update your answers before resubmitting.
+            You completed this evaluation on{' '}
+            {existingResponseDate ? new Date(existingResponseDate).toLocaleDateString() : 'a previous date'}.
+            {' '}Submit again to record a new run.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {showDraftBanner && currentStep === 1 && (
+        <Alert className="border-amber-300 bg-amber-50">
+          <AlertCircle className="size-4 text-amber-600" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>You have a saved draft for this product. Your answers have been restored.</span>
+            <button
+              onClick={() => {
+                localStorage.removeItem(`qs_draft_${productId}`);
+                setFormData({ selectedCata: [], intensityRatings: {}, hedonicScores: { overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 }, emotions: {}, comments: '' });
+                setShowDraftBanner(false);
+              }}
+              className="ml-4 text-xs text-amber-700 underline hover:text-amber-900 whitespace-nowrap"
+            >
+              Clear draft
+            </button>
           </AlertDescription>
         </Alert>
       )}
@@ -578,12 +640,14 @@ export function QuestionnaireForm() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-3">
-                {INTENSITY_ATTRIBUTES.map(attr => (
+                {formData.selectedCata.length > 0 ? formData.selectedCata.map(attr => (
                   <div key={attr} className="flex items-center justify-between text-sm">
                     <span className="text-slate-700">{attr}:</span>
-                    <span className="font-bold text-purple-600">{formData.intensityRatings[attr] || 0}/10</span>
+                    <span className="font-bold text-purple-600">{formData.intensityRatings[attr] ?? 1}/5</span>
                   </div>
-                ))}
+                )) : (
+                  <span className="text-sm text-slate-500 italic col-span-2">No attributes rated</span>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -604,7 +668,7 @@ export function QuestionnaireForm() {
                 {Object.entries(formData.hedonicScores).map(([aspect, value]) => (
                   <div key={aspect} className="flex items-center justify-between text-sm">
                     <span className="text-slate-700 capitalize">{aspect.replace(/([A-Z])/g, ' $1').trim()}:</span>
-                    <span className="font-bold text-blue-600">{value}/9</span>
+                    <span className="font-bold text-blue-600">{value}/5</span>
                   </div>
                 ))}
               </div>
@@ -687,12 +751,18 @@ export function QuestionnaireForm() {
                   <strong>Are your responses accurate?</strong> Once submitted, you can still edit your response later if needed.
                 </AlertDescription>
               </Alert>
+              {submitError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="size-4" />
+                  <AlertDescription>{submitError}</AlertDescription>
+                </Alert>
+              )}
               <Button
                 onClick={handleSubmit}
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-lg py-6"
               >
                 <CheckCircle2 className="size-5 mr-2" />
-                {existingResponseId ? 'Update Response' : 'Submit Questionnaire'}
+                {alreadyCompleted ? 'Submit New Run' : 'Submit Questionnaire'}
               </Button>
             </CardContent>
           </Card>

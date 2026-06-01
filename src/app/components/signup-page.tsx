@@ -19,9 +19,18 @@ export function SignupPage({ onBack }: Props) {
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const validatePassword = (pw: string): string | null => {
+    if (pw.length < 8) return 'Password must be at least 8 characters.';
+    if (!/[A-Z]/.test(pw)) return 'Password must include at least one uppercase letter.';
+    if (!/[0-9]/.test(pw)) return 'Password must include at least one number.';
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    const pwError = validatePassword(password);
+    if (pwError) { setError(pwError); return; }
     setLoading(true);
 
     const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
@@ -33,7 +42,7 @@ export function SignupPage({ onBack }: Props) {
     }
 
     if (data.user) {
-      await supabase.from('profiles').update({ name }).eq('id', data.user.id);
+      await supabase.from('profiles').upsert({ id: data.user.id, name, role: 'panelist' });
     }
 
     setSuccess(true);
@@ -107,8 +116,9 @@ export function SignupPage({ onBack }: Props) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  minLength={6}
+                  minLength={8}
                 />
+                <p className="text-xs text-slate-400">Min 8 characters, one uppercase letter, one number.</p>
               </div>
               {error && (
                 <Alert variant="destructive">

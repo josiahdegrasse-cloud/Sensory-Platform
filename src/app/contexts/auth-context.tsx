@@ -88,8 +88,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string): Promise<string | null> => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      return error ? error.message : null;
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return error.message;
+      if (data.user) {
+        const profile = await loadProfile(data.user);
+        if (!profile) {
+          await supabase.auth.signOut();
+          return 'Account setup is incomplete. Ask your administrator to add your profile.';
+        }
+      }
+      return null;
     } catch (err) {
       return err instanceof Error ? err.message : 'Unknown error';
     }

@@ -10,20 +10,23 @@ import { METHOD_COMPARISON } from "../data/validation-data";
 interface SampleDecision {
   sampleId: string;
   sampleName: string;
-  issfScore: number; // 0-100 composite score
-  confidenceScore: number; // based on correlation strength
+  issfScore: number;
+  confidenceScore: number;
   decision: "GO" | "TWEAK" | "STOP";
   recommendation: string;
   costSavings: number;
   timeline: string;
   riskLevel: "low" | "medium" | "high";
   details: string[];
+  dimensionScores: { hedonic: number; texture: number; cata: number; emotional: number };
 }
 
 export function Stage4Enhanced() {
-  const [selectedSample, setSelectedSample] = useState<string>("S12");
+  const [selectedSample, setSelectedSample] = useState<string>(ENHANCED_SENSORY_DATA[0]?.sampleId ?? "S1");
   const [showRawData, setShowRawData] = useState(false);
   const [showQualitative, setShowQualitative] = useState(true);
+  const [showWeightConfig, setShowWeightConfig] = useState(false);
+  const [weights, setWeights] = useState({ hedonic: 30, texture: 25, cata: 25, emotional: 15 });
 
   // Calculate actual correlations and decisions for each sample
   const sampleDecisions: SampleDecision[] = ENHANCED_SENSORY_DATA.map(sample => {
@@ -62,10 +65,10 @@ export function Stage4Enhanced() {
     const emotionalScore = ((sample.emotions.positive / 5) - (sample.emotions.negative / 5)) * 50 + 50; // 0-100
     
     // Composite ISSF score (weighted average with GC-O penalty)
-    const issfScore = (hedonicNormalized * 0.30) + 
-                      (textureScore * 0.25) + 
-                      (cataScore * 0.25) + 
-                      (emotionalScore * 0.15) - 
+    const issfScore = (hedonicNormalized * weights.hedonic / 100) +
+                      (textureScore * weights.texture / 100) +
+                      (cataScore * weights.cata / 100) +
+                      (emotionalScore * weights.emotional / 100) -
                       gcoPenalty;
     
     // Apply penalty cap for critical off-notes (odour intensity ≥4)
@@ -164,7 +167,13 @@ export function Stage4Enhanced() {
       costSavings,
       timeline,
       riskLevel,
-      details
+      details,
+      dimensionScores: {
+        hedonic: hedonicNormalized,
+        texture: Math.max(0, Math.min(100, textureScore)),
+        cata: cataScore,
+        emotional: emotionalScore,
+      },
     };
   });
 
@@ -182,15 +191,30 @@ export function Stage4Enhanced() {
   };
 
   const getDecisionIcon = (decision: string) => {
-    if (decision === "GO") return <CheckCircle2 className="size-6 text-emerald-600" />;
-    if (decision === "STOP") return <XCircle className="size-6 text-rose-600" />;
-    return <AlertTriangle className="size-6 text-amber-600" />;
+    if (decision === "GO") return (
+      <span className="flex items-center gap-1">
+        <span className="font-bold text-emerald-600">▲</span>
+        <CheckCircle2 className="size-5 text-emerald-600" />
+      </span>
+    );
+    if (decision === "STOP") return (
+      <span className="flex items-center gap-1">
+        <span className="font-bold text-rose-600">■</span>
+        <XCircle className="size-5 text-rose-600" />
+      </span>
+    );
+    return (
+      <span className="flex items-center gap-1">
+        <span className="font-bold text-amber-600">◆</span>
+        <AlertTriangle className="size-5 text-amber-600" />
+      </span>
+    );
   };
 
   const getDecisionBadge = (decision: string) => {
-    if (decision === "GO") return <Badge className="bg-emerald-600 text-white text-base px-4 py-1">✓ GO</Badge>;
-    if (decision === "STOP") return <Badge className="bg-rose-600 text-white text-base px-4 py-1">✗ STOP</Badge>;
-    return <Badge className="bg-amber-600 text-white text-base px-4 py-1">⚠ TWEAK</Badge>;
+    if (decision === "GO") return <Badge className="bg-emerald-600 text-white text-base px-4 py-1">▲ GO</Badge>;
+    if (decision === "STOP") return <Badge className="bg-rose-600 text-white text-base px-4 py-1">■ STOP</Badge>;
+    return <Badge className="bg-amber-600 text-white text-base px-4 py-1">◆ TWEAK</Badge>;
   };
 
   // Scatter data: ISSF Score vs Hedonic
@@ -216,6 +240,10 @@ export function Stage4Enhanced() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button onClick={() => setShowWeightConfig(!showWeightConfig)} variant="outline" size="sm">
+            {showWeightConfig ? <EyeOff className="size-4 mr-2" /> : <Eye className="size-4 mr-2" />}
+            Score Weights
+          </Button>
           <Button onClick={() => setShowQualitative(!showQualitative)} variant="outline" size="sm">
             {showQualitative ? <EyeOff className="size-4 mr-2" /> : <Eye className="size-4 mr-2" />}
             Panelist Quotes
@@ -226,6 +254,68 @@ export function Stage4Enhanced() {
           </Button>
         </div>
       </div>
+
+      {/* Weight Configuration */}
+      {showWeightConfig && (
+        <Card className="border-2 border-blue-200 bg-blue-50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Activity className="size-4 text-blue-600" />
+              ISSF Score Weights
+              <span className="ml-auto text-xs text-slate-500 font-normal">
+                Total: <span className={
+                  weights.hedonic + weights.texture + weights.cata + weights.emotional === 95
+                    ? 'text-emerald-600 font-bold'
+                    : 'text-amber-600 font-bold'
+                }>{weights.hedonic + weights.texture + weights.cata + weights.emotional}%</span>
+                {' '}+ 5% GC-O penalty reserve = 100%
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-4 gap-6">
+              {([
+                { key: 'hedonic', label: 'Hedonic Score', color: 'rose' },
+                { key: 'texture', label: 'Texture Quality', color: 'blue' },
+                { key: 'cata', label: 'CATA Attributes', color: 'purple' },
+                { key: 'emotional', label: 'Emotional Profile', color: 'emerald' },
+              ] as const).map(({ key, label, color }) => (
+                <div key={key} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-slate-700">{label}</label>
+                    <span className={`text-lg font-bold text-${color}-600`}>{weights[key]}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={95}
+                    step={5}
+                    value={weights[key]}
+                    onChange={e => setWeights(prev => ({ ...prev, [key]: Number(e.target.value) }))}
+                    className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  />
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>0%</span>
+                    <span>95%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex items-center justify-between">
+              <p className="text-xs text-slate-500">
+                Default: Hedonic 30%, Texture 25%, CATA 25%, Emotional 15% (sums to 95%; 5% reserved for GC-O penalty cap)
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setWeights({ hedonic: 30, texture: 25, cata: 25, emotional: 15 })}
+              >
+                Reset to Default
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Key Metrics */}
       <div className="grid grid-cols-5 gap-4">
@@ -317,21 +407,18 @@ export function Stage4Enhanced() {
                 dataKey="issf"
                 isAnimationActive={false}
                 shape={(props: any) => {
-                  const { cx, cy, payload, index } = props;
-                  let color = "#10b981"; // GO
+                  const { cx, cy, payload } = props;
+                  let color = "#10b981";
                   if (payload.decision === "STOP") color = "#ef4444";
                   if (payload.decision === "TWEAK") color = "#f59e0b";
-                  return (
-                    <circle
-                      key={`circle-${payload.id || payload.sample}-${index}`}
-                      cx={cx}
-                      cy={cy}
-                      r={6}
-                      fill={color}
-                      stroke="#fff"
-                      strokeWidth={1}
-                    />
-                  );
+                  const key = `shape-${payload.id || payload.sample}`;
+                  if (payload.decision === "GO") {
+                    return <polygon key={key} points={`${cx},${cy - 7} ${cx + 6},${cy + 4} ${cx - 6},${cy + 4}`} fill={color} stroke="#fff" strokeWidth={1} />;
+                  }
+                  if (payload.decision === "STOP") {
+                    return <rect key={key} x={cx - 5} y={cy - 5} width={10} height={10} fill={color} stroke="#fff" strokeWidth={1} />;
+                  }
+                  return <polygon key={key} points={`${cx},${cy - 7} ${cx + 7},${cy} ${cx},${cy + 7} ${cx - 7},${cy}`} fill={color} stroke="#fff" strokeWidth={1} />;
                 }}
               />
             </ScatterChart>
@@ -435,6 +522,41 @@ export function Stage4Enhanced() {
                       ))}
                     </ul>
                   </div>
+
+                  {(selected.decision === "TWEAK" || selected.decision === "STOP") && (() => {
+                    const dims = [
+                      { label: 'Hedonic',   score: selected.dimensionScores.hedonic },
+                      { label: 'Texture',   score: selected.dimensionScores.texture },
+                      { label: 'CATA',      score: selected.dimensionScores.cata },
+                      { label: 'Emotional', score: selected.dimensionScores.emotional },
+                    ];
+                    const lowest = dims.reduce((min, d) => d.score < min.score ? d : min);
+                    return (
+                      <div className="bg-white p-4 rounded-lg border-2 border-slate-200 mb-4">
+                        <h3 className="font-bold text-slate-900 mb-3">Score Breakdown</h3>
+                        <div className="space-y-3">
+                          {dims.map(({ label, score }) => {
+                            const clamped = Math.max(0, Math.min(100, score));
+                            const bgCls = clamped >= 75 ? 'bg-emerald-500' : clamped >= 50 ? 'bg-amber-500' : 'bg-rose-500';
+                            const txtCls = clamped >= 75 ? 'text-emerald-600' : clamped >= 50 ? 'text-amber-600' : 'text-rose-600';
+                            return (
+                              <div key={label} className="flex items-center gap-3">
+                                <span className="w-20 text-sm text-slate-700">{label}</span>
+                                <div className="flex-1 bg-slate-200 rounded-full h-3">
+                                  <div className={`${bgCls} h-3 rounded-full`} style={{ width: `${clamped}%` }} />
+                                </div>
+                                <span className={`w-10 text-right text-sm font-bold ${txtCls}`}>{clamped.toFixed(0)}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <p className="text-xs text-slate-500 mt-3">
+                          Dimension driving the gap to GO threshold (75):{' '}
+                          <strong>{lowest.label}</strong> ({Math.max(0, Math.min(100, lowest.score)).toFixed(0)})
+                        </p>
+                      </div>
+                    );
+                  })()}
 
                   {/* Multi-dimensional profile */}
                   <div className="bg-white p-4 rounded-lg border-2 border-slate-200">
