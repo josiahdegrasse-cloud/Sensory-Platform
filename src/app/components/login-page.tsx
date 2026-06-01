@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useAuth } from '../contexts/auth-context';
-import { AlertCircle, Beaker, ChevronRight } from 'lucide-react';
+import { AlertCircle, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 
 interface Props {
@@ -30,42 +30,35 @@ export function LoginPage({ onSignup }: Props) {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left panel — hero image bleed */}
+      {/* Left panel — hero */}
       <div
         className="hidden lg:flex lg:w-[58%] relative flex-col justify-between p-10 overflow-hidden"
-        style={{
-          background: 'linear-gradient(135deg, #0f2417 0%, #1a3a24 30%, #2d5a3d 60%, #1e4d3a 80%, #0d2318 100%)',
-        }}
+        style={{ background: 'linear-gradient(135deg, #0f0f14 0%, #1a1a22 40%, #22222e 100%)' }}
       >
-        {/* Texture overlay */}
-        <div
-          className="absolute inset-0 opacity-20"
-          style={{
-            backgroundImage:
-              'radial-gradient(circle at 20% 80%, rgba(180,140,60,0.4) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(100,180,120,0.3) 0%, transparent 50%), radial-gradient(circle at 50% 50%, rgba(255,255,255,0.03) 0%, transparent 60%)',
-          }}
-        />
-
-        {/* Abstract food shapes */}
+        {/* Decorative NFI-style bubbles */}
         <div className="absolute inset-0 overflow-hidden">
           <div
-            className="absolute -bottom-32 -right-32 w-[500px] h-[500px] rounded-full opacity-10"
-            style={{ background: 'radial-gradient(circle, rgba(180,140,60,0.8) 0%, transparent 70%)' }}
+            className="absolute -top-16 -right-16 w-[380px] h-[380px] rounded-full opacity-[0.07]"
+            style={{ background: '#e07856' }}
           />
           <div
-            className="absolute top-20 -left-20 w-[300px] h-[300px] rounded-full opacity-10"
-            style={{ background: 'radial-gradient(circle, rgba(100,200,130,0.8) 0%, transparent 70%)' }}
+            className="absolute -top-8 right-20 w-[220px] h-[220px] rounded-full opacity-[0.05]"
+            style={{ background: '#e07856' }}
+          />
+          <div
+            className="absolute bottom-20 -left-20 w-[280px] h-[280px] rounded-full opacity-[0.06]"
+            style={{ background: '#38b8b8' }}
           />
         </div>
 
         {/* NFI logo — top left */}
         <div className="relative z-10 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg">
-            <Beaker className="size-5 text-white" />
+          <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shadow-lg">
+            <span className="text-white font-bold text-sm tracking-tight select-none">nfi</span>
           </div>
           <div>
-            <div className="text-white font-bold text-lg leading-none tracking-wide">NFI</div>
-            <div className="text-emerald-300 text-xs font-medium tracking-widest uppercase">New Food Innovation</div>
+            <div className="text-white font-bold text-lg leading-none">new food innovation</div>
+            <div className="text-white/50 text-xs font-medium tracking-widest uppercase mt-0.5">Sensory Analysis Platform</div>
           </div>
         </div>
 
@@ -74,18 +67,18 @@ export function LoginPage({ onSignup }: Props) {
           <h1 className="text-5xl font-black text-white leading-tight mb-4">
             Innovation
             <br />
-            <span className="text-emerald-400">starts with</span>
+            <span style={{ color: '#e07856' }}>starts with</span>
             <br />
             insight.
           </h1>
-          <p className="text-emerald-100/80 text-lg leading-relaxed mb-8">
+          <p className="text-white/60 text-lg leading-relaxed mb-8">
             Assess products, design consumer surveys, and launch concept tests — all in one sensory intelligence platform.
           </p>
           <div className="flex flex-wrap gap-3">
             {['Sensory Evaluation', 'Consumer Panels', 'Concept Testing', 'R&D Analytics'].map(tag => (
               <span
                 key={tag}
-                className="px-3 py-1.5 rounded-full text-xs font-semibold border border-emerald-400/40 text-emerald-300 bg-emerald-900/40 backdrop-blur-sm"
+                className="px-3 py-1.5 rounded-full text-xs font-semibold border border-white/20 text-white/70 bg-white/5 backdrop-blur-sm"
               >
                 {tag}
               </span>
@@ -102,7 +95,7 @@ export function LoginPage({ onSignup }: Props) {
           ].map(stat => (
             <div key={stat.label}>
               <div className="text-2xl font-black text-white">{stat.value}</div>
-              <div className="text-emerald-300/70 text-xs mt-0.5">{stat.label}</div>
+              <div className="text-white/40 text-xs mt-0.5">{stat.label}</div>
             </div>
           ))}
         </div>
@@ -112,12 +105,12 @@ export function LoginPage({ onSignup }: Props) {
       <div className="flex-1 flex flex-col justify-center px-8 sm:px-16 bg-white">
         {/* Mobile logo */}
         <div className="lg:hidden flex items-center gap-3 mb-8">
-          <div className="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center">
-            <Beaker className="size-4 text-white" />
+          <div className="w-9 h-9 rounded-xl bg-[#1a1a22] flex items-center justify-center">
+            <span className="text-white font-bold text-xs tracking-tight select-none">nfi</span>
           </div>
           <div>
-            <div className="font-bold text-slate-900 leading-none">NFI</div>
-            <div className="text-xs text-slate-500 tracking-widest uppercase">New Food Innovation</div>
+            <div className="font-bold text-slate-900 leading-none">new food innovation</div>
+            <div className="text-xs text-slate-500 tracking-widest uppercase">Sensory Analysis Platform</div>
           </div>
         </div>
 
@@ -136,7 +129,7 @@ export function LoginPage({ onSignup }: Props) {
                 placeholder="you@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-11 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
+                className="h-11 border-slate-200 focus:border-[#e07856] focus:ring-[#e07856]"
                 required
               />
             </div>
@@ -148,7 +141,7 @@ export function LoginPage({ onSignup }: Props) {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="h-11 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
+                className="h-11 border-slate-200 focus:border-[#e07856] focus:ring-[#e07856]"
                 required
               />
             </div>
@@ -162,7 +155,10 @@ export function LoginPage({ onSignup }: Props) {
 
             <Button
               type="submit"
-              className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg"
+              className="w-full h-11 text-white font-semibold text-sm rounded-lg"
+              style={{ background: '#e07856' }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#d06846')}
+              onMouseLeave={e => (e.currentTarget.style.background = '#e07856')}
               disabled={loading}
             >
               {loading ? 'Signing in…' : (
@@ -177,7 +173,7 @@ export function LoginPage({ onSignup }: Props) {
             <button
               type="button"
               onClick={onSignup}
-              className="text-sm text-slate-500 hover:text-emerald-700 transition-colors"
+              className="text-sm text-slate-500 hover:text-[#e07856] transition-colors"
             >
               New panelist? <span className="font-semibold underline underline-offset-2">Create account</span>
             </button>

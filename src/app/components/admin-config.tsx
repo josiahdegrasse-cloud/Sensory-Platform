@@ -665,7 +665,10 @@ export function AdminConfig() {
             {/* Save Button */}
             <Button 
               onClick={handleSaveAttributes} 
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-lg py-6"
+              className="w-full text-lg py-6"
+              style={{ background: '#e07856' }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#d06846')}
+              onMouseLeave={e => (e.currentTarget.style.background = '#e07856')}
             >
               <Save className="size-5 mr-2" />
               Save Questionnaire Configuration

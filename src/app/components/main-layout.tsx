@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
-import { FlaskConical, BarChart3, GitMerge, ClipboardList, Settings, LogOut, Beaker, Lightbulb } from "lucide-react";
+import { FlaskConical, BarChart3, GitMerge, ClipboardList, Settings, LogOut, Lightbulb } from "lucide-react";
 import { useAuth } from "../contexts/auth-context";
 import { useEffect } from "react";
 
@@ -49,12 +49,12 @@ export function MainLayout() {
           <div className="flex items-center justify-between">
             {/* NFI logo — top left */}
             <Link to="/" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-              <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center shadow-sm">
-                <Beaker className="size-4 text-white" />
+              <div className="w-9 h-9 rounded-xl bg-[#1a1a22] flex items-center justify-center shadow-sm">
+                <span className="text-white font-bold text-sm tracking-tight select-none">nfi</span>
               </div>
               <div>
-                <div className="text-base font-bold text-slate-900 leading-none">NFI</div>
-                <div className="text-[10px] text-slate-400 tracking-widest uppercase font-medium leading-none mt-0.5">New Food Innovation</div>
+                <div className="text-base font-bold text-slate-900 leading-none">new food innovation</div>
+                <div className="text-[10px] text-slate-400 tracking-widest uppercase font-medium leading-none mt-0.5">Sensory Analysis Platform</div>
               </div>
             </Link>
 
@@ -89,7 +89,7 @@ export function MainLayout() {
                   to={item.path}
                   className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
                     active
-                      ? "bg-emerald-600 text-white"
+                      ? "bg-[#e07856] text-white"
                       : "text-slate-400 hover:bg-slate-800 hover:text-white"
                   }`}
                 >
