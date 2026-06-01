@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -8,8 +8,9 @@ import { Textarea } from './ui/textarea';
 import {
   Lightbulb, ChevronRight, ChevronLeft, Plus, Trash2,
   Users, Send, CheckCircle2, Sparkles, GripVertical,
-  DollarSign, Target, Package, Star,
+  DollarSign, Target, Package, Star, Image as ImageIcon, UserCheck,
 } from 'lucide-react';
+import { fetchPanelists, insertConceptTest, type PanelistInfo } from '../lib/database';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,7 +29,7 @@ interface ConceptDraft {
   name: string;
   category: string;
   description: string;
-  imageUrl: string;
+  marketingImages: string[];
   targetMarket: string;
   pricePoint: string;
   keyBenefits: string;
@@ -157,17 +158,57 @@ function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: C
         <p className="text-xs text-slate-400">Internal only — not shown to panelists.</p>
       </div>
 
-      <div className="space-y-1.5">
-        <Label className="font-medium">Concept image URL <span className="text-slate-400 font-normal">(optional)</span></Label>
-        <Input value={draft.imageUrl} onChange={set('imageUrl')} placeholder="https://..." />
-        <p className="text-xs text-slate-400">Displayed to panelists alongside the concept description.</p>
+      <div className="space-y-3">
+        <Label className="font-medium flex items-center gap-1.5">
+          <ImageIcon className="size-3.5" /> Marketing images
+          <span className="text-slate-400 font-normal text-xs">— shown to panelists for evaluation</span>
+        </Label>
+        {draft.marketingImages.map((url, i) => (
+          <div key={i} className="flex gap-2 items-center">
+            <Input
+              value={url}
+              onChange={(e) => {
+                const next = [...draft.marketingImages];
+                next[i] = e.target.value;
+                onChange({ ...draft, marketingImages: next });
+              }}
+              placeholder="https://… (packaging mockup, ad concept, branding)"
+              className="flex-1"
+            />
+            <button
+              type="button"
+              onClick={() => onChange({ ...draft, marketingImages: draft.marketingImages.filter((_, j) => j !== i) })}
+              className="text-slate-300 hover:text-rose-500 flex-shrink-0"
+            >
+              <Trash2 className="size-4" />
+            </button>
+          </div>
+        ))}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => onChange({ ...draft, marketingImages: [...draft.marketingImages, ''] })}
+          className="text-slate-600"
+        >
+          <Plus className="size-3.5 mr-1" /> Add marketing image
+        </Button>
+        {draft.marketingImages.filter(u => u.trim()).length > 0 && (
+          <div className="flex gap-3 flex-wrap mt-2">
+            {draft.marketingImages.filter(u => u.trim()).map((url, i) => (
+              <div key={i} className="rounded-lg overflow-hidden border border-slate-200 shadow-sm">
+                <img src={url} alt={`Marketing concept ${i + 1}`} className="w-40 h-28 object-cover" />
+                <div className="px-2 py-1 bg-slate-50 text-[10px] text-slate-500 text-center font-medium">
+                  Concept {i + 1}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="text-xs text-slate-400">
+          Add packaging mockups, ad concepts, or branding images. Panelists will view and evaluate these.
+        </p>
       </div>
-
-      {draft.imageUrl && (
-        <div className="rounded-xl overflow-hidden border-2 border-slate-200 max-w-sm">
-          <img src={draft.imageUrl} alt="Concept preview" className="w-full h-48 object-cover" />
-        </div>
-      )}
     </div>
   );
 }
@@ -318,12 +359,22 @@ function PanelStep({
   setPanelSize,
   targetSegments,
   setTargetSegments,
+  assignedPanelistIds,
+  setAssignedPanelistIds,
 }: {
   panelSize: number;
   setPanelSize: (n: number) => void;
   targetSegments: string[];
   setTargetSegments: (s: string[]) => void;
+  assignedPanelistIds: string[];
+  setAssignedPanelistIds: (ids: string[]) => void;
 }) {
+  const [registeredPanelists, setRegisteredPanelists] = useState<PanelistInfo[]>([]);
+
+  useEffect(() => {
+    fetchPanelists().then(setRegisteredPanelists).catch(() => {});
+  }, []);
+
   const segments = ['Everyday consumers', 'Health-conscious', 'Vegan / plant-based', 'Flexitarian', 'Foodservice buyers', 'Retail buyers', 'Seniors 55+', 'Parents with children', 'Young adults 18–34'];
 
   const toggle = (seg: string) =>
@@ -331,6 +382,13 @@ function PanelStep({
       targetSegments.includes(seg)
         ? targetSegments.filter(s => s !== seg)
         : [...targetSegments, seg]
+    );
+
+  const togglePanelist = (id: string) =>
+    setAssignedPanelistIds(
+      assignedPanelistIds.includes(id)
+        ? assignedPanelistIds.filter(p => p !== id)
+        : [...assignedPanelistIds, id]
     );
 
   return (
@@ -384,14 +442,56 @@ function PanelStep({
         </div>
       </div>
 
+      <div className="space-y-3">
+        <Label className="font-medium text-sm flex items-center gap-1.5">
+          <UserCheck className="size-3.5" /> Assign to registered panelists
+        </Label>
+        <p className="text-xs text-slate-500 -mt-1">
+          Select specific panelists — they will see this concept test in their dashboard.
+        </p>
+        {registeredPanelists.length === 0 ? (
+          <p className="text-sm text-slate-400 italic">No registered panelists found.</p>
+        ) : (
+          <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-56 overflow-y-auto">
+            {registeredPanelists.map(p => (
+              <label
+                key={p.id}
+                className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-slate-50 transition-colors"
+              >
+                <input
+                  type="checkbox"
+                  checked={assignedPanelistIds.includes(p.id)}
+                  onChange={() => togglePanelist(p.id)}
+                  className="rounded accent-blue-600"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-slate-900">{p.name}</div>
+                  <div className="text-xs text-slate-400">
+                    {p.panelistId ?? 'No ID assigned'} · {p.completedCount} evaluation{p.completedCount !== 1 ? 's' : ''} completed
+                  </div>
+                </div>
+                {assignedPanelistIds.includes(p.id) && (
+                  <span className="text-xs font-semibold text-blue-600 flex-shrink-0">Selected</span>
+                )}
+              </label>
+            ))}
+          </div>
+        )}
+        {assignedPanelistIds.length > 0 && (
+          <p className="text-xs font-semibold text-blue-600">
+            {assignedPanelistIds.length} panelist{assignedPanelistIds.length !== 1 ? 's' : ''} will receive this concept test
+          </p>
+        )}
+      </div>
+
       <Card className="border border-amber-200 bg-amber-50">
         <CardContent className="py-4 px-4">
           <div className="flex gap-2">
             <Users className="size-4 text-amber-600 mt-0.5 flex-shrink-0" />
             <div>
-              <p className="text-sm font-semibold text-amber-800">Registered panelists</p>
+              <p className="text-sm font-semibold text-amber-800">How assignment works</p>
               <p className="text-xs text-amber-700 mt-0.5">
-                Surveys are sent to registered panelists matching your segments. Panelists without an account will receive an email invitation to sign up and complete the survey.
+                Selected panelists will see this concept test in their dashboard alongside food evaluations. If no panelists are selected, the test targets panelists matching the consumer segments above.
               </p>
             </div>
           </div>
@@ -401,11 +501,12 @@ function PanelStep({
   );
 }
 
-function ReviewStep({ draft, questions, panelSize, segments }: {
+function ReviewStep({ draft, questions, panelSize, segments, assignedPanelistIds }: {
   draft: ConceptDraft;
   questions: Question[];
   panelSize: number;
   segments: string[];
+  assignedPanelistIds: string[];
 }) {
   return (
     <div className="space-y-5">
@@ -423,8 +524,12 @@ function ReviewStep({ draft, questions, panelSize, segments }: {
         </Card>
         <Card className="border-2 border-emerald-200 bg-emerald-50">
           <CardContent className="pt-4 pb-4 text-center">
-            <div className="text-3xl font-black text-emerald-600">{panelSize}</div>
-            <div className="text-xs text-emerald-700 font-medium mt-0.5">Panelists</div>
+            <div className="text-3xl font-black text-emerald-600">
+              {assignedPanelistIds.length > 0 ? assignedPanelistIds.length : panelSize}
+            </div>
+            <div className="text-xs text-emerald-700 font-medium mt-0.5">
+              {assignedPanelistIds.length > 0 ? 'Assigned' : 'Target size'}
+            </div>
           </CardContent>
         </Card>
         <Card className="border-2 border-amber-200 bg-amber-50">
@@ -446,6 +551,11 @@ function ReviewStep({ draft, questions, panelSize, segments }: {
           <div className="flex flex-wrap gap-3 mt-3 text-xs text-slate-600">
             {draft.targetMarket && <span><strong>Target:</strong> {draft.targetMarket}</span>}
             {draft.pricePoint && <span><strong>Price:</strong> {draft.pricePoint}</span>}
+            {draft.marketingImages.filter(u => u.trim()).length > 0 && (
+              <span className="text-emerald-700 font-semibold">
+                ✓ {draft.marketingImages.filter(u => u.trim()).length} marketing image{draft.marketingImages.filter(u => u.trim()).length !== 1 ? 's' : ''}
+              </span>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -490,25 +600,44 @@ function ReviewStep({ draft, questions, panelSize, segments }: {
 export function ConceptTesting() {
   const [step, setStep] = useState<WizardStep>('concept');
   const [draft, setDraft] = useState<ConceptDraft>({
-    name: '', category: '', description: '', imageUrl: '',
+    name: '', category: '', description: '', marketingImages: [],
     targetMarket: '', pricePoint: '', keyBenefits: '', technicalChallenges: '',
   });
   const [questions, setQuestions] = useState<Question[]>([]);
   const [panelSize, setPanelSize] = useState(50);
   const [segments, setSegments] = useState<string[]>([]);
+  const [assignedPanelistIds, setAssignedPanelistIds] = useState<string[]>([]);
   const [launching, setLaunching] = useState(false);
+  const [launchError, setLaunchError] = useState('');
 
   const STEPS: WizardStep[] = ['concept', 'questions', 'panel', 'review'];
   const stepIndex = STEPS.indexOf(step);
 
   const conceptValid = draft.name.trim() && draft.category.trim() && draft.description.trim();
 
-  const handleLaunch = () => {
+  const handleLaunch = async () => {
     setLaunching(true);
-    setTimeout(() => {
-      setLaunching(false);
+    setLaunchError('');
+    try {
+      await insertConceptTest({
+        name: draft.name,
+        category: draft.category,
+        description: draft.description,
+        imageUrls: draft.marketingImages.filter(u => u.trim()),
+        targetMarket: draft.targetMarket,
+        pricePoint: draft.pricePoint,
+        keyBenefits: draft.keyBenefits,
+        questions,
+        panelSize,
+        assignedPanelistIds,
+        status: 'active',
+      });
       setStep('launched');
-    }, 1800);
+    } catch {
+      setLaunchError('Failed to launch. Please check your connection and try again.');
+    } finally {
+      setLaunching(false);
+    }
   };
 
   if (step === 'launched') {
@@ -525,7 +654,7 @@ export function ConceptTesting() {
         <div className="flex items-center justify-center gap-3 pt-4">
           <Button
             variant="outline"
-            onClick={() => { setStep('concept'); setDraft({ name:'',category:'',description:'',imageUrl:'',targetMarket:'',pricePoint:'',keyBenefits:'',technicalChallenges:'' }); setQuestions([]); setSegments([]); setPanelSize(50); }}
+            onClick={() => { setStep('concept'); setDraft({ name:'',category:'',description:'',marketingImages:[],targetMarket:'',pricePoint:'',keyBenefits:'',technicalChallenges:'' }); setQuestions([]); setSegments([]); setAssignedPanelistIds([]); setPanelSize(50); }}
           >
             New concept test
           </Button>
@@ -580,10 +709,14 @@ export function ConceptTesting() {
         <CardContent className="pt-6 pb-6">
           {step === 'concept'    && <ConceptStep draft={draft} onChange={setDraft} />}
           {step === 'questions'  && <QuestionsStep questions={questions} onChange={setQuestions} />}
-          {step === 'panel'      && <PanelStep panelSize={panelSize} setPanelSize={setPanelSize} targetSegments={segments} setTargetSegments={setSegments} />}
-          {step === 'review'     && <ReviewStep draft={draft} questions={questions} panelSize={panelSize} segments={segments} />}
+          {step === 'panel'      && <PanelStep panelSize={panelSize} setPanelSize={setPanelSize} targetSegments={segments} setTargetSegments={setSegments} assignedPanelistIds={assignedPanelistIds} setAssignedPanelistIds={setAssignedPanelistIds} />}
+          {step === 'review'     && <ReviewStep draft={draft} questions={questions} panelSize={panelSize} segments={segments} assignedPanelistIds={assignedPanelistIds} />}
         </CardContent>
       </Card>
+
+      {launchError && (
+        <p className="text-sm text-rose-600 font-medium text-center">{launchError}</p>
+      )}
 
       {/* Navigation */}
       <div className="flex items-center justify-between">

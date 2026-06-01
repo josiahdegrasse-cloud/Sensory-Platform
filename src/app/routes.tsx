@@ -13,6 +13,7 @@ import { MultiSampleQuestionnaire } from "./components/multi-sample-questionnair
 import { DairyComparison } from "./components/dairy-comparison";
 import { AdminConfig } from "./components/admin-config";
 import { ConceptTesting } from "./components/concept-testing";
+import { ConceptSurvey } from "./components/concept-survey";
 import { NotFound } from "./components/not-found";
 import { ProtectedRoute } from "./components/protected-route";
 
@@ -42,7 +43,8 @@ export const router = createBrowserRouter([
         ],
       },
 
-      // All authenticated roles: questionnaire routes
+      // All authenticated roles: questionnaire routes + concept surveys
+      { path: "concept-survey/:conceptId", Component: ConceptSurvey },
       { path: "questionnaire-info/:productId", Component: QuestionnaireDescription },
       { path: "questionnaire/:productId", Component: QuestionnaireForm },
       { path: "multi-sample-info/:productId", Component: MultiSampleDescription },

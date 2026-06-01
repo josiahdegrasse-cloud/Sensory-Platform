@@ -3,6 +3,31 @@
 -- ALTER TABLE responses ADD COLUMN IF NOT EXISTS run_number INTEGER NOT NULL DEFAULT 1;
 -- DROP INDEX IF EXISTS responses_user_id_product_id_key;
 -- CREATE UNIQUE INDEX responses_user_product_run ON responses(user_id, product_id, run_number);
+
+-- Concept testing tables:
+-- CREATE TABLE concept_tests (
+--   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+--   name text NOT NULL,
+--   category text NOT NULL DEFAULT '',
+--   description text DEFAULT '',
+--   image_urls text[] DEFAULT '{}',
+--   target_market text DEFAULT '',
+--   price_point text DEFAULT '',
+--   key_benefits text DEFAULT '',
+--   questions jsonb NOT NULL DEFAULT '[]',
+--   panel_size integer NOT NULL DEFAULT 50,
+--   assigned_panelist_ids text[] DEFAULT '{}',
+--   status text NOT NULL DEFAULT 'active',
+--   created_at timestamptz DEFAULT now()
+-- );
+-- CREATE TABLE concept_responses (
+--   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+--   user_id uuid REFERENCES profiles(id) ON DELETE CASCADE,
+--   concept_test_id uuid REFERENCES concept_tests(id) ON DELETE CASCADE,
+--   answers jsonb NOT NULL DEFAULT '{}',
+--   created_at timestamptz DEFAULT now(),
+--   UNIQUE (user_id, concept_test_id)
+-- );
 */
 
 import { supabase } from './supabase';
@@ -332,4 +357,128 @@ export async function fetchPanelistReliability(): Promise<PanelistReliability[]>
       meanDeviation: devs.length >= 3 ? devs.reduce((a, b) => a + b, 0) / devs.length : null,
     };
   });
+}
+
+// ─── Concept Tests ────────────────────────────────────────────────────────────
+
+export interface ConceptQuestion {
+  id: string;
+  text: string;
+  type: 'scale' | 'multiple_choice' | 'open_text' | 'ranking';
+  options?: string[];
+  required: boolean;
+  category: string;
+}
+
+export interface ConceptTest {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  imageUrls: string[];
+  targetMarket: string;
+  pricePoint: string;
+  keyBenefits: string;
+  questions: ConceptQuestion[];
+  panelSize: number;
+  assignedPanelistIds: string[];
+  status: 'active' | 'completed';
+  createdAt: string;
+}
+
+export interface ConceptResponse {
+  id: string;
+  userId: string;
+  conceptTestId: string;
+  answers: Record<string, string | number | string[]>;
+  createdAt: string;
+}
+
+function toConceptTest(row: Record<string, unknown>): ConceptTest {
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    category: (row.category as string) ?? '',
+    description: (row.description as string) ?? '',
+    imageUrls: (row.image_urls as string[]) ?? [],
+    targetMarket: (row.target_market as string) ?? '',
+    pricePoint: (row.price_point as string) ?? '',
+    keyBenefits: (row.key_benefits as string) ?? '',
+    questions: (row.questions as ConceptQuestion[]) ?? [],
+    panelSize: (row.panel_size as number) ?? 50,
+    assignedPanelistIds: (row.assigned_panelist_ids as string[]) ?? [],
+    status: (row.status as 'active' | 'completed') ?? 'active',
+    createdAt: row.created_at as string,
+  };
+}
+
+export async function insertConceptTest(
+  test: Omit<ConceptTest, 'id' | 'createdAt'>,
+): Promise<ConceptTest> {
+  const { data, error } = await supabase
+    .from('concept_tests')
+    .insert({
+      name: test.name,
+      category: test.category,
+      description: test.description,
+      image_urls: test.imageUrls,
+      target_market: test.targetMarket,
+      price_point: test.pricePoint,
+      key_benefits: test.keyBenefits,
+      questions: test.questions,
+      panel_size: test.panelSize,
+      assigned_panelist_ids: test.assignedPanelistIds,
+      status: test.status,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return toConceptTest(data);
+}
+
+export async function fetchConceptTest(id: string): Promise<ConceptTest | null> {
+  const { data, error } = await supabase
+    .from('concept_tests')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? toConceptTest(data) : null;
+}
+
+export async function fetchConceptTestsForPanelist(userId: string): Promise<ConceptTest[]> {
+  const { data, error } = await supabase
+    .from('concept_tests')
+    .select('*')
+    .eq('status', 'active')
+    .contains('assigned_panelist_ids', [userId])
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toConceptTest);
+}
+
+export async function insertConceptResponse(
+  userId: string,
+  conceptTestId: string,
+  answers: Record<string, string | number | string[]>,
+): Promise<void> {
+  const { error } = await supabase
+    .from('concept_responses')
+    .upsert({ user_id: userId, concept_test_id: conceptTestId, answers });
+  if (error) throw error;
+}
+
+export async function fetchUserConceptResponses(userId: string): Promise<ConceptResponse[]> {
+  const { data, error } = await supabase
+    .from('concept_responses')
+    .select('*')
+    .eq('user_id', userId);
+  if (error) throw error;
+  return (data ?? []).map(r => ({
+    id: r.id as string,
+    userId: r.user_id as string,
+    conceptTestId: r.concept_test_id as string,
+    answers: (r.answers as Record<string, string | number | string[]>) ?? {},
+    createdAt: r.created_at as string,
+  }));
 }
