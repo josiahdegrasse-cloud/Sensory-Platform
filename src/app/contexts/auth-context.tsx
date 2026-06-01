@@ -88,10 +88,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string): Promise<string | null> => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> =>
+        Promise.race([
+          promise,
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Request timed out — check your connection and try again.')), ms)
+          ),
+        ]);
+
+      const { data, error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+        10000
+      );
       if (error) return error.message;
       if (data.user) {
-        const profile = await loadProfile(data.user);
+        const profile = await withTimeout(loadProfile(data.user), 8000);
         if (!profile) {
           await supabase.auth.signOut();
           return 'Account setup is incomplete. Ask your administrator to add your profile.';
