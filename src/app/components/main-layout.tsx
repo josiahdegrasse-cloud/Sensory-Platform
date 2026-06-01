@@ -48,7 +48,7 @@ export function MainLayout() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-xl font-bold text-slate-900">ISSF Dashboard</h1>
-              <p className="text-xs text-emerald-700 mt-1">✓ Mixed Panel Method: Semi-trained + E-Tongue + GC-O</p>
+              <p className="text-xs text-slate-500 mt-0.5">Sensory Analysis Platform</p>
             </div>
             <div className="flex items-center gap-4">
               <div className="text-right">

@@ -221,15 +221,12 @@ export function AdminConfig() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-slate-900">Product & Questionnaire Configuration</h1>
-        <p className="text-slate-600 mt-2">Manage products and customize questionnaire attributes for each evaluation</p>
-        <p className="text-sm text-purple-700 mt-1 font-medium">
-          ✓ Administrator Access: Full configuration control
-        </p>
+        <h1 className="text-2xl font-semibold text-slate-900">Product Configuration</h1>
+        <p className="text-sm text-slate-500 mt-1">Manage products and customize questionnaire attributes for each evaluation</p>
       </div>
 
       {/* Panelist Management */}
-      <Card className="border-2 border-blue-300">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="size-5 text-blue-600" />
@@ -305,10 +302,10 @@ export function AdminConfig() {
       )}
 
       {/* Create New Product */}
-      <Card className="border-2 border-purple-300">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Plus className="size-5 text-purple-600" />
+            <Plus className="size-5 text-slate-600" />
             Create New Product for Evaluation
           </CardTitle>
           <p className="text-sm text-slate-600">Add a new plant-based cheese sample to evaluate with panelists</p>
@@ -527,10 +524,10 @@ export function AdminConfig() {
                         </div>
                         <div className="text-sm text-slate-600">{product.category}</div>
                         {product.isMultiSample && product.samples && (
-                          <div className="text-xs text-purple-700 mt-1 font-medium flex items-center gap-2">
-                            <span>📊 {product.samples.length} samples configured</span>
-                            <span className="text-slate-500">•</span>
-                            <span className="text-slate-500">Discrimination + Ranking</span>
+                          <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
+                            <span>{product.samples.length} samples</span>
+                            <span>·</span>
+                            <span>Discrimination + Ranking</span>
                           </div>
                         )}
                         <div className="text-xs text-slate-500 mt-1">Created {new Date(product.createdDate).toLocaleDateString()}</div>
@@ -564,10 +561,10 @@ export function AdminConfig() {
 
       {/* Attribute Configuration */}
       {selectedProduct && (
-        <Card className="border-2 border-amber-300">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Settings className="size-5 text-amber-600" />
+              <Settings className="size-5 text-slate-600" />
               Customize Questionnaire Attributes
             </CardTitle>
             <p className="text-sm text-slate-600">
@@ -682,10 +679,10 @@ export function AdminConfig() {
 
       {/* Template Management */}
       {selectedProduct && (
-        <Card className="border-2 border-amber-300">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Bookmark className="size-5 text-amber-600" />
+              <Bookmark className="size-5 text-slate-600" />
               Manage Questionnaire Templates
             </CardTitle>
             <p className="text-sm text-slate-600">
@@ -771,8 +768,8 @@ export function AdminConfig() {
       {/* Confirmation Dialog */}
       {showConfirmation && pendingProduct && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-4xl border-4 border-purple-400 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <CardHeader className="bg-gradient-to-r from-purple-50 to-blue-50 border-b sticky top-0 z-10">
+          <Card className="w-full max-w-4xl shadow-xl max-h-[90vh] overflow-y-auto">
+            <CardHeader className="bg-white border-b sticky top-0 z-10">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
                   {confirmationStep === 'review' && (
@@ -834,21 +831,19 @@ export function AdminConfig() {
                       </div>
                     )}
 
-                    <div className="p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border-2 border-blue-200">
-                      <div className="text-base font-bold text-blue-900 mb-3">
-                        What happens next:
-                      </div>
-                      <ul className="text-sm text-blue-800 space-y-2">
+                    <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                      <div className="text-sm font-semibold text-slate-700 mb-3">What happens next</div>
+                      <ul className="text-sm text-slate-600 space-y-2">
                         <li className="flex items-start gap-2">
-                          <CheckCircle2 className="size-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                          <CheckCircle2 className="size-4 text-emerald-600 flex-shrink-0 mt-0.5" />
                           <span>Product will be created and set to "Open for Evaluation"</span>
                         </li>
                         <li className="flex items-start gap-2">
-                          <CheckCircle2 className="size-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                          <CheckCircle2 className="size-4 text-emerald-600 flex-shrink-0 mt-0.5" />
                           <span>You'll configure which attributes panelists will evaluate</span>
                         </li>
                         <li className="flex items-start gap-2">
-                          <CheckCircle2 className="size-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                          <CheckCircle2 className="size-4 text-emerald-600 flex-shrink-0 mt-0.5" />
                           <span>
                             Panelists will {pendingProduct.isMultiSample ? 'evaluate each sample and rank them' : 'see this product in their questionnaire'}
                           </span>
