@@ -43,75 +43,44 @@ async function loadProfile(supabaseUser: SupabaseUser): Promise<User | null> {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [sessionUser, setSessionUser] = useState<SupabaseUser | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
 
+  // Step 1: listen for auth changes — sync only, no async db calls inside handler
   useEffect(() => {
-    // Safety timeout — never hang on loading forever
-    const timeout = setTimeout(() => setLoading(false), 5000);
-
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        try {
-          const profile = await loadProfile(session.user);
-          setUser(profile);
-        } catch (err) {
-          console.error('Failed to load profile:', err);
-        }
-      }
-      clearTimeout(timeout);
-      setLoading(false);
-    }).catch(err => {
-      console.error('getSession failed:', err);
-      clearTimeout(timeout);
-      setLoading(false);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSessionUser(session?.user ?? null);
+    }).catch(() => {
+      setSessionUser(null);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('[onAuthStateChange] event:', event, 'user:', session?.user?.id ?? null);
-        if (session?.user) {
-          try {
-            const profile = await loadProfile(session.user);
-            console.log('[onAuthStateChange] profile loaded:', profile);
-            setUser(profile);
-          } catch (err) {
-            console.error('Failed to load profile:', err);
-          }
-        } else {
-          setUser(null);
-        }
-        setLoading(false);
-      }
-    );
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      setSessionUser(session?.user ?? null);
+      if (!session?.user) setUser(null);
+    });
 
-    return () => {
-      clearTimeout(timeout);
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
+
+  // Step 2: load profile once we know the session user
+  useEffect(() => {
+    if (sessionUser === undefined) return; // still waiting for getSession
+    if (!sessionUser) {
+      setLoading(false);
+      return;
+    }
+    loadProfile(sessionUser).then(profile => {
+      setUser(profile);
+      setLoading(false);
+    }).catch(() => {
+      setLoading(false);
+    });
+  }, [sessionUser]);
 
   const login = async (email: string, password: string): Promise<string | null> => {
     try {
-      const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> =>
-        Promise.race([
-          promise,
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Request timed out — check your connection and try again.')), ms)
-          ),
-        ]);
-
-      const { data, error } = await withTimeout(
-        supabase.auth.signInWithPassword({ email, password }),
-        10000
-      );
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) return error.message;
-      if (data.user) {
-        const profile = await withTimeout(loadProfile(data.user), 8000);
-        if (!profile) {
-          await supabase.auth.signOut();
-          return 'Account setup is incomplete. Ask your administrator to add your profile.';
-        }
-      }
       return null;
     } catch (err) {
       return err instanceof Error ? err.message : 'Unknown error';
