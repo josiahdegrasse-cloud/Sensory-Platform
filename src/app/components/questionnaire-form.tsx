@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -69,7 +69,7 @@ export function QuestionnaireForm() {
       .catch(() => setProductLoading(false));
   }, [productId]);
 
-  // Load existing response or draft
+  // Load existing response or draft — DB check runs first; draft restore only fires if no DB response
   useEffect(() => {
     if (!user?.id || !productId) return;
     fetchLatestUserResponse(user.id, productId).then(existing => {
@@ -93,12 +93,14 @@ export function QuestionnaireForm() {
           } catch { /* ignore invalid JSON */ }
         }
       }
+    }).finally(() => {
+      initialLoadComplete.current = true;
     });
   }, [productId, user?.id]);
 
-  // Persist draft on every formData change
+  // Persist draft on every formData change — guarded so we never overwrite a real draft on mount
   useEffect(() => {
-    if (!productId) return;
+    if (!productId || !initialLoadComplete.current) return;
     localStorage.setItem(`qs_draft_${productId}`, JSON.stringify(formData));
   }, [formData, productId]);
 
@@ -145,6 +147,8 @@ export function QuestionnaireForm() {
       window.scrollTo(0, 0);
     }
   };
+
+  const initialLoadComplete = useRef(false);
 
   const [submitError, setSubmitError] = useState('');
 

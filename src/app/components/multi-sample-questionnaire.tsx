@@ -78,6 +78,10 @@ export function MultiSampleQuestionnaire() {
   // Palate cleanse countdown
   const [cleanseCountdown, setCleanseCountdown] = useState(30);
   const cleanseIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [discriminationError, setDiscriminationError] = useState('');
+  const [rankingError, setRankingError] = useState('');
 
   useEffect(() => {
     if (currentStep !== 'cleanse') return;
@@ -158,9 +162,10 @@ export function MultiSampleQuestionnaire() {
 
   const handleContinueFromDiscrimination = () => {
     if (!differentSample) {
-      alert('Please select which sample is different');
+      setDiscriminationError('Please select which sample is different before continuing.');
       return;
     }
+    setDiscriminationError('');
     setCurrentStep('ranking');
   };
 
@@ -178,14 +183,17 @@ export function MultiSampleQuestionnaire() {
 
   const handleContinueFromRanking = () => {
     if (ranking.length !== 3) {
-      alert('Please rank all three samples');
+      setRankingError('Please rank all three samples before continuing.');
       return;
     }
+    setRankingError('');
     setCurrentStep('confirmation');
   };
 
   const handleFinalSubmit = async () => {
     if (!user?.id || !productId) return;
+    setIsSubmitting(true);
+    setSubmitError('');
     try {
       await insertResponse({
         userId: user.id,
@@ -198,7 +206,9 @@ export function MultiSampleQuestionnaire() {
       setCurrentStep('submitted');
       setTimeout(() => navigate('/panelist'), 3000);
     } catch (err) {
-      console.error('Failed to submit multi-sample response:', err);
+      setSubmitError(err instanceof Error ? err.message : 'Submission failed. Please check your connection and try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -643,9 +653,16 @@ export function MultiSampleQuestionnaire() {
           </CardContent>
         </Card>
 
+        {discriminationError && (
+          <Alert variant="destructive">
+            <AlertCircle className="size-4" />
+            <AlertDescription>{discriminationError}</AlertDescription>
+          </Alert>
+        )}
+
         <Card className="bg-gradient-to-r from-emerald-50 to-blue-50 border-2 border-emerald-300">
           <CardContent className="pt-6">
-            <Button 
+            <Button
               onClick={handleContinueFromDiscrimination}
               disabled={!differentSample}
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-lg py-6 disabled:opacity-50"
@@ -724,9 +741,16 @@ export function MultiSampleQuestionnaire() {
           </CardContent>
         </Card>
 
+        {rankingError && (
+          <Alert variant="destructive">
+            <AlertCircle className="size-4" />
+            <AlertDescription>{rankingError}</AlertDescription>
+          </Alert>
+        )}
+
         <Card className="bg-gradient-to-r from-emerald-50 to-blue-50 border-2 border-emerald-300">
           <CardContent className="pt-6">
-            <Button 
+            <Button
               onClick={handleContinueFromRanking}
               disabled={ranking.length !== 3}
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-lg py-6 disabled:opacity-50"
@@ -818,12 +842,21 @@ export function MultiSampleQuestionnaire() {
                 <strong>Important:</strong> Once submitted, you cannot edit your responses. Please review all information carefully.
               </AlertDescription>
             </Alert>
-            <Button 
+            {submitError && (
+              <Alert variant="destructive">
+                <AlertCircle className="size-4" />
+                <AlertDescription>
+                  <strong>Submission failed:</strong> {submitError}
+                </AlertDescription>
+              </Alert>
+            )}
+            <Button
               onClick={handleFinalSubmit}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-lg py-6"
+              disabled={isSubmitting}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-lg py-6 disabled:opacity-70"
             >
               <CheckCircle2 className="size-5 mr-2" />
-              Submit Final Questionnaire
+              {isSubmitting ? 'Submitting…' : 'Submit Final Questionnaire'}
             </Button>
           </CardContent>
         </Card>

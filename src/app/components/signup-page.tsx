@@ -15,6 +15,7 @@ export function SignupPage({ onBack }: Props) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [consentGiven, setConsentGiven] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -29,6 +30,7 @@ export function SignupPage({ onBack }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (!consentGiven) { setError('You must agree to the data processing terms to create an account.'); return; }
     const pwError = validatePassword(password);
     if (pwError) { setError(pwError); return; }
     setLoading(true);
@@ -120,6 +122,24 @@ export function SignupPage({ onBack }: Props) {
                 />
                 <p className="text-xs text-slate-400">Min 8 characters, one uppercase letter, one number.</p>
               </div>
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
+                <p className="text-xs text-slate-600 font-medium">Data Processing Notice (UK GDPR)</p>
+                <p className="text-xs text-slate-500">
+                  Your name, email, and evaluation responses will be stored securely and used solely for food product research by the study administrator. You may request deletion of your data at any time by contacting the administrator.
+                </p>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={consentGiven}
+                    onChange={e => setConsentGiven(e.target.checked)}
+                    className="mt-0.5 accent-purple-600"
+                    required
+                  />
+                  <span className="text-xs text-slate-700">
+                    I agree to my data being processed for sensory research purposes as described above.
+                  </span>
+                </label>
+              </div>
               {error && (
                 <Alert variant="destructive">
                   <AlertCircle className="size-4" />
@@ -129,7 +149,7 @@ export function SignupPage({ onBack }: Props) {
               <Button
                 type="submit"
                 className="w-full bg-purple-600 hover:bg-purple-700"
-                disabled={loading}
+                disabled={loading || !consentGiven}
               >
                 {loading ? 'Creating account…' : 'Create Account'}
               </Button>

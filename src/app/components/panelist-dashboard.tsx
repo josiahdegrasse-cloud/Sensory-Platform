@@ -5,7 +5,8 @@ import { Button } from './ui/button';
 import { useAuth } from '../contexts/auth-context';
 import { type Product, type QuestionnaireResponse } from '../data/mock-users';
 import { fetchActiveProducts, fetchUserResponses } from '../lib/database';
-import { CheckCircle2, Clock, ClipboardList, Edit2, Layers } from 'lucide-react';
+import { CheckCircle2, Clock, ClipboardList, Edit2, Layers, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from './ui/alert';
 import { Link } from 'react-router';
 
 export function PanelistDashboard() {
@@ -13,6 +14,7 @@ export function PanelistDashboard() {
   const [products, setProducts] = useState<Product[]>([]);
   const [userResponses, setUserResponses] = useState<QuestionnaireResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
 
   useEffect(() => {
     if (!user?.id) return;
@@ -20,9 +22,13 @@ export function PanelistDashboard() {
       .then(([prods, responses]) => {
         setProducts(prods);
         setUserResponses(responses);
-        setLoading(false);
       })
-      .catch(console.error);
+      .catch(() => {
+        setFetchError('Unable to load questionnaires. Please check your connection and refresh the page.');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, [user?.id]);
 
   const completedProductIds = userResponses.map(r => r.productId);
@@ -37,6 +43,13 @@ export function PanelistDashboard() {
         <p className="text-slate-600 mt-2">Panelist ID: <span className="font-bold text-blue-600">{user?.panelistId}</span></p>
         <p className="text-sm text-slate-600 mt-1">Complete questionnaires for active product evaluations below.</p>
       </div>
+
+      {fetchError && (
+        <Alert variant="destructive">
+          <AlertCircle className="size-4" />
+          <AlertDescription>{fetchError}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Statistics */}
       <div className="grid grid-cols-3 gap-4">

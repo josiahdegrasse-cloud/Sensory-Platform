@@ -42,6 +42,7 @@ export function SurveyAnalysis() {
   const [selectedMultiProduct, setSelectedMultiProduct] = useState<string>('');
   const [liveAggregations, setLiveAggregations] = useState<LiveAggregation[]>([]);
   const [commentsByProduct, setCommentsByProduct] = useState<Record<string, string[]>>({});
+  const [liveDataFetchFailed, setLiveDataFetchFailed] = useState(false);
 
   // Single fetch — split into multi-sample responses and single-sample aggregations
   useEffect(() => {
@@ -128,7 +129,9 @@ export function SurveyAnalysis() {
         }
       });
       setCommentsByProduct(commentsMap);
-    }).catch(console.error);
+    }).catch(() => {
+      setLiveDataFetchFailed(true);
+    });
   }, []);
 
   // Derive unique base types from sample names
@@ -406,11 +409,29 @@ export function SurveyAnalysis() {
         </button>
       </div>
 
-      {analysisType === 'single' && usingLiveData && (
+      {liveDataFetchFailed && (
+        <div className="flex items-center gap-2 px-4 py-3 bg-rose-50 border border-rose-300 rounded-lg text-sm">
+          <AlertCircle className="size-4 text-rose-600 shrink-0" />
+          <span className="text-rose-800 font-medium">
+            Could not load live panel responses. Charts are showing <strong>simulated research data only</strong>. Do not export for client use until this is resolved.
+          </span>
+        </div>
+      )}
+
+      {analysisType === 'single' && usingLiveData && !liveDataFetchFailed && (
         <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-300 rounded-lg text-sm">
           <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           <span className="text-emerald-800 font-medium">
             Showing live panel responses for <strong>{selectedData.sampleName}</strong> (n={matchingLiveData?.n})
+          </span>
+        </div>
+      )}
+
+      {analysisType === 'single' && !usingLiveData && !liveDataFetchFailed && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm">
+          <AlertCircle className="size-4 text-amber-600 shrink-0" />
+          <span className="text-amber-800">
+            <strong>Simulated data:</strong> No live panel responses matched this sample. Charts show E-Tongue / GC-MS / semi-trained panel benchmarks — not real panelist submissions.
           </span>
         </div>
       )}
