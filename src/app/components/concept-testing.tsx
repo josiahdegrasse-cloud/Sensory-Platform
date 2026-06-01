@@ -95,6 +95,30 @@ function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: C
   const set = (field: keyof ConceptDraft) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     onChange({ ...draft, [field]: e.target.value });
 
+  const [aiCandidates, setAiCandidates] = useState<{ url: string; selected: boolean; loaded: boolean }[]>([]);
+
+  const handleGenerateImages = () => {
+    const prompt = [
+      draft.name ? `${draft.name} product packaging design` : 'product packaging design',
+      draft.category,
+      draft.description?.slice(0, 120),
+      draft.keyBenefits?.slice(0, 80),
+      'professional mockup, clean white background, commercial photography',
+    ].filter(Boolean).join(', ');
+    const encoded = encodeURIComponent(prompt);
+    setAiCandidates([1, 2, 3].map(() => ({
+      url: `https://image.pollinations.ai/prompt/${encoded}?width=768&height=768&nologo=true&seed=${Math.floor(Math.random() * 99999)}&model=flux`,
+      selected: true,
+      loaded: false,
+    })));
+  };
+
+  const addAiImages = () => {
+    const toAdd = aiCandidates.filter(c => c.selected).map(c => c.url);
+    onChange({ ...draft, marketingImages: [...draft.marketingImages.filter(u => u.trim()), ...toAdd] });
+    setAiCandidates([]);
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -163,6 +187,76 @@ function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: C
           <ImageIcon className="size-3.5" /> Marketing images
           <span className="text-slate-400 font-normal text-xs">— shown to panelists for evaluation</span>
         </Label>
+
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleGenerateImages}
+            disabled={!draft.name && !draft.category && !draft.description}
+            className="bg-violet-600 hover:bg-violet-700 text-white"
+          >
+            <Sparkles className="size-3.5 mr-1.5" />
+            Generate with AI
+          </Button>
+          <span className="text-xs text-slate-400">Creates 3 packaging variations from your concept details above</span>
+        </div>
+
+        {aiCandidates.length > 0 && (
+          <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-violet-800">Select images to add to your concept:</p>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setAiCandidates([])} className="h-7 text-xs text-slate-600">
+                  Discard
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={addAiImages}
+                  disabled={!aiCandidates.some(c => c.selected)}
+                  className="bg-violet-600 hover:bg-violet-700 text-white h-7 text-xs"
+                >
+                  Add selected
+                </Button>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {aiCandidates.map((c, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setAiCandidates(prev => prev.map((x, j) => j === i ? { ...x, selected: !x.selected } : x))}
+                  className={`relative rounded-lg overflow-hidden border-2 transition-all ${
+                    c.selected ? 'border-violet-500 shadow-md' : 'border-slate-200 opacity-50'
+                  }`}
+                >
+                  {!c.loaded && (
+                    <div className="w-full h-32 bg-violet-100 animate-pulse flex items-center justify-center">
+                      <span className="text-xs text-violet-400">Generating…</span>
+                    </div>
+                  )}
+                  <img
+                    src={c.url}
+                    alt={`AI variation ${i + 1}`}
+                    className={`w-full h-32 object-cover ${c.loaded ? 'block' : 'hidden'}`}
+                    onLoad={() => setAiCandidates(prev => prev.map((x, j) => j === i ? { ...x, loaded: true } : x))}
+                  />
+                  <div className={`absolute top-2 right-2 w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                    c.selected ? 'bg-violet-600 border-violet-600' : 'bg-white/90 border-slate-300'
+                  }`}>
+                    {c.selected && <CheckCircle2 className="size-3 text-white" />}
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/40 text-white text-[10px] py-0.5 text-center font-medium">
+                    Variation {i + 1}
+                  </div>
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-violet-500">Click a variation to select or deselect it · Images load from Pollinations AI (free)</p>
+          </div>
+        )}
+
         {draft.marketingImages.map((url, i) => (
           <div key={i} className="flex gap-2 items-center">
             <Input
@@ -172,7 +266,7 @@ function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: C
                 next[i] = e.target.value;
                 onChange({ ...draft, marketingImages: next });
               }}
-              placeholder="https://… (packaging mockup, ad concept, branding)"
+              placeholder="https://… (or paste a URL manually)"
               className="flex-1"
             />
             <button
@@ -191,7 +285,7 @@ function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: C
           onClick={() => onChange({ ...draft, marketingImages: [...draft.marketingImages, ''] })}
           className="text-slate-600"
         >
-          <Plus className="size-3.5 mr-1" /> Add marketing image
+          <Plus className="size-3.5 mr-1" /> Add image URL manually
         </Button>
         {draft.marketingImages.filter(u => u.trim()).length > 0 && (
           <div className="flex gap-3 flex-wrap mt-2">
@@ -206,7 +300,7 @@ function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: C
           </div>
         )}
         <p className="text-xs text-slate-400">
-          Add packaging mockups, ad concepts, or branding images. Panelists will view and evaluate these.
+          Panelists will view and rate these images during the survey.
         </p>
       </div>
     </div>
