@@ -21,11 +21,13 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 async function loadProfile(supabaseUser: SupabaseUser): Promise<User | null> {
+  console.log('[loadProfile] fetching for id:', supabaseUser.id);
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
     .eq('id', supabaseUser.id)
     .single();
+  console.log('[loadProfile] result — data:', data, 'error:', error?.message, error?.code);
   if (error) {
     console.error('loadProfile error:', error.message, error.code);
   }
@@ -65,10 +67,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_, session) => {
+      async (event, session) => {
+        console.log('[onAuthStateChange] event:', event, 'user:', session?.user?.id ?? null);
         if (session?.user) {
           try {
             const profile = await loadProfile(session.user);
+            console.log('[onAuthStateChange] profile loaded:', profile);
             setUser(profile);
           } catch (err) {
             console.error('Failed to load profile:', err);
