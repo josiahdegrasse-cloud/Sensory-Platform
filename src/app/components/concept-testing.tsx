@@ -162,55 +162,75 @@ function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: C
 }
 
 function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: ConceptDraft) => void }) {
-  const [aiCandidates, setAiCandidates] = useState<{ url: string; selected: boolean; loaded: boolean }[]>([]);
-  const [pendingUrls, setPendingUrls] = useState<string[]>([]);
+  const [aiCandidates, setAiCandidates] = useState<{ url: string; selected: boolean; loading: boolean; failed: boolean }[]>([]);
+  const [generating, setGenerating] = useState(false);
+  const [hfToken, setHfToken] = useState(() => localStorage.getItem('hf_token') ?? '');
+  const [tokenInput, setTokenInput] = useState('');
+  const [tokenError, setTokenError] = useState('');
 
-  const handleGenerate = () => {
+  const saveToken = () => {
+    const t = tokenInput.trim();
+    if (!t.startsWith('hf_')) { setTokenError('Token should start with hf_'); return; }
+    localStorage.setItem('hf_token', t);
+    setHfToken(t);
+    setTokenInput('');
+    setTokenError('');
+  };
+
+  const generateOne = async (prompt: string, token: string): Promise<string> => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const res = await fetch('https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inputs: prompt }),
+      });
+      if (res.status === 503) { await new Promise(r => setTimeout(r, 20000)); continue; }
+      if (!res.ok) throw new Error(`${res.status}`);
+      const blob = await res.blob();
+      return URL.createObjectURL(blob);
+    }
+    throw new Error('Model unavailable after retries');
+  };
+
+  const handleGenerate = async () => {
+    if (!hfToken) return;
     const prompt = [
       draft.name ? `${draft.name} product packaging design` : 'product packaging design',
       draft.category,
       draft.description?.slice(0, 120),
       draft.keyBenefits?.slice(0, 80),
-      'professional product mockup, clean white background, commercial photography',
+      'professional product mockup, clean white background, commercial photography, high quality',
     ].filter(Boolean).join(', ');
-    const encoded = encodeURIComponent(prompt);
-    const makeUrl = () =>
-      `https://image.pollinations.ai/prompt/${encoded}?width=768&height=768&nologo=true&seed=${Math.floor(Math.random() * 99999)}&model=flux`;
-    const urls = [makeUrl(), makeUrl(), makeUrl()];
-    // Show 3 placeholders immediately; only the first starts loading — the rest queue
-    setPendingUrls(urls.slice(1));
-    setAiCandidates([
-      { url: urls[0], selected: true, loaded: false },
-      { url: '', selected: true, loaded: false },
-      { url: '', selected: true, loaded: false },
-    ]);
-  };
 
-  const handleImageLoad = (i: number) => {
-    setAiCandidates(prev => prev.map((x, j) => j === i ? { ...x, loaded: true } : x));
-    setPendingUrls(queue => {
-      if (queue.length === 0) return queue;
-      const next = queue[0];
-      setAiCandidates(cands => {
-        const emptyIdx = cands.findIndex(c => !c.url);
-        if (emptyIdx === -1) return cands;
-        return cands.map((x, j) => j === emptyIdx ? { ...x, url: next } : x);
-      });
-      return queue.slice(1);
-    });
+    setGenerating(true);
+    setAiCandidates([
+      { url: '', selected: true, loading: true, failed: false },
+      { url: '', selected: true, loading: true, failed: false },
+      { url: '', selected: true, loading: true, failed: false },
+    ]);
+
+    for (let i = 0; i < 3; i++) {
+      try {
+        const url = await generateOne(prompt, hfToken);
+        setAiCandidates(prev => prev.map((x, j) => j === i ? { ...x, url, loading: false } : x));
+      } catch {
+        setAiCandidates(prev => prev.map((x, j) => j === i ? { ...x, loading: false, failed: true } : x));
+      }
+    }
+    setGenerating(false);
   };
 
   const addSelected = () => {
     const toAdd = aiCandidates.filter(c => c.selected && c.url).map(c => c.url);
     onChange({ ...draft, marketingImages: [...draft.marketingImages.filter(u => u.trim()), ...toAdd] });
     setAiCandidates([]);
-    setPendingUrls([]);
   };
 
   const removeImage = (i: number) =>
     onChange({ ...draft, marketingImages: draft.marketingImages.filter((_, j) => j !== i) });
 
   const validImages = draft.marketingImages.filter(u => u.trim());
+  const canGenerate = !!(draft.name || draft.category || draft.description);
 
   return (
     <div className="space-y-6">
@@ -221,30 +241,67 @@ function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: Co
         </p>
       </div>
 
-      {/* AI generator panel */}
+      {/* Token setup */}
+      {!hfToken ? (
+        <Card className="border-2 border-amber-200 bg-amber-50">
+          <CardContent className="pt-5 pb-5 space-y-3">
+            <div>
+              <p className="font-semibold text-amber-900">Connect Hugging Face (free)</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Go to <strong>huggingface.co/settings/tokens</strong>, create a token with Read access, and paste it below.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                value={tokenInput}
+                onChange={e => { setTokenInput(e.target.value); setTokenError(''); }}
+                onKeyDown={e => e.key === 'Enter' && saveToken()}
+                placeholder="hf_…"
+                className="flex-1 font-mono text-sm bg-white"
+              />
+              <Button type="button" onClick={saveToken} disabled={!tokenInput.trim()} className="bg-amber-600 hover:bg-amber-700 text-white flex-shrink-0">
+                Save
+              </Button>
+            </div>
+            {tokenError && <p className="text-xs text-rose-600">{tokenError}</p>}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="flex items-center justify-between text-xs bg-slate-50 rounded-lg px-3 py-2 border border-slate-200">
+          <span className="text-slate-600">Hugging Face connected · FLUX.1-schnell</span>
+          <button
+            type="button"
+            onClick={() => { localStorage.removeItem('hf_token'); setHfToken(''); }}
+            className="text-slate-400 hover:text-rose-500 transition-colors"
+          >
+            Disconnect
+          </button>
+        </div>
+      )}
+
+      {/* Generator panel */}
       <div className="rounded-xl border-2 border-violet-200 bg-violet-50 p-5 space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="font-semibold text-violet-900">AI Packaging Generator</p>
-            <p className="text-xs text-violet-500 mt-0.5">
-              Powered by Pollinations AI (free) · takes ~15–30 seconds per image
-            </p>
+            <p className="text-xs text-violet-500 mt-0.5">Generates 3 variations one at a time · ~20–40 seconds each</p>
           </div>
           <Button
             type="button"
             onClick={handleGenerate}
-            disabled={!draft.name && !draft.category && !draft.description}
+            disabled={!hfToken || generating || !canGenerate}
             className="bg-violet-600 hover:bg-violet-700 text-white flex-shrink-0"
           >
-            {aiCandidates.length > 0
-              ? <><RefreshCw className="size-4 mr-2" />Regenerate</>
-              : <><Sparkles className="size-4 mr-2" />Generate images</>
-            }
+            {generating
+              ? <><RefreshCw className="size-4 mr-2 animate-spin" />Generating…</>
+              : aiCandidates.length > 0
+                ? <><RefreshCw className="size-4 mr-2" />Regenerate</>
+                : <><Sparkles className="size-4 mr-2" />Generate images</>}
           </Button>
         </div>
 
-        {(!draft.name && !draft.category && !draft.description) && (
-          <p className="text-xs text-violet-400 italic">Fill in your concept name or description on the previous step to enable generation.</p>
+        {!canGenerate && (
+          <p className="text-xs text-violet-400 italic">Fill in your concept details on the previous step to enable generation.</p>
         )}
 
         {aiCandidates.length > 0 && (
@@ -254,55 +311,56 @@ function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: Co
                 <button
                   key={i}
                   type="button"
-                  onClick={() => setAiCandidates(prev => prev.map((x, j) => j === i ? { ...x, selected: !x.selected } : x))}
+                  onClick={() => !c.loading && !c.failed && setAiCandidates(prev => prev.map((x, j) => j === i ? { ...x, selected: !x.selected } : x))}
                   className={`relative rounded-xl overflow-hidden border-2 transition-all ${
-                    c.selected ? 'border-violet-500 shadow-lg' : 'border-slate-200 opacity-50'
+                    c.loading || c.failed ? 'border-slate-200 cursor-default'
+                      : c.selected ? 'border-violet-500 shadow-lg' : 'border-slate-200 opacity-50'
                   }`}
                 >
-                  {!c.loaded && (
+                  {c.loading && (
                     <div className="w-full h-48 bg-violet-100 animate-pulse flex flex-col items-center justify-center gap-2">
                       <Sparkles className="size-5 text-violet-300" />
-                      <span className="text-xs text-violet-400 font-medium">
-                        {c.url ? 'Generating…' : 'Waiting…'}
-                      </span>
+                      <span className="text-xs text-violet-400 font-medium">Generating…</span>
                     </div>
                   )}
-                  {c.url && (
-                    <img
-                      src={c.url}
-                      alt={`AI variation ${i + 1}`}
-                      className={`w-full h-48 object-cover ${c.loaded ? 'block' : 'hidden'}`}
-                      onLoad={() => handleImageLoad(i)}
-                    />
+                  {c.failed && (
+                    <div className="w-full h-48 bg-slate-100 flex items-center justify-center">
+                      <span className="text-xs text-slate-400">Failed — try regenerating</span>
+                    </div>
                   )}
-                  <div className={`absolute top-2 right-2 w-6 h-6 rounded-full border-2 flex items-center justify-center shadow-sm ${
-                    c.selected ? 'bg-violet-600 border-violet-600' : 'bg-white/90 border-slate-300'
-                  }`}>
-                    {c.selected && <CheckCircle2 className="size-3.5 text-white" />}
-                  </div>
+                  {c.url && <img src={c.url} alt={`AI variation ${i + 1}`} className="w-full h-48 object-cover" />}
+                  {!c.loading && !c.failed && c.url && (
+                    <div className={`absolute top-2 right-2 w-6 h-6 rounded-full border-2 flex items-center justify-center shadow-sm ${
+                      c.selected ? 'bg-violet-600 border-violet-600' : 'bg-white/90 border-slate-300'
+                    }`}>
+                      {c.selected && <CheckCircle2 className="size-3.5 text-white" />}
+                    </div>
+                  )}
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent text-white text-xs py-2 px-3 font-semibold">
                     Variation {i + 1}
                   </div>
                 </button>
               ))}
             </div>
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-violet-500">Click a variation to select or deselect</p>
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => { setAiCandidates([]); setPendingUrls([]); }} className="text-slate-600 text-xs">
-                  Discard
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={addSelected}
-                  disabled={!aiCandidates.some(c => c.selected)}
-                  className="bg-violet-600 hover:bg-violet-700 text-white text-xs"
-                >
-                  Add {aiCandidates.filter(c => c.selected).length} to concept
-                </Button>
+            {!generating && (
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-violet-500">Click a variation to select or deselect</p>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setAiCandidates([])} className="text-slate-600 text-xs">
+                    Discard
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={addSelected}
+                    disabled={!aiCandidates.some(c => c.selected && c.url)}
+                    className="bg-violet-600 hover:bg-violet-700 text-white text-xs"
+                  >
+                    Add {aiCandidates.filter(c => c.selected && c.url).length} to concept
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </div>
@@ -313,9 +371,7 @@ function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: Co
           <Label className="font-medium flex items-center gap-1.5">
             <ImageIcon className="size-3.5" /> Added images
             {validImages.length > 0 && (
-              <span className="text-xs font-normal text-slate-400">
-                ({validImages.length} · panelists will see these)
-              </span>
+              <span className="text-xs font-normal text-slate-400">({validImages.length} · panelists will see these)</span>
             )}
           </Label>
           <Button
@@ -359,9 +415,7 @@ function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: Co
                 >
                   <Trash2 className="size-3" />
                 </button>
-                <div className="px-2 py-1.5 bg-slate-50 text-[11px] text-slate-500 text-center font-medium">
-                  Image {i + 1}
-                </div>
+                <div className="px-2 py-1.5 bg-slate-50 text-[11px] text-slate-500 text-center font-medium">Image {i + 1}</div>
               </div>
             ))}
           </div>
