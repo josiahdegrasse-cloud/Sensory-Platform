@@ -163,6 +163,7 @@ function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: C
 
 function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: ConceptDraft) => void }) {
   const [aiCandidates, setAiCandidates] = useState<{ url: string; selected: boolean; loaded: boolean }[]>([]);
+  const [pendingUrls, setPendingUrls] = useState<string[]>([]);
 
   const handleGenerate = () => {
     const prompt = [
@@ -173,17 +174,37 @@ function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: Co
       'professional product mockup, clean white background, commercial photography',
     ].filter(Boolean).join(', ');
     const encoded = encodeURIComponent(prompt);
-    setAiCandidates([1, 2, 3].map(() => ({
-      url: `https://image.pollinations.ai/prompt/${encoded}?width=768&height=768&nologo=true&seed=${Math.floor(Math.random() * 99999)}&model=flux`,
-      selected: true,
-      loaded: false,
-    })));
+    const makeUrl = () =>
+      `https://image.pollinations.ai/prompt/${encoded}?width=768&height=768&nologo=true&seed=${Math.floor(Math.random() * 99999)}&model=flux`;
+    const urls = [makeUrl(), makeUrl(), makeUrl()];
+    // Show 3 placeholders immediately; only the first starts loading — the rest queue
+    setPendingUrls(urls.slice(1));
+    setAiCandidates([
+      { url: urls[0], selected: true, loaded: false },
+      { url: '', selected: true, loaded: false },
+      { url: '', selected: true, loaded: false },
+    ]);
+  };
+
+  const handleImageLoad = (i: number) => {
+    setAiCandidates(prev => prev.map((x, j) => j === i ? { ...x, loaded: true } : x));
+    setPendingUrls(queue => {
+      if (queue.length === 0) return queue;
+      const next = queue[0];
+      setAiCandidates(cands => {
+        const emptyIdx = cands.findIndex(c => !c.url);
+        if (emptyIdx === -1) return cands;
+        return cands.map((x, j) => j === emptyIdx ? { ...x, url: next } : x);
+      });
+      return queue.slice(1);
+    });
   };
 
   const addSelected = () => {
-    const toAdd = aiCandidates.filter(c => c.selected).map(c => c.url);
+    const toAdd = aiCandidates.filter(c => c.selected && c.url).map(c => c.url);
     onChange({ ...draft, marketingImages: [...draft.marketingImages.filter(u => u.trim()), ...toAdd] });
     setAiCandidates([]);
+    setPendingUrls([]);
   };
 
   const removeImage = (i: number) =>
@@ -241,15 +262,19 @@ function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: Co
                   {!c.loaded && (
                     <div className="w-full h-48 bg-violet-100 animate-pulse flex flex-col items-center justify-center gap-2">
                       <Sparkles className="size-5 text-violet-300" />
-                      <span className="text-xs text-violet-400 font-medium">Generating…</span>
+                      <span className="text-xs text-violet-400 font-medium">
+                        {c.url ? 'Generating…' : 'Waiting…'}
+                      </span>
                     </div>
                   )}
-                  <img
-                    src={c.url}
-                    alt={`AI variation ${i + 1}`}
-                    className={`w-full h-48 object-cover ${c.loaded ? 'block' : 'hidden'}`}
-                    onLoad={() => setAiCandidates(prev => prev.map((x, j) => j === i ? { ...x, loaded: true } : x))}
-                  />
+                  {c.url && (
+                    <img
+                      src={c.url}
+                      alt={`AI variation ${i + 1}`}
+                      className={`w-full h-48 object-cover ${c.loaded ? 'block' : 'hidden'}`}
+                      onLoad={() => handleImageLoad(i)}
+                    />
+                  )}
                   <div className={`absolute top-2 right-2 w-6 h-6 rounded-full border-2 flex items-center justify-center shadow-sm ${
                     c.selected ? 'bg-violet-600 border-violet-600' : 'bg-white/90 border-slate-300'
                   }`}>
@@ -264,7 +289,7 @@ function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: Co
             <div className="flex items-center justify-between">
               <p className="text-xs text-violet-500">Click a variation to select or deselect</p>
               <div className="flex gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => setAiCandidates([])} className="text-slate-600 text-xs">
+                <Button type="button" variant="outline" size="sm" onClick={() => { setAiCandidates([]); setPendingUrls([]); }} className="text-slate-600 text-xs">
                   Discard
                 </Button>
                 <Button
