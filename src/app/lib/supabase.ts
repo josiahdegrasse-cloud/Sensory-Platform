@@ -4,6 +4,8 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 const g = globalThis as typeof globalThis & { __supabase?: SupabaseClient }
 
 if (!g.__supabase) {
+  console.log('[supabase] URL defined:', !!import.meta.env.VITE_SUPABASE_URL)
+  console.log('[supabase] KEY defined:', !!import.meta.env.VITE_SUPABASE_ANON_KEY)
   g.__supabase = createClient(
     import.meta.env.VITE_SUPABASE_URL,
     import.meta.env.VITE_SUPABASE_ANON_KEY
