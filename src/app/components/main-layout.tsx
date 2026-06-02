@@ -5,13 +5,13 @@ import { useEffect } from "react";
 
 const NFI_BLUE = '#6B7890';
 
-function NfiLogoMark({ size = 36 }: { size?: number }) {
+function NfiLogoMark({ size = 30 }: { size?: number }) {
   return (
-    <div style={{ width: size, height: size, borderRadius: '26%', overflow: 'hidden', background: '#000', flexShrink: 0 }}>
+    <div style={{ width: size, height: size, borderRadius: '26%', overflow: 'hidden', background: '#fff', flexShrink: 0 }}>
       <img
         src="/new_foodinnovation_ltd_logo.jpg"
         alt="NFI"
-        style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(1) contrast(10)', transform: 'scale(1.18)' }}
+        style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(1) contrast(10)' }}
       />
     </div>
   );
@@ -60,7 +60,7 @@ export function MainLayout() {
           {/* Top bar */}
           <div className="flex items-center justify-between py-3 border-b border-slate-100">
             <Link to="/" className="flex items-center gap-2.5 hover:opacity-75 transition-opacity">
-              <NfiLogoMark size={36} />
+              <NfiLogoMark size={30} />
               <div style={{ lineHeight: '1.22' }}>
                 <div className="text-[11px] text-slate-700">new</div>
                 <div className="text-[11px] text-slate-700">food</div>
