@@ -27,6 +27,21 @@ export function SignupPage({ onBack }: Props) {
     return null;
   };
 
+  function mapSignupError(msg: string): string {
+    const m = msg.toLowerCase();
+    if (m.includes('user already registered') || m.includes('already registered') || m.includes('already exists'))
+      return 'An account with this email already exists. Try signing in instead.';
+    if (m.includes('invalid email') || m.includes('unable to validate email'))
+      return 'Please enter a valid email address.';
+    if (m.includes('password') && m.includes('weak'))
+      return 'Password is too weak. Use at least 8 characters, one uppercase letter, and one number.';
+    if (m.includes('too many requests') || m.includes('rate limit'))
+      return 'Too many attempts. Please wait a few minutes and try again.';
+    if (m.includes('fetch') || m.includes('network') || m.includes('failed to fetch'))
+      return 'Connection failed. Please check your internet connection.';
+    return msg;
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -38,7 +53,7 @@ export function SignupPage({ onBack }: Props) {
     const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
 
     if (signUpError) {
-      setError(signUpError.message);
+      setError(mapSignupError(signUpError.message));
       setLoading(false);
       return;
     }
@@ -53,14 +68,14 @@ export function SignupPage({ onBack }: Props) {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-slate-100 flex items-center justify-center p-6">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
         <div className="max-w-md w-full">
           <Card className="shadow-2xl">
             <CardContent className="pt-8 pb-8 text-center space-y-4">
               <CheckCircle2 className="size-16 text-emerald-600 mx-auto" />
               <h2 className="text-2xl font-bold text-slate-900">Account Created!</h2>
               <p className="text-slate-600">Your panelist account is ready. Sign in to get started.</p>
-              <Button onClick={onBack} className="w-full bg-purple-600 hover:bg-purple-700">
+              <Button onClick={onBack} className="w-full bg-slate-900 hover:bg-slate-700">
                 Sign In
               </Button>
             </CardContent>
@@ -71,12 +86,12 @@ export function SignupPage({ onBack }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-slate-100 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
       <div className="max-w-md w-full">
         <Card className="shadow-2xl">
           <CardHeader className="space-y-2">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-purple-600 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center">
                 <FlaskConical className="size-7 text-white" />
               </div>
               <div>
@@ -132,7 +147,7 @@ export function SignupPage({ onBack }: Props) {
                     type="checkbox"
                     checked={consentGiven}
                     onChange={e => setConsentGiven(e.target.checked)}
-                    className="mt-0.5 accent-purple-600"
+                    className="mt-0.5 accent-slate-900"
                     required
                   />
                   <span className="text-xs text-slate-700">
@@ -148,7 +163,7 @@ export function SignupPage({ onBack }: Props) {
               )}
               <Button
                 type="submit"
-                className="w-full bg-purple-600 hover:bg-purple-700"
+                className="w-full bg-slate-900 hover:bg-slate-700"
                 disabled={loading || !consentGiven}
               >
                 {loading ? 'Creating account…' : 'Create Account'}

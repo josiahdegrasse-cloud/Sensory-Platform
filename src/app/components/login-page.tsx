@@ -24,6 +24,21 @@ function NfiLogoMark({ size = 40 }: { size?: number }) {
   );
 }
 
+function mapLoginError(msg: string): string {
+  const m = msg.toLowerCase();
+  if (m.includes('invalid login credentials') || m.includes('invalid_credentials') || m.includes('invalid credentials'))
+    return 'Incorrect email or password.';
+  if (m.includes('email not confirmed'))
+    return 'Please check your inbox and confirm your email before signing in.';
+  if (m.includes('too many requests') || m.includes('rate limit'))
+    return 'Too many attempts. Please wait a few minutes and try again.';
+  if (m.includes('user not found') || m.includes('no user'))
+    return 'No account found with that email address.';
+  if (m.includes('fetch') || m.includes('network') || m.includes('failed to fetch'))
+    return 'Connection failed. Please check your internet connection.';
+  return msg;
+}
+
 export function LoginPage({ onSignup }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -36,7 +51,7 @@ export function LoginPage({ onSignup }: Props) {
     setError('');
     setLoading(true);
     const errorMessage = await login(email, password);
-    if (errorMessage) setError(errorMessage);
+    if (errorMessage) setError(mapLoginError(errorMessage));
     setLoading(false);
   };
 
@@ -137,9 +152,9 @@ export function LoginPage({ onSignup }: Props) {
             <Button
               type="submit"
               className="w-full h-11 text-white font-semibold text-sm rounded-lg transition-colors"
-              style={{ background: NFI_BLUE }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#5a6878')}
-              onMouseLeave={e => (e.currentTarget.style.background = NFI_BLUE)}
+              style={{ background: '#111' }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#333')}
+              onMouseLeave={e => (e.currentTarget.style.background = '#111')}
               disabled={loading}
             >
               {loading ? 'Signing in…' : (
