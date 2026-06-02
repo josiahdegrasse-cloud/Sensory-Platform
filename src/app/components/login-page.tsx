@@ -10,6 +10,9 @@ interface Props {
   onSignup: () => void;
 }
 
+const NFI_ORANGE = '#e07856';
+const NFI_DARK = '#1a1a22';
+
 export function LoginPage({ onSignup }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,87 +33,58 @@ export function LoginPage({ onSignup }: Props) {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left panel — hero */}
+      {/* Left panel — NFI brand */}
       <div
-        className="hidden lg:flex lg:w-[58%] relative flex-col justify-between p-10 overflow-hidden"
-        style={{ background: 'linear-gradient(135deg, #0f0f14 0%, #1a1a22 40%, #22222e 100%)' }}
+        className="hidden lg:flex lg:w-[46%] flex-col justify-between p-12"
+        style={{ background: NFI_ORANGE }}
       >
-        {/* Decorative NFI-style bubbles */}
-        <div className="absolute inset-0 overflow-hidden">
+        {/* Logo */}
+        <div className="flex items-center gap-3">
           <div
-            className="absolute -top-16 -right-16 w-[380px] h-[380px] rounded-full opacity-[0.07]"
-            style={{ background: '#e07856' }}
-          />
-          <div
-            className="absolute -top-8 right-20 w-[220px] h-[220px] rounded-full opacity-[0.05]"
-            style={{ background: '#e07856' }}
-          />
-          <div
-            className="absolute bottom-20 -left-20 w-[280px] h-[280px] rounded-full opacity-[0.06]"
-            style={{ background: '#38b8b8' }}
-          />
-        </div>
-
-        {/* NFI logo — top left */}
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shadow-lg">
-            <span className="text-white font-bold text-sm tracking-tight select-none">nfi</span>
+            className="w-10 h-10 rounded-lg flex items-center justify-center"
+            style={{ background: 'rgba(255,255,255,0.2)' }}
+          >
+            <span className="text-white font-bold text-sm select-none tracking-tight">nfi</span>
           </div>
           <div>
-            <div className="text-white font-bold text-lg leading-none">new food innovation</div>
-            <div className="text-white/50 text-xs font-medium tracking-widest uppercase mt-0.5">Sensory Analysis Platform</div>
+            <div className="text-white font-semibold text-base leading-none">new food innovation</div>
           </div>
         </div>
 
-        {/* Center hero copy */}
-        <div className="relative z-10 max-w-md">
-          <h1 className="text-5xl font-black text-white leading-tight mb-4">
-            Innovation
-            <br />
-            <span style={{ color: '#e07856' }}>starts with</span>
-            <br />
-            insight.
-          </h1>
-          <p className="text-white/60 text-lg leading-relaxed mb-8">
-            Assess products, design consumer surveys, and launch concept tests — all in one sensory intelligence platform.
+        {/* Centre copy */}
+        <div>
+          <p className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-5">
+            Sensory Analysis Platform
           </p>
-          <div className="flex flex-wrap gap-3">
-            {['Sensory Evaluation', 'Consumer Panels', 'Concept Testing', 'R&D Analytics'].map(tag => (
-              <span
-                key={tag}
-                className="px-3 py-1.5 rounded-full text-xs font-semibold border border-white/20 text-white/70 bg-white/5 backdrop-blur-sm"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
+          <h1 className="text-[2.6rem] font-bold text-white leading-[1.15] mb-6">
+            Guiding your journey,<br />
+            from concept to<br />
+            commercialisation.
+          </h1>
+          <p className="text-white/75 text-base leading-relaxed max-w-[320px]">
+            A professional sensory intelligence platform for food developers, R&D teams, and innovation consultants.
+          </p>
         </div>
 
-        {/* Bottom stat strip */}
-        <div className="relative z-10 flex gap-8">
-          {[
-            { value: '94%', label: 'Panel agreement' },
-            { value: '100+', label: 'Panelist capacity' },
-            { value: '4', label: 'Evaluation modules' },
-          ].map(stat => (
-            <div key={stat.label}>
-              <div className="text-2xl font-black text-white">{stat.value}</div>
-              <div className="text-white/40 text-xs mt-0.5">{stat.label}</div>
-            </div>
-          ))}
-        </div>
+        {/* Footer line */}
+        <p className="text-white/50 text-sm">
+          Supporting over 60 international food companies.
+        </p>
       </div>
 
       {/* Right panel — login form */}
       <div className="flex-1 flex flex-col justify-center px-8 sm:px-16 bg-white">
         {/* Mobile logo */}
         <div className="lg:hidden flex items-center gap-3 mb-8">
-          <div className="w-9 h-9 rounded-xl bg-[#1a1a22] flex items-center justify-center">
+          <div
+            className="w-9 h-9 rounded-lg flex items-center justify-center"
+            style={{ background: NFI_DARK }}
+          >
             <span className="text-white font-bold text-xs tracking-tight select-none">nfi</span>
           </div>
           <div>
-            <div className="font-bold text-slate-900 leading-none">new food innovation</div>
-            <div className="text-xs text-slate-500 tracking-widest uppercase">Sensory Analysis Platform</div>
+            <div className="font-semibold text-slate-900 leading-none">new food innovation</div>
+            <div className="text-xs text-slate-400 tracking-widest uppercase mt-0.5">Sensory Analysis Platform</div>
           </div>
         </div>
 
@@ -122,26 +96,31 @@ export function LoginPage({ onSignup }: Props) {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-slate-700 font-medium text-sm">Email address</Label>
+              <Label htmlFor="email" className="text-slate-700 font-medium text-sm">
+                Email address
+              </Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="you@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-11 border-slate-200 focus:border-[#e07856] focus:ring-[#e07856]"
+                className="h-11 border-slate-200 rounded-lg"
                 required
               />
             </div>
+
             <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-slate-700 font-medium text-sm">Password</Label>
+              <Label htmlFor="password" className="text-slate-700 font-medium text-sm">
+                Password
+              </Label>
               <Input
                 id="password"
                 type="password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="h-11 border-slate-200 focus:border-[#e07856] focus:ring-[#e07856]"
+                className="h-11 border-slate-200 rounded-lg"
                 required
               />
             </div>
@@ -155,10 +134,10 @@ export function LoginPage({ onSignup }: Props) {
 
             <Button
               type="submit"
-              className="w-full h-11 text-white font-semibold text-sm rounded-lg"
-              style={{ background: '#e07856' }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#d06846')}
-              onMouseLeave={e => (e.currentTarget.style.background = '#e07856')}
+              className="w-full h-11 text-white font-semibold text-sm rounded-lg transition-colors"
+              style={{ background: NFI_ORANGE }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#c96840')}
+              onMouseLeave={e => (e.currentTarget.style.background = NFI_ORANGE)}
               disabled={loading}
             >
               {loading ? 'Signing in…' : (
@@ -173,9 +152,12 @@ export function LoginPage({ onSignup }: Props) {
             <button
               type="button"
               onClick={onSignup}
-              className="text-sm text-slate-500 hover:text-[#e07856] transition-colors"
+              className="text-sm text-slate-500 transition-colors"
+              onMouseEnter={e => (e.currentTarget.style.color = NFI_ORANGE)}
+              onMouseLeave={e => (e.currentTarget.style.color = '')}
             >
-              New panelist? <span className="font-semibold underline underline-offset-2">Create account</span>
+              New panelist?{' '}
+              <span className="font-semibold underline underline-offset-2">Create account</span>
             </button>
           </div>
         </div>

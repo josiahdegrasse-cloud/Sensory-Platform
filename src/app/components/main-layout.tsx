@@ -3,6 +3,9 @@ import { FlaskConical, BarChart3, GitMerge, ClipboardList, Settings, LogOut, Lig
 import { useAuth } from "../contexts/auth-context";
 import { useEffect } from "react";
 
+const NFI_ORANGE = '#e07856';
+const NFI_DARK = '#1a1a22';
+
 export function MainLayout() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -16,7 +19,7 @@ export function MainLayout() {
 
   const getAdminNavItems = () => [
     { path: "/stage1", label: "Machine Testing", icon: FlaskConical },
-    { path: "/survey-analysis", label: "Analyze Results", icon: BarChart3 },
+    { path: "/survey-analysis", label: "Analyse Results", icon: BarChart3 },
     { path: "/decision", label: "Final Decision", icon: GitMerge },
     { path: "/concept-testing", label: "Concept Testing", icon: Lightbulb },
     { path: "/admin", label: "Configure", icon: Settings },
@@ -44,17 +47,23 @@ export function MainLayout() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
-        <div className="max-w-[1600px] mx-auto px-6 py-3">
-          <div className="flex items-center justify-between">
-            {/* NFI logo — top left */}
-            <Link to="/" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-              <div className="w-9 h-9 rounded-xl bg-[#1a1a22] flex items-center justify-center shadow-sm">
-                <span className="text-white font-bold text-sm tracking-tight select-none">nfi</span>
+      <header className="bg-white border-b border-slate-100 sticky top-0 z-50">
+        <div className="max-w-[1600px] mx-auto px-6">
+
+          {/* Top bar: logo + user */}
+          <div className="flex items-center justify-between py-3 border-b border-slate-100">
+            <Link to="/" className="flex items-center gap-2.5 hover:opacity-75 transition-opacity">
+              <div
+                className="w-8 h-8 rounded-md flex items-center justify-center"
+                style={{ background: NFI_DARK }}
+              >
+                <span className="text-white font-bold text-xs tracking-tight select-none">nfi</span>
               </div>
               <div>
-                <div className="text-base font-bold text-slate-900 leading-none">new food innovation</div>
-                <div className="text-[10px] text-slate-400 tracking-widest uppercase font-medium leading-none mt-0.5">Sensory Analysis Platform</div>
+                <div className="text-sm font-semibold text-slate-900 leading-none">new food innovation</div>
+                <div className="text-[10px] text-slate-400 tracking-widest uppercase leading-none mt-0.5">
+                  Sensory Analysis Platform
+                </div>
               </div>
             </Link>
 
@@ -67,19 +76,16 @@ export function MainLayout() {
               </div>
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-500 hover:text-slate-900 hover:bg-slate-50 rounded-md transition-colors border border-slate-200"
               >
-                <LogOut className="size-4" />
+                <LogOut className="size-3.5" />
                 Sign out
               </button>
             </div>
           </div>
-        </div>
-      </header>
 
-      <nav className="bg-slate-900 border-b border-slate-800">
-        <div className="max-w-[1600px] mx-auto px-6">
-          <div className="flex items-center gap-0.5">
+          {/* Nav row */}
+          <div className="flex items-center gap-0">
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.path);
@@ -87,20 +93,27 @@ export function MainLayout() {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
-                    active
-                      ? "bg-[#e07856] text-white"
-                      : "text-slate-400 hover:bg-slate-800 hover:text-white"
-                  }`}
+                  className="flex items-center gap-1.5 px-4 py-3 text-sm font-medium transition-colors border-b-2"
+                  style={{
+                    borderBottomColor: active ? NFI_ORANGE : 'transparent',
+                    color: active ? NFI_DARK : '#64748b',
+                  }}
+                  onMouseEnter={e => {
+                    if (!active) (e.currentTarget as HTMLElement).style.color = NFI_DARK;
+                  }}
+                  onMouseLeave={e => {
+                    if (!active) (e.currentTarget as HTMLElement).style.color = '#64748b';
+                  }}
                 >
-                  {Icon && <Icon className="size-4" />}
+                  {Icon && <Icon className="size-3.5" />}
                   {item.label}
                 </Link>
               );
             })}
           </div>
+
         </div>
-      </nav>
+      </header>
 
       <main className="max-w-[1600px] mx-auto px-6 py-8">
         <Outlet />
