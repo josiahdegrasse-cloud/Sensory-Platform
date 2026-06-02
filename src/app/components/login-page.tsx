@@ -10,8 +10,43 @@ interface Props {
   onSignup: () => void;
 }
 
-const NFI_ORANGE = '#e07856';
-const NFI_DARK = '#1a1a22';
+const NFI_DARK = '#111111';
+
+function NfiLogoMark({ size = 40, invert = false }: { size?: number; invert?: boolean }) {
+  return (
+    <div
+      className="relative flex items-center justify-center rounded-xl flex-shrink-0"
+      style={{
+        width: size,
+        height: size,
+        background: invert ? 'rgba(255,255,255,0.15)' : NFI_DARK,
+        border: invert ? '1px solid rgba(255,255,255,0.25)' : 'none',
+      }}
+    >
+      <svg
+        className="absolute"
+        style={{ top: Math.round(size * 0.11), right: Math.round(size * 0.14) }}
+        width={Math.round(size * 0.33)}
+        height={Math.round(size * 0.25)}
+        viewBox="0 0 12 9"
+        fill="none"
+      >
+        <path d="M2.5 8.5C2.5 5.5 1 3.5 0 2.5C1 0.8 3.8 1.2 4.2 4.5" fill={invert ? 'rgba(255,255,255,0.6)' : '#8899aa'}/>
+        <path d="M9.5 8.5C9.5 5.5 11 3.5 12 2.5C11 0.8 8.2 1.2 7.8 4.5" fill={invert ? 'rgba(255,255,255,0.6)' : '#8899aa'}/>
+      </svg>
+      <span
+        className="font-bold select-none"
+        style={{
+          fontSize: size * 0.36,
+          letterSpacing: '-0.02em',
+          color: 'white',
+        }}
+      >
+        ñfi
+      </span>
+    </div>
+  );
+}
 
 export function LoginPage({ onSignup }: Props) {
   const [email, setEmail] = useState('');
@@ -33,41 +68,38 @@ export function LoginPage({ onSignup }: Props) {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left panel — NFI brand */}
+      {/* Left panel — NFI dark brand */}
       <div
         className="hidden lg:flex lg:w-[46%] flex-col justify-between p-12"
-        style={{ background: NFI_ORANGE }}
+        style={{ background: NFI_DARK }}
       >
         {/* Logo */}
         <div className="flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-lg flex items-center justify-center"
-            style={{ background: 'rgba(255,255,255,0.2)' }}
-          >
-            <span className="text-white font-bold text-sm select-none tracking-tight">nfi</span>
-          </div>
-          <div>
-            <div className="text-white font-semibold text-base leading-none">new food innovation</div>
+          <NfiLogoMark size={40} invert />
+          <div className="leading-none" style={{ lineHeight: '1.3' }}>
+            <div className="text-white/90 text-sm">new</div>
+            <div className="text-white/90 text-sm">food</div>
+            <div className="text-white/90 text-sm">innovation</div>
           </div>
         </div>
 
         {/* Centre copy */}
         <div>
-          <p className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-5">
+          <p className="text-white/40 text-xs font-semibold uppercase tracking-widest mb-5">
             Sensory Analysis Platform
           </p>
-          <h1 className="text-[2.6rem] font-bold text-white leading-[1.15] mb-6">
+          <h1 className="text-[2.5rem] font-bold text-white leading-[1.15] mb-6">
             Guiding your journey,<br />
             from concept to<br />
             commercialisation.
           </h1>
-          <p className="text-white/75 text-base leading-relaxed max-w-[320px]">
+          <p className="text-white/50 text-base leading-relaxed max-w-[300px]">
             A professional sensory intelligence platform for food developers, R&D teams, and innovation consultants.
           </p>
         </div>
 
-        {/* Footer line */}
-        <p className="text-white/50 text-sm">
+        {/* Footer */}
+        <p className="text-white/30 text-sm">
           Supporting over 60 international food companies.
         </p>
       </div>
@@ -76,15 +108,11 @@ export function LoginPage({ onSignup }: Props) {
       <div className="flex-1 flex flex-col justify-center px-8 sm:px-16 bg-white">
         {/* Mobile logo */}
         <div className="lg:hidden flex items-center gap-3 mb-8">
-          <div
-            className="w-9 h-9 rounded-lg flex items-center justify-center"
-            style={{ background: NFI_DARK }}
-          >
-            <span className="text-white font-bold text-xs tracking-tight select-none">nfi</span>
-          </div>
-          <div>
-            <div className="font-semibold text-slate-900 leading-none">new food innovation</div>
-            <div className="text-xs text-slate-400 tracking-widest uppercase mt-0.5">Sensory Analysis Platform</div>
+          <NfiLogoMark size={36} />
+          <div className="leading-none" style={{ lineHeight: '1.25' }}>
+            <div className="text-[11px] text-slate-700">new</div>
+            <div className="text-[11px] text-slate-700">food</div>
+            <div className="text-[11px] text-slate-700">innovation</div>
           </div>
         </div>
 
@@ -135,9 +163,9 @@ export function LoginPage({ onSignup }: Props) {
             <Button
               type="submit"
               className="w-full h-11 text-white font-semibold text-sm rounded-lg transition-colors"
-              style={{ background: NFI_ORANGE }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#c96840')}
-              onMouseLeave={e => (e.currentTarget.style.background = NFI_ORANGE)}
+              style={{ background: NFI_DARK }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#2a2a2a')}
+              onMouseLeave={e => (e.currentTarget.style.background = NFI_DARK)}
               disabled={loading}
             >
               {loading ? 'Signing in…' : (
@@ -152,9 +180,7 @@ export function LoginPage({ onSignup }: Props) {
             <button
               type="button"
               onClick={onSignup}
-              className="text-sm text-slate-500 transition-colors"
-              onMouseEnter={e => (e.currentTarget.style.color = NFI_ORANGE)}
-              onMouseLeave={e => (e.currentTarget.style.color = '')}
+              className="text-sm text-slate-500 hover:text-slate-900 transition-colors"
             >
               New panelist?{' '}
               <span className="font-semibold underline underline-offset-2">Create account</span>

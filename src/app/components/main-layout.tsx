@@ -3,8 +3,35 @@ import { FlaskConical, BarChart3, GitMerge, ClipboardList, Settings, LogOut, Lig
 import { useAuth } from "../contexts/auth-context";
 import { useEffect } from "react";
 
-const NFI_ORANGE = '#e07856';
-const NFI_DARK = '#1a1a22';
+const NFI_DARK = '#111111';
+
+function NfiLogoMark({ size = 36 }: { size?: number }) {
+  return (
+    <div
+      className="relative flex items-center justify-center rounded-xl flex-shrink-0"
+      style={{ width: size, height: size, background: NFI_DARK }}
+    >
+      {/* Two leaves — upper right inside the mark */}
+      <svg
+        className="absolute"
+        style={{ top: 4, right: 5 }}
+        width="12"
+        height="9"
+        viewBox="0 0 12 9"
+        fill="none"
+      >
+        <path d="M2.5 8.5C2.5 5.5 1 3.5 0 2.5C1 0.8 3.8 1.2 4.2 4.5" fill="#8899aa"/>
+        <path d="M9.5 8.5C9.5 5.5 11 3.5 12 2.5C11 0.8 8.2 1.2 7.8 4.5" fill="#8899aa"/>
+      </svg>
+      <span
+        className="text-white font-bold select-none"
+        style={{ fontSize: size * 0.36, letterSpacing: '-0.02em' }}
+      >
+        ñfi
+      </span>
+    </div>
+  );
+}
 
 export function MainLayout() {
   const location = useLocation();
@@ -53,17 +80,11 @@ export function MainLayout() {
           {/* Top bar: logo + user */}
           <div className="flex items-center justify-between py-3 border-b border-slate-100">
             <Link to="/" className="flex items-center gap-2.5 hover:opacity-75 transition-opacity">
-              <div
-                className="w-8 h-8 rounded-md flex items-center justify-center"
-                style={{ background: NFI_DARK }}
-              >
-                <span className="text-white font-bold text-xs tracking-tight select-none">nfi</span>
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-slate-900 leading-none">new food innovation</div>
-                <div className="text-[10px] text-slate-400 tracking-widest uppercase leading-none mt-0.5">
-                  Sensory Analysis Platform
-                </div>
+              <NfiLogoMark size={36} />
+              <div className="leading-none" style={{ lineHeight: '1.25' }}>
+                <div className="text-[11px] text-slate-700">new</div>
+                <div className="text-[11px] text-slate-700">food</div>
+                <div className="text-[11px] text-slate-700">innovation</div>
               </div>
             </Link>
 
@@ -85,7 +106,7 @@ export function MainLayout() {
           </div>
 
           {/* Nav row */}
-          <div className="flex items-center gap-0">
+          <div className="flex items-center">
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.path);
@@ -93,10 +114,11 @@ export function MainLayout() {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className="flex items-center gap-1.5 px-4 py-3 text-sm font-medium transition-colors border-b-2"
+                  className="flex items-center gap-1.5 px-4 py-3 text-sm transition-colors border-b-2"
                   style={{
-                    borderBottomColor: active ? NFI_ORANGE : 'transparent',
+                    borderBottomColor: active ? NFI_DARK : 'transparent',
                     color: active ? NFI_DARK : '#64748b',
+                    fontWeight: active ? 600 : 400,
                   }}
                   onMouseEnter={e => {
                     if (!active) (e.currentTarget as HTMLElement).style.color = NFI_DARK;
