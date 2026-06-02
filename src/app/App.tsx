@@ -4,9 +4,10 @@ import { router } from "./routes.tsx";
 import { AuthProvider, useAuth } from "./contexts/auth-context.tsx";
 import { LoginPage } from "./components/login-page.tsx";
 import { SignupPage } from "./components/signup-page.tsx";
+import { ResetPasswordPage } from "./components/reset-password-page.tsx";
 
 function AppContent() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, isPasswordRecovery, loading } = useAuth();
   const [showSignup, setShowSignup] = useState(false);
 
   if (loading) {
@@ -16,6 +17,8 @@ function AppContent() {
       </div>
     );
   }
+
+  if (isPasswordRecovery) return <ResetPasswordPage />;
 
   if (!isAuthenticated) {
     if (showSignup) {

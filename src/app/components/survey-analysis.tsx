@@ -13,7 +13,8 @@ import {
 import { ENHANCED_SENSORY_DATA } from "../data/enhanced-sensory";
 import { ESSENSE25_EMOTIONS, type QuestionnaireResponse } from "../data/mock-users";
 import { getSampleColor, SAMPLE_TYPE_LEGEND } from "../utils/sample-colors";
-import { fetchAllResponses, fetchProducts } from "../lib/database";
+import { fetchProducts } from "../lib/database";
+import { useAllResponses } from "../lib/hooks";
 import {
   Users, Heart, Smile, Frown, CheckSquare,
   TrendingUp, AlertCircle, Eye, EyeOff, Download, Layers, Target, Trophy, MessageCircle
@@ -32,8 +33,17 @@ interface LiveAggregation {
   emotions: { positive: number; negative: number };
 }
 
+function sanitizeCsvCell(value: string | number): string {
+  const str = String(value);
+  if (/^[=+\-@\t\r]/.test(str)) return `'${str}`;
+  return str;
+}
+
 export function SurveyAnalysis() {
   const { user } = useAuth();
+  const { data: allResponsesData } = useAllResponses();
+
+  if (user?.role !== 'admin') return null;
   const [selectedSample, setSelectedSample] = useState<string>("S1");
   const [showAllSamples, setShowAllSamples] = useState(false);
   const [foodTypeFilter, setFoodTypeFilter] = useState<string>("all");
@@ -46,16 +56,43 @@ export function SurveyAnalysis() {
 
   // Single fetch — split into multi-sample responses and single-sample aggregations
   useEffect(() => {
-    fetchAllResponses().then(allResponses => {
-      // Multi-sample
-      const multiResponses = allResponses.filter((r: any) => (r as any).sessionType === '3-sample-sequential');
-      setMultiSampleResponses(multiResponses);
-      if (multiResponses.length > 0 && !selectedMultiProduct) {
-        setSelectedMultiProduct(multiResponses[0].productId);
+    if (!allResponsesData) return;
+    const allResponses = allResponsesData;
+    // Multi-sample: group per-sample rows into session-level objects
+    const multiRows = allResponses.filter(r => r.sessionType === '3-sample-sequential');
+    const sessionMap = new Map<string, {
+      id: string; userId: string; productId: string;
+      differentSample: string; ranking: string[];
+      samples: { sampleCode: string; cataAttributes: string[]; intensityRatings: Record<string, number>; hedonicScores: QuestionnaireResponse['hedonicScores']; emotionalProfile: Record<string, number> }[];
+    }>();
+    multiRows.forEach(r => {
+      const key = `${r.userId}:${r.productId}`;
+      if (!sessionMap.has(key)) {
+        sessionMap.set(key, {
+          id: r.id,
+          userId: r.userId,
+          productId: r.productId,
+          differentSample: r.differentSample ?? '',
+          ranking: r.ranking ?? [],
+          samples: [],
+        });
       }
+      sessionMap.get(key)!.samples.push({
+        sampleCode: r.sampleCode ?? '',
+        cataAttributes: r.cataAttributes,
+        intensityRatings: r.intensityRatings,
+        hedonicScores: r.hedonicScores,
+        emotionalProfile: r.emotionalProfile,
+      });
+    });
+    const sessions = Array.from(sessionMap.values());
+    setMultiSampleResponses(sessions);
+    if (sessions.length > 0 && !selectedMultiProduct) {
+      setSelectedMultiProduct(sessions[0].productId);
+    }
 
-      // Single-sample aggregation
-      const singleResponses = allResponses.filter((r: any) => !(r as any).sessionType);
+    // Single-sample aggregation
+    const singleResponses = allResponses.filter((r: any) => !(r as any).sessionType);
     if (singleResponses.length === 0) return;
 
     const grouped = new Map<string, QuestionnaireResponse[]>();
@@ -119,20 +156,17 @@ export function SurveyAnalysis() {
       });
     });
 
-      setLiveAggregations(aggregations);
+    setLiveAggregations(aggregations);
 
-      const commentsMap: Record<string, string[]> = {};
-      singleResponses.forEach(r => {
-        if (r.comments && r.comments.trim()) {
-          if (!commentsMap[r.productId]) commentsMap[r.productId] = [];
-          commentsMap[r.productId].push(r.comments.trim());
-        }
-      });
-      setCommentsByProduct(commentsMap);
-    }).catch(() => {
-      setLiveDataFetchFailed(true);
+    const commentsMap: Record<string, string[]> = {};
+    singleResponses.forEach(r => {
+      if (r.comments && r.comments.trim()) {
+        if (!commentsMap[r.productId]) commentsMap[r.productId] = [];
+        commentsMap[r.productId].push(r.comments.trim());
+      }
     });
-  }, []);
+    setCommentsByProduct(commentsMap);
+  }, [allResponsesData]);
 
   // Derive unique base types from sample names
   const foodTypes = ["all", ...Array.from(new Set(
@@ -297,19 +331,19 @@ export function SurveyAnalysis() {
     const rows: string[] = [headers.join(',')];
 
     liveAggregations.forEach(agg => {
-      const name = `"${agg.productName}"`;
-      Object.entries(agg.cata).forEach(([attr, count]) => rows.push([agg.productId, name, 'panel', 'latest', 'CATA', attr, count].join(',')));
-      Object.entries(agg.intensity).forEach(([attr, mean]) => rows.push([agg.productId, name, 'panel', 'latest', 'Intensity', attr, (mean as number).toFixed(2)].join(',')));
-      Object.entries(agg.hedonic).forEach(([dim, mean]) => rows.push([agg.productId, name, 'panel', 'latest', 'Hedonic', dim, (mean as number).toFixed(2)].join(',')));
+      const name = `"${sanitizeCsvCell(agg.productName)}"`;
+      Object.entries(agg.cata).forEach(([attr, count]) => rows.push([agg.productId, name, 'panel', 'latest', 'CATA', sanitizeCsvCell(attr), count].join(',')));
+      Object.entries(agg.intensity).forEach(([attr, mean]) => rows.push([agg.productId, name, 'panel', 'latest', 'Intensity', sanitizeCsvCell(attr), (mean as number).toFixed(2)].join(',')));
+      Object.entries(agg.hedonic).forEach(([dim, mean]) => rows.push([agg.productId, name, 'panel', 'latest', 'Hedonic', sanitizeCsvCell(dim), (mean as number).toFixed(2)].join(',')));
       rows.push([agg.productId, name, 'panel', 'latest', 'Emotion', 'positive', agg.emotions.positive.toFixed(2)].join(','));
       rows.push([agg.productId, name, 'panel', 'latest', 'Emotion', 'negative', agg.emotions.negative.toFixed(2)].join(','));
     });
 
     ENHANCED_SENSORY_DATA.forEach(sample => {
-      const name = `"${sample.sampleName}"`;
-      Object.entries(sample.cata).forEach(([attr, count]) => rows.push([sample.sampleId, name, 'mock', 0, 'CATA', attr, count].join(',')));
-      Object.entries(sample.intensity).forEach(([attr, val]) => rows.push([sample.sampleId, name, 'mock', 0, 'Intensity', attr, val].join(',')));
-      Object.entries(sample.hedonic).forEach(([dim, val]) => rows.push([sample.sampleId, name, 'mock', 0, 'Hedonic', dim, val].join(',')));
+      const name = `"${sanitizeCsvCell(sample.sampleName)}"`;
+      Object.entries(sample.cata).forEach(([attr, count]) => rows.push([sample.sampleId, name, 'mock', 0, 'CATA', sanitizeCsvCell(attr), count].join(',')));
+      Object.entries(sample.intensity).forEach(([attr, val]) => rows.push([sample.sampleId, name, 'mock', 0, 'Intensity', sanitizeCsvCell(attr), val].join(',')));
+      Object.entries(sample.hedonic).forEach(([dim, val]) => rows.push([sample.sampleId, name, 'mock', 0, 'Hedonic', sanitizeCsvCell(dim), val].join(',')));
       rows.push([sample.sampleId, name, 'mock', 0, 'Emotion', 'positive', sample.emotions.positive].join(','));
       rows.push([sample.sampleId, name, 'mock', 0, 'Emotion', 'negative', sample.emotions.negative].join(','));
     });

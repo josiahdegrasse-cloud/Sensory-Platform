@@ -66,7 +66,7 @@ export function MultiSampleQuestionnaire() {
   const [selectedCata, setSelectedCata] = useState<string[]>([]);
   const [intensityRatings, setIntensityRatings] = useState<Record<string, number>>({});
   const [hedonicScores, setHedonicScores] = useState({
-    overall: 3,
+    overall: 5,
     appearance: 5,
     aroma: 5,
     flavor: 5,
@@ -200,14 +200,23 @@ export function MultiSampleQuestionnaire() {
     setIsSubmitting(true);
     setSubmitError('');
     try {
-      await insertResponse({
-        userId: user.id,
-        productId,
-        cataAttributes: sampleResponses.flatMap(s => s.cataAttributes),
-        intensityRatings: sampleResponses[0]?.intensityRatings ?? {},
-        hedonicScores: sampleResponses[0]?.hedonicScores ?? { overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 },
-        emotionalProfile: sampleResponses[0]?.emotions ?? {},
-      });
+      for (const response of sampleResponses) {
+        await insertResponse({
+          userId: user.id,
+          productId,
+          cataAttributes: response.cataAttributes,
+          intensityRatings: response.intensityRatings,
+          hedonicScores: response.hedonicScores,
+          emotionalProfile: response.emotions,
+          comments: JSON.stringify({
+            sessionType: '3-sample-sequential',
+            sampleCode: response.sampleCode,
+            differentSample,
+            ranking,
+            comments: '',
+          }),
+        });
+      }
       setCurrentStep('submitted');
       setTimeout(() => navigate('/panelist'), 3000);
     } catch (err) {

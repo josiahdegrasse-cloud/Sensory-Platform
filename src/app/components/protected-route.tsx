@@ -4,8 +4,9 @@ import { useAuth } from '../contexts/auth-context';
 type Role = 'panelist' | 'admin';
 
 export function ProtectedRoute({ allowedRoles }: { allowedRoles: Role[] }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
 
+  if (loading) return null;
   if (!user) return <Navigate to="/" replace />;
 
   if (!allowedRoles.includes(user.role)) {

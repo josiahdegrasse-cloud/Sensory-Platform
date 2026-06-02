@@ -60,6 +60,23 @@ function fromProduct(p: Omit<Product, 'id' | 'createdDate'>) {
 }
 
 function toResponse(row: Record<string, unknown>): QuestionnaireResponse {
+  const rawComments = (row.comments as string) ?? '';
+  let sessionType: string | undefined;
+  let sampleCode: string | undefined;
+  let differentSample: string | undefined;
+  let ranking: string[] | undefined;
+  let comments = rawComments;
+  try {
+    const meta = JSON.parse(rawComments);
+    if (meta && typeof meta === 'object' && meta.sessionType) {
+      sessionType = meta.sessionType as string;
+      sampleCode = meta.sampleCode as string | undefined;
+      differentSample = meta.differentSample as string | undefined;
+      ranking = Array.isArray(meta.ranking) ? (meta.ranking as string[]) : undefined;
+      comments = meta.comments ?? '';
+    }
+  } catch { /* plain-text comment, not JSON */ }
+
   return {
     id: row.id as string,
     userId: row.user_id as string,
@@ -72,7 +89,11 @@ function toResponse(row: Record<string, unknown>): QuestionnaireResponse {
       overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5,
     },
     emotionalProfile: (row.emotional_profile as Record<string, number>) || {},
-    comments: (row.comments as string) ?? '',
+    comments,
+    sessionType,
+    sampleCode,
+    differentSample,
+    ranking,
   };
 }
 

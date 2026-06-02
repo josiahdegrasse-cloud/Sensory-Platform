@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useAuth } from '../contexts/auth-context';
-import { AlertCircle, ChevronRight } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 
 interface Props {
@@ -44,7 +44,13 @@ export function LoginPage({ onSignup }: Props) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, resetPassword } = useAuth();
+
+  const [resetMode, setResetMode] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetSent, setResetSent] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,6 +59,19 @@ export function LoginPage({ onSignup }: Props) {
     const errorMessage = await login(email, password);
     if (errorMessage) setError(mapLoginError(errorMessage));
     setLoading(false);
+  };
+
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError('');
+    setResetLoading(true);
+    const err = await resetPassword(resetEmail);
+    setResetLoading(false);
+    if (err) {
+      setResetError(err);
+    } else {
+      setResetSent(true);
+    }
   };
 
   return (
@@ -106,75 +125,144 @@ export function LoginPage({ onSignup }: Props) {
         </div>
 
         <div className="max-w-sm w-full mx-auto">
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-slate-900">Sign in</h2>
-            <p className="text-slate-500 text-sm mt-1">Access your NFI workspace</p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-slate-700 font-medium text-sm">
-                Email address
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-11 border-slate-200 rounded-lg"
-                required
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-slate-700 font-medium text-sm">
-                Password
-              </Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="h-11 border-slate-200 rounded-lg"
-                required
-              />
-            </div>
-
-            {error && (
-              <Alert variant="destructive" className="py-2.5">
-                <AlertCircle className="size-4" />
-                <AlertDescription className="text-xs">{error}</AlertDescription>
-              </Alert>
-            )}
-
-            <Button
-              type="submit"
-              className="w-full h-11 text-white font-semibold text-sm rounded-lg transition-colors"
-              style={{ background: '#111' }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#333')}
-              onMouseLeave={e => (e.currentTarget.style.background = '#111')}
-              disabled={loading}
-            >
-              {loading ? 'Signing in…' : (
-                <span className="flex items-center gap-2">
-                  Sign In <ChevronRight className="size-4" />
-                </span>
+          {resetMode ? (
+            <>
+              <button
+                type="button"
+                onClick={() => { setResetMode(false); setResetSent(false); setResetError(''); setResetEmail(''); }}
+                className="text-xs text-slate-400 hover:text-slate-700 transition-colors mb-6"
+              >
+                ← Back to sign in
+              </button>
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold text-slate-900">Reset password</h2>
+                <p className="text-slate-500 text-sm mt-1">We'll send a link to your email address</p>
+              </div>
+              {resetSent ? (
+                <Alert className="py-2.5 border-green-200 bg-green-50">
+                  <CheckCircle2 className="size-4 text-green-600" />
+                  <AlertDescription className="text-xs text-green-700">
+                    Check your email — a reset link is on its way.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <form onSubmit={handleReset} className="space-y-5">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="reset-email" className="text-slate-700 font-medium text-sm">
+                      Email address
+                    </Label>
+                    <Input
+                      id="reset-email"
+                      type="email"
+                      placeholder="you@company.com"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      className="h-11 border-slate-200 rounded-lg"
+                      required
+                    />
+                  </div>
+                  {resetError && (
+                    <Alert variant="destructive" className="py-2.5">
+                      <AlertCircle className="size-4" />
+                      <AlertDescription className="text-xs">{resetError}</AlertDescription>
+                    </Alert>
+                  )}
+                  <Button
+                    type="submit"
+                    className="w-full h-11 text-white font-semibold text-sm rounded-lg transition-colors"
+                    style={{ background: '#111' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#333')}
+                    onMouseLeave={e => (e.currentTarget.style.background = '#111')}
+                    disabled={resetLoading}
+                  >
+                    {resetLoading ? 'Sending…' : 'Send reset link'}
+                  </Button>
+                </form>
               )}
-            </Button>
-          </form>
+            </>
+          ) : (
+            <>
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold text-slate-900">Sign in</h2>
+                <p className="text-slate-500 text-sm mt-1">Access your NFI workspace</p>
+              </div>
 
-          <div className="mt-6 pt-6 border-t border-slate-100 text-center">
-            <button
-              type="button"
-              onClick={onSignup}
-              className="text-sm text-slate-500 hover:text-slate-900 transition-colors"
-            >
-              New panelist?{' '}
-              <span className="font-semibold underline underline-offset-2">Create account</span>
-            </button>
-          </div>
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="space-y-1.5">
+                  <Label htmlFor="email" className="text-slate-700 font-medium text-sm">
+                    Email address
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="you@company.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-11 border-slate-200 rounded-lg"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="password" className="text-slate-700 font-medium text-sm">
+                    Password
+                  </Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-11 border-slate-200 rounded-lg"
+                    required
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => { setResetMode(true); setError(''); }}
+                    className="text-xs text-slate-400 hover:text-slate-700 transition-colors"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+
+                {error && (
+                  <Alert variant="destructive" className="py-2.5">
+                    <AlertCircle className="size-4" />
+                    <AlertDescription className="text-xs">{error}</AlertDescription>
+                  </Alert>
+                )}
+
+                <Button
+                  type="submit"
+                  className="w-full h-11 text-white font-semibold text-sm rounded-lg transition-colors"
+                  style={{ background: '#111' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#333')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '#111')}
+                  disabled={loading}
+                >
+                  {loading ? 'Signing in…' : (
+                    <span className="flex items-center gap-2">
+                      Sign In <ChevronRight className="size-4" />
+                    </span>
+                  )}
+                </Button>
+              </form>
+
+              <div className="mt-6 pt-6 border-t border-slate-100 text-center">
+                <button
+                  type="button"
+                  onClick={onSignup}
+                  className="text-sm text-slate-500 hover:text-slate-900 transition-colors"
+                >
+                  New panelist?{' '}
+                  <span className="font-semibold underline underline-offset-2">Create account</span>
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -14,24 +14,22 @@ interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<string | null>;
   logout: () => Promise<void>;
+  resetPassword: (email: string) => Promise<string | null>;
+  updatePassword: (newPassword: string) => Promise<string | null>;
   isAuthenticated: boolean;
+  isPasswordRecovery: boolean;
   loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 async function loadProfile(supabaseUser: SupabaseUser): Promise<User | null> {
-  console.log('[loadProfile] fetching for id:', supabaseUser.id);
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
     .eq('id', supabaseUser.id)
     .single();
-  console.log('[loadProfile] result — data:', data, 'error:', error?.message, error?.code);
-  if (error) {
-    console.error('loadProfile error:', error.message, error.code);
-  }
-  if (!data) return null;
+  if (error || !data) return null;
   return {
     id: supabaseUser.id,
     email: supabaseUser.email ?? '',
@@ -45,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [sessionUser, setSessionUser] = useState<SupabaseUser | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   // Step 1: listen for auth changes — sync only, no async db calls inside handler
   useEffect(() => {
@@ -54,9 +53,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSessionUser(null);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSessionUser(session?.user ?? null);
       if (!session?.user) setUser(null);
+      if (event === 'TOKEN_REFRESHED' && !session) supabase.auth.signOut();
+      if (event === 'PASSWORD_RECOVERY') setIsPasswordRecovery(true);
+      if (event === 'SIGNED_IN' && isPasswordRecovery) setIsPasswordRecovery(false);
     });
 
     return () => subscription.unsubscribe();
@@ -92,8 +94,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const updatePassword = async (newPassword: string): Promise<string | null> => {
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) return error.message;
+      setIsPasswordRecovery(false);
+      await supabase.auth.signOut();
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Unknown error';
+    }
+  };
+
+  const resetPassword = async (email: string): Promise<string | null> => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${import.meta.env.VITE_APP_URL ?? window.location.origin}/reset-password`,
+      });
+      if (error) return error.message;
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Unknown error';
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, resetPassword, updatePassword, isAuthenticated: !!user, isPasswordRecovery, loading }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -10,7 +10,8 @@ import {
   Users, Send, CheckCircle2, Sparkles, GripVertical,
   DollarSign, Target, Package, Star, Image as ImageIcon, UserCheck, RefreshCw,
 } from 'lucide-react';
-import { fetchPanelists, insertConceptTest, type PanelistInfo } from '../lib/database';
+import { insertConceptTest, type PanelistInfo } from '../lib/database';
+import { usePanelists } from '../lib/hooks';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -164,14 +165,14 @@ function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: C
 function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: ConceptDraft) => void }) {
   const [aiCandidates, setAiCandidates] = useState<{ url: string; selected: boolean; loading: boolean; failed: boolean }[]>([]);
   const [generating, setGenerating] = useState(false);
-  const [hfToken, setHfToken] = useState(() => localStorage.getItem('hf_token') ?? '');
+  const [hfToken, setHfToken] = useState(() => sessionStorage.getItem('hf_token') ?? '');
   const [tokenInput, setTokenInput] = useState('');
   const [tokenError, setTokenError] = useState('');
 
   const saveToken = () => {
     const t = tokenInput.trim();
     if (!t.startsWith('hf_')) { setTokenError('Token should start with hf_'); return; }
-    localStorage.setItem('hf_token', t);
+    sessionStorage.setItem('hf_token', t);
     setHfToken(t);
     setTokenInput('');
     setTokenError('');
@@ -220,6 +221,8 @@ function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: Co
     setGenerating(false);
   };
 
+  const isHttpsUrl = (u: string) => { try { return new URL(u).protocol === 'https:'; } catch { return false; } };
+
   const addSelected = () => {
     const toAdd = aiCandidates.filter(c => c.selected && c.url).map(c => c.url);
     onChange({ ...draft, marketingImages: [...draft.marketingImages.filter(u => u.trim()), ...toAdd] });
@@ -229,7 +232,7 @@ function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: Co
   const removeImage = (i: number) =>
     onChange({ ...draft, marketingImages: draft.marketingImages.filter((_, j) => j !== i) });
 
-  const validImages = draft.marketingImages.filter(u => u.trim());
+  const validImages = draft.marketingImages.filter(u => u.trim() && isHttpsUrl(u));
   const canGenerate = !!(draft.name || draft.category || draft.description);
 
   return (
@@ -271,7 +274,7 @@ function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: Co
           <span className="text-slate-600">Hugging Face connected · FLUX.1-schnell</span>
           <button
             type="button"
-            onClick={() => { localStorage.removeItem('hf_token'); setHfToken(''); }}
+            onClick={() => { sessionStorage.removeItem('hf_token'); setHfToken(''); }}
             className="text-slate-400 hover:text-rose-500 transition-colors"
           >
             Disconnect
@@ -386,20 +389,25 @@ function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: Co
         </div>
 
         {draft.marketingImages.map((url, i) => (
-          <div key={i} className="flex gap-2 items-center">
-            <Input
-              value={url}
-              onChange={(e) => {
-                const next = [...draft.marketingImages];
-                next[i] = e.target.value;
-                onChange({ ...draft, marketingImages: next });
-              }}
-              placeholder="https://… (paste a URL)"
-              className="flex-1 text-xs"
-            />
-            <button type="button" onClick={() => removeImage(i)} className="text-slate-300 hover:text-rose-500 flex-shrink-0">
-              <Trash2 className="size-4" />
-            </button>
+          <div key={i} className="space-y-1">
+            <div className="flex gap-2 items-center">
+              <Input
+                value={url}
+                onChange={(e) => {
+                  const next = [...draft.marketingImages];
+                  next[i] = e.target.value;
+                  onChange({ ...draft, marketingImages: next });
+                }}
+                placeholder="https://… (paste a URL)"
+                className="flex-1 text-xs"
+              />
+              <button type="button" onClick={() => removeImage(i)} className="text-slate-300 hover:text-rose-500 flex-shrink-0">
+                <Trash2 className="size-4" />
+              </button>
+            </div>
+            {url.trim() && !isHttpsUrl(url) && (
+              <p className="text-xs text-rose-500 pl-1">URL must start with https://</p>
+            )}
           </div>
         ))}
 
@@ -589,11 +597,8 @@ function PanelStep({
   assignedPanelistIds: string[];
   setAssignedPanelistIds: (ids: string[]) => void;
 }) {
-  const [registeredPanelists, setRegisteredPanelists] = useState<PanelistInfo[]>([]);
-
-  useEffect(() => {
-    fetchPanelists().then(setRegisteredPanelists).catch(() => {});
-  }, []);
+  const { data: panelists = [] } = usePanelists();
+  const registeredPanelists = panelists;
 
   const segments = ['Everyday consumers', 'Health-conscious', 'Vegan / plant-based', 'Flexitarian', 'Foodservice buyers', 'Retail buyers', 'Seniors 55+', 'Parents with children', 'Young adults 18–34'];
 
@@ -843,7 +848,7 @@ export function ConceptTesting() {
         name: draft.name,
         category: draft.category,
         description: draft.description,
-        imageUrls: draft.marketingImages.filter(u => u.trim()),
+        imageUrls: draft.marketingImages.filter(u => u.trim() && (() => { try { return new URL(u).protocol === 'https:'; } catch { return false; } })()),
         targetMarket: draft.targetMarket,
         pricePoint: draft.pricePoint,
         keyBenefits: draft.keyBenefits,

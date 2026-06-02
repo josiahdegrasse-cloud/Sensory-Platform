@@ -6,13 +6,12 @@ import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Checkbox } from './ui/checkbox';
 import { type Product, DEFAULT_CATA_ATTRIBUTES } from '../data/mock-users';
+import { type Template, type PanelistInfo, type PanelistReliability } from '../lib/database';
 import {
-  fetchProducts, insertProduct, updateProduct,
-  fetchTemplates, insertTemplate, deleteTemplate, type Template,
-  fetchPanelists, updatePanelistId, type PanelistInfo,
-  fetchPanelistReliability, type PanelistReliability,
-} from '../lib/database';
-import { Plus, Settings, Trash2, Save, CheckCircle2, Bookmark, FolderOpen, Layers, ClipboardList, Users } from 'lucide-react';
+  useProducts, useTemplates, usePanelists, usePanelistReliability,
+  useInsertProduct, useUpdateProduct, useInsertTemplate, useDeleteTemplate, useUpdatePanelistId,
+} from '../lib/hooks';
+import { Plus, Settings, Trash2, Save, CheckCircle2, Bookmark, FolderOpen, Layers, ClipboardList, Users, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { useAuth } from '../contexts/auth-context';
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
@@ -21,9 +20,15 @@ type QuestionnaireTemplate = Template;
 
 export function AdminConfig() {
   const { user } = useAuth();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [panelists, setPanelists] = useState<PanelistInfo[]>([]);
-  const [reliability, setReliability] = useState<PanelistReliability[]>([]);
+  const { data: products = [] } = useProducts()
+  const { data: panelists = [] } = usePanelists()
+  const { data: reliability = [] } = usePanelistReliability()
+  const { data: templates = [] } = useTemplates()
+  const insertProductMutation = useInsertProduct()
+  const updateProductMutation = useUpdateProduct()
+  const insertTemplateMutation = useInsertTemplate()
+  const deleteTemplateMutation = useDeleteTemplate()
+  const updatePanelistIdMutation = useUpdatePanelistId()
   const [editingPanelistId, setEditingPanelistId] = useState<string | null>(null);
   const [panelistIdInput, setPanelistIdInput] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
@@ -31,8 +36,8 @@ export function AdminConfig() {
   const [newProductName, setNewProductName] = useState('');
   const [newProductCategory, setNewProductCategory] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
+  const [mutationError, setMutationError] = useState('');
   const [newAttribute, setNewAttribute] = useState('');
-  const [templates, setTemplates] = useState<QuestionnaireTemplate[]>([]);
   const [templateName, setTemplateName] = useState('');
   const [showTemplateSave, setShowTemplateSave] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -44,12 +49,6 @@ export function AdminConfig() {
   const [samples, setSamples] = useState<{ id: string; code: string; label: string }[]>([
     { id: '1', code: '', label: '' }
   ]);
-
-  useEffect(() => {
-    fetchProducts().then(setProducts).catch(console.error);
-    fetchPanelists().then(setPanelists).catch(console.error);
-    fetchPanelistReliability().then(setReliability).catch(console.error);
-  }, []);
 
   useEffect(() => {
     // Load custom attributes when product is selected
@@ -84,6 +83,11 @@ export function AdminConfig() {
         alert('Multi-sample products require at least 2 samples with code and label');
         return;
       }
+      const codes = validSamples.map(s => s.code);
+      if (new Set(codes).size !== codes.length) {
+        alert('Each sample must have a unique code. Please remove duplicate codes.');
+        return;
+      }
     }
 
     const newProduct: Product = {
@@ -110,8 +114,9 @@ export function AdminConfig() {
 
   const finalizeProductCreation = async () => {
     if (!pendingProduct) return;
+    setMutationError('');
     try {
-      const created = await insertProduct({
+      await insertProductMutation.mutateAsync({
         name: pendingProduct.name,
         category: pendingProduct.category,
         status: 'active',
@@ -119,7 +124,6 @@ export function AdminConfig() {
         isMultiSample: pendingProduct.isMultiSample,
         samples: pendingProduct.samples,
       });
-      setProducts(prev => [created, ...prev]);
       setNewProductName('');
       setNewProductCategory('');
       setShowConfirmation(false);
@@ -131,7 +135,7 @@ export function AdminConfig() {
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
-      console.error('Failed to create product:', err);
+      setMutationError(err instanceof Error ? err.message : 'Failed to create product. Please try again.');
     }
   };
 
@@ -146,13 +150,13 @@ export function AdminConfig() {
 
   const handleSaveAttributes = async () => {
     if (!selectedProduct) return;
+    setMutationError('');
     try {
-      const updated = await updateProduct(selectedProduct, { customAttributes });
-      setProducts(prev => prev.map(p => p.id === selectedProduct ? updated : p));
+      await updateProductMutation.mutateAsync({ id: selectedProduct, updates: { customAttributes } });
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
-      console.error('Failed to save attributes:', err);
+      setMutationError(err instanceof Error ? err.message : 'Failed to save attributes. Please try again.');
     }
   };
 
@@ -178,45 +182,41 @@ export function AdminConfig() {
     const product = products.find(p => p.id === productId);
     if (!product) return;
     const newStatus: 'active' | 'completed' = product.status === 'active' ? 'completed' : 'active';
+    setMutationError('');
     try {
-      const updated = await updateProduct(productId, { status: newStatus });
-      setProducts(prev => prev.map(p => p.id === productId ? updated : p));
+      await updateProductMutation.mutateAsync({ id: productId, updates: { status: newStatus } });
     } catch (err) {
-      console.error('Failed to update status:', err);
+      setMutationError(err instanceof Error ? err.message : 'Failed to update product status. Please try again.');
     }
   };
 
   const handleSaveTemplate = async () => {
     if (!templateName || customAttributes.length === 0) return;
+    setMutationError('');
     try {
-      const created = await insertTemplate(templateName, customAttributes);
-      setTemplates(prev => [created, ...prev]);
+      await insertTemplateMutation.mutateAsync({ name: templateName, attributes: customAttributes });
       setTemplateName('');
       setShowTemplateSave(false);
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
-      console.error('Failed to save template:', err);
+      setMutationError(err instanceof Error ? err.message : 'Failed to save template. Please try again.');
     }
   };
 
   const handleLoadTemplate = async (templateId: string) => {
     const template = templates.find(t => t.id === templateId);
     if (!template || !selectedProduct) return;
+    setMutationError('');
     try {
-      const updated = await updateProduct(selectedProduct, { customAttributes: template.attributes });
-      setProducts(prev => prev.map(p => p.id === selectedProduct ? updated : p));
+      await updateProductMutation.mutateAsync({ id: selectedProduct, updates: { customAttributes: template.attributes } });
       setCustomAttributes(template.attributes);
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
-      console.error('Failed to load template:', err);
+      setMutationError(err instanceof Error ? err.message : 'Failed to apply template. Please try again.');
     }
   };
-
-  useEffect(() => {
-    fetchTemplates().then(setTemplates).catch(console.error);
-  }, []);
 
   return (
     <div className="space-y-6">
@@ -269,9 +269,13 @@ export function AdminConfig() {
                           onChange={e => setPanelistIdInput(e.target.value)}
                         />
                         <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={async () => {
-                          await updatePanelistId(p.id, panelistIdInput);
-                          setPanelists(prev => prev.map(x => x.id === p.id ? { ...x, panelistId: panelistIdInput } : x));
-                          setEditingPanelistId(null);
+                          setMutationError('');
+                          try {
+                            await updatePanelistIdMutation.mutateAsync({ userId: p.id, panelistId: panelistIdInput });
+                            setEditingPanelistId(null);
+                          } catch (err) {
+                            setMutationError(err instanceof Error ? err.message : 'Failed to update panelist ID. Please try again.');
+                          }
                         }}>
                           Save
                         </Button>
@@ -298,6 +302,13 @@ export function AdminConfig() {
         <Alert className="border-emerald-300 bg-emerald-50">
           <CheckCircle2 className="size-4 text-emerald-600" />
           <AlertDescription className="text-emerald-700">Changes saved successfully!</AlertDescription>
+        </Alert>
+      )}
+
+      {mutationError && (
+        <Alert variant="destructive">
+          <AlertCircle className="size-4" />
+          <AlertDescription>{mutationError}</AlertDescription>
         </Alert>
       )}
 
@@ -738,8 +749,12 @@ export function AdminConfig() {
                     <span className="text-sm flex-1">{template.name}</span>
                     <button
                       onClick={async () => {
-                        await deleteTemplate(template.id);
-                        setTemplates(prev => prev.filter(t => t.id !== template.id));
+                        setMutationError('');
+                        try {
+                          await deleteTemplateMutation.mutateAsync(template.id);
+                        } catch (err) {
+                          setMutationError(err instanceof Error ? err.message : 'Failed to delete template. Please try again.');
+                        }
                       }}
                       className="text-rose-500 hover:text-rose-700"
                     >

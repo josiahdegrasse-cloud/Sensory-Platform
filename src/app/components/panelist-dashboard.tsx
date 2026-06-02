@@ -1,48 +1,26 @@
-import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { useAuth } from '../contexts/auth-context';
 import { type Product, type QuestionnaireResponse } from '../data/mock-users';
-import {
-  fetchActiveProducts, fetchUserResponses,
-  fetchConceptTestsForPanelist, fetchUserConceptResponses,
-  type ConceptTest, type ConceptResponse,
-} from '../lib/database';
+import { type ConceptTest, type ConceptResponse } from '../lib/database';
+import { useActiveProducts, useUserResponses, useConceptTestsForPanelist, useConceptResponses } from '../lib/hooks';
 import { CheckCircle2, Clock, ClipboardList, Edit2, Layers, AlertCircle, Megaphone, ImageIcon } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Link } from 'react-router';
 
 export function PanelistDashboard() {
   const { user } = useAuth();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [userResponses, setUserResponses] = useState<QuestionnaireResponse[]>([]);
-  const [conceptTests, setConceptTests] = useState<ConceptTest[]>([]);
-  const [conceptResponses, setConceptResponses] = useState<ConceptResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState('');
+  const userId = user?.id ?? ''
+  const { data: products = [], isLoading: productsLoading, isError: productsError } = useActiveProducts()
+  const { data: userResponses = [], isLoading: responsesLoading, isError: responsesError } = useUserResponses(userId)
+  const { data: conceptTests = [], isLoading: conceptsLoading, isError: conceptsError } = useConceptTestsForPanelist(userId)
+  const { data: conceptResponses = [], isLoading: conceptResponsesLoading, isError: conceptResponsesError } = useConceptResponses(userId)
 
-  useEffect(() => {
-    if (!user?.id) return;
-    Promise.all([
-      fetchActiveProducts(),
-      fetchUserResponses(user.id),
-      fetchConceptTestsForPanelist(user.id),
-      fetchUserConceptResponses(user.id),
-    ])
-      .then(([prods, responses, concepts, cResponses]) => {
-        setProducts(prods);
-        setUserResponses(responses);
-        setConceptTests(concepts);
-        setConceptResponses(cResponses);
-      })
-      .catch(() => {
-        setFetchError('Unable to load questionnaires. Please check your connection and refresh the page.');
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, [user?.id]);
+  const loading = productsLoading || responsesLoading || conceptsLoading || conceptResponsesLoading
+  const fetchError = (productsError || responsesError || conceptsError || conceptResponsesError)
+    ? 'Unable to load questionnaires. Please check your connection and refresh the page.'
+    : ''
 
   const completedProductIds = userResponses.map(r => r.productId);
   const availableProducts = products.filter(p => !completedProductIds.includes(p.id) && p.status !== 'completed');
@@ -370,7 +348,7 @@ export function PanelistDashboard() {
         </Card>
       )}
 
-      {!loading && availableProducts.length === 0 && completedProductsList.length === 0 && availableConceptTests.length === 0 && completedConceptTests.length === 0 && (
+      {!loading && !fetchError && availableProducts.length === 0 && completedProductsList.length === 0 && availableConceptTests.length === 0 && completedConceptTests.length === 0 && (
         <Card className="bg-slate-50">
           <CardContent className="pt-12 pb-12 text-center">
             <ClipboardList className="size-16 text-slate-400 mx-auto mb-4" />

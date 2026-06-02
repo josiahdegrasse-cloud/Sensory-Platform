@@ -59,7 +59,14 @@ export function SignupPage({ onBack }: Props) {
     }
 
     if (data.user) {
-      await supabase.from('profiles').upsert({ id: data.user.id, name, role: 'panelist' });
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({ id: data.user.id, name, role: 'panelist' });
+      if (profileError) {
+        setError('Account created but profile setup failed. Please contact the study administrator.');
+        setLoading(false);
+        return;
+      }
     }
 
     setSuccess(true);

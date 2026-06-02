@@ -28,6 +28,10 @@ export interface QuestionnaireResponse {
   };
   emotionalProfile: Record<string, number>;
   comments?: string;
+  sessionType?: string;
+  sampleCode?: string;
+  differentSample?: string;
+  ranking?: string[];
 }
 
 export const DEFAULT_CATA_ATTRIBUTES = [

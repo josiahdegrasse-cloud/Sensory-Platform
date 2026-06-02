@@ -85,12 +85,12 @@ export function QuestionnaireForm() {
           intensityRatings: existing.intensityRatings || {},
           hedonicScores: existing.hedonicScores || { overall: 3, appearance: 5, aroma: 5, flavor: 5, texture: 5 },
           emotions: existing.emotionalProfile || {},
-          comments: '',
+          comments: existing.comments || '',
         });
         setShowIntro(false);
         setAlreadyCompleted(true);
       } else {
-        const draft = localStorage.getItem(`qs_draft_${productId}`);
+        const draft = localStorage.getItem(`qs_draft_${user.id}_${productId}`);
         if (draft) {
           try {
             setFormData(JSON.parse(draft) as FormData);
@@ -106,7 +106,7 @@ export function QuestionnaireForm() {
   // Persist draft on every formData change — guarded so we never overwrite a real draft on mount
   useEffect(() => {
     if (!productId || !initialLoadComplete.current) return;
-    localStorage.setItem(`qs_draft_${productId}`, JSON.stringify(formData));
+    localStorage.setItem(`qs_draft_${user?.id}_${productId}`, JSON.stringify(formData));
   }, [formData, productId]);
 
   const handleCataToggle = (attr: string) => {
@@ -170,7 +170,7 @@ export function QuestionnaireForm() {
         emotionalProfile: formData.emotions,
         comments: formData.comments,
       });
-      localStorage.removeItem(`qs_draft_${productId}`);
+      localStorage.removeItem(`qs_draft_${user?.id}_${productId}`);
       setSubmitted(true);
       setTimeout(() => navigate('/panelist'), 3000);
     } catch (err) {
@@ -361,7 +361,7 @@ export function QuestionnaireForm() {
             <span>You have a saved draft for this product. Your answers have been restored.</span>
             <button
               onClick={() => {
-                localStorage.removeItem(`qs_draft_${productId}`);
+                localStorage.removeItem(`qs_draft_${user?.id}_${productId}`);
                 setFormData({ selectedCata: [], intensityRatings: {}, hedonicScores: { overall: 3, appearance: 5, aroma: 5, flavor: 5, texture: 5 }, emotions: {}, comments: '' });
                 setShowDraftBanner(false);
               }}
@@ -748,6 +748,7 @@ export function QuestionnaireForm() {
               <textarea
                 className="w-full border border-slate-200 rounded-lg p-3 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
                 rows={4}
+                maxLength={2000}
                 placeholder="e.g. The texture was unusual compared to what I expected, or the coconut note was very subtle at first but grew stronger..."
                 value={formData.comments}
                 onChange={(e) => setFormData(prev => ({ ...prev, comments: e.target.value }))}

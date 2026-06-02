@@ -7,17 +7,17 @@ import { Textarea } from './ui/textarea';
 import { Alert, AlertDescription } from './ui/alert';
 import { useAuth } from '../contexts/auth-context';
 import {
-  fetchConceptTest, insertConceptResponse,
   type ConceptTest, type ConceptQuestion,
 } from '../lib/database';
+import { useConceptTest, useInsertConceptResponse } from '../lib/hooks';
 import { CheckCircle2, ChevronLeft, ChevronRight, Image as ImageIcon, AlertCircle, Megaphone } from 'lucide-react';
 
 export function ConceptSurvey() {
   const { conceptId } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [test, setTest] = useState<ConceptTest | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: test, isLoading: loading, isError } = useConceptTest(conceptId);
+  const insertResponse = useInsertConceptResponse();
   const [answers, setAnswers] = useState<Record<string, string | number | string[]>>({});
   const [imageIndex, setImageIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -25,12 +25,8 @@ export function ConceptSurvey() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!conceptId) return;
-    fetchConceptTest(conceptId)
-      .then(setTest)
-      .catch(() => setError('Could not load this concept test.'))
-      .finally(() => setLoading(false));
-  }, [conceptId]);
+    if (isError) setError('Could not load this concept test.');
+  }, [isError]);
 
   const setAnswer = (questionId: string, value: string | number | string[]) =>
     setAnswers(prev => ({ ...prev, [questionId]: value }));
@@ -40,7 +36,7 @@ export function ConceptSurvey() {
     setSubmitting(true);
     setError('');
     try {
-      await insertConceptResponse(user.id, conceptId, answers);
+      await insertResponse.mutateAsync({ userId: user.id, conceptTestId: conceptId!, answers });
       setSubmitted(true);
     } catch {
       setError('Failed to submit. Please try again.');
@@ -54,7 +50,12 @@ export function ConceptSurvey() {
   }
 
   if (!test) {
-    return <div className="text-center py-16 text-slate-500">Concept test not found.</div>;
+    return (
+      <div className="max-w-2xl mx-auto py-16 text-center space-y-4">
+        <p className="text-slate-500">Concept test not found.</p>
+        <Button variant="outline" onClick={() => navigate('/panelist')}>Back to Dashboard</Button>
+      </div>
+    );
   }
 
   if (submitted) {
