@@ -10,39 +10,48 @@ interface Props {
   onSignup: () => void;
 }
 
-const NFI_DARK = '#111111';
+const NFI_BLUE = '#6B7890';
 
-function NfiLogoMark({ size = 40, invert = false }: { size?: number; invert?: boolean }) {
+function NfiLogoMark({ size = 40, onDark = false }: { size?: number; onDark?: boolean }) {
+  const leafW = Math.round(size * 0.31);
+  const leafH = Math.round(size * 0.29);
+
   return (
     <div
-      className="relative flex items-center justify-center rounded-xl flex-shrink-0"
+      className="relative flex items-center justify-center flex-shrink-0"
       style={{
         width: size,
         height: size,
-        background: invert ? 'rgba(255,255,255,0.15)' : NFI_DARK,
-        border: invert ? '1px solid rgba(255,255,255,0.25)' : 'none',
+        background: onDark ? 'rgba(255,255,255,0.15)' : '#111111',
+        borderRadius: '22%',
+        border: onDark ? '1px solid rgba(255,255,255,0.22)' : 'none',
       }}
     >
       <svg
-        className="absolute"
-        style={{ top: Math.round(size * 0.11), right: Math.round(size * 0.14) }}
-        width={Math.round(size * 0.33)}
-        height={Math.round(size * 0.25)}
-        viewBox="0 0 12 9"
+        style={{
+          position: 'absolute',
+          top: Math.round(size * 0.09),
+          left: Math.round(size * 0.12),
+          width: leafW,
+          height: leafH,
+          overflow: 'visible',
+        }}
+        viewBox="0 0 10 9"
         fill="none"
       >
-        <path d="M2.5 8.5C2.5 5.5 1 3.5 0 2.5C1 0.8 3.8 1.2 4.2 4.5" fill={invert ? 'rgba(255,255,255,0.6)' : '#8899aa'}/>
-        <path d="M9.5 8.5C9.5 5.5 11 3.5 12 2.5C11 0.8 8.2 1.2 7.8 4.5" fill={invert ? 'rgba(255,255,255,0.6)' : '#8899aa'}/>
+        <ellipse cx="3.0" cy="5.8" rx="1.7" ry="4.0" transform="rotate(-22 3.0 5.8)" fill="white"/>
+        <ellipse cx="7.0" cy="5.8" rx="1.7" ry="4.0" transform="rotate(22 7.0 5.8)"  fill="white"/>
       </svg>
       <span
         className="font-bold select-none"
         style={{
-          fontSize: size * 0.36,
-          letterSpacing: '-0.02em',
           color: 'white',
+          fontSize: Math.round(size * 0.35),
+          letterSpacing: '-0.02em',
+          lineHeight: 1,
         }}
       >
-        ñfi
+        nfi
       </span>
     </div>
   );
@@ -60,32 +69,30 @@ export function LoginPage({ onSignup }: Props) {
     setError('');
     setLoading(true);
     const errorMessage = await login(email, password);
-    if (errorMessage) {
-      setError(errorMessage);
-    }
+    if (errorMessage) setError(errorMessage);
     setLoading(false);
   };
 
   return (
     <div className="min-h-screen flex">
-      {/* Left panel — NFI dark brand */}
+      {/* Left panel */}
       <div
         className="hidden lg:flex lg:w-[46%] flex-col justify-between p-12"
-        style={{ background: NFI_DARK }}
+        style={{ background: '#111111' }}
       >
         {/* Logo */}
         <div className="flex items-center gap-3">
-          <NfiLogoMark size={40} invert />
-          <div className="leading-none" style={{ lineHeight: '1.3' }}>
-            <div className="text-white/90 text-sm">new</div>
-            <div className="text-white/90 text-sm">food</div>
-            <div className="text-white/90 text-sm">innovation</div>
+          <NfiLogoMark size={42} onDark />
+          <div style={{ lineHeight: '1.3' }}>
+            <div className="text-white/80 text-sm">new</div>
+            <div className="text-white/80 text-sm">food</div>
+            <div className="text-white/80 text-sm">innovation</div>
           </div>
         </div>
 
         {/* Centre copy */}
         <div>
-          <p className="text-white/40 text-xs font-semibold uppercase tracking-widest mb-5">
+          <p className="text-white/35 text-xs font-semibold uppercase tracking-widest mb-5">
             Sensory Analysis Platform
           </p>
           <h1 className="text-[2.5rem] font-bold text-white leading-[1.15] mb-6">
@@ -93,23 +100,23 @@ export function LoginPage({ onSignup }: Props) {
             from concept to<br />
             commercialisation.
           </h1>
-          <p className="text-white/50 text-base leading-relaxed max-w-[300px]">
+          <p className="text-white/45 text-base leading-relaxed max-w-[300px]">
             A professional sensory intelligence platform for food developers, R&D teams, and innovation consultants.
           </p>
         </div>
 
         {/* Footer */}
-        <p className="text-white/30 text-sm">
+        <p className="text-white/25 text-sm">
           Supporting over 60 international food companies.
         </p>
       </div>
 
-      {/* Right panel — login form */}
+      {/* Right panel — form */}
       <div className="flex-1 flex flex-col justify-center px-8 sm:px-16 bg-white">
         {/* Mobile logo */}
         <div className="lg:hidden flex items-center gap-3 mb-8">
           <NfiLogoMark size={36} />
-          <div className="leading-none" style={{ lineHeight: '1.25' }}>
+          <div style={{ lineHeight: '1.22' }}>
             <div className="text-[11px] text-slate-700">new</div>
             <div className="text-[11px] text-slate-700">food</div>
             <div className="text-[11px] text-slate-700">innovation</div>
@@ -163,9 +170,9 @@ export function LoginPage({ onSignup }: Props) {
             <Button
               type="submit"
               className="w-full h-11 text-white font-semibold text-sm rounded-lg transition-colors"
-              style={{ background: NFI_DARK }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#2a2a2a')}
-              onMouseLeave={e => (e.currentTarget.style.background = NFI_DARK)}
+              style={{ background: NFI_BLUE }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#5a6878')}
+              onMouseLeave={e => (e.currentTarget.style.background = NFI_BLUE)}
               disabled={loading}
             >
               {loading ? 'Signing in…' : (

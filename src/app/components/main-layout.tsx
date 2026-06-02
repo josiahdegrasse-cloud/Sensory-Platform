@@ -3,31 +3,50 @@ import { FlaskConical, BarChart3, GitMerge, ClipboardList, Settings, LogOut, Lig
 import { useAuth } from "../contexts/auth-context";
 import { useEffect } from "react";
 
-const NFI_DARK = '#111111';
+// NFI brand blue-gray — the exact colour of their logo background
+const NFI_BLUE = '#6B7890';
 
-function NfiLogoMark({ size = 36 }: { size?: number }) {
+function NfiLogoMark({ size = 36, onDark = false }: { size?: number; onDark?: boolean }) {
+  const leafW = Math.round(size * 0.31);
+  const leafH = Math.round(size * 0.29);
+
   return (
     <div
-      className="relative flex items-center justify-center rounded-xl flex-shrink-0"
-      style={{ width: size, height: size, background: NFI_DARK }}
+      className="relative flex items-center justify-center flex-shrink-0"
+      style={{
+        width: size,
+        height: size,
+        background: onDark ? 'rgba(255,255,255,0.15)' : '#111111',
+        borderRadius: '22%',
+        border: onDark ? '1px solid rgba(255,255,255,0.22)' : 'none',
+      }}
     >
-      {/* Two leaves — upper right inside the mark */}
+      {/* Two-leaf sprout above the "n" */}
       <svg
-        className="absolute"
-        style={{ top: 4, right: 5 }}
-        width="12"
-        height="9"
-        viewBox="0 0 12 9"
+        style={{
+          position: 'absolute',
+          top: Math.round(size * 0.09),
+          left: Math.round(size * 0.12),
+          width: leafW,
+          height: leafH,
+          overflow: 'visible',
+        }}
+        viewBox="0 0 10 9"
         fill="none"
       >
-        <path d="M2.5 8.5C2.5 5.5 1 3.5 0 2.5C1 0.8 3.8 1.2 4.2 4.5" fill="#8899aa"/>
-        <path d="M9.5 8.5C9.5 5.5 11 3.5 12 2.5C11 0.8 8.2 1.2 7.8 4.5" fill="#8899aa"/>
+        <ellipse cx="3.0" cy="5.8" rx="1.7" ry="4.0" transform="rotate(-22 3.0 5.8)" fill="white"/>
+        <ellipse cx="7.0" cy="5.8" rx="1.7" ry="4.0" transform="rotate(22 7.0 5.8)"  fill="white"/>
       </svg>
       <span
-        className="text-white font-bold select-none"
-        style={{ fontSize: size * 0.36, letterSpacing: '-0.02em' }}
+        className="font-bold select-none"
+        style={{
+          color: 'white',
+          fontSize: Math.round(size * 0.35),
+          letterSpacing: '-0.02em',
+          lineHeight: 1,
+        }}
       >
-        ñfi
+        nfi
       </span>
     </div>
   );
@@ -45,11 +64,11 @@ export function MainLayout() {
   };
 
   const getAdminNavItems = () => [
-    { path: "/stage1", label: "Machine Testing", icon: FlaskConical },
-    { path: "/survey-analysis", label: "Analyse Results", icon: BarChart3 },
-    { path: "/decision", label: "Final Decision", icon: GitMerge },
-    { path: "/concept-testing", label: "Concept Testing", icon: Lightbulb },
-    { path: "/admin", label: "Configure", icon: Settings },
+    { path: "/stage1",         label: "Machine Testing",  icon: FlaskConical },
+    { path: "/survey-analysis", label: "Analyse Results",  icon: BarChart3 },
+    { path: "/decision",        label: "Final Decision",   icon: GitMerge },
+    { path: "/concept-testing", label: "Concept Testing",  icon: Lightbulb },
+    { path: "/admin",           label: "Configure",        icon: Settings },
   ];
 
   const getPanelistNavItems = () => [
@@ -59,12 +78,8 @@ export function MainLayout() {
   const navItems = user?.role === 'admin' ? getAdminNavItems() : getPanelistNavItems();
 
   useEffect(() => {
-    if (user?.role === 'panelist' && location.pathname === '/') {
-      navigate('/panelist');
-    }
-    if (user?.role === 'admin' && location.pathname === '/') {
-      navigate('/stage1');
-    }
+    if (user?.role === 'panelist' && location.pathname === '/') navigate('/panelist');
+    if (user?.role === 'admin'    && location.pathname === '/') navigate('/stage1');
   }, [user, location.pathname, navigate]);
 
   const handleLogout = async () => {
@@ -77,11 +92,11 @@ export function MainLayout() {
       <header className="bg-white border-b border-slate-100 sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-6">
 
-          {/* Top bar: logo + user */}
+          {/* Top bar */}
           <div className="flex items-center justify-between py-3 border-b border-slate-100">
             <Link to="/" className="flex items-center gap-2.5 hover:opacity-75 transition-opacity">
               <NfiLogoMark size={36} />
-              <div className="leading-none" style={{ lineHeight: '1.25' }}>
+              <div style={{ lineHeight: '1.22' }}>
                 <div className="text-[11px] text-slate-700">new</div>
                 <div className="text-[11px] text-slate-700">food</div>
                 <div className="text-[11px] text-slate-700">innovation</div>
@@ -116,16 +131,12 @@ export function MainLayout() {
                   to={item.path}
                   className="flex items-center gap-1.5 px-4 py-3 text-sm transition-colors border-b-2"
                   style={{
-                    borderBottomColor: active ? NFI_DARK : 'transparent',
-                    color: active ? NFI_DARK : '#64748b',
+                    borderBottomColor: active ? NFI_BLUE : 'transparent',
+                    color: active ? NFI_BLUE : '#64748b',
                     fontWeight: active ? 600 : 400,
                   }}
-                  onMouseEnter={e => {
-                    if (!active) (e.currentTarget as HTMLElement).style.color = NFI_DARK;
-                  }}
-                  onMouseLeave={e => {
-                    if (!active) (e.currentTarget as HTMLElement).style.color = '#64748b';
-                  }}
+                  onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = '#1e293b'; }}
+                  onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = '#64748b'; }}
                 >
                   {Icon && <Icon className="size-3.5" />}
                   {item.label}
