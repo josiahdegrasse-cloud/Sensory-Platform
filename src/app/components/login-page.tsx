@@ -12,13 +12,13 @@ interface Props {
 
 const NFI_BLUE = '#6B7890';
 
-function NfiLogoMark({ size = 40, bg = '#fff' }: { size?: number; bg?: string }) {
+function NfiLogoMark({ size = 40 }: { size?: number }) {
   return (
-    <div style={{ width: size, height: size, borderRadius: '26%', overflow: 'hidden', background: bg, flexShrink: 0 }}>
+    <div style={{ width: size, height: size, borderRadius: '26%', overflow: 'hidden', background: '#000', flexShrink: 0 }}>
       <img
         src="/new_foodinnovation_ltd_logo.jpg"
         alt="NFI"
-        style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(1) contrast(10)' }}
+        style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(1) contrast(10)', transform: 'scale(1.18)' }}
       />
     </div>
   );
@@ -49,7 +49,7 @@ export function LoginPage({ onSignup }: Props) {
       >
         {/* Logo */}
         <div className="flex items-center gap-3">
-          <NfiLogoMark size={38} bg="#111111" />
+          <NfiLogoMark size={42} />
           <div style={{ lineHeight: '1.3' }}>
             <div className="text-white/80 text-sm">new</div>
             <div className="text-white/80 text-sm">food</div>
@@ -82,7 +82,7 @@ export function LoginPage({ onSignup }: Props) {
       <div className="flex-1 flex flex-col justify-center px-8 sm:px-16 bg-white">
         {/* Mobile logo */}
         <div className="lg:hidden flex items-center gap-3 mb-8">
-          <NfiLogoMark size={30} />
+          <NfiLogoMark size={36} />
           <div style={{ lineHeight: '1.22' }}>
             <div className="text-[11px] text-slate-700">new</div>
             <div className="text-[11px] text-slate-700">food</div>
