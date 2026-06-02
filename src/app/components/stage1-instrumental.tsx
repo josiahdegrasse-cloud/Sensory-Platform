@@ -1,7 +1,7 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
-import { FlaskConical, AlertCircle, Upload, X, Check } from "lucide-react";
+import { FlaskConical, AlertCircle, Upload, X, Check, Download, RotateCcw } from "lucide-react";
 import { SAMPLES } from "../data/samples";
 import {
   ScatterChart,
@@ -45,6 +45,11 @@ interface ChemicalComposition {
   pH: number;
   saltContent: number;
   calciumMg: number;
+}
+
+interface ColumnReport {
+  recognised: string[];
+  ignored: string[];
 }
 
 const MOCK_ETONGUE_DATA: ETongueMeasurement[] = [
@@ -91,6 +96,29 @@ const MOCK_COMPOSITION_DATA: Record<string, ChemicalComposition> = {
   D2: { protein: 25.2, fat: 33.5, moisture: 36.5, pH: 5.1, saltContent: 1.9, calciumMg: 735 },
 };
 
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+
+// Known column aliases for recognition report
+const KNOWN_ALIASES = [
+  'sampleid', 'sample', 'id',
+  'type', 'category',
+  'sourness', 'bitterness', 'saltiness', 'umami', 'sweetness',
+  'compound', 'name', 'concentration', 'aroma', 'odour', 'threshold',
+  'protein', 'fat', 'moisture', 'ph', 'saltcontent', 'calciummg',
+];
+
+function recogniseColumns(headers: string[]): ColumnReport {
+  const recognised: string[] = [];
+  const ignored: string[] = [];
+  headers.forEach((h) => {
+    const normalised = h.toLowerCase().replace(/[\s_\-]/g, '');
+    const matched = KNOWN_ALIASES.some((a) => normalised === a || normalised.includes(a) || a.includes(normalised));
+    if (matched) recognised.push(h);
+    else ignored.push(h);
+  });
+  return { recognised, ignored };
+}
+
 function parseCSVLine(line: string) {
   const result: string[] = [];
   let current = "";
@@ -99,22 +127,13 @@ function parseCSVLine(line: string) {
   for (let i = 0; i < line.length; i++) {
     const char = line[i];
     const next = line[i + 1];
-
-    if (char === '"' && inQuotes && next === '"') {
-      current += '"';
-      i++;
-    } else if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === "," && !inQuotes) {
-      result.push(current.trim());
-      current = "";
-    } else {
-      current += char;
-    }
+    if (char === '"' && inQuotes && next === '"') { current += '"'; i++; }
+    else if (char === '"') { inQuotes = !inQuotes; }
+    else if (char === "," && !inQuotes) { result.push(current.trim()); current = ""; }
+    else { current += char; }
   }
-
   result.push(current.trim());
-  return result.map((value) => value.replace(/^"(.*)"$/, "$1"));
+  return result.map((v) => v.replace(/^"(.*)"$/, "$1"));
 }
 
 function normalize(value?: string) {
@@ -124,13 +143,7 @@ function normalize(value?: string) {
 function inferType(sampleId: string, csvType?: string) {
   const normalized = normalize(csvType).toLowerCase();
   if (normalized === "dairy") return "dairy";
-  if (
-    normalized === "pbca" ||
-    normalized === "plant-based" ||
-    normalized === "plant base"
-  ) {
-    return "pbca";
-  }
+  if (normalized === "pbca" || normalized === "plant-based" || normalized === "plant base") return "pbca";
   return sampleId.toUpperCase().startsWith("D") ? "dairy" : "pbca";
 }
 
@@ -157,69 +170,83 @@ export function Stage1Instrumental() {
   const [showPreview, setShowPreview] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  const [columnReport, setColumnReport] = useState<ColumnReport | null>(null);
+  const [usingDemoData, setUsingDemoData] = useState(true);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
+    if (e.type === "dragenter" || e.type === "dragover") setDragActive(true);
+    else if (e.type === "dragleave") setDragActive(false);
   }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFile(e.dataTransfer.files[0]);
-    }
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFile(file);
   }, []);
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFile(e.target.files[0]);
-    }
+    const file = e.target.files?.[0];
+    if (file) handleFile(file);
   };
 
   const handleFile = (file: File) => {
-    const reader = new FileReader();
+    setImportError(null);
+    setImportSuccess(null);
 
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      setImportError("Only .csv files are supported. Please export your data as CSV first.");
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      setImportError(`File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum size is 5 MB.`);
+      return;
+    }
+
+    const reader = new FileReader();
     reader.onload = (e) => {
       const text = e.target?.result as string;
-      parseCSV(text);
-      setUploadedFile(file.name);
+      parseCSV(text, file.name);
     };
-
-    reader.readAsText(file);
+    // explicit UTF-8 — handles most exports; guards against Windows-1252 garbling
+    reader.readAsText(file, "UTF-8");
   };
 
-  const parseCSV = (text: string) => {
-    const lines = text
-      .split(/\r?\n/)
-      .filter((line) => line.trim().length > 0);
+  const parseCSV = (text: string, fileName: string) => {
+    // handle \r\n (Windows), \r-only (old Mac), \n (Unix)
+    const lines = text.split(/\r\n|\r|\n/).filter((l) => l.trim().length > 0);
 
-    if (lines.length < 2) return;
+    if (lines.length < 2) {
+      setImportError("File appears to be empty or contains no data rows.");
+      return;
+    }
 
     const headers = parseCSVLine(lines[0]);
-    const data: Record<string, string>[] = [];
+    if (headers.length === 0 || (headers.length === 1 && !headers[0])) {
+      setImportError("Could not read column headers. Make sure the first row contains column names.");
+      return;
+    }
 
+    const data: Record<string, string>[] = [];
     for (let i = 1; i < lines.length; i++) {
       const values = parseCSVLine(lines[i]);
       const row: Record<string, string> = {};
-
-      headers.forEach((header, idx) => {
-        row[header] = values[idx] ?? "";
-      });
-
+      headers.forEach((header, idx) => { row[header] = values[idx] ?? ""; });
       data.push(row);
     }
 
+    setColumnReport(recogniseColumns(headers));
     setPreviewData(data);
+    setUploadedFile(fileName);
     setShowPreview(true);
+    setImportError(null);
   };
 
   const importCSVData = () => {
@@ -229,118 +256,152 @@ export function Stage1Instrumental() {
 
     previewData.forEach((row, index) => {
       const sampleId =
-        row.sampleId ||
-        row.SampleID ||
-        row.sample ||
-        row.Sample ||
-        row.id ||
-        `Imported-${index + 1}`;
-
+        row.sampleId || row.SampleID || row.sample || row.Sample || row.id || `Imported-${index + 1}`;
       const type = inferType(sampleId, row.type || row.Type);
       const category = inferCategory(sampleId, row.category || row.Category, type);
 
-      const sourness = parseFloat(row.sourness || row.Sourness || row.SOURNESS || "0");
-      const bitterness = parseFloat(row.bitterness || row.Bitterness || row.BITTERNESS || "0");
-      const saltiness = parseFloat(row.saltiness || row.Saltiness || row.SALTINESS || "0");
-      const umami = parseFloat(row.umami || row.Umami || row.UMAMI || "0");
-      const sweetness = parseFloat(row.sweetness || row.Sweetness || row.SWEETNESS || "0");
+      // E-tongue: accept partial taste data — require at least one valid taste field
+      const sourness   = parseFloat(row.sourness   || row.Sourness   || row.SOURNESS   || "NaN");
+      const bitterness = parseFloat(row.bitterness || row.Bitterness || row.BITTERNESS || "NaN");
+      const saltiness  = parseFloat(row.saltiness  || row.Saltiness  || row.SALTINESS  || "NaN");
+      const umami      = parseFloat(row.umami      || row.Umami      || row.UMAMI      || "NaN");
+      const sweetness  = parseFloat(row.sweetness  || row.Sweetness  || row.SWEETNESS  || "NaN");
 
-      if (
-        !Number.isNaN(sourness) &&
-        !Number.isNaN(bitterness) &&
-        !Number.isNaN(saltiness) &&
-        !Number.isNaN(umami) &&
-        !Number.isNaN(sweetness)
-      ) {
-        if (!eTongueMap.has(sampleId)) {
-          eTongueMap.set(sampleId, {
-            sampleId,
-            sourness,
-            bitterness,
-            saltiness,
-            umami,
-            sweetness,
-            type,
-            category,
+      const hasAnyTaste = [sourness, bitterness, saltiness, umami, sweetness].some((v) => !Number.isNaN(v));
+
+      if (hasAnyTaste && !eTongueMap.has(sampleId)) {
+        eTongueMap.set(sampleId, {
+          sampleId,
+          sourness:   Number.isNaN(sourness)   ? 0 : sourness,
+          bitterness: Number.isNaN(bitterness) ? 0 : bitterness,
+          saltiness:  Number.isNaN(saltiness)  ? 0 : saltiness,
+          umami:      Number.isNaN(umami)      ? 0 : umami,
+          sweetness:  Number.isNaN(sweetness)  ? 0 : sweetness,
+          type,
+          category,
+        });
+      }
+
+      // GC-MS: append compounds per sample, deduplicate by compound name
+      const compoundName  = row.compound || row.Compound || row.name || row.Name;
+      const concentration = parseFloat(row.concentration || row.Concentration || row.CONCENTRATION || "NaN");
+      const aroma         = row.aroma || row.Aroma || row.odour || row.Odour || "";
+      const threshold     = parseFloat(row.threshold || row.Threshold || row.THRESHOLD || "NaN");
+
+      if (compoundName && !Number.isNaN(concentration)) {
+        if (!gcmsMap[sampleId]) gcmsMap[sampleId] = [];
+        const alreadyExists = gcmsMap[sampleId].some((c) => c.name === compoundName);
+        if (!alreadyExists) {
+          gcmsMap[sampleId].push({
+            name: compoundName,
+            concentration,
+            aroma: aroma || "unknown",
+            threshold: Number.isNaN(threshold) ? 0 : threshold,
           });
         }
       }
 
-      const compoundName = row.compound || row.Compound || row.name || row.Name;
-      const concentration = parseFloat(
-        row.concentration || row.Concentration || row.CONCENTRATION || "NaN"
-      );
-      const aroma = row.aroma || row.Aroma || row.odour || row.Odour || "";
-      const threshold = parseFloat(
-        row.threshold || row.Threshold || row.THRESHOLD || "NaN"
-      );
-
-      if (compoundName && !Number.isNaN(concentration)) {
-        if (!gcmsMap[sampleId]) {
-          gcmsMap[sampleId] = [];
-        }
-
-        gcmsMap[sampleId].push({
-          name: compoundName,
-          concentration,
-          aroma: aroma || "unknown",
-          threshold: Number.isNaN(threshold) ? 0 : threshold,
-        });
-      }
-
-      const protein = parseFloat(row.protein || row.Protein || "NaN");
-      const fat = parseFloat(row.fat || row.Fat || "NaN");
-      const moisture = parseFloat(row.moisture || row.Moisture || "NaN");
-      const pH = parseFloat(row.pH || row.PH || "NaN");
+      // Composition: accept partial data — require at least 2 valid fields
+      const protein     = parseFloat(row.protein     || row.Protein     || "NaN");
+      const fat         = parseFloat(row.fat         || row.Fat         || "NaN");
+      const moisture    = parseFloat(row.moisture    || row.Moisture    || "NaN");
+      const pH          = parseFloat(row.pH          || row.PH          || "NaN");
       const saltContent = parseFloat(row.saltContent || row.SaltContent || "NaN");
-      const calciumMg = parseFloat(row.calciumMg || row.CalciumMg || "NaN");
+      const calciumMg   = parseFloat(row.calciumMg   || row.CalciumMg   || "NaN");
 
-      if (
-        !Number.isNaN(protein) &&
-        !Number.isNaN(fat) &&
-        !Number.isNaN(moisture) &&
-        !Number.isNaN(pH) &&
-        !Number.isNaN(saltContent) &&
-        !Number.isNaN(calciumMg)
-      ) {
-        if (!compositionMap[sampleId]) {
-          compositionMap[sampleId] = {
-            protein,
-            fat,
-            moisture,
-            pH,
-            saltContent,
-            calciumMg,
-          };
-        }
+      const compFields = [protein, fat, moisture, pH, saltContent, calciumMg];
+      const validCompCount = compFields.filter((v) => !Number.isNaN(v)).length;
+
+      if (validCompCount >= 2 && !compositionMap[sampleId]) {
+        compositionMap[sampleId] = {
+          protein:     Number.isNaN(protein)     ? 0 : protein,
+          fat:         Number.isNaN(fat)         ? 0 : fat,
+          moisture:    Number.isNaN(moisture)    ? 0 : moisture,
+          pH:          Number.isNaN(pH)          ? 0 : pH,
+          saltContent: Number.isNaN(saltContent) ? 0 : saltContent,
+          calciumMg:   Number.isNaN(calciumMg)   ? 0 : calciumMg,
+        };
       }
     });
 
-    const importedETongue = Array.from(eTongueMap.values());
+    const importedETongue     = Array.from(eTongueMap.values());
+    const importedGCMSCount   = Object.keys(gcmsMap).length;
+    const importedCompCount   = Object.keys(compositionMap).length;
 
-    if (importedETongue.length === 0) return;
+    if (importedETongue.length === 0 && importedGCMSCount === 0 && importedCompCount === 0) {
+      setImportError(
+        "No data could be parsed. Column names may not match the template — download it to check."
+      );
+      return;
+    }
 
-    setETongueData(importedETongue);
-    setGcmsData(gcmsMap);
-    setCompositionData(compositionMap);
-    setSelectedSamples([importedETongue[0].sampleId]);
+    if (importedETongue.length > 0) {
+      setETongueData(importedETongue);
+      setSelectedSamples([importedETongue[0].sampleId]);
+    }
+    if (importedGCMSCount > 0) setGcmsData(gcmsMap);
+    if (importedCompCount  > 0) setCompositionData(compositionMap);
+
+    const parts: string[] = [];
+    if (importedETongue.length > 0)
+      parts.push(`${importedETongue.length} e-tongue sample${importedETongue.length > 1 ? "s" : ""}`);
+    if (importedGCMSCount > 0)
+      parts.push(`${importedGCMSCount} GC-MS record${importedGCMSCount > 1 ? "s" : ""}`);
+    if (importedCompCount > 0)
+      parts.push(`${importedCompCount} composition profile${importedCompCount > 1 ? "s" : ""}`);
+
+    setImportSuccess(`Imported ${parts.join(", ")}.`);
     setShowPreview(false);
     setUploadedFile(null);
+    setColumnReport(null);
+    setUsingDemoData(false);
+    setImportError(null);
+
+    // reset file input so the same file can be re-uploaded
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
+
+  const cancelPreview = () => {
+    setShowPreview(false);
+    setUploadedFile(null);
+    setColumnReport(null);
+    setImportError(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const resetToDemo = () => {
+    setETongueData(MOCK_ETONGUE_DATA);
+    setGcmsData(MOCK_GCMS_DATA);
+    setCompositionData(MOCK_COMPOSITION_DATA);
+    setSelectedSamples(["S3"]);
+    setUsingDemoData(true);
+    setImportSuccess(null);
+    setImportError(null);
+    setUploadedFile(null);
+    setShowPreview(false);
+    setColumnReport(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const downloadTemplate = () => {
+    const headers = "sampleId,type,category,sourness,bitterness,saltiness,umami,sweetness,protein,fat,moisture,pH,saltContent,calciumMg,compound,concentration,aroma,threshold";
+    const example = "S1,pbca,Coconut-based,2.3,3.1,4.2,2.8,1.5,18.2,22.5,42.1,5.8,1.8,485,,,, ";
+    const blob = new Blob([[headers, example].join("\n")], { type: "text/csv" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = "nfi_import_template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ── derived display data ──────────────────────────────────────────────────
 
   const displayedSamples = eTongueData.map((sample, idx) => {
     const sampleInfo = SAMPLES.find((s) => s.id === sample.sampleId);
     const type = sample.type || sampleInfo?.type || inferType(sample.sampleId);
-    const category =
-      sample.category || sampleInfo?.category || inferCategory(sample.sampleId, "", type);
-
-    return {
-      id: sample.sampleId,
-      uniqueKey: `${sample.sampleId}-${idx}`,
-      name: sampleInfo?.name || sample.sampleId,
-      category,
-      type,
-    };
+    const category = sample.category || sampleInfo?.category || inferCategory(sample.sampleId, "", type);
+    return { id: sample.sampleId, uniqueKey: `${sample.sampleId}-${idx}`, name: sampleInfo?.name || sample.sampleId, category, type };
   });
 
   const pcaData = eTongueData.map((sample, idx) => {
@@ -348,9 +409,7 @@ export function Stage1Instrumental() {
     const pc2 = sample.bitterness * 0.4 + sample.sourness * 0.35 - sample.sweetness * 0.25;
     const sampleInfo = SAMPLES.find((s) => s.id === sample.sampleId);
     const type = sample.type || sampleInfo?.type || inferType(sample.sampleId);
-    const category =
-      sample.category || sampleInfo?.category || inferCategory(sample.sampleId, "", type);
-
+    const category = sample.category || sampleInfo?.category || inferCategory(sample.sampleId, "", type);
     return {
       id: `pca-${sample.sampleId}-${idx}`,
       sampleId: sample.sampleId,
@@ -363,22 +422,20 @@ export function Stage1Instrumental() {
     };
   });
 
-  const selectedSampleData = eTongueData.find((s) => s.sampleId === selectedSamples[0]);
-  const selectedGCMSData = gcmsData[selectedSamples[0]] || [];
+  const selectedSampleData      = eTongueData.find((s) => s.sampleId === selectedSamples[0]);
+  const selectedGCMSData        = gcmsData[selectedSamples[0]] || [];
   const selectedCompositionData = compositionData[selectedSamples[0]] || {};
-
-  const selectedSampleInfo = displayedSamples.find((sample) => sample.id === selectedSamples[0]);
-  const selectedColor = getPointColor(selectedSampleInfo?.type, selectedSampleInfo?.category);
-
-  const comparisonColors = ["#9333ea", "#ec4899"];
+  const selectedSampleInfo      = displayedSamples.find((s) => s.id === selectedSamples[0]);
+  const selectedColor           = getPointColor(selectedSampleInfo?.type, selectedSampleInfo?.category);
+  const comparisonColors        = ["#9333ea", "#ec4899"];
 
   const radarData = selectedSampleData
     ? [
-        { id: "sourness", taste: "Sourness", value: selectedSampleData.sourness, fullMark: 5 },
+        { id: "sourness",   taste: "Sourness",   value: selectedSampleData.sourness,   fullMark: 5 },
         { id: "bitterness", taste: "Bitterness", value: selectedSampleData.bitterness, fullMark: 5 },
-        { id: "saltiness", taste: "Saltiness", value: selectedSampleData.saltiness, fullMark: 5 },
-        { id: "umami", taste: "Umami", value: selectedSampleData.umami, fullMark: 5 },
-        { id: "sweetness", taste: "Sweetness", value: selectedSampleData.sweetness, fullMark: 5 },
+        { id: "saltiness",  taste: "Saltiness",  value: selectedSampleData.saltiness,  fullMark: 5 },
+        { id: "umami",      taste: "Umami",      value: selectedSampleData.umami,      fullMark: 5 },
+        { id: "sweetness",  taste: "Sweetness",  value: selectedSampleData.sweetness,  fullMark: 5 },
       ]
     : [];
 
@@ -387,18 +444,14 @@ export function Stage1Instrumental() {
         .map((sampleId, idx) => {
           const sample = eTongueData.find((s) => s.sampleId === sampleId);
           if (!sample) return null;
-
           return {
             sampleId,
             name: displayedSamples.find((s) => s.id === sampleId)?.name || sampleId,
             color: comparisonColors[idx % comparisonColors.length],
             dataKey: `sample_${idx}`,
             values: {
-              Sourness: sample.sourness,
-              Bitterness: sample.bitterness,
-              Saltiness: sample.saltiness,
-              Umami: sample.umami,
-              Sweetness: sample.sweetness,
+              Sourness: sample.sourness, Bitterness: sample.bitterness,
+              Saltiness: sample.saltiness, Umami: sample.umami, Sweetness: sample.sweetness,
             },
           };
         })
@@ -407,11 +460,11 @@ export function Stage1Instrumental() {
 
   const compareRadarChartData = compareMode
     ? [
-        { id: "sourness", taste: "Sourness", fullMark: 5 },
+        { id: "sourness",   taste: "Sourness",   fullMark: 5 },
         { id: "bitterness", taste: "Bitterness", fullMark: 5 },
-        { id: "saltiness", taste: "Saltiness", fullMark: 5 },
-        { id: "umami", taste: "Umami", fullMark: 5 },
-        { id: "sweetness", taste: "Sweetness", fullMark: 5 },
+        { id: "saltiness",  taste: "Saltiness",  fullMark: 5 },
+        { id: "umami",      taste: "Umami",      fullMark: 5 },
+        { id: "sweetness",  taste: "Sweetness",  fullMark: 5 },
       ].map((row) => {
         const nextRow: Record<string, string | number> = { ...row };
         compareRadarSeries.forEach((series) => {
@@ -421,8 +474,12 @@ export function Stage1Instrumental() {
       })
     : [];
 
+  // ── render ────────────────────────────────────────────────────────────────
+
   return (
     <div className="space-y-6">
+
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Instrumental Testing</h1>
@@ -430,8 +487,19 @@ export function Stage1Instrumental() {
             High-precision sensory analysis using electronic tongue and GC-O equipment
           </p>
         </div>
-        <div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={downloadTemplate} className="flex items-center gap-2 text-slate-600">
+            <Download className="size-4" />
+            Download template
+          </Button>
+          {!usingDemoData && (
+            <Button variant="outline" size="sm" onClick={resetToDemo} className="flex items-center gap-2 text-slate-600">
+              <RotateCcw className="size-4" />
+              Reset to demo
+            </Button>
+          )}
           <input
+            ref={fileInputRef}
             type="file"
             accept=".csv"
             onChange={handleFileInput}
@@ -439,90 +507,150 @@ export function Stage1Instrumental() {
             id="csv-upload-header"
           />
           <label htmlFor="csv-upload-header">
-            <Button className="cursor-pointer bg-purple-600 hover:bg-purple-700" asChild>
+            <Button className="cursor-pointer bg-slate-900 hover:bg-slate-700" asChild>
               <span className="flex items-center gap-2">
                 <Upload className="size-4" />
-                Import CSV Data
+                Import CSV
               </span>
             </Button>
           </label>
         </div>
       </div>
 
-      {uploadedFile && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between">
-          <span className="text-sm text-emerald-700">✓ {uploadedFile}</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setUploadedFile(null)}
-          >
-            <X className="size-4" />
-          </Button>
+      {/* Drop zone — visible when not previewing */}
+      {!showPreview && (
+        <div
+          onDragEnter={handleDrag}
+          onDragLeave={handleDrag}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
+          className={`border-2 border-dashed rounded-xl p-6 flex items-center justify-center gap-3 transition-colors cursor-default ${
+            dragActive
+              ? "border-slate-500 bg-slate-50"
+              : "border-slate-200 bg-white hover:border-slate-300"
+          }`}
+        >
+          <Upload className="size-5 text-slate-400 shrink-0" />
+          <p className="text-sm text-slate-500">
+            Drop a <span className="font-medium text-slate-700">.csv</span> file here, or use{" "}
+            <label htmlFor="csv-upload-header" className="font-medium text-slate-700 underline underline-offset-2 cursor-pointer">
+              Import CSV
+            </label>{" "}
+            above.{" "}
+            <button onClick={downloadTemplate} className="text-slate-500 underline underline-offset-2 hover:text-slate-800">
+              Download template
+            </button>
+          </p>
         </div>
       )}
 
+      {/* Error banner */}
+      {importError && (
+        <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2">
+          <AlertCircle className="size-4 text-rose-600 mt-0.5 shrink-0" />
+          <span className="text-sm text-rose-700">{importError}</span>
+          <button onClick={() => setImportError(null)} className="ml-auto text-rose-400 hover:text-rose-700">
+            <X className="size-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Success banner */}
+      {importSuccess && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between">
+          <span className="text-sm text-emerald-700">✓ {importSuccess}</span>
+          <button onClick={() => setImportSuccess(null)} className="text-emerald-400 hover:text-emerald-700">
+            <X className="size-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Preview card */}
       {showPreview && (
-        <Card className="border-4 border-purple-600">
-          <CardHeader className="bg-purple-50 border-b rounded-t-lg">
+        <Card className="border-2 border-slate-900">
+          <CardHeader className="bg-slate-50 border-b rounded-t-lg">
             <div className="flex items-center justify-between">
-              <CardTitle>CSV Preview - Review Before Import</CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setShowPreview(false);
-                  setUploadedFile(null);
-                }}
-              >
+              <div>
+                <CardTitle>Preview — {uploadedFile}</CardTitle>
+                <p className="text-xs text-slate-500 mt-0.5">Review before importing. Showing up to 10 rows.</p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={cancelPreview}>
                 <X className="size-4" />
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="pt-4">
-            <div className="overflow-x-auto mb-4">
+          <CardContent className="pt-4 space-y-4">
+
+            {/* Column recognition report */}
+            {columnReport && (
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                  <p className="font-semibold text-emerald-800 mb-1.5">
+                    Recognised ({columnReport.recognised.length})
+                  </p>
+                  {columnReport.recognised.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {columnReport.recognised.map((col) => (
+                        <span key={col} className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded font-mono">
+                          {col}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-emerald-600 italic">None — check column names match the template.</p>
+                  )}
+                </div>
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="font-semibold text-amber-800 mb-1.5">
+                    Ignored ({columnReport.ignored.length})
+                  </p>
+                  {columnReport.ignored.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {columnReport.ignored.map((col) => (
+                        <span key={col} className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded font-mono">
+                          {col}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-amber-600 italic">All columns recognised.</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Data table */}
+            <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-100 border-b">
-                    {previewData.length > 0 &&
-                      Object.keys(previewData[0]).map((key) => (
-                        <th key={key} className="px-4 py-2 text-left font-semibold">
-                          {key}
-                        </th>
-                      ))}
+                    {previewData.length > 0 && Object.keys(previewData[0]).map((key) => (
+                      <th key={key} className="px-4 py-2 text-left font-semibold whitespace-nowrap">{key}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {previewData.slice(0, 10).map((row, idx) => (
                     <tr key={idx} className="border-b hover:bg-slate-50">
                       {Object.values(row).map((val, vidx) => (
-                        <td key={vidx} className="px-4 py-2">
-                          {val}
-                        </td>
+                        <td key={vidx} className="px-4 py-2 whitespace-nowrap">{val}</td>
                       ))}
                     </tr>
                   ))}
                 </tbody>
               </table>
-
               {previewData.length > 10 && (
-                <p className="text-sm text-slate-500 mt-2 text-center">
+                <p className="text-xs text-slate-400 mt-2 text-center">
                   Showing 10 of {previewData.length} rows
                 </p>
               )}
             </div>
 
             <div className="flex gap-3">
-              <Button onClick={importCSVData} className="bg-purple-600 hover:bg-purple-700">
-                Import Data
+              <Button onClick={importCSVData} className="bg-slate-900 hover:bg-slate-700">
+                Confirm Import
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowPreview(false);
-                  setUploadedFile(null);
-                }}
-              >
+              <Button variant="outline" onClick={cancelPreview}>
                 Cancel
               </Button>
             </div>
@@ -530,17 +658,10 @@ export function Stage1Instrumental() {
         </Card>
       )}
 
-      <div
-        onDragEnter={handleDrag}
-        onDragLeave={handleDrag}
-        onDragOver={handleDrag}
-        onDrop={handleDrop}
-        className={`grid grid-cols-4 gap-6 transition-all ${
-          dragActive ? "ring-2 ring-purple-400 ring-offset-2 rounded-xl" : ""
-        }`}
-      >
-        <Card className="border-2 border-purple-300 shadow-sm">
-          <CardHeader className="bg-purple-50 border-b rounded-t-lg">
+      {/* Main grid — no drag handlers; drop zone above handles it */}
+      <div className="grid grid-cols-4 gap-6">
+        <Card className="border-2 border-slate-200 shadow-sm">
+          <CardHeader className="bg-slate-50 border-b rounded-t-lg">
             <div className="flex items-center justify-between mb-1">
               <CardTitle className="text-lg">Sample Selection</CardTitle>
               <Button
@@ -552,12 +673,10 @@ export function Stage1Instrumental() {
                     setSelectedSamples([selectedSamples[0]]);
                   } else {
                     setCompareMode(true);
-                    if (selectedSamples.length === 0) {
-                      setSelectedSamples(["S3"]);
-                    }
+                    if (selectedSamples.length === 0) setSelectedSamples(["S3"]);
                   }
                 }}
-                className={compareMode ? "bg-purple-600 hover:bg-purple-700" : ""}
+                className={compareMode ? "bg-slate-900 hover:bg-slate-700" : ""}
               >
                 {compareMode ? "Comparing" : "Compare"}
               </Button>
@@ -582,17 +701,11 @@ export function Stage1Instrumental() {
                     onClick={() => {
                       if (compareMode) {
                         if (isSelected) {
-                          if (selectedSamples.length > 1) {
-                            setSelectedSamples(
-                              selectedSamples.filter((id) => id !== sample.id)
-                            );
-                          }
+                          if (selectedSamples.length > 1)
+                            setSelectedSamples(selectedSamples.filter((id) => id !== sample.id));
                         } else {
-                          if (selectedSamples.length === 0) {
-                            setSelectedSamples([sample.id]);
-                          } else {
-                            setSelectedSamples([selectedSamples[0], sample.id]);
-                          }
+                          if (selectedSamples.length === 0) setSelectedSamples([sample.id]);
+                          else setSelectedSamples([selectedSamples[0], sample.id]);
                         }
                       } else {
                         setSelectedSamples([sample.id]);
@@ -600,8 +713,8 @@ export function Stage1Instrumental() {
                     }}
                     className={`w-full text-left p-3 rounded-lg border-2 transition-all relative ${
                       isSelected
-                        ? "border-purple-600 bg-purple-50"
-                        : "border-slate-200 hover:border-purple-300"
+                        ? "border-slate-900 bg-slate-50"
+                        : "border-slate-200 hover:border-slate-300"
                     }`}
                   >
                     <div className="flex items-center justify-between">
@@ -612,7 +725,7 @@ export function Stage1Instrumental() {
                       <div className="flex items-center gap-2">
                         {hasOffNotes && <AlertCircle className="size-5 text-rose-600" />}
                         {compareMode && isSelected && (
-                          <div className="w-5 h-5 rounded-full bg-purple-600 flex items-center justify-center">
+                          <div className="w-5 h-5 rounded-full bg-slate-900 flex items-center justify-center">
                             <Check className="size-3 text-white" />
                           </div>
                         )}
@@ -627,10 +740,10 @@ export function Stage1Instrumental() {
 
         <div className="col-span-3 space-y-6">
           <div className="grid grid-cols-3 gap-6">
-            <Card className="col-span-2 border-2 border-purple-300 shadow-sm">
-              <CardHeader className="bg-purple-50 border-b rounded-t-lg">
+            <Card className="col-span-2 border-2 border-slate-200 shadow-sm">
+              <CardHeader className="bg-slate-50 border-b rounded-t-lg">
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <FlaskConical className="size-5 text-purple-600" />
+                  <FlaskConical className="size-5 text-slate-700" />
                   Electronic Tongue Analysis
                 </CardTitle>
                 <p className="text-xs text-slate-600 mt-1">
@@ -644,16 +757,8 @@ export function Stage1Instrumental() {
                     margin={{ top: 30, right: 50, bottom: 30, left: 50 }}
                   >
                     <PolarGrid stroke="#e2e8f0" strokeWidth={1} />
-                    <PolarAngleAxis
-                      dataKey="taste"
-                      tick={{ fill: "#475569", fontSize: 13, fontWeight: 500 }}
-                    />
-                    <PolarRadiusAxis
-                      angle={90}
-                      domain={[0, 5]}
-                      tick={{ fill: "#94a3b8", fontSize: 11 }}
-                      tickCount={6}
-                    />
+                    <PolarAngleAxis dataKey="taste" tick={{ fill: "#475569", fontSize: 13, fontWeight: 500 }} />
+                    <PolarRadiusAxis angle={90} domain={[0, 5]} tick={{ fill: "#94a3b8", fontSize: 11 }} tickCount={6} />
                     {compareMode ? (
                       compareRadarSeries.map((series) => (
                         <Radar
@@ -713,22 +818,22 @@ export function Stage1Instrumental() {
                         className="flex items-center gap-2 rounded-md border px-2 py-1.5"
                         style={{ borderColor: `${series.color}40`, backgroundColor: `${series.color}10` }}
                       >
-                        <div className="h-3 w-3 rounded-full" style={{ backgroundColor: series.color }}></div>
+                        <div className="h-3 w-3 rounded-full" style={{ backgroundColor: series.color }} />
                         <span className="font-medium text-slate-700">{series.name}</span>
                       </div>
                     ))
                   ) : (
                     <>
                       <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
-                        <div className="h-3 w-3 rounded-full bg-emerald-600"></div>
+                        <div className="h-3 w-3 rounded-full bg-emerald-600" />
                         <span className="font-medium text-slate-700">Dairy</span>
                       </div>
                       <div className="flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2">
-                        <div className="h-3 w-3 rounded-full bg-blue-600"></div>
+                        <div className="h-3 w-3 rounded-full bg-blue-600" />
                         <span className="font-medium text-slate-700">Coconut-based</span>
                       </div>
                       <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-                        <div className="h-3 w-3 rounded-full bg-amber-600"></div>
+                        <div className="h-3 w-3 rounded-full bg-amber-600" />
                         <span className="font-medium text-slate-700">Cashew-based</span>
                       </div>
                     </>
@@ -743,48 +848,26 @@ export function Stage1Instrumental() {
                   <FlaskConical className="size-5 text-rose-600" />
                   Aroma Compound Detection
                 </CardTitle>
-                <p className="text-xs text-slate-600 mt-1">
-                  Volatile off-notes detected by GC-O
-                </p>
+                <p className="text-xs text-slate-600 mt-1">Volatile off-notes detected by GC-O</p>
               </CardHeader>
               <CardContent className="pt-4">
                 <div className="space-y-2 max-h-[380px] overflow-y-auto pr-2">
                   {selectedGCMSData.length > 0 ? (
                     selectedGCMSData.map((compound, idx) => {
-                      const overThreshold =
-                        compound.threshold > 0
-                          ? compound.concentration > compound.threshold
-                          : false;
-
+                      const overThreshold = compound.threshold > 0 ? compound.concentration > compound.threshold : false;
                       return (
                         <div
                           key={`${compound.name}-${idx}`}
-                          className={`p-2 rounded-lg border text-xs ${
-                            overThreshold
-                              ? "border-rose-300 bg-rose-50"
-                              : "border-slate-200 bg-white"
-                          }`}
+                          className={`p-2 rounded-lg border text-xs ${overThreshold ? "border-rose-300 bg-rose-50" : "border-slate-200 bg-white"}`}
                         >
-                          <div className="font-semibold text-slate-900 mb-0.5">
-                            {compound.name}
-                          </div>
-                          <div className="text-slate-600 mb-0.5">
-                            {compound.aroma}
-                          </div>
+                          <div className="font-semibold text-slate-900 mb-0.5">{compound.name}</div>
+                          <div className="text-slate-600 mb-0.5">{compound.aroma}</div>
                           <div className="flex items-center justify-between">
-                            <span
-                              className={
-                                overThreshold
-                                  ? "text-rose-600 font-semibold"
-                                  : "text-slate-700"
-                              }
-                            >
+                            <span className={overThreshold ? "text-rose-600 font-semibold" : "text-slate-700"}>
                               {compound.concentration.toFixed(1)} ppm
                             </span>
                             {compound.threshold > 0 && (
-                              <span className="text-slate-500">
-                                ↑ {compound.threshold}
-                              </span>
+                              <span className="text-slate-500">↑ {compound.threshold}</span>
                             )}
                           </div>
                           {overThreshold && (
@@ -807,65 +890,33 @@ export function Stage1Instrumental() {
             </Card>
           </div>
 
-          <Card className="border-2 border-indigo-300 shadow-sm">
-            <CardHeader className="bg-indigo-50 border-b rounded-t-lg">
+          <Card className="border-2 border-slate-200 shadow-sm">
+            <CardHeader className="bg-slate-50 border-b rounded-t-lg">
               <CardTitle className="text-lg flex items-center gap-2">
-                <FlaskConical className="size-5 text-indigo-600" />
+                <FlaskConical className="size-5 text-slate-700" />
                 Chemical Composition Analysis
               </CardTitle>
-              <p className="text-xs text-slate-600 mt-1">
-                Proximate analysis and key chemical properties
-              </p>
+              <p className="text-xs text-slate-600 mt-1">Proximate analysis and key chemical properties</p>
             </CardHeader>
             <CardContent className="pt-4">
               {selectedCompositionData && Object.keys(selectedCompositionData).length > 0 ? (
                 <div className="grid grid-cols-6 gap-4">
-                  <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-                    <div className="text-xs text-slate-600 mb-1">Protein</div>
-                    <div className="text-2xl font-bold text-indigo-900">
-                      {selectedCompositionData.protein?.toFixed(1) || "—"}
-                      <span className="text-sm text-slate-600 ml-1">%</span>
+                  {[
+                    { label: "Protein",  value: selectedCompositionData.protein?.toFixed(1),  unit: "%" },
+                    { label: "Fat",      value: selectedCompositionData.fat?.toFixed(1),      unit: "%" },
+                    { label: "Moisture", value: selectedCompositionData.moisture?.toFixed(1), unit: "%" },
+                    { label: "pH",       value: selectedCompositionData.pH?.toFixed(1),       unit: ""  },
+                    { label: "Salt",     value: selectedCompositionData.saltContent?.toFixed(1), unit: "%" },
+                    { label: "Calcium",  value: selectedCompositionData.calciumMg?.toFixed(0), unit: "mg" },
+                  ].map(({ label, value, unit }) => (
+                    <div key={label} className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                      <div className="text-xs text-slate-600 mb-1">{label}</div>
+                      <div className="text-2xl font-bold text-slate-900">
+                        {value || "—"}
+                        {unit && value && <span className="text-sm text-slate-600 ml-1">{unit}</span>}
+                      </div>
                     </div>
-                  </div>
-
-                  <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-                    <div className="text-xs text-slate-600 mb-1">Fat</div>
-                    <div className="text-2xl font-bold text-indigo-900">
-                      {selectedCompositionData.fat?.toFixed(1) || "—"}
-                      <span className="text-sm text-slate-600 ml-1">%</span>
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-                    <div className="text-xs text-slate-600 mb-1">Moisture</div>
-                    <div className="text-2xl font-bold text-indigo-900">
-                      {selectedCompositionData.moisture?.toFixed(1) || "—"}
-                      <span className="text-sm text-slate-600 ml-1">%</span>
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-                    <div className="text-xs text-slate-600 mb-1">pH</div>
-                    <div className="text-2xl font-bold text-indigo-900">
-                      {selectedCompositionData.pH?.toFixed(1) || "—"}
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-                    <div className="text-xs text-slate-600 mb-1">Salt</div>
-                    <div className="text-2xl font-bold text-indigo-900">
-                      {selectedCompositionData.saltContent?.toFixed(1) || "—"}
-                      <span className="text-sm text-slate-600 ml-1">%</span>
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-                    <div className="text-xs text-slate-600 mb-1">Calcium</div>
-                    <div className="text-2xl font-bold text-indigo-900">
-                      {selectedCompositionData.calciumMg?.toFixed(0) || "—"}
-                      <span className="text-sm text-slate-600 ml-1">mg</span>
-                    </div>
-                  </div>
+                  ))}
                 </div>
               ) : (
                 <div className="text-center py-8">
@@ -878,8 +929,8 @@ export function Stage1Instrumental() {
         </div>
       </div>
 
-      <Card className="border-2 border-blue-300 shadow-sm">
-        <CardHeader className="bg-blue-50 border-b rounded-t-lg">
+      <Card className="border-2 border-slate-200 shadow-sm">
+        <CardHeader className="bg-slate-50 border-b rounded-t-lg">
           <CardTitle className="text-lg flex items-center gap-2">
             Taste Similarity Analysis (PCA)
           </CardTitle>
@@ -897,12 +948,7 @@ export function Stage1Instrumental() {
                 name="Savory Dimension"
                 domain={[-2, 2]}
                 tick={{ fill: "#475569", fontSize: 12 }}
-                label={{
-                  value: "PC1 - Savory Dimension",
-                  position: "insideBottom",
-                  offset: -5,
-                  style: { fill: "#475569", fontSize: 12, fontWeight: 500 }
-                }}
+                label={{ value: "PC1 - Savory Dimension", position: "insideBottom", offset: -5, style: { fill: "#475569", fontSize: 12, fontWeight: 500 } }}
               />
               <YAxis
                 type="number"
@@ -910,13 +956,7 @@ export function Stage1Instrumental() {
                 name="Bitter-Sour Dimension"
                 domain={[-2, 2]}
                 tick={{ fill: "#475569", fontSize: 12 }}
-                label={{
-                  value: "PC2 - Bitter-Sour Dimension",
-                  angle: -90,
-                  position: "insideLeft",
-                  offset: 5,
-                  style: { fill: "#475569", fontSize: 12, fontWeight: 500 }
-                }}
+                label={{ value: "PC2 - Bitter-Sour Dimension", angle: -90, position: "insideLeft", offset: 5, style: { fill: "#475569", fontSize: 12, fontWeight: 500 } }}
               />
               <Tooltip
                 content={({ active, payload }) => {
@@ -925,9 +965,7 @@ export function Stage1Instrumental() {
                     return (
                       <div className="bg-white p-3 shadow-lg rounded-lg border border-slate-200">
                         <p className="font-semibold text-slate-900">{data.name}</p>
-                        <p className="text-xs text-slate-500 mt-1">
-                          PC1: {data.pc1} | PC2: {data.pc2}
-                        </p>
+                        <p className="text-xs text-slate-500 mt-1">PC1: {data.pc1} | PC2: {data.pc2}</p>
                         <p className="text-xs text-slate-600 mt-1">{data.category}</p>
                       </div>
                     );
@@ -951,23 +989,21 @@ export function Stage1Instrumental() {
           <div className="mt-6 grid grid-cols-3 gap-4 text-sm">
             <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200">
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-3 h-3 rounded-full bg-emerald-600"></div>
+                <div className="w-3 h-3 rounded-full bg-emerald-600" />
                 <span className="font-semibold">Dairy Reference</span>
               </div>
               <p className="text-xs text-slate-600">Real cheese baseline</p>
             </div>
-
             <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-3 h-3 rounded-full bg-blue-600"></div>
+                <div className="w-3 h-3 rounded-full bg-blue-600" />
                 <span className="font-semibold">Coconut-based</span>
               </div>
               <p className="text-xs text-slate-600">Coconut oil formulation</p>
             </div>
-
             <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-3 h-3 rounded-full bg-amber-600"></div>
+                <div className="w-3 h-3 rounded-full bg-amber-600" />
                 <span className="font-semibold">Cashew-based</span>
               </div>
               <p className="text-xs text-slate-600">Cashew nut formulation</p>
@@ -975,6 +1011,7 @@ export function Stage1Instrumental() {
           </div>
         </CardContent>
       </Card>
+
     </div>
   );
 }
