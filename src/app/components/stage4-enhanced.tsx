@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, Eye, EyeOff, Activity, Award } from "lucide-react";
-import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, BarChart, Bar, LineChart, Line, Legend } from "recharts";
+import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, Eye, EyeOff, Activity, Award, Zap } from "lucide-react";
+import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, BarChart, Bar, LineChart, Line, Legend, ReferenceArea, ReferenceLine } from "recharts";
 import { ENHANCED_SENSORY_DATA } from "../data/enhanced-sensory";
 import { METHOD_COMPARISON } from "../data/validation-data";
 
@@ -19,6 +19,171 @@ interface SampleDecision {
   riskLevel: "low" | "medium" | "high";
   details: string[];
   dimensionScores: { hedonic: number; texture: number; cata: number; emotional: number };
+}
+
+function IssfGauge({ score, confidence }: { score: number; confidence: number }) {
+  const pct = Math.max(0, Math.min(100, score));
+  return (
+    <div className="text-right">
+      <div className="text-5xl font-bold text-slate-900">{score.toFixed(0)}</div>
+      <div className="text-sm text-slate-600">ISSF Score</div>
+      <div className="relative w-36 mt-3 mb-5 ml-auto">
+        <div className="flex h-4 rounded-full overflow-hidden shadow-inner">
+          <div className="bg-rose-300" style={{ width: "55%" }} />
+          <div className="bg-amber-300" style={{ width: "20%" }} />
+          <div className="bg-emerald-300" style={{ width: "25%" }} />
+        </div>
+        <div
+          className="absolute top-0 w-1 h-4 bg-slate-900 rounded shadow-md"
+          style={{ left: `${pct}%`, transform: "translateX(-50%)" }}
+        />
+        <span className="absolute text-xs text-slate-400" style={{ left: "55%", top: "18px", transform: "translateX(-50%)" }}>55</span>
+        <span className="absolute text-xs text-slate-400" style={{ left: "75%", top: "18px", transform: "translateX(-50%)" }}>75</span>
+      </div>
+      <div className="text-xs text-slate-500">±{confidence.toFixed(0)}% confidence</div>
+    </div>
+  );
+}
+
+function PathToGoPanel({
+  selected,
+  selectedSensory,
+  weights,
+}: {
+  selected: SampleDecision;
+  selectedSensory: (typeof ENHANCED_SENSORY_DATA)[number];
+  weights: { hedonic: number; texture: number; cata: number; emotional: number };
+}) {
+  const gap = Math.max(0, 75 - selected.issfScore);
+
+  if (selected.decision === "GO") {
+    const dims = [
+      { label: "Hedonic", score: selected.dimensionScores.hedonic },
+      { label: "Texture", score: Math.max(0, Math.min(100, selected.dimensionScores.texture)) },
+      { label: "CATA", score: selected.dimensionScores.cata },
+      { label: "Emotional", score: selected.dimensionScores.emotional },
+    ];
+    return (
+      <div className="bg-white p-4 rounded-lg border-2 border-emerald-200 mb-4">
+        <h3 className="font-bold text-slate-900 mb-3 flex items-center gap-2">
+          <CheckCircle2 className="size-4 text-emerald-600" />
+          Dimension Strengths
+        </h3>
+        <div className="space-y-3">
+          {dims.map(({ label, score }) => (
+            <div key={label} className="flex items-center gap-3">
+              <span className="w-20 text-sm text-slate-700">{label}</span>
+              <div className="flex-1 bg-slate-100 rounded-full h-3">
+                <div className="bg-emerald-500 h-3 rounded-full" style={{ width: `${score}%` }} />
+              </div>
+              <span className="w-10 text-right text-sm font-bold text-emerald-600">{score.toFixed(0)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const offNoteCompounds = selectedSensory.gcmsOlfactometry.filter(
+    (c) =>
+      c.odourIntensity >= 3 &&
+      (c.odour.toLowerCase().includes("rancid") ||
+        c.odour.toLowerCase().includes("cardboard") ||
+        c.odour.toLowerCase().includes("fermented"))
+  );
+  const worstOffNote = [...offNoteCompounds].sort((a, b) => b.odourIntensity - a.odourIntensity)[0];
+
+  const chalky = selectedSensory.intensity.chalky;
+  const grainy = selectedSensory.intensity.grainy;
+
+  const actionMap: Record<string, string> = {
+    hedonic: "Rebalance flavor harmony — adjust sweetness-saltiness-umami to lift overall acceptability",
+    texture:
+      chalky > grainy
+        ? `Reduce chalkiness (${chalky.toFixed(1)}/10) — lower processing shear or increase fat:protein ratio`
+        : `Reduce graininess (${grainy.toFixed(1)}/10) — refine particle size distribution`,
+    cata: "Boost positive flavor character — amplify butter/milk notes via dairy fat fraction or Maillard reaction",
+    emotional: "Elevate indulgence cues — increase perceived richness and aroma warmth through ingredient adjustment",
+  };
+
+  const dimData = [
+    { key: "hedonic", label: "Hedonic", score: selected.dimensionScores.hedonic, weight: weights.hedonic },
+    { key: "texture", label: "Texture", score: Math.max(0, Math.min(100, selected.dimensionScores.texture)), weight: weights.texture },
+    { key: "cata", label: "CATA", score: selected.dimensionScores.cata, weight: weights.cata },
+    { key: "emotional", label: "Emotional", score: selected.dimensionScores.emotional, weight: weights.emotional },
+  ];
+
+  const paths = dimData
+    .map((dim) => {
+      const improvementNeeded = dim.weight > 0 ? (gap * 100) / dim.weight : Infinity;
+      const targetScore = dim.score + improvementNeeded;
+      return { ...dim, improvementNeeded, targetScore, feasible: targetScore <= 100 };
+    })
+    .filter((d) => d.feasible);
+
+  const bestPath = [...paths].sort((a, b) => a.improvementNeeded - b.improvementNeeded)[0];
+
+  return (
+    <div className="bg-white p-4 rounded-lg border-2 border-amber-200 mb-4">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-bold text-slate-900 flex items-center gap-2">
+          <Zap className="size-4 text-amber-600" />
+          Path to GO
+        </h3>
+        <div className="text-right">
+          <div className="text-2xl font-bold text-amber-600">+{gap.toFixed(1)}</div>
+          <div className="text-xs text-slate-500">points to threshold</div>
+        </div>
+      </div>
+
+      {worstOffNote && (
+        <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-lg">
+          <div className="text-xs font-bold text-rose-700 mb-1">CRITICAL — Eliminate Off-Note First</div>
+          <div className="font-medium text-slate-900 text-sm">{worstOffNote.compound}</div>
+          <div className="text-sm text-slate-600">
+            {worstOffNote.odour} · intensity {worstOffNote.odourIntensity.toFixed(1)}/5
+            {worstOffNote.concentration != null && ` · ${worstOffNote.concentration.toFixed(1)} ppm`}
+          </div>
+          <div className="text-xs text-slate-500 mt-1">Removing this off-note eliminates the 5pt GC-O penalty</div>
+        </div>
+      )}
+
+      {bestPath && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs font-bold text-amber-700">FASTEST PATH TO GO</span>
+            <Badge className="bg-amber-600 text-white text-xs px-2 py-0">+{bestPath.improvementNeeded.toFixed(0)} pts</Badge>
+          </div>
+          <div className="font-bold text-slate-900 text-sm">
+            Improve {bestPath.label}: {bestPath.score.toFixed(0)} → {bestPath.targetScore.toFixed(0)}/100
+          </div>
+          <div className="text-sm text-slate-600 mt-1">{actionMap[bestPath.key] ?? "Improve this dimension to reach the GO threshold"}</div>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {dimData.map((dim) => {
+          const needed = dim.weight > 0 ? (gap * 100) / dim.weight : Infinity;
+          const target = dim.score + needed;
+          const feasible = target <= 100;
+          return (
+            <div key={dim.key} className="flex items-center gap-3">
+              <span className="w-20 text-sm text-slate-700">{dim.label}</span>
+              <div className="flex-1 bg-slate-100 rounded-full h-3">
+                <div
+                  className={`h-3 rounded-full ${dim.score >= 75 ? "bg-emerald-400" : dim.score >= 50 ? "bg-amber-400" : "bg-rose-400"}`}
+                  style={{ width: `${dim.score}%` }}
+                />
+              </div>
+              <span className={`w-28 text-right text-xs font-medium ${feasible ? "text-amber-700" : "text-slate-400"}`}>
+                {feasible ? `+${needed.toFixed(0)} pts → GO` : "not feasible solo"}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export function Stage4Enhanced() {
@@ -222,7 +387,8 @@ export function Stage4Enhanced() {
     const sensory = ENHANCED_SENSORY_DATA.find(s => s.sampleId === d.sampleId);
     return {
       id: `scatter-${d.sampleId}-${index}`,
-      name: `${d.sampleName}-${index}`, // Unique name for Recharts
+      sampleId: d.sampleId,
+      name: `${d.sampleName}-${index}`,
       sample: d.sampleName,
       issf: d.issfScore,
       hedonic: sensory ? sensory.hedonic.overall : 0,
@@ -317,44 +483,68 @@ export function Stage4Enhanced() {
         </Card>
       )}
 
-      {/* Key Metrics */}
-      <div className="grid grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-3xl font-bold text-emerald-600">{stats.go}</div>
-            <div className="text-sm text-slate-600 mt-1">GO</div>
-            <div className="text-xs text-slate-500 mt-1">Ready for next stage</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-3xl font-bold text-amber-600">{stats.tweak}</div>
-            <div className="text-sm text-slate-600 mt-1">TWEAK</div>
-            <div className="text-xs text-slate-500 mt-1">Needs adjustment</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-3xl font-bold text-rose-600">{stats.stop}</div>
-            <div className="text-sm text-slate-600 mt-1">STOP</div>
-            <div className="text-xs text-slate-500 mt-1">Major reformulation</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-3xl font-bold text-blue-600">{stats.avgConfidence}%</div>
-            <div className="text-sm text-slate-600 mt-1">Avg Confidence</div>
-            <div className="text-xs text-slate-500 mt-1">Decision certainty</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-3xl font-bold text-emerald-600">{stats.lowRisk}</div>
-            <div className="text-sm text-slate-600 mt-1">Low Risk</div>
-            <div className="text-xs text-slate-500 mt-1">High confidence</div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Batch Decision Summary */}
+      <Card className="shadow-sm">
+        <CardContent className="pt-5 pb-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="font-semibold text-slate-800">Batch Decision Summary</span>
+            <span className="text-xs text-slate-500">{sampleDecisions.length} prototypes analyzed</span>
+          </div>
+          <div className="flex rounded-lg overflow-hidden h-9 shadow-inner">
+            {stats.go > 0 && (
+              <div
+                className="bg-emerald-500 flex items-center justify-center text-white text-sm font-bold gap-1 transition-all"
+                style={{ width: `${(stats.go / sampleDecisions.length) * 100}%` }}
+              >
+                ▲ {stats.go}
+              </div>
+            )}
+            {stats.tweak > 0 && (
+              <div
+                className="bg-amber-500 flex items-center justify-center text-white text-sm font-bold gap-1 transition-all"
+                style={{ width: `${(stats.tweak / sampleDecisions.length) * 100}%` }}
+              >
+                ◆ {stats.tweak}
+              </div>
+            )}
+            {stats.stop > 0 && (
+              <div
+                className="bg-rose-500 flex items-center justify-center text-white text-sm font-bold gap-1 transition-all"
+                style={{ width: `${(stats.stop / sampleDecisions.length) * 100}%` }}
+              >
+                ■ {stats.stop}
+              </div>
+            )}
+          </div>
+          <div className="mt-4 grid grid-cols-5 gap-4 text-center">
+            <div>
+              <div className="text-2xl font-bold text-emerald-600">{stats.go}</div>
+              <div className="text-xs text-slate-500 mt-0.5">GO</div>
+              <div className="text-xs text-slate-400">advance now</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-amber-600">{stats.tweak}</div>
+              <div className="text-xs text-slate-500 mt-0.5">TWEAK</div>
+              <div className="text-xs text-slate-400">minor fix</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-rose-600">{stats.stop}</div>
+              <div className="text-xs text-slate-500 mt-0.5">STOP</div>
+              <div className="text-xs text-slate-400">reformulate</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-blue-600">{stats.avgConfidence}%</div>
+              <div className="text-xs text-slate-500 mt-0.5">Confidence</div>
+              <div className="text-xs text-slate-400">avg certainty</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-emerald-600">${(stats.totalSavings / 1000).toFixed(0)}k</div>
+              <div className="text-xs text-slate-500 mt-0.5">R&D Savings</div>
+              <div className="text-xs text-slate-400">vs full panel</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* ISSF Score vs Hedonic */}
       <Card>
@@ -371,7 +561,12 @@ export function Stage4Enhanced() {
               id="issf-hedonic-scatter"
             >
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
+              <ReferenceArea x1={0} x2={55} y1={0} y2={9} fill="#fecaca" fillOpacity={0.25} />
+              <ReferenceArea x1={55} x2={75} y1={0} y2={9} fill="#fde68a" fillOpacity={0.25} />
+              <ReferenceArea x1={75} x2={100} y1={0} y2={9} fill="#a7f3d0" fillOpacity={0.25} />
+              <ReferenceLine x={55} stroke="#ef4444" strokeDasharray="4 4" strokeOpacity={0.5} label={{ value: "STOP", position: "insideTopLeft", fill: "#b91c1c", fontSize: 10 }} />
+              <ReferenceLine x={75} stroke="#10b981" strokeDasharray="4 4" strokeOpacity={0.5} label={{ value: "GO", position: "insideTopRight", fill: "#065f46", fontSize: 10 }} />
+              <XAxis
                 type="number" 
                 dataKey="issf" 
                 name="ISSF Score" 
@@ -408,17 +603,34 @@ export function Stage4Enhanced() {
                 isAnimationActive={false}
                 shape={(props: any) => {
                   const { cx, cy, payload } = props;
+                  const isSelected = payload.sampleId === selectedSample;
                   let color = "#10b981";
                   if (payload.decision === "STOP") color = "#ef4444";
                   if (payload.decision === "TWEAK") color = "#f59e0b";
+                  const s = isSelected ? 9 : 6;
                   const key = `shape-${payload.id || payload.sample}`;
                   if (payload.decision === "GO") {
-                    return <polygon key={key} points={`${cx},${cy - 7} ${cx + 6},${cy + 4} ${cx - 6},${cy + 4}`} fill={color} stroke="#fff" strokeWidth={1} />;
+                    return (
+                      <g key={key}>
+                        {isSelected && <circle cx={cx} cy={cy} r={15} fill="none" stroke="#1d4ed8" strokeWidth={2.5} />}
+                        <polygon points={`${cx},${cy - s} ${cx + s * 0.9},${cy + s * 0.5} ${cx - s * 0.9},${cy + s * 0.5}`} fill={color} stroke="#fff" strokeWidth={1} />
+                      </g>
+                    );
                   }
                   if (payload.decision === "STOP") {
-                    return <rect key={key} x={cx - 5} y={cy - 5} width={10} height={10} fill={color} stroke="#fff" strokeWidth={1} />;
+                    return (
+                      <g key={key}>
+                        {isSelected && <circle cx={cx} cy={cy} r={13} fill="none" stroke="#1d4ed8" strokeWidth={2.5} />}
+                        <rect x={cx - s} y={cy - s} width={s * 2} height={s * 2} fill={color} stroke="#fff" strokeWidth={1} />
+                      </g>
+                    );
                   }
-                  return <polygon key={key} points={`${cx},${cy - 7} ${cx + 7},${cy} ${cx},${cy + 7} ${cx - 7},${cy}`} fill={color} stroke="#fff" strokeWidth={1} />;
+                  return (
+                    <g key={key}>
+                      {isSelected && <circle cx={cx} cy={cy} r={14} fill="none" stroke="#1d4ed8" strokeWidth={2.5} />}
+                      <polygon points={`${cx},${cy - s} ${cx + s},${cy} ${cx},${cy + s} ${cx - s},${cy}`} fill={color} stroke="#fff" strokeWidth={1} />
+                    </g>
+                  );
                 }}
               />
             </ScatterChart>
@@ -485,11 +697,7 @@ export function Stage4Enhanced() {
                       <h2 className="text-2xl font-bold text-slate-900">{selected.sampleName}</h2>
                       <div className="mt-2">{getDecisionBadge(selected.decision)}</div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-5xl font-bold text-slate-900">{selected.issfScore.toFixed(0)}</div>
-                      <div className="text-sm text-slate-600">ISSF Score</div>
-                      <div className="text-xs text-slate-500 mt-1">±{selected.confidenceScore.toFixed(0)}% confidence</div>
-                    </div>
+                    <IssfGauge score={selected.issfScore} confidence={selected.confidenceScore} />
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -523,40 +731,7 @@ export function Stage4Enhanced() {
                     </ul>
                   </div>
 
-                  {(selected.decision === "TWEAK" || selected.decision === "STOP") && (() => {
-                    const dims = [
-                      { label: 'Hedonic',   score: selected.dimensionScores.hedonic },
-                      { label: 'Texture',   score: selected.dimensionScores.texture },
-                      { label: 'CATA',      score: selected.dimensionScores.cata },
-                      { label: 'Emotional', score: selected.dimensionScores.emotional },
-                    ];
-                    const lowest = dims.reduce((min, d) => d.score < min.score ? d : min);
-                    return (
-                      <div className="bg-white p-4 rounded-lg border-2 border-slate-200 mb-4">
-                        <h3 className="font-bold text-slate-900 mb-3">Score Breakdown</h3>
-                        <div className="space-y-3">
-                          {dims.map(({ label, score }) => {
-                            const clamped = Math.max(0, Math.min(100, score));
-                            const bgCls = clamped >= 75 ? 'bg-emerald-500' : clamped >= 50 ? 'bg-amber-500' : 'bg-rose-500';
-                            const txtCls = clamped >= 75 ? 'text-emerald-600' : clamped >= 50 ? 'text-amber-600' : 'text-rose-600';
-                            return (
-                              <div key={label} className="flex items-center gap-3">
-                                <span className="w-20 text-sm text-slate-700">{label}</span>
-                                <div className="flex-1 bg-slate-200 rounded-full h-3">
-                                  <div className={`${bgCls} h-3 rounded-full`} style={{ width: `${clamped}%` }} />
-                                </div>
-                                <span className={`w-10 text-right text-sm font-bold ${txtCls}`}>{clamped.toFixed(0)}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        <p className="text-xs text-slate-500 mt-3">
-                          Dimension driving the gap to GO threshold (75):{' '}
-                          <strong>{lowest.label}</strong> ({Math.max(0, Math.min(100, lowest.score)).toFixed(0)})
-                        </p>
-                      </div>
-                    );
-                  })()}
+                  <PathToGoPanel selected={selected} selectedSensory={selectedSensory} weights={weights} />
 
                   {/* Multi-dimensional profile */}
                   <div className="bg-white p-4 rounded-lg border-2 border-slate-200">
