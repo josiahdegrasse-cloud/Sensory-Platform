@@ -492,6 +492,12 @@ export function Stage1Instrumental() {
             <Download className="size-4" />
             Download template
           </Button>
+          <a href="/sample_import.csv" download>
+            <Button variant="outline" size="sm" className="flex items-center gap-2 text-slate-600">
+              <Download className="size-4" />
+              Download sample data
+            </Button>
+          </a>
           {!usingDemoData && (
             <Button variant="outline" size="sm" onClick={resetToDemo} className="flex items-center gap-2 text-slate-600">
               <RotateCcw className="size-4" />
