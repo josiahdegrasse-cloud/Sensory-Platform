@@ -18,7 +18,7 @@ function NfiLogoMark({ size = 40 }: { size?: number }) {
       <img
         src="/new_foodinnovation_ltd_logo.jpg"
         alt="NFI"
-        style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(1) contrast(10)' }}
+        style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(1) contrast(10)', transform: 'scale(1.18)' }}
       />
     </div>
   );
