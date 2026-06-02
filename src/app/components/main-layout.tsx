@@ -7,29 +7,18 @@ const NFI_BLUE = '#6B7890';
 
 function NfiLogoMark({ size = 36 }: { size?: number }) {
   return (
-    <div
+    <img
+      src="/new_foodinnovation_ltd_logo.jpg"
+      alt="NFI"
       style={{
         width: size,
         height: size,
         borderRadius: '26%',
-        overflow: 'hidden',
-        background: '#000',
+        objectFit: 'contain',
+        filter: 'brightness(0)',
         flexShrink: 0,
       }}
-    >
-      <img
-        src="/new_foodinnovation_ltd_logo.jpg"
-        alt="NFI"
-        style={{
-          display: 'block',
-          width: '116%',
-          height: '116%',
-          marginLeft: '-8%',
-          marginTop: '-8%',
-          filter: 'grayscale(1) contrast(20)',
-        }}
-      />
-    </div>
+    />
   );
 }
 
