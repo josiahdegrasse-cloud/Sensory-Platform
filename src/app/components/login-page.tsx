@@ -12,20 +12,31 @@ interface Props {
 
 const NFI_BLUE = '#6B7890';
 
-function NfiLogoMark({ size = 40, onDark = false }: { size?: number; onDark?: boolean }) {
+function NfiLogoMark({ size = 40 }: { size?: number }) {
   return (
-    <img
-      src="/new_foodinnovation_ltd_logo.jpg"
-      alt="NFI"
+    <div
       style={{
-        display: 'block',
         width: size,
         height: size,
         borderRadius: '26%',
+        overflow: 'hidden',
+        background: '#000',
         flexShrink: 0,
-        filter: onDark ? 'none' : 'grayscale(1) contrast(20)',
       }}
-    />
+    >
+      <img
+        src="/new_foodinnovation_ltd_logo.jpg"
+        alt="NFI"
+        style={{
+          display: 'block',
+          width: '116%',
+          height: '116%',
+          marginLeft: '-8%',
+          marginTop: '-8%',
+          filter: 'grayscale(1) contrast(20)',
+        }}
+      />
+    </div>
   );
 }
 
@@ -54,7 +65,7 @@ export function LoginPage({ onSignup }: Props) {
       >
         {/* Logo */}
         <div className="flex items-center gap-3">
-          <NfiLogoMark size={42} onDark />
+          <NfiLogoMark size={42} />
           <div style={{ lineHeight: '1.3' }}>
             <div className="text-white/80 text-sm">new</div>
             <div className="text-white/80 text-sm">food</div>

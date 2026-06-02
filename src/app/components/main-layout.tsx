@@ -5,20 +5,31 @@ import { useEffect } from "react";
 
 const NFI_BLUE = '#6B7890';
 
-function NfiLogoMark({ size = 36, onDark = false }: { size?: number; onDark?: boolean }) {
+function NfiLogoMark({ size = 36 }: { size?: number }) {
   return (
-    <img
-      src="/new_foodinnovation_ltd_logo.jpg"
-      alt="NFI"
+    <div
       style={{
-        display: 'block',
         width: size,
         height: size,
         borderRadius: '26%',
+        overflow: 'hidden',
+        background: '#000',
         flexShrink: 0,
-        filter: onDark ? 'none' : 'grayscale(1) contrast(20)',
       }}
-    />
+    >
+      <img
+        src="/new_foodinnovation_ltd_logo.jpg"
+        alt="NFI"
+        style={{
+          display: 'block',
+          width: '116%',
+          height: '116%',
+          marginLeft: '-8%',
+          marginTop: '-8%',
+          filter: 'grayscale(1) contrast(20)',
+        }}
+      />
+    </div>
   );
 }
 
