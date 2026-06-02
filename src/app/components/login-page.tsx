@@ -13,46 +13,34 @@ interface Props {
 const NFI_BLUE = '#6B7890';
 
 function NfiLogoMark({ size = 40, onDark = false }: { size?: number; onDark?: boolean }) {
-  const leafW = Math.round(size * 0.31);
-  const leafH = Math.round(size * 0.29);
-
   return (
     <div
-      className="relative flex items-center justify-center flex-shrink-0"
       style={{
         width: size,
         height: size,
-        background: onDark ? 'rgba(255,255,255,0.15)' : '#111111',
-        borderRadius: '22%',
-        border: onDark ? '1px solid rgba(255,255,255,0.22)' : 'none',
+        borderRadius: '26%',
+        overflow: 'hidden',
+        background: '#000',
+        position: 'relative',
+        flexShrink: 0,
+        outline: onDark ? '1px solid rgba(255,255,255,0.18)' : 'none',
+        outlineOffset: '1px',
       }}
     >
-      <svg
+      <img
+        src="/new_foodinnovation_ltd_logo.jpg"
+        alt="NFI"
         style={{
+          display: 'block',
           position: 'absolute',
-          top: Math.round(size * 0.09),
-          left: Math.round(size * 0.12),
-          width: leafW,
-          height: leafH,
-          overflow: 'visible',
+          width: '118%',
+          height: '118%',
+          top: '-9%',
+          left: '-9%',
+          filter: 'grayscale(1) contrast(20)',
+          mixBlendMode: 'screen',
         }}
-        viewBox="0 0 10 9"
-        fill="none"
-      >
-        <ellipse cx="3.0" cy="5.8" rx="1.7" ry="4.0" transform="rotate(-22 3.0 5.8)" fill="white"/>
-        <ellipse cx="7.0" cy="5.8" rx="1.7" ry="4.0" transform="rotate(22 7.0 5.8)"  fill="white"/>
-      </svg>
-      <span
-        className="font-bold select-none"
-        style={{
-          color: 'white',
-          fontSize: Math.round(size * 0.35),
-          letterSpacing: '-0.02em',
-          lineHeight: 1,
-        }}
-      >
-        nfi
-      </span>
+      />
     </div>
   );
 }
