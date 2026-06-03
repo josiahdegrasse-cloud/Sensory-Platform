@@ -444,17 +444,17 @@ export function MultiSampleQuestionnaire() {
                   <input
                     type="range"
                     min="1"
-                    max="5"
+                    max="9"
                     step="1"
                     value={intensityRatings[attr] ?? 1}
                     onChange={(e) => handleIntensityChange(attr, parseInt(e.target.value))}
-                    style={sliderFill(intensityRatings[attr] ?? 1, 1, 5, '#9333ea')}
+                    style={sliderFill(intensityRatings[attr] ?? 1, 1, 9, '#9333ea')}
                     className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-purple-600"
                   />
                   <div className="flex justify-between text-xs text-slate-500">
                     <span>1 — Not present</span>
-                    <span>3 — Moderate</span>
-                    <span>5 — Extremely intense</span>
+                    <span>5 — Moderate</span>
+                    <span>9 — Extremely intense</span>
                   </div>
                 </div>
               ))}
@@ -532,12 +532,12 @@ export function MultiSampleQuestionnaire() {
                       </div>
                       <input
                         type="range"
-                        min="0"
-                        max="5"
+                        min="1"
+                        max="9"
                         step="1"
-                        value={emotions[emotion] || 0}
+                        value={emotions[emotion] ?? 1}
                         onChange={(e) => handleEmotionChange(emotion, parseInt(e.target.value))}
-                        style={sliderFill(emotions[emotion] || 0, 0, 5, '#059669')}
+                        style={sliderFill(emotions[emotion] ?? 1, 1, 9, '#059669')}
                         className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-emerald-600"
                       />
                     </div>
@@ -562,12 +562,12 @@ export function MultiSampleQuestionnaire() {
                       </div>
                       <input
                         type="range"
-                        min="0"
-                        max="5"
+                        min="1"
+                        max="9"
                         step="1"
-                        value={emotions[emotion] || 0}
+                        value={emotions[emotion] ?? 1}
                         onChange={(e) => handleEmotionChange(emotion, parseInt(e.target.value))}
-                        style={sliderFill(emotions[emotion] || 0, 0, 5, '#e11d48')}
+                        style={sliderFill(emotions[emotion] ?? 1, 1, 9, '#e11d48')}
                         className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-rose-600"
                       />
                     </div>

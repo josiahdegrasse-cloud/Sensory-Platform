@@ -712,7 +712,7 @@ export function Stage2SemiTrained() {
       {/* Emotions */}
       <Card>
         <CardHeader>
-          <CardTitle>Emotional Response (1-5)</CardTitle>
+          <CardTitle>Emotional Response (1-9)</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-4">
@@ -720,7 +720,7 @@ export function Stage2SemiTrained() {
               <div key={emotion} className="p-3 bg-slate-50 rounded-lg">
                 <div className="font-semibold text-sm mb-2">{emotion}</div>
                 <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map(value => (
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(value => (
                     <button
                       key={value}
                       onClick={() => setEmotions(prev => ({ ...prev, [emotion]: value }))}

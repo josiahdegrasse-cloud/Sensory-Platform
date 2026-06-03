@@ -443,17 +443,17 @@ export function QuestionnaireForm() {
                     <input
                       type="range"
                       min="1"
-                      max="5"
+                      max="9"
                       step="1"
                       value={formData.intensityRatings[attr] ?? 1}
                       onChange={(e) => handleIntensityChange(attr, parseInt(e.target.value))}
-                      style={sliderFill(formData.intensityRatings[attr] ?? 1, 1, 5, '#9333ea')}
+                      style={sliderFill(formData.intensityRatings[attr] ?? 1, 1, 9, '#9333ea')}
                       className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-purple-600"
                     />
                     <div className="flex justify-between text-xs text-slate-500">
                       <span>1 — Not present</span>
-                      <span>3 — Moderate</span>
-                      <span>5 — Extremely intense</span>
+                      <span>5 — Moderate</span>
+                      <span>9 — Extremely intense</span>
                     </div>
                   </div>
                 ))}
@@ -519,7 +519,7 @@ export function QuestionnaireForm() {
               Rate how strongly you feel each emotion <strong>right now</strong>, after tasting this product.
             </p>
             <div className="mt-2 flex justify-between text-xs text-slate-400 bg-slate-50 rounded px-3 py-1.5">
-              <span>1 = Not at all</span><span>5 = Very strongly</span>
+              <span>1 = Not at all</span><span>9 = Very strongly</span>
             </div>
             <p className="text-xs text-amber-700 bg-amber-50 rounded px-3 py-1.5 mt-1">
               Higher numbers mean you feel that emotion more strongly — this applies to both positive and negative emotions.
@@ -547,11 +547,11 @@ export function QuestionnaireForm() {
                       <input
                         type="range"
                         min="1"
-                        max="5"
+                        max="9"
                         step="1"
                         value={formData.emotions[emotion] ?? 1}
                         onChange={(e) => handleEmotionChange(emotion, parseInt(e.target.value))}
-                        style={sliderFill(formData.emotions[emotion] ?? 1, 1, 5, '#059669')}
+                        style={sliderFill(formData.emotions[emotion] ?? 1, 1, 9, '#059669')}
                         className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-emerald-600"
                       />
                     </div>
@@ -579,15 +579,15 @@ export function QuestionnaireForm() {
                       <input
                         type="range"
                         min="1"
-                        max="5"
+                        max="9"
                         step="1"
                         value={formData.emotions[emotion] ?? 1}
                         onChange={(e) => handleEmotionChange(emotion, parseInt(e.target.value))}
-                        style={sliderFill(formData.emotions[emotion] ?? 1, 1, 5, '#e11d48')}
+                        style={sliderFill(formData.emotions[emotion] ?? 1, 1, 9, '#e11d48')}
                         className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-rose-600"
                       />
                       <div className="flex justify-between text-xs text-slate-400">
-                        <span>1 — Not at all</span><span>5 — Very strongly</span>
+                        <span>1 — Not at all</span><span>9 — Very strongly</span>
                       </div>
                     </div>
                   ))}
