@@ -93,7 +93,6 @@ function CategorySidebar() {
               className="w-full text-left px-2.5 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-1"
               style={btnStyle(foodType === 'cheese')}
             >
-              <span className="mr-0.5">🧀</span>
               <span className="flex-1">Cheese</span>
               {cheeseSubs.length > 0 && (
                 <ChevronRight
@@ -138,7 +137,6 @@ function CategorySidebar() {
               className="w-full text-left px-2.5 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-1"
               style={btnStyle(foodType === 'bread')}
             >
-              <span className="mr-0.5">🍞</span>
               <span className="flex-1">Bread</span>
               {breadSubs.length > 0 && (
                 <ChevronRight
@@ -179,7 +177,7 @@ function CategorySidebar() {
 function FoodTypeBadge() {
   const { foodType, subCategory } = useFoodType();
   if (foodType === 'all') return null;
-  const label = subCategory ?? (foodType === 'cheese' ? '🧀 Cheese' : '🍞 Bread');
+  const label = subCategory ?? (foodType === 'cheese' ? 'Cheese' : 'Bread');
   return (
     <span className="px-2.5 py-1 rounded-full text-xs font-semibold border" style={{ background: '#f1f5f9', color: NFI_BLUE, borderColor: '#cbd5e1' }}>
       {label}

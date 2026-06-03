@@ -71,6 +71,15 @@ const MOCK_ETONGUE_DATA: ETongueMeasurement[] = [
   { sampleId: "B1", sourness: 4.2, bitterness: 2.1, saltiness: 2.8, umami: 2.2, sweetness: 1.6, type: "bread", category: "Bread" },
   { sampleId: "B2", sourness: 1.4, bitterness: 1.2, saltiness: 2.4, umami: 1.6, sweetness: 3.2, type: "bread", category: "Bread" },
   { sampleId: "B3", sourness: 2.8, bitterness: 3.4, saltiness: 3.1, umami: 2.8, sweetness: 2.2, type: "bread", category: "Bread" },
+  { sampleId: "B4", sourness: 5.8, bitterness: 3.2, saltiness: 3.2, umami: 2.6, sweetness: 1.4, type: "bread", category: "Bread" },
+  { sampleId: "B5", sourness: 1.1, bitterness: 1.0, saltiness: 2.0, umami: 2.1, sweetness: 5.4, type: "bread", category: "Bread" },
+  { sampleId: "B6", sourness: 1.8, bitterness: 1.4, saltiness: 2.6, umami: 2.4, sweetness: 1.8, type: "bread", category: "Bread" },
+  { sampleId: "B7", sourness: 2.2, bitterness: 2.8, saltiness: 2.6, umami: 2.8, sweetness: 2.4, type: "bread", category: "Bread" },
+  { sampleId: "B8", sourness: 4.8, bitterness: 3.6, saltiness: 3.4, umami: 3.2, sweetness: 1.6, type: "bread", category: "Bread" },
+  { sampleId: "B9", sourness: 1.6, bitterness: 1.2, saltiness: 2.8, umami: 1.8, sweetness: 1.6, type: "bread", category: "Bread" },
+  { sampleId: "B10", sourness: 1.4, bitterness: 1.6, saltiness: 4.2, umami: 3.8, sweetness: 1.8, type: "bread", category: "Bread" },
+  { sampleId: "B11", sourness: 3.6, bitterness: 1.8, saltiness: 3.0, umami: 2.4, sweetness: 2.2, type: "bread", category: "Bread" },
+  { sampleId: "B12", sourness: 0.9, bitterness: 0.8, saltiness: 2.2, umami: 1.8, sweetness: 4.8, type: "bread", category: "Bread" },
 ];
 
 const MOCK_GCMS_DATA: Record<string, GCMSCompound[]> = {
@@ -98,6 +107,18 @@ const MOCK_COMPOSITION_DATA: Record<string, ChemicalComposition> = {
   S12: { protein: 16.9, fat: 24.6, moisture: 43.9, pH: 6.0, saltContent: 1.7, calciumMg: 455 },
   D1: { protein: 24.9, fat: 33.1, moisture: 37.0, pH: 5.2, saltContent: 1.8, calciumMg: 721 },
   D2: { protein: 25.2, fat: 33.5, moisture: 36.5, pH: 5.1, saltContent: 1.9, calciumMg: 735 },
+  B1: { protein: 9.4,  fat: 3.2,  moisture: 38.4, pH: 4.2, saltContent: 1.8, calciumMg: 28 },
+  B2: { protein: 8.1,  fat: 5.8,  moisture: 40.2, pH: 5.8, saltContent: 1.4, calciumMg: 42 },
+  B3: { protein: 10.8, fat: 4.6,  moisture: 36.8, pH: 5.1, saltContent: 1.9, calciumMg: 38 },
+  B4: { protein: 9.8,  fat: 2.1,  moisture: 35.6, pH: 3.9, saltContent: 2.0, calciumMg: 24 },
+  B5: { protein: 9.6,  fat: 18.4, moisture: 32.4, pH: 6.2, saltContent: 1.2, calciumMg: 68 },
+  B6: { protein: 8.4,  fat: 2.8,  moisture: 41.8, pH: 5.6, saltContent: 1.6, calciumMg: 31 },
+  B7: { protein: 11.4, fat: 4.2,  moisture: 37.2, pH: 5.4, saltContent: 1.6, calciumMg: 52 },
+  B8: { protein: 11.2, fat: 5.6,  moisture: 34.8, pH: 4.1, saltContent: 1.9, calciumMg: 44 },
+  B9: { protein: 8.8,  fat: 1.4,  moisture: 32.6, pH: 6.0, saltContent: 1.8, calciumMg: 22 },
+  B10: { protein: 8.6, fat: 12.8, moisture: 38.6, pH: 5.8, saltContent: 2.2, calciumMg: 48 },
+  B11: { protein: 9.8, fat: 3.6,  moisture: 37.8, pH: 4.4, saltContent: 1.9, calciumMg: 32 },
+  B12: { protein: 8.2, fat: 8.2,  moisture: 40.4, pH: 5.9, saltContent: 1.4, calciumMg: 54 },
 };
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
