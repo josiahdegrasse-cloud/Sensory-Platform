@@ -7,7 +7,7 @@ import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Checkbox } from './ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
-import { type Product, DEFAULT_CATA_ATTRIBUTES } from '../data/mock-users';
+import { type Product, DEFAULT_CATA_ATTRIBUTES, getDefaultCataAttributes } from '../data/mock-users';
 import { type Template } from '../lib/database';
 import {
   useProducts, useTemplates, usePanelists,
@@ -87,6 +87,11 @@ export function AdminConfig() {
     return acc;
   }, {});
 
+  // Category-aware attribute sets for the sidebar editor and create modal
+  const selectedProductCategory = products.find(p => p.id === selectedProduct)?.category ?? '';
+  const selectedProductStdAttrs = getDefaultCataAttributes(selectedProductCategory);
+  const modalStdAttrs = getDefaultCataAttributes(newProductCategory);
+
   const activeCount = products.filter(p => p.status === 'active').length;
   const completedCount = products.filter(p => p.status === 'completed').length;
   const totalSessions = allResponses.length;
@@ -124,7 +129,7 @@ export function AdminConfig() {
     setNewProductCategory('');
     setProductType('single');
     setSamples([{ id: '1', code: '', label: '' }]);
-    setCustomAttributes([...DEFAULT_CATA_ATTRIBUTES]);
+    setCustomAttributes(getDefaultCataAttributes('generic'));
     setReferenceScores({ overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 });
   };
 
@@ -136,7 +141,7 @@ export function AdminConfig() {
     setNewProductCategory('');
     setProductType('single');
     setSamples([{ id: '1', code: '', label: '' }]);
-    setCustomAttributes([...DEFAULT_CATA_ATTRIBUTES]);
+    setCustomAttributes(getDefaultCataAttributes('generic'));
     setReferenceScores({ overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 });
   };
 
@@ -154,7 +159,7 @@ export function AdminConfig() {
       category: newProductCategory,
       createdDate: new Date().toISOString(),
       status: 'active',
-      customAttributes: [...DEFAULT_CATA_ATTRIBUTES],
+      customAttributes: getDefaultCataAttributes(newProductCategory),
       isMultiSample: productType === 'multi',
       samples: productType === 'multi' ? samples.filter(s => s.code && s.label) : undefined,
       isCalibration: productType === 'calibration',
@@ -162,7 +167,7 @@ export function AdminConfig() {
       blinded: blindedStudy,
     };
     setPendingProduct(p);
-    setCustomAttributes([...DEFAULT_CATA_ATTRIBUTES]);
+    setCustomAttributes(getDefaultCataAttributes(newProductCategory));
     setCreateStep('review');
   };
 
@@ -544,18 +549,18 @@ export function AdminConfig() {
                     <div className="flex items-center justify-between mb-2">
                       <Label className="text-xs font-bold text-slate-700">Attributes ({customAttributes.length})</Label>
                       <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" className="text-xs h-6 px-2" onClick={() => setCustomAttributes([...DEFAULT_CATA_ATTRIBUTES])}>Reset</Button>
+                        <Button size="sm" variant="ghost" className="text-xs h-6 px-2" onClick={() => setCustomAttributes(selectedProductStdAttrs)}>Reset</Button>
                         <Button size="sm" variant="ghost" className="text-xs h-6 px-2" onClick={() => setCustomAttributes([])}>Clear</Button>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-1.5 max-h-52 overflow-y-auto p-2 bg-slate-50 rounded-lg border border-slate-200">
-                      {DEFAULT_CATA_ATTRIBUTES.map(attr => (
+                      {selectedProductStdAttrs.map(attr => (
                         <div key={attr} className="flex items-center gap-1.5 p-1.5 bg-white rounded border border-slate-200">
                           <Checkbox id={`rp-${attr}`} checked={customAttributes.includes(attr)} onCheckedChange={() => handleToggleAttribute(attr)} />
                           <Label htmlFor={`rp-${attr}`} className="text-xs cursor-pointer">{attr}</Label>
                         </div>
                       ))}
-                      {customAttributes.filter(attr => !DEFAULT_CATA_ATTRIBUTES.includes(attr)).map(attr => (
+                      {customAttributes.filter(attr => !selectedProductStdAttrs.includes(attr)).map(attr => (
                         <div key={attr} className="flex items-center gap-1.5 p-1.5 bg-purple-50 rounded border border-purple-300">
                           <Checkbox id={`rp-${attr}`} checked disabled />
                           <Label htmlFor={`rp-${attr}`} className="text-xs font-medium text-purple-900 flex-1">{attr}</Label>
@@ -877,18 +882,18 @@ export function AdminConfig() {
                     <div className="flex items-center justify-between mb-3">
                       <Label className="text-base font-bold text-slate-900">Select Attributes ({customAttributes.length} selected)</Label>
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline" onClick={() => setCustomAttributes([...DEFAULT_CATA_ATTRIBUTES])}>Reset</Button>
+                        <Button size="sm" variant="outline" onClick={() => setCustomAttributes(modalStdAttrs)}>Reset</Button>
                         <Button size="sm" variant="outline" onClick={() => setCustomAttributes([])}>Clear</Button>
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-3 max-h-72 overflow-y-auto p-4 bg-slate-50 rounded-lg border border-slate-200">
-                      {DEFAULT_CATA_ATTRIBUTES.map(attr => (
+                      {modalStdAttrs.map(attr => (
                         <div key={attr} className="flex items-center space-x-2 p-2 bg-white rounded border border-slate-200">
                           <Checkbox id={`attr-modal-${attr}`} checked={customAttributes.includes(attr)} onCheckedChange={() => handleToggleAttribute(attr)} />
                           <Label htmlFor={`attr-modal-${attr}`} className="text-sm cursor-pointer flex-1">{attr}</Label>
                         </div>
                       ))}
-                      {customAttributes.filter(attr => !DEFAULT_CATA_ATTRIBUTES.includes(attr)).map(attr => (
+                      {customAttributes.filter(attr => !modalStdAttrs.includes(attr)).map(attr => (
                         <div key={attr} className="flex items-center space-x-2 p-2 bg-purple-50 rounded border-2 border-purple-300">
                           <Checkbox id={`attr-modal-${attr}`} checked disabled />
                           <Label htmlFor={`attr-modal-${attr}`} className="text-sm flex-1 font-medium text-purple-900">{attr}</Label>

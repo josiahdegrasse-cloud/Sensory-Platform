@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
 import { useAuth } from '../contexts/auth-context';
-import { DEFAULT_CATA_ATTRIBUTES, INTENSITY_ATTRIBUTES, ESSENSE25_EMOTIONS, type Product } from '../data/mock-users';
+import { DEFAULT_CATA_ATTRIBUTES, ESSENSE25_EMOTIONS, type Product } from '../data/mock-users';
 import { fetchProduct, fetchLatestUserResponse, insertResponse } from '../lib/database';
 import { CATA_DEFINITIONS, INTENSITY_DEFINITIONS, HEDONIC_DEFINITIONS, EMOTION_DEFINITIONS } from '../data/attribute-definitions';
 import { AlertCircle, CheckCircle2, ChevronRight, Download } from 'lucide-react';
@@ -104,6 +104,8 @@ export function MultiSampleQuestionnaire() {
   }, [currentStep]);
 
   const cataAttributes = product?.customAttributes || DEFAULT_CATA_ATTRIBUTES;
+  // Intensity shows only what the panelist selected in CATA (same pattern as single-sample form)
+  const intensityAttributes = selectedCata.length > 0 ? selectedCata : cataAttributes.slice(0, 8);
 
   useEffect(() => {
     if (!user?.id || !productId) return;
@@ -428,7 +430,7 @@ export function MultiSampleQuestionnaire() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {INTENSITY_ATTRIBUTES.map(attr => (
+              {intensityAttributes.map(attr => (
                 <div key={attr} className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>

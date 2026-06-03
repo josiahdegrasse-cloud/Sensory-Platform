@@ -1,6 +1,6 @@
 // Definitions for sensory attributes to help panelists understand what each term means
 
-export const CATA_DEFINITIONS: Record<string, string> = {
+const DAIRY_DEFINITIONS: Record<string, string> = {
   // Positive dairy notes
   'Milk': 'Fresh, sweet dairy milk flavor — like a glass of cold whole milk',
   'Creamy': 'Rich, smooth, thick mouthfeel — like double cream or crème fraîche',
@@ -32,8 +32,77 @@ export const CATA_DEFINITIONS: Record<string, string> = {
   'Coconut': 'Sweet, tropical coconut flavor — like coconut milk or toasted coconut flakes',
   'Beany': 'Green, raw legume flavor — like undercooked lentils or raw soy milk',
   'Chalky': 'Dry, powdery mouthfeel — like chalk dust or calcium tablets',
-  'Oily': 'A greasy, slick feeling that coats the mouth and lingers'
+  'Oily': 'A greasy, slick feeling that coats the mouth and lingers',
 };
+
+const BREAD_DEFINITIONS: Record<string, string> = {
+  'Yeasty': 'The warm, fermented aroma of active yeast — like a freshly opened bag of bread dough',
+  'Fresh-baked': 'The inviting warm aroma of bread straight from the oven',
+  'Malty': 'A sweet, grain-like flavor reminiscent of malted barley or cereal',
+  'Wheaty': 'The characteristic earthy, grassy flavor of whole wheat flour',
+  'Grainy': 'A coarse, slightly rough flavor and texture from whole grains or seeds',
+  'Honey': 'A light, floral sweetness resembling natural honey',
+  'Nutty': 'Toasted, roasted nut-like flavors from browned flour or seeds',
+  'Buttery': 'Rich, creamy butter flavor — from fat enrichment or Maillard browning',
+  'Sweet': 'Pleasant mild sweetness from sugars or natural grain starches',
+  'Salty': 'The taste of salt — how present is the savoury mineral note?',
+  'Soft': 'A pillowy, yielding crumb that compresses easily without resistance',
+  'Crusty': 'A firm, crispy outer shell with audible crunch',
+  'Chewy': 'Requires sustained chewing — springy resistance like a bagel or sourdough',
+  'Airy': 'Light, open crumb structure with large air pockets',
+  'Dense': 'Compact, heavy crumb with few air pockets',
+  'Springy': 'Bounces back when pressed — elastic crumb structure',
+  'Crumbly': 'Breaks apart easily into small dry pieces',
+  'Sticky': 'Clings to teeth or the roof of the mouth',
+  'Stale': 'Dry, hard, loss of fresh aroma — bread past its prime',
+  'Gummy': 'Wet, under-baked crumb that sticks to the teeth unpleasantly',
+  'Sour': 'Excess lactic or acetic acid — strong vinegar or tang beyond normal sourdough',
+  'Bitter': 'Unpleasant sharp bitterness, often from over-fermentation or burnt crust',
+  'Bland': 'Flat, characterless — lacking expected bread flavour',
+  'Doughy': 'Raw, under-cooked flour note — the interior feels unfinished',
+  'Burnt': 'Charred, acrid, carbonized crust or crumb note',
+  'Musty': 'Mouldy, damp basement note — sign of spoilage or poor storage',
+};
+
+const GENERIC_DEFINITIONS: Record<string, string> = {
+  'Sweet': 'Sugar-like sweetness — pleasant mild sweetness',
+  'Salty': 'The taste of salt — savoury mineral note',
+  'Sour': 'Acidic, sharp tartness',
+  'Bitter': 'Sharp unpleasant bitterness at the back of the mouth',
+  'Umami': 'Deep, savoury, mouth-filling richness',
+  'Spicy': 'Heat or pungency from spices or chilli',
+  'Fresh': 'Clean, light, bright character without off-notes',
+  'Aromatic': 'Noticeable pleasant fragrance or aroma',
+  'Rich': 'Full-bodied, intense, concentrated flavour',
+  'Mild': 'Subtle, gentle — low intensity overall',
+  'Smooth': 'Even, uniform texture without graininess or roughness',
+  'Soft': 'Yields easily under pressure',
+  'Firm': 'Solid, resistant texture that holds its shape',
+  'Crispy': 'Dry, brittle, breaks with an audible snap',
+  'Chewy': 'Requires sustained chewing — elastic resistance',
+  'Moist': 'Pleasantly wet without being soggy',
+  'Dry': 'Lacking moisture — can feel rough or powdery',
+  'Bland': 'Flat, featureless — lacking expected character',
+  'Off-note': 'Any unpleasant or unexpected flavour not otherwise listed',
+  'Stale': 'Old, flat, loss of fresh character',
+  'Burnt': 'Charred, acrid, carbonized note',
+};
+
+export const CATA_DEFINITIONS: Record<string, string> = {
+  ...DAIRY_DEFINITIONS,
+  ...BREAD_DEFINITIONS,
+  ...GENERIC_DEFINITIONS,
+};
+
+export function getCataDefinitions(category?: string): Record<string, string> {
+  if (!category) return CATA_DEFINITIONS;
+  const c = category.toLowerCase();
+  if (/cheese|dairy|milk|cream|butter|yogurt|pbca|plant.based/.test(c))
+    return { ...GENERIC_DEFINITIONS, ...DAIRY_DEFINITIONS };
+  if (/bread|bak|loaf|pastry|dough|cake|cookie|biscuit|muffin|roll/.test(c))
+    return { ...GENERIC_DEFINITIONS, ...BREAD_DEFINITIONS };
+  return GENERIC_DEFINITIONS;
+}
 
 export const INTENSITY_DEFINITIONS: Record<string, string> = {
   'Milk': 'How strong is the fresh dairy milk flavor?',

@@ -58,7 +58,7 @@ export function QuestionnaireDescription() {
         <CardContent className="space-y-4">
           <p className="text-slate-700">
             You will evaluate <strong>{product.name}</strong> across four key areas.
-            This questionnaire helps us understand the sensory characteristics and consumer appeal of this plant-based cheese prototype.
+            This questionnaire helps us understand the sensory characteristics and consumer appeal of this product.
           </p>
 
           <div className="grid gap-4">
