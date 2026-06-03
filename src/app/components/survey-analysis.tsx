@@ -278,12 +278,13 @@ export function SurveyAnalysis() {
         .sort((a, b) => b.count - a.count)
     : cataAttributes;
 
+  const intensityMax = usingLiveData ? 5 : 10;
   const activeIntensityData = matchingLiveData
     ? Object.entries(matchingLiveData.intensity).map(([key, value]) => ({
         id: `intensity-${key}`,
         attribute: key,
         value: Number(value),
-        fullMark: 10,
+        fullMark: 5,
       }))
     : intensityData;
 
@@ -321,7 +322,7 @@ export function SurveyAnalysis() {
     
     // Intensity ratings
     Object.entries(selectedData.intensity).forEach(([attr, value]) => {
-      rows.push(`${attr},${value},Intensity,Scale0to10`);
+      rows.push(`${attr},${value},Intensity,${usingLiveData ? 'Scale1to5' : 'Scale0to10'}`);
     });
     
     // Hedonic scores
@@ -703,7 +704,7 @@ export function SurveyAnalysis() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <TrendingUp className="size-5 text-purple-600" />
-                  Sensory Intensity Ratings (0-10 scale)
+                  Sensory Intensity Ratings ({usingLiveData ? '1–5' : '0–10'} scale)
                 </CardTitle>
                 <p className="text-sm text-slate-600">
                   Mean intensity scores from {activePanelistN} {usingLiveData ? 'panelists (live)' : 'semi-trained panelists'}
@@ -716,7 +717,7 @@ export function SurveyAnalysis() {
                       <RadarChart data={activeIntensityData}>
                         <PolarGrid />
                         <PolarAngleAxis dataKey="attribute" />
-                        <PolarRadiusAxis angle={90} domain={[0, 10]} />
+                        <PolarRadiusAxis angle={90} domain={[0, intensityMax]} />
                         <Radar 
                           name="Intensity" 
                           dataKey="value" 
@@ -731,19 +732,21 @@ export function SurveyAnalysis() {
                   <div className="space-y-3">
                     {activeIntensityData.map(({ attribute, value }) => {
                       const label = attribute.replace(/([A-Z])/g, ' $1').trim();
-                      const color = value >= 7 ? "emerald" : value >= 4 ? "blue" : "slate";
+                      const hi = usingLiveData ? 3.5 : 7;
+                      const mid = usingLiveData ? 2 : 4;
+                      const color = value >= hi ? "emerald" : value >= mid ? "blue" : "slate";
                       return (
                         <div key={attribute} className="space-y-1">
                           <div className="flex items-center justify-between text-sm">
                             <span className="capitalize font-medium text-slate-700">{label}</span>
                             <Badge className={`bg-${color}-600 text-white`}>
-                              {value.toFixed(1)}/10
+                              {value.toFixed(1)}/{intensityMax}
                             </Badge>
                           </div>
                           <div className="w-full bg-slate-200 rounded-full h-3">
                             <div
                               className={`bg-${color}-600 h-3 rounded-full transition-all`}
-                              style={{ width: `${(value / 10) * 100}%` }}
+                              style={{ width: `${(value / intensityMax) * 100}%` }}
                             ></div>
                           </div>
                         </div>
@@ -972,8 +975,8 @@ export function SurveyAnalysis() {
                     <AlertCircle className="size-5 text-blue-600 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-blue-900">
                       <strong>Method:</strong> EsSense25 profile adapted for plant-based cheese evaluation. 
-                      Panelists rated emotional intensity triggered by sample consumption on 0-5 scale 
-                      (0 = Not at all, 5 = Extremely).
+                      Panelists rated emotional intensity triggered by sample consumption on a 1–5 scale
+                      (1 = Not at all, 5 = Extremely).
                     </div>
                   </div>
                 </div>

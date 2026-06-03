@@ -98,7 +98,7 @@ export function AdminConfig() {
   // ── Sample handlers ───────────────────────────────────────────────────────────
 
   const handleAddSample = () =>
-    setSamples(prev => [...prev, { id: String(prev.length + 1), code: '', label: '' }]);
+    setSamples(prev => prev.length >= 8 ? prev : [...prev, { id: String(prev.length + 1), code: '', label: '' }]);
 
   const handleRemoveSample = (index: number) => {
     if (samples.length <= 1) return;
@@ -621,7 +621,7 @@ export function AdminConfig() {
                   <span className="text-sm font-medium text-slate-800">{p.name}</span>
                   {editingPanelistId === p.id ? (
                     <div className="flex gap-1">
-                      <Input value={panelistIdInput} onChange={e => setPanelistIdInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSavePanelistId(p.id)} className="h-6 text-xs w-24" autoFocus />
+                      <Input value={panelistIdInput} onChange={e => setPanelistIdInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSavePanelistId(p.id)} className="h-6 text-xs w-24" maxLength={20} autoFocus />
                       <Button size="sm" className="h-6 text-xs px-2 bg-emerald-600 hover:bg-emerald-700" onClick={() => handleSavePanelistId(p.id)}>Save</Button>
                       <Button size="sm" variant="ghost" className="h-6 text-xs px-1" onClick={() => setEditingPanelistId(null)}>×</Button>
                     </div>

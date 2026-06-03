@@ -416,7 +416,7 @@ export function MultiSampleQuestionnaire() {
           <CardHeader>
             <CardTitle>2. Intensity Ratings</CardTitle>
             <p className="text-sm text-slate-600">
-              Rate the intensity of each attribute. Hover over the attribute name for guidance.
+              Rate the intensity of each attribute on a scale from 1 (not present) to 5 (extremely intense).
             </p>
           </CardHeader>
           <CardContent>
@@ -431,22 +431,23 @@ export function MultiSampleQuestionnaire() {
                       />
                     </Label>
                     <span className="text-sm font-bold text-purple-600">
-                      {intensityRatings[attr] || 0}
+                      {intensityRatings[attr] ?? 1}
                     </span>
                   </div>
                   <input
                     type="range"
-                    min="0"
-                    max="10"
+                    min="1"
+                    max="5"
                     step="1"
-                    value={intensityRatings[attr] || 0}
+                    value={intensityRatings[attr] ?? 1}
                     onChange={(e) => handleIntensityChange(attr, parseInt(e.target.value))}
-                    style={sliderFill(intensityRatings[attr] || 0, 0, 10, '#9333ea')}
+                    style={sliderFill(intensityRatings[attr] ?? 1, 1, 5, '#9333ea')}
                     className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-purple-600"
                   />
                   <div className="flex justify-between text-xs text-slate-500">
-                    <span>Not present (0)</span>
-                    <span>Extremely intense (10)</span>
+                    <span>1 — Not present</span>
+                    <span>3 — Moderate</span>
+                    <span>5 — Extremely intense</span>
                   </div>
                 </div>
               ))}
@@ -459,7 +460,7 @@ export function MultiSampleQuestionnaire() {
           <CardHeader>
             <CardTitle>3. Hedonic Scores (Overall Liking)</CardTitle>
             <p className="text-sm text-slate-600">
-              Rate how much you like or dislike each aspect. Hover for more information.
+              Rate how much you like or dislike each aspect on a 9-point scale (1 = Dislike extremely, 9 = Like extremely).
             </p>
           </CardHeader>
           <CardContent>
@@ -473,15 +474,15 @@ export function MultiSampleQuestionnaire() {
                         definition={HEDONIC_DEFINITIONS[aspect] || 'Rate your liking'}
                       />
                     </Label>
-                    <span className="text-sm font-bold text-blue-600">{value}</span>
+                    <span className="text-sm font-bold text-blue-600">{value} / 9</span>
                   </div>
                   <input
                     type="range"
                     min="1"
                     max="9"
-                    step="0.5"
+                    step="1"
                     value={value}
-                    onChange={(e) => setHedonicScores(prev => ({ ...prev, [aspect]: parseFloat(e.target.value) }))}
+                    onChange={(e) => setHedonicScores(prev => ({ ...prev, [aspect]: parseInt(e.target.value) }))}
                     style={sliderFill(value, 1, 9, '#2563eb')}
                     className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-600"
                   />
