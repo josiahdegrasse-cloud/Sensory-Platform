@@ -34,7 +34,7 @@ export function PanelistDashboard() {
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Welcome Header */}
       <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-xl border-2 border-blue-200">
-        <h1 className="text-3xl font-bold text-slate-900">Welcome, {user?.name}!</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Welcome, {user?.name}!</h1>
         <p className="text-slate-600 mt-2">Panelist ID: <span className="font-bold text-blue-600">{user?.panelistId}</span></p>
         <p className="text-sm text-slate-600 mt-1">Complete questionnaires for active product evaluations below.</p>
       </div>
@@ -53,17 +53,19 @@ export function PanelistDashboard() {
       )}
 
       {/* Statistics */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="text-3xl font-bold text-blue-600">{availableProducts.length}</div>
-            <div className="text-sm text-slate-600 mt-1">Food Evaluations</div>
+            <div className="text-sm text-slate-600 mt-1">Food Evaluations Pending</div>
+            <div className="text-xs text-slate-400 mt-0.5">of {products.length} assigned</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-3xl font-bold text-orange-500">{availableConceptTests.length}</div>
-            <div className="text-sm text-slate-600 mt-1">Marketing Tests</div>
+            <div className="text-sm text-slate-600 mt-1">Marketing Tests Pending</div>
+            <div className="text-xs text-slate-400 mt-0.5">of {conceptTests.length} assigned</div>
           </CardContent>
         </Card>
         <Card>
@@ -72,12 +74,7 @@ export function PanelistDashboard() {
               {completedProductIds.length + completedConceptIds.length}
             </div>
             <div className="text-sm text-slate-600 mt-1">Completed</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-3xl font-bold text-purple-600">{products.length + conceptTests.length}</div>
-            <div className="text-sm text-slate-600 mt-1">Total Assigned</div>
+            <div className="text-xs text-slate-400 mt-0.5">of {products.length + conceptTests.length} total</div>
           </CardContent>
         </Card>
       </div>
@@ -126,7 +123,7 @@ export function PanelistDashboard() {
                             </Badge>
                           </div>
                           <div className="text-sm text-slate-700 space-y-1">
-                            <p className="font-medium">📊 {product.samples.length} Samples to Evaluate</p>
+                            <p className="font-medium flex items-center gap-1.5"><Layers className="size-3.5" />{product.samples.length} Samples to Evaluate</p>
                             <p className="text-xs text-slate-600">+ Discrimination Test + Preference Ranking</p>
                             <p className="text-xs text-slate-500">Est. {15 + (product.samples.length - 3) * 5}-{20 + (product.samples.length - 3) * 5} minutes</p>
                           </div>
@@ -272,7 +269,7 @@ export function PanelistDashboard() {
 
                         {response && (
                           <p className="text-xs text-slate-500 mt-2">
-                            ✓ Completed {new Date(response.timestamp).toLocaleDateString()} at {new Date(response.timestamp).toLocaleTimeString()}
+                            <CheckCircle2 className="size-3.5 inline mr-1 text-emerald-600" />Completed {new Date(response.timestamp).toLocaleDateString()} at {new Date(response.timestamp).toLocaleTimeString()}
                           </p>
                         )}
                       </div>
@@ -281,9 +278,9 @@ export function PanelistDashboard() {
                   <CardContent>
                     {!product.isMultiSample ? (
                       <div className="space-y-3">
-                        <p className="text-sm text-slate-700">
-                          Thank you for your evaluation! You can edit your response if needed.
-                        </p>
+                        <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                          <p className="text-xs text-amber-800">Editing will update your submitted response. Changes are logged with a new timestamp.</p>
+                        </div>
                         <Link to={`/questionnaire/${product.id}`}>
                           <Button variant="outline" className="w-full border-emerald-600 text-emerald-700 hover:bg-emerald-50">
                             <Edit2 className="size-4 mr-2" />
@@ -294,7 +291,7 @@ export function PanelistDashboard() {
                     ) : (
                       <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
                         <p className="text-sm text-purple-900 font-medium">
-                          ✓ Multi-sample evaluation completed
+                          <CheckCircle2 className="size-4 inline mr-1" />Multi-sample evaluation completed
                         </p>
                         <p className="text-xs text-purple-700 mt-1">
                           Multi-sample evaluations cannot be edited after submission to preserve data integrity
@@ -337,7 +334,7 @@ export function PanelistDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
-                    <p className="text-sm text-orange-900 font-medium">✓ Marketing evaluation completed</p>
+                    <p className="text-sm text-orange-900 font-medium flex items-center gap-1.5"><CheckCircle2 className="size-4" />Marketing evaluation completed</p>
                     <p className="text-xs text-orange-700 mt-1">Thank you for your feedback on this concept.</p>
                   </div>
                 </CardContent>

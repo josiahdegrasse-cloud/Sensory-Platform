@@ -424,11 +424,11 @@ export function ConvergenceDashboard() {
                         <td className="py-3 px-4 text-center">
                           {attr.screeningAlignment >= 0.85 ? (
                             <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-300 font-semibold">
-                              ✓ Pass
+                              Pass
                             </Badge>
                           ) : (
                             <Badge className="bg-rose-500/10 text-rose-700 border-rose-300 font-semibold">
-                              ✗ Trigger Escalation
+                              Trigger Escalation
                             </Badge>
                           )}
                         </td>
@@ -464,11 +464,11 @@ export function ConvergenceDashboard() {
                         <td className="py-3 px-4 text-center">
                           {attr.screeningAlignment >= 0.85 ? (
                             <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-300 font-semibold">
-                              ✓ Good
+                              Good
                             </Badge>
                           ) : attr.screeningAlignment >= 0.70 ? (
                             <Badge className="bg-amber-500/10 text-amber-700 border-amber-300 font-semibold">
-                              ⚠ Moderate
+                              Moderate
                             </Badge>
                           ) : (
                             <Badge className="bg-rose-500/10 text-rose-700 border-rose-300 font-semibold">
@@ -634,10 +634,10 @@ export function ConvergenceDashboard() {
                 }`}>
                   <div className="text-sm font-semibold mb-2">
                     {selectedAttribute.escalationTrigger ? (
-                      selectedAttribute.screeningAlignment >= 0.85 ? '✓ Escalation Not Required' : '✗ Escalation Triggered'
+                      selectedAttribute.screeningAlignment >= 0.85 ? 'Escalation Not Required' : 'Escalation Triggered'
                     ) : (
-                      selectedAttribute.screeningAlignment >= 0.85 ? '✓ Strong Alignment' :
-                      selectedAttribute.screeningAlignment >= 0.70 ? '⚠ Moderate Alignment' : '✗ Weak Alignment'
+                      selectedAttribute.screeningAlignment >= 0.85 ? 'Strong Alignment' :
+                      selectedAttribute.screeningAlignment >= 0.70 ? 'Moderate Alignment' : 'Weak Alignment'
                     )}
                   </div>
                   <div className="text-xs text-slate-700">

@@ -40,7 +40,7 @@ export function ValidationDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-slate-900">Validation & Performance</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Validation & Performance</h1>
         <p className="text-slate-600 mt-2">127 prototypes tested with both ISSF and Trained Panel (Jan 2024 - Mar 2026)</p>
       </div>
 
@@ -88,7 +88,7 @@ export function ValidationDashboard() {
 
         <Card>
           <CardContent className="pt-6">
-            <div className="text-3xl font-bold text-slate-900">{METHOD_COMPARISON.rmse.toFixed(1)}</div>
+            <div className="text-2xl font-semibold text-slate-900">{METHOD_COMPARISON.rmse.toFixed(1)}</div>
             <div className="text-sm text-slate-600 mt-1">RMSE</div>
             <div className="text-xs text-slate-500 mt-1">±{METHOD_COMPARISON.mae.toFixed(1)} MAE</div>
           </CardContent>
@@ -143,8 +143,8 @@ export function ValidationDashboard() {
                         <p className="text-sm text-slate-700">Trained: {data.trained.toFixed(1)}</p>
                         <p className="text-sm text-slate-700">
                           {data.agreement ? 
-                            <span className="text-emerald-600">✓ Agreement</span> : 
-                            <span className="text-rose-600">✗ Disagreement</span>
+                            <span className="text-emerald-600"><CheckCircle2 className="size-3 inline mr-0.5" />Agreement</span> :
+                            <span className="text-rose-600"><XCircle className="size-3 inline mr-0.5" />Disagreement</span>
                           }
                         </p>
                       </div>

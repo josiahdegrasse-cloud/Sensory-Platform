@@ -298,7 +298,7 @@ export function Stage4Enhanced() {
     
     if (sample.trainedPanelReference) {
       const delta = Math.abs(finalIssfScore - sample.trainedPanelReference.overallQuality);
-      details.push(`✓ Validated: Trained panel = ${sample.trainedPanelReference.overallQuality} (Δ = ${delta.toFixed(1)})`);
+      details.push(`Validated: Trained panel = ${sample.trainedPanelReference.overallQuality} (Δ = ${delta.toFixed(1)})`);
     }
     
     // GC-O off-notes
@@ -309,17 +309,17 @@ export function Stage4Enhanced() {
           compound.odour.toLowerCase().includes("cardboard") ||
           compound.odour.toLowerCase().includes("fermented")
         )) {
-          details.push(`⚠ ${compound.compound}: ${compound.concentration?.toFixed(1) || 'detected'} ppm (odour intensity: ${compound.odourIntensity.toFixed(1)}/5) - ${compound.odour}`);
+          details.push(`Off-note — ${compound.compound}: ${compound.concentration?.toFixed(1) || 'detected'} ppm (intensity: ${compound.odourIntensity.toFixed(1)}/5) - ${compound.odour}`);
         }
       });
     }
     
     // Key positive attributes
     if (sample.cata["Butter"] && sample.cata["Butter"] >= 9) {
-      details.push(`✓ High buttery note: ${sample.cata["Butter"]}/14 panelists`);
+      details.push(`High buttery note: ${sample.cata["Butter"]}/14 panelists`);
     }
     if (sample.intensity.smooth >= 7.5) {
-      details.push(`✓ Excellent smoothness: ${sample.intensity.smooth.toFixed(1)}/10`);
+      details.push(`Excellent smoothness: ${sample.intensity.smooth.toFixed(1)}/10`);
     }
     
     return {
@@ -400,8 +400,8 @@ export function Stage4Enhanced() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Decision Support: GO / TWEAK / STOP</h1>
-          <p className="text-slate-600 mt-2">
+          <h1 className="text-2xl font-semibold text-slate-900">Final Decision</h1>
+          <p className="text-sm text-slate-500 mt-1">
             Validated against {METHOD_COMPARISON.pearsonR.toFixed(2)} correlation with trained panel (n=127)
           </p>
         </div>
@@ -601,6 +601,8 @@ export function Stage4Enhanced() {
                 data={scatterData}
                 dataKey="issf"
                 isAnimationActive={false}
+                style={{ cursor: 'pointer' }}
+                onClick={(data: any) => { if (data?.sampleId) setSelectedSample(data.sampleId); }}
                 shape={(props: any) => {
                   const { cx, cy, payload } = props;
                   const isSelected = payload.sampleId === selectedSample;
@@ -812,7 +814,7 @@ export function Stage4Enhanced() {
                     <div className="mt-4 p-3 bg-slate-50 rounded-lg">
                       <p className="text-sm text-slate-700">
                         <strong>Agreement:</strong> {selected.decision === selectedSensory.trainedPanelReference.recommendation ? 
-                          <span className="text-emerald-600">✓ Both methods recommend: {selected.decision}</span> :
+                          <span className="text-emerald-600"><CheckCircle2 className="size-3.5 inline mr-1" />Both methods agree: {selected.decision}</span> :
                           <span className="text-amber-600">△ ISSF: {selected.decision} | Trained: {selectedSensory.trainedPanelReference.recommendation}</span>
                         }
                       </p>

@@ -298,7 +298,7 @@ export function AdminConfig() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Product Configuration</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Configure Products</h1>
         <p className="text-sm text-slate-500 mt-1">Manage products, questionnaire attributes, and panelists</p>
       </div>
 
@@ -754,9 +754,9 @@ export function AdminConfig() {
                     {samples.filter(s => s.code && s.label).length >= 2 && (
                       <div className="p-3 bg-white rounded-lg border-2 border-purple-300 text-xs text-slate-700 space-y-1">
                         <p className="font-bold text-purple-900 mb-1">Evaluation Flow:</p>
-                        <p>✓ <strong>{samples.filter(s => s.code && s.label).length} samples</strong> evaluated sequentially</p>
-                        <p>✓ Full questionnaire per sample (CATA + Intensity + Hedonic + Emotions)</p>
-                        <p>✓ Discrimination test + Preference ranking</p>
+                        <p><strong>{samples.filter(s => s.code && s.label).length} samples</strong> evaluated sequentially</p>
+                        <p>Full questionnaire per sample (CATA + Intensity + Hedonic + Emotions)</p>
+                        <p>Discrimination test + Preference ranking</p>
                       </div>
                     )}
                   </div>

@@ -482,7 +482,7 @@ export function Stage1Instrumental() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Instrumental Testing</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Machine Testing</h1>
           <p className="text-sm text-slate-600 mt-1">
             High-precision sensory analysis using electronic tongue and GC-O equipment
           </p>
@@ -564,7 +564,7 @@ export function Stage1Instrumental() {
       {/* Success banner */}
       {importSuccess && (
         <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between">
-          <span className="text-sm text-emerald-700">✓ {importSuccess}</span>
+          <span className="text-sm text-emerald-700 flex items-center gap-1"><Check className="size-3.5" />{importSuccess}</span>
           <button onClick={() => setImportSuccess(null)} className="text-emerald-400 hover:text-emerald-700">
             <X className="size-4" />
           </button>

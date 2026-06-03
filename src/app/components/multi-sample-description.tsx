@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/auth-context';
 import { type Product } from '../data/mock-users';
 import { fetchProduct } from '../lib/database';
 import { useState, useEffect } from 'react';
-import { AlertCircle, CheckCircle2, Clock, Layers, Target, Trophy } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, Layers, Target, Trophy, Lock } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
 
@@ -77,7 +77,7 @@ export function MultiSampleDescription() {
             Each sample is identified by a unique 3-digit code.
           </p>
           <div className="p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
-            <p className="text-sm text-blue-900 font-medium mb-3">🔒 Blind Evaluation</p>
+            <p className="text-sm text-blue-900 font-medium mb-3 flex items-center gap-1.5"><Lock className="size-3.5" />Blind Evaluation</p>
             <p className="text-sm text-slate-700">
               Sample identities are concealed to ensure unbiased evaluation. You will only see sample codes during the test.
             </p>

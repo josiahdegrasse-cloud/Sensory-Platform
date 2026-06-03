@@ -321,7 +321,7 @@ export function MultiSampleQuestionnaire() {
             </div>
 
             <div className="p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
-              <p className="text-sm text-blue-900 font-medium mb-2">🔒 Blind Evaluation Protocol</p>
+              <p className="text-sm text-blue-900 font-medium mb-2 flex items-center gap-1.5"><AlertCircle className="size-3.5" />Blind Evaluation Protocol</p>
               <p className="text-sm text-slate-700">
                 Sample identities are concealed to ensure unbiased evaluation. You will only see 3-digit codes during this test. Do not discuss or attempt to identify samples.
               </p>
@@ -604,7 +604,7 @@ export function MultiSampleQuestionnaire() {
               <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl font-bold border-4 ${
                 cleanseCountdown > 0 ? 'border-blue-400 text-blue-700 bg-blue-100' : 'border-emerald-400 text-emerald-700 bg-emerald-100'
               }`}>
-                {cleanseCountdown > 0 ? cleanseCountdown : '✓'}
+                {cleanseCountdown > 0 ? cleanseCountdown : <CheckCircle2 className="size-10" />}
               </div>
             </div>
             <Button
@@ -757,7 +757,7 @@ export function MultiSampleQuestionnaire() {
               {ranking.length === samples.length && (
                 <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
                   <p className="text-sm font-bold text-emerald-900">
-                    ✓ Your ranking: {ranking.map((code, i) => `${code}${i === 0 ? ' (Best)' : i === ranking.length - 1 ? ' (Worst)' : ''}`).join(' → ')}
+                    <CheckCircle2 className="size-4 inline mr-1.5 text-emerald-600" />Your ranking: {ranking.map((code, i) => `${code}${i === 0 ? ' (Best)' : i === ranking.length - 1 ? ' (Worst)' : ''}`).join(' → ')}
                   </p>
                 </div>
               )}

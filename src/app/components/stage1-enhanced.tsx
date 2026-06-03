@@ -64,7 +64,7 @@ export function Stage1Enhanced() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-slate-900">Stage 1: Instrumental Analysis</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Stage 1: Instrumental Analysis</h1>
         <p className="text-slate-600 mt-2">Insent TS-5000Z E-Tongue | Agilent 7200 Q-TOF GC-MS + PHASER Olfactometer | ISO Chemical Analysis</p>
         <p className="text-xs text-slate-500 mt-1">Sample prep: {SAMPLE_PREP_PROTOCOL.cheese} cheese + {SAMPLE_PREP_PROTOCOL.saline} + {SAMPLE_PREP_PROTOCOL.internalStandard} citronellal ISTD | {SAMPLE_PREP_PROTOCOL.spme} | {SAMPLE_PREP_PROTOCOL.incubation} / {SAMPLE_PREP_PROTOCOL.extraction}</p>
       </div>
@@ -72,25 +72,40 @@ export function Stage1Enhanced() {
       {/* PCA Taste Space */}
       <Card>
         <CardHeader>
-          <CardTitle>PCA Taste Space (9-Dimensional E-Tongue)</CardTitle>
+          <CardTitle>Taste Space Similarity</CardTitle>
+          <p className="text-sm text-slate-500 mt-0.5">Samples that cluster together taste more alike. Closer to dairy reference = stronger match.</p>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={400} key="pca-chart-container">
-            <ScatterChart 
-              margin={{ top: 20, right: 30, bottom: 20, left: 20 }}
+            <ScatterChart
+              margin={{ top: 20, right: 30, bottom: 40, left: 60 }}
               id="pca-scatter-chart"
             >
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" dataKey="pc1" name="PC1" domain={[-2, 2]} />
-              <YAxis type="number" dataKey="pc2" name="PC2" domain={[-2, 2]} />
-              <Tooltip 
+              <XAxis
+                type="number"
+                dataKey="pc1"
+                name="Savory-Salty Dimension"
+                domain={[-2, 2]}
+                tick={{ fill: '#475569', fontSize: 12 }}
+                label={{ value: 'Savory-Salty Dimension', position: 'insideBottom', offset: -10, style: { fill: '#475569', fontSize: 12, fontWeight: 500 } }}
+              />
+              <YAxis
+                type="number"
+                dataKey="pc2"
+                name="Bitter-Sour Dimension"
+                domain={[-2, 2]}
+                tick={{ fill: '#475569', fontSize: 12 }}
+                label={{ value: 'Bitter-Sour Dimension', angle: -90, position: 'insideLeft', offset: 15, style: { fill: '#475569', fontSize: 12, fontWeight: 500 } }}
+              />
+              <Tooltip
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
                     const data = payload[0].payload;
                     return (
                       <div className="bg-white p-3 shadow-xl rounded-lg border border-slate-200">
                         <p className="font-bold text-slate-900">{data.name}</p>
-                        <p className="text-xs text-slate-500">PC1: {data.pc1} | PC2: {data.pc2}</p>
+                        <p className="text-xs text-slate-500">Savory-Salty: {data.pc1} | Bitter-Sour: {data.pc2}</p>
                         <p className="text-xs text-slate-600">{data.category}</p>
                       </div>
                     );
@@ -342,7 +357,7 @@ export function Stage1Enhanced() {
                                 </div>
                               )}
                               {isDefect && (
-                                <Badge className="mt-2 bg-rose-600 text-white text-xs">⚠ DEFECT (odour intensity ≥3)</Badge>
+                                <Badge className="mt-2 bg-rose-600 text-white text-xs"><AlertTriangle className="size-3 inline mr-1" />DEFECT (odour intensity ≥3)</Badge>
                               )}
                             </div>
                           );

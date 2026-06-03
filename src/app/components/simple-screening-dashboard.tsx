@@ -173,7 +173,7 @@ export function SimpleScreeningDashboard() {
                   ? 'bg-emerald-100 text-emerald-800 border-emerald-300 text-base px-4 py-2'
                   : 'bg-rose-100 text-rose-800 border-rose-300 text-base px-4 py-2'
               }>
-                {taskSummary.intensityScaling.status === 'PASS' ? '✓ Good' : '✗ Problem'}
+                {taskSummary.intensityScaling.status === 'PASS' ? 'Pass' : 'Problem'}
               </Badge>
             </div>
 
@@ -196,7 +196,7 @@ export function SimpleScreeningDashboard() {
                   ? 'bg-emerald-100 text-emerald-800 border-emerald-300 text-base px-4 py-2'
                   : 'bg-rose-100 text-rose-800 border-rose-300 text-base px-4 py-2'
               }>
-                {taskSummary.rankOrdering.status === 'PASS' ? '✓ Good' : '✗ Problem'}
+                {taskSummary.rankOrdering.status === 'PASS' ? 'Pass' : 'Problem'}
               </Badge>
             </div>
 
@@ -223,7 +223,7 @@ export function SimpleScreeningDashboard() {
                   ? 'bg-emerald-100 text-emerald-800 border-emerald-300 text-base px-4 py-2'
                   : 'bg-rose-100 text-rose-800 border-rose-300 text-base px-4 py-2'
               }>
-                {taskSummary.offNoteDetection.status === 'PASS' ? '✓ Good' : '✗ PROBLEM'}
+                {taskSummary.offNoteDetection.status === 'PASS' ? 'Pass' : 'PROBLEM'}
               </Badge>
             </div>
 
@@ -246,7 +246,7 @@ export function SimpleScreeningDashboard() {
                   ? 'bg-emerald-100 text-emerald-800 border-emerald-300 text-base px-4 py-2'
                   : 'bg-rose-100 text-rose-800 border-rose-300 text-base px-4 py-2'
               }>
-                {taskSummary.textureProxy.status === 'PASS' ? '✓ Good' : '✗ Problem'}
+                {taskSummary.textureProxy.status === 'PASS' ? 'Pass' : 'Problem'}
               </Badge>
             </div>
           </div>

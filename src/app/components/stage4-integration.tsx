@@ -58,10 +58,10 @@ const MOCK_DATA: IntegrationAnalysis[] = [
     cost: 35000,
     timeline: "8 weeks",
     details: [
-      "⚠ Butyric acid 12.4 ppm (threshold 8.0) - 'rancid' detected 9/14 (r=0.89)",
-      "⚠ Hexanal 6.8 ppm - 'cardboard' detected 7/14 (r=0.78)",
-      "⚠ High negative emotions: Disgusted (3.9), Worried (3.5)",
-      "✗ Low hedonic (2.8/9) - requires expert analysis",
+      "Off-note: Butyric acid 12.4 ppm (threshold 8.0) - 'rancid' detected 9/14 (r=0.89)",
+      "Off-note: Hexanal 6.8 ppm - 'cardboard' detected 7/14 (r=0.78)",
+      "High negative emotions: Disgusted (3.9), Worried (3.5)",
+      "Low hedonic (2.8/9) - requires expert analysis",
     ],
     instrumentalPanel: [
       { etongue: "Butyric acid 12.4ppm", panelCata: "Rancid 9/14", correlation: 0.89 },
@@ -105,7 +105,7 @@ const MOCK_DATA: IntegrationAnalysis[] = [
     cost: 2000,
     timeline: "1 week + monitor",
     details: [
-      "⚠ Acetaldehyde 8.1 ppm (threshold 3.5)",
+      "Off-note: Acetaldehyde 8.1 ppm (threshold 3.5)",
       "Vocabulary gap: panelists mention 'yogurt-like' in comments",
       "Action: Add 'fermented' to CATA next cycle",
     ],
@@ -190,7 +190,7 @@ export function Stage4Integration() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-slate-900">Stage 4: Integration & Decision</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Stage 4: Integration & Decision</h1>
         <div className="flex gap-2">
           <Button onClick={() => setShowQualitative(!showQualitative)} variant="outline" size="sm">
             {showQualitative ? <EyeOff className="size-4 mr-2" /> : <Eye className="size-4 mr-2" />}
@@ -474,7 +474,7 @@ export function Stage4Integration() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold text-slate-900">${selected.cost.toLocaleString()}</div>
+                    <div className="text-2xl font-semibold text-slate-900">${selected.cost.toLocaleString()}</div>
                     <div className="text-sm text-slate-600 mt-1">
                       vs. $35,000 full panel
                     </div>
@@ -496,7 +496,7 @@ export function Stage4Integration() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold text-slate-900">{selected.timeline}</div>
+                    <div className="text-2xl font-semibold text-slate-900">{selected.timeline}</div>
                     <div className="text-sm text-slate-600 mt-1">
                       vs. 8 weeks full panel
                     </div>

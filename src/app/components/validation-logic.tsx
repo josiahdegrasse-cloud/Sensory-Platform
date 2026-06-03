@@ -246,11 +246,11 @@ export function ValidationLogic() {
                           <span className="text-slate-700 font-medium">Substitution Status:</span>
                           {status === 'sufficient' ? (
                             <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-300 font-bold">
-                              ✓ ISSF Sufficient
+                              ISSF Sufficient
                             </Badge>
                           ) : status === 'targeted' ? (
                             <Badge className="bg-amber-500/10 text-amber-700 border-amber-300 font-bold">
-                              ⚠ Targeted Improvement
+                              Targeted Improvement
                             </Badge>
                           ) : (
                             <Badge className="bg-blue-500/10 text-blue-700 border-blue-300 font-bold">

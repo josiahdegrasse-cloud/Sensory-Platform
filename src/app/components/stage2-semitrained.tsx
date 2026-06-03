@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { Save, ArrowLeft, Info, TrendingUp } from "lucide-react";
+import { Save, ArrowLeft, Info, TrendingUp, BarChart3 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { SAMPLES, CATA_ATTRIBUTES, ATTRIBUTE_LEXICON, ESSENSE_EMOTIONS, SAMPLE_PREP_PROTOCOL } from "../data/samples";
 import { ENHANCED_SENSORY_DATA } from "../data/enhanced-sensory";
@@ -171,7 +171,7 @@ export function Stage2SemiTrained() {
   if (!onboardingComplete) {
     return (
       <div className="max-w-2xl mx-auto space-y-6">
-        <h1 className="text-3xl font-bold text-slate-900">Panelist Information</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Panelist Information</h1>
         
         <Card>
           <CardHeader>
@@ -273,7 +273,7 @@ export function Stage2SemiTrained() {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-slate-900">Comprehensive Panel Analysis</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Comprehensive Panel Analysis</h1>
           <div className="flex gap-2">
             <Button onClick={() => setShowRawData(!showRawData)} variant="outline">
               {showRawData ? "Hide" : "Show"} Raw Data
@@ -584,7 +584,7 @@ export function Stage2SemiTrained() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-slate-900">Stage 2: Panel Questionnaire</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Stage 2: Panel Questionnaire</h1>
         <Button onClick={() => setShowSummary(true)} variant="outline">
           View Analysis ({status.completed}/{status.total})
         </Button>
@@ -629,7 +629,7 @@ export function Stage2SemiTrained() {
             </div>
             {testGroup === "informed" && (
               <div className="text-sm text-slate-700">
-                📊 Briefed with E-tongue data for this sample
+                <BarChart3 className="size-3.5 inline mr-1 text-slate-500" />Briefed with E-tongue data for this sample
               </div>
             )}
           </div>
