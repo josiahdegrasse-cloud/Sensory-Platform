@@ -13,7 +13,6 @@ import {
   useInsertProduct, useUpdateProduct, useInsertTemplate, useDeleteTemplate,
   useUpdatePanelistId, useAllResponses,
 } from '../lib/hooks';
-// Note: usePanelistReliability is no longer used directly here — handled by PanelistPerformancePanel
 import {
   Plus, Settings, Trash2, Save, CheckCircle2, FolderOpen, Layers,
   ClipboardList, Users, AlertCircle, Search, Activity, FlaskConical,
@@ -28,7 +27,6 @@ export function AdminConfig() {
   const { user } = useAuth();
   const { data: products = [] } = useProducts();
   const { data: panelists = [] } = usePanelists();
-  const { data: reliability = [] } = usePanelistReliability();
   const { data: templates = [] } = useTemplates();
   const { data: allResponses = [] } = useAllResponses();
 
