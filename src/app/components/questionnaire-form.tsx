@@ -39,14 +39,12 @@ export function QuestionnaireForm() {
 
   const [product, setProduct] = useState<Product | null>(null);
   const [productLoading, setProductLoading] = useState(true);
-  const [productError, setProductError] = useState<string | null>(null);
   const [showIntro, setShowIntro] = useState(true);
   const [currentStep, setCurrentStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
   const [alreadyCompleted, setAlreadyCompleted] = useState(false);
   const [existingResponseDate, setExistingResponseDate] = useState<string | null>(null);
   const [showDraftBanner, setShowDraftBanner] = useState(false);
-  const [draftCorrupted, setDraftCorrupted] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState<FormData>({
@@ -75,15 +73,8 @@ export function QuestionnaireForm() {
   useEffect(() => {
     if (!productId) return;
     fetchProduct(productId)
-      .then(p => {
-        if (!p) setProductError('Product not found.');
-        else setProduct(p);
-        setProductLoading(false);
-      })
-      .catch((err: unknown) => {
-        setProductError(err instanceof Error ? err.message : 'Failed to load product.');
-        setProductLoading(false);
-      });
+      .then(p => { setProduct(p); setProductLoading(false); })
+      .catch(() => setProductLoading(false));
   }, [productId]);
 
   // Load existing response or draft — DB check runs first; draft restore only fires if no DB response
@@ -105,14 +96,9 @@ export function QuestionnaireForm() {
         const draft = localStorage.getItem(`qs_draft_${user.id}_${productId}`);
         if (draft) {
           try {
-            const parsed = JSON.parse(draft) as FormData;
-            setFormData(parsed);
+            setFormData(JSON.parse(draft) as FormData);
             setShowDraftBanner(true);
-          } catch {
-            localStorage.removeItem(`qs_draft_${user.id}_${productId}`);
-            setDraftCorrupted(true);
-            setShowDraftBanner(true);
-          }
+          } catch { /* ignore invalid JSON */ }
         }
       }
     }).finally(() => {
@@ -200,17 +186,6 @@ export function QuestionnaireForm() {
     return <div className="max-w-4xl mx-auto p-8 text-slate-500">Loading…</div>;
   }
 
-  if (productError) {
-    return (
-      <div className="max-w-4xl mx-auto">
-        <Alert variant="destructive">
-          <AlertCircle className="size-4" />
-          <AlertDescription>{productError}</AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
   if (showIntro && product) {
     return (
       <div className="max-w-4xl mx-auto space-y-6">
@@ -233,12 +208,12 @@ export function QuestionnaireForm() {
               </div>
               <div className="p-4 bg-white rounded-xl border-2 border-blue-200">
                 <div className="font-bold text-blue-900 mb-2">Steps 2 & 3 — Rating Scales</div>
-                <p className="text-sm text-slate-600 mb-3">Both intensity and liking use a <strong>1–9 scale</strong>. Left end is lowest, right end is highest.</p>
+                <p className="text-sm text-slate-600 mb-3">Intensity uses a <strong>1–5 scale</strong>; liking uses a <strong>1–9 scale</strong>. Left end is lowest, right end is highest.</p>
                 <div className="space-y-2">
                   <div>
-                    <div className="text-xs font-medium text-slate-500 mb-1">Intensity example (1–9):</div>
+                    <div className="text-xs font-medium text-slate-500 mb-1">Intensity example (1–5):</div>
                     <div className="flex justify-between text-xs text-slate-600">
-                      <span>1 = Not present</span><span>9 = Extremely intense</span>
+                      <span>1 = Not present</span><span>5 = Extremely intense</span>
                     </div>
                     <div className="w-full bg-blue-200 rounded-full h-2 mt-1"><div className="bg-blue-600 h-2 rounded-full w-3/5" /></div>
                   </div>
@@ -255,7 +230,7 @@ export function QuestionnaireForm() {
                 <div className="font-bold text-amber-900 mb-2">Step 4 — Emotions</div>
                 <p className="text-sm text-slate-600 mb-3">Rate how strongly you feel each emotion <em>right now</em>, after tasting.</p>
                 <div className="flex justify-between text-xs text-slate-600 mb-1">
-                  <span>1 = Not at all</span><span>9 = Very strongly</span>
+                  <span>1 = Not at all</span><span>5 = Very strongly</span>
                 </div>
                 <p className="text-xs text-slate-400 mt-2">Higher = you feel it more strongly. This applies to both positive and negative emotions.</p>
               </div>
@@ -379,26 +354,20 @@ export function QuestionnaireForm() {
       )}
 
       {showDraftBanner && currentStep === 1 && (
-        <Alert className={draftCorrupted ? 'border-red-300 bg-red-50' : 'border-amber-300 bg-amber-50'}>
-          <AlertCircle className={`size-4 ${draftCorrupted ? 'text-red-600' : 'text-amber-600'}`} />
+        <Alert className="border-amber-300 bg-amber-50">
+          <AlertCircle className="size-4 text-amber-600" />
           <AlertDescription className="flex items-center justify-between">
-            <span>
-              {draftCorrupted
-                ? 'Your saved draft was corrupted and could not be restored. Starting fresh.'
-                : 'You have a saved draft for this product. Your answers have been restored.'}
-            </span>
-            {!draftCorrupted && (
-              <button
-                onClick={() => {
-                  localStorage.removeItem(`qs_draft_${user?.id}_${productId}`);
-                  setFormData({ selectedCata: [], intensityRatings: {}, hedonicScores: { overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 }, emotions: {}, comments: '' });
-                  setShowDraftBanner(false);
-                }}
-                className="ml-4 text-xs text-amber-700 underline hover:text-amber-900 whitespace-nowrap"
-              >
-                Clear draft
-              </button>
-            )}
+            <span>You have a saved draft for this product. Your answers have been restored.</span>
+            <button
+              onClick={() => {
+                localStorage.removeItem(`qs_draft_${user?.id}_${productId}`);
+                setFormData({ selectedCata: [], intensityRatings: {}, hedonicScores: { overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 }, emotions: {}, comments: '' });
+                setShowDraftBanner(false);
+              }}
+              className="ml-4 text-xs text-amber-700 underline hover:text-amber-900 whitespace-nowrap"
+            >
+              Clear draft
+            </button>
           </AlertDescription>
         </Alert>
       )}

@@ -7,7 +7,6 @@ import { Label } from './ui/label';
 import { useAuth } from '../contexts/auth-context';
 import { DEFAULT_CATA_ATTRIBUTES, INTENSITY_ATTRIBUTES, ESSENSE25_EMOTIONS, type Product } from '../data/mock-users';
 import { fetchProduct, fetchLatestUserResponse, insertResponse } from '../lib/database';
-import { sanitizeCsvCell, downloadCsv } from '../utils/survey-csv-export';
 import { CATA_DEFINITIONS, INTENSITY_DEFINITIONS, HEDONIC_DEFINITIONS, EMOTION_DEFINITIONS } from '../data/attribute-definitions';
 import { AlertCircle, CheckCircle2, ChevronRight, Download } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
@@ -137,15 +136,7 @@ export function MultiSampleQuestionnaire() {
       emotions
     };
     
-    setSampleResponses(prev => {
-      const idx = prev.findIndex(r => r.sampleId === response.sampleId);
-      if (idx !== -1) {
-        const updated = [...prev];
-        updated[idx] = response;
-        return updated;
-      }
-      return [...prev, response];
-    });
+    setSampleResponses(prev => [...prev, response]);
     
     // Reset form for next sample
     setSelectedCata([]);
@@ -238,24 +229,40 @@ export function MultiSampleQuestionnaire() {
   const exportSessionCSV = () => {
     const headers = ['SampleCode', 'Attribute', 'Value', 'Type'];
     const rows: string[] = [headers.join(',')];
-    const row = (...cells: (string | number)[]) =>
-      rows.push(cells.map(sanitizeCsvCell).join(','));
-
+    
     sampleResponses.forEach(response => {
-      response.cataAttributes.forEach(attr => row(response.sampleCode, attr, 1, 'CATA'));
-      Object.entries(response.intensityRatings).forEach(([attr, value]) =>
-        row(response.sampleCode, attr, value, 'Intensity'));
-      Object.entries(response.hedonicScores).forEach(([attr, value]) =>
-        row(response.sampleCode, `Hedonic_${attr}`, value, 'Hedonic'));
-      Object.entries(response.emotions).forEach(([emotion, value]) =>
-        row(response.sampleCode, emotion, value, 'Emotion'));
+      // CATA attributes
+      response.cataAttributes.forEach(attr => {
+        rows.push(`${response.sampleCode},${attr},1,CATA`);
+      });
+      
+      // Intensity ratings
+      Object.entries(response.intensityRatings).forEach(([attr, value]) => {
+        rows.push(`${response.sampleCode},${attr},${value},Intensity`);
+      });
+      
+      // Hedonic scores
+      Object.entries(response.hedonicScores).forEach(([attr, value]) => {
+        rows.push(`${response.sampleCode},Hedonic_${attr},${value},Hedonic`);
+      });
+      
+      // Emotions
+      Object.entries(response.emotions).forEach(([emotion, value]) => {
+        rows.push(`${response.sampleCode},${emotion},${value},Emotion`);
+      });
     });
-
-    row('All', 'Discrimination', differentSample, 'Meta');
-    row('All', 'Ranking', ranking.join(' > '), 'Meta');
-
-    const filename = `session-${user?.panelistId}-${productId}-${new Date().toISOString().split('T')[0]}.csv`;
-    downloadCsv(rows.join('\n'), filename);
+    
+    // Add discrimination and ranking
+    rows.push(`All,Discrimination,${differentSample},Meta`);
+    rows.push(`All,Ranking,"${ranking.join(' > ')}",Meta`);
+    
+    const csvContent = rows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `session-${user?.panelistId}-${productId}-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
   };
 
   if (!product) {
@@ -416,7 +423,7 @@ export function MultiSampleQuestionnaire() {
           <CardHeader>
             <CardTitle>2. Intensity Ratings</CardTitle>
             <p className="text-sm text-slate-600">
-              Rate the intensity of each attribute on a scale from 1 (not present) to 9 (extremely intense).
+              Rate the intensity of each attribute on a scale from 1 (not present) to 5 (extremely intense).
             </p>
           </CardHeader>
           <CardContent>
