@@ -13,8 +13,7 @@ import {
 import { ENHANCED_SENSORY_DATA } from "../data/enhanced-sensory";
 import { ESSENSE25_EMOTIONS, type QuestionnaireResponse } from "../data/mock-users";
 import { getSampleColor, SAMPLE_TYPE_LEGEND } from "../utils/sample-colors";
-import { fetchProducts } from "../lib/database";
-import { useAllResponses } from "../lib/hooks";
+import { useAllResponses, useProducts } from "../lib/hooks";
 import {
   Users, Heart, Smile, Frown, CheckSquare,
   TrendingUp, AlertCircle, Eye, EyeOff, Download, Layers, Target, Trophy, MessageCircle
@@ -42,8 +41,8 @@ function sanitizeCsvCell(value: string | number): string {
 export function SurveyAnalysis() {
   const { user } = useAuth();
   const { data: allResponsesData } = useAllResponses();
+  const { data: allProducts = [] } = useProducts();
 
-  if (user?.role !== 'admin') return null;
   const [selectedSample, setSelectedSample] = useState<string>("S1");
   const [showAllSamples, setShowAllSamples] = useState(false);
   const [foodTypeFilter, setFoodTypeFilter] = useState<string>("all");
@@ -167,6 +166,9 @@ export function SurveyAnalysis() {
     });
     setCommentsByProduct(commentsMap);
   }, [allResponsesData]);
+
+  // All hooks called — safe to guard here
+  if (user?.role !== 'admin') return null;
 
   // Derive unique base types from sample names
   const foodTypes = ["all", ...Array.from(new Set(
@@ -356,11 +358,7 @@ export function SurveyAnalysis() {
     a.click();
   };
 
-  // Get multi-sample products
-  const [multiSampleProducts, setMultiSampleProducts] = useState<import('../data/mock-users').Product[]>([]);
-  useEffect(() => {
-    fetchProducts().then(all => setMultiSampleProducts(all.filter(p => p.isMultiSample))).catch(console.error);
-  }, []);
+  const multiSampleProducts = allProducts.filter(p => p.isMultiSample);
 
   return (
     <div className="space-y-6">
