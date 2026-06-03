@@ -6,10 +6,11 @@ import {
   fetchConceptTestsForPanelist, fetchUserConceptResponses,
   fetchConceptTest,
   insertProduct, updateProduct,
-  insertTemplate, deleteTemplate, updatePanelistId,
+  insertTemplate, deleteTemplate, updatePanelistId, updatePanelistTrainingLevel,
   insertConceptTest, insertConceptResponse,
   type Template, type ConceptTest,
 } from './database'
+import type { TrainingLevel } from '../utils/panelist-metrics'
 import type { Product } from '../data/mock-users'
 
 export const queryKeys = {
@@ -126,6 +127,15 @@ export function useUpdatePanelistId() {
   return useMutation({
     mutationFn: ({ userId, panelistId }: { userId: string; panelistId: string }) =>
       updatePanelistId(userId, panelistId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.panelists }),
+  })
+}
+
+export function useUpdatePanelistTrainingLevel() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ userId, level }: { userId: string; level: TrainingLevel }) =>
+      updatePanelistTrainingLevel(userId, level),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.panelists }),
   })
 }

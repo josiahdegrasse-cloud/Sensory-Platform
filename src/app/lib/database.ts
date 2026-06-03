@@ -4,6 +4,11 @@
 -- DROP INDEX IF EXISTS responses_user_id_product_id_key;
 -- CREATE UNIQUE INDEX responses_user_product_run ON responses(user_id, product_id, run_number);
 
+-- Panel intelligence columns (Priority 2 & 4):
+-- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS training_level text NOT NULL DEFAULT 'screened';
+-- ALTER TABLE products ADD COLUMN IF NOT EXISTS is_calibration boolean NOT NULL DEFAULT false;
+-- ALTER TABLE products ADD COLUMN IF NOT EXISTS reference_scores jsonb DEFAULT NULL;
+
 -- Concept testing tables:
 -- CREATE TABLE concept_tests (
 --   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -31,7 +36,8 @@
 */
 
 import { supabase } from './supabase';
-import type { Product, QuestionnaireResponse } from '../data/mock-users';
+import type { Product, QuestionnaireResponse, HedonicReferenceScores } from '../data/mock-users';
+import type { TrainingLevel } from '../utils/panelist-metrics';
 
 // ─── Mapping helpers ──────────────────────────────────────────────────────────
 
@@ -45,6 +51,8 @@ function toProduct(row: Record<string, unknown>): Product {
     customAttributes: (row.custom_attributes as string[]) ?? undefined,
     isMultiSample: (row.is_multi_sample as boolean) ?? false,
     samples: (row.samples as Product['samples']) ?? undefined,
+    isCalibration: (row.is_calibration as boolean) ?? false,
+    referenceScores: (row.reference_scores as HedonicReferenceScores) ?? null,
   };
 }
 
@@ -56,6 +64,8 @@ function fromProduct(p: Omit<Product, 'id' | 'createdDate'>) {
     custom_attributes: p.customAttributes ?? null,
     is_multi_sample: p.isMultiSample ?? false,
     samples: p.samples ?? null,
+    is_calibration: p.isCalibration ?? false,
+    reference_scores: p.referenceScores ?? null,
   };
 }
 
@@ -290,13 +300,21 @@ export interface PanelistInfo {
   name: string;
   panelistId: string | null;
   completedCount: number;
+  trainingLevel: TrainingLevel;
 }
 
 export async function fetchPanelists(): Promise<PanelistInfo[]> {
-  const [{ data: profiles }, { data: responses }] = await Promise.all([
-    supabase.from('profiles').select('id, name, panelist_id').eq('role', 'panelist'),
+  const [profilesResult, { data: responses }] = await Promise.all([
+    supabase.from('profiles').select('id, name, panelist_id, training_level').eq('role', 'panelist'),
     supabase.from('responses').select('user_id'),
   ]);
+
+  // Graceful fallback if training_level column hasn't been migrated yet
+  let profiles = profilesResult.data as Record<string, unknown>[] | null;
+  if (profilesResult.error) {
+    const { data } = await supabase.from('profiles').select('id, name, panelist_id').eq('role', 'panelist');
+    profiles = data as Record<string, unknown>[] | null;
+  }
 
   const counts: Record<string, number> = {};
   (responses ?? []).forEach((r: Record<string, unknown>) => {
@@ -309,6 +327,7 @@ export async function fetchPanelists(): Promise<PanelistInfo[]> {
     name: (p.name as string) ?? 'Unknown',
     panelistId: (p.panelist_id as string) ?? null,
     completedCount: counts[p.id as string] ?? 0,
+    trainingLevel: ((p.training_level as TrainingLevel) ?? 'screened'),
   }));
 }
 
@@ -316,6 +335,14 @@ export async function updatePanelistId(userId: string, panelistId: string): Prom
   const { error } = await supabase
     .from('profiles')
     .update({ panelist_id: panelistId })
+    .eq('id', userId);
+  if (error) throw error;
+}
+
+export async function updatePanelistTrainingLevel(userId: string, level: TrainingLevel): Promise<void> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ training_level: level })
     .eq('id', userId);
   if (error) throw error;
 }

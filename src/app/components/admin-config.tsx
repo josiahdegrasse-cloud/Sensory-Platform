@@ -9,16 +9,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { type Product, DEFAULT_CATA_ATTRIBUTES } from '../data/mock-users';
 import { type Template } from '../lib/database';
 import {
-  useProducts, useTemplates, usePanelists, usePanelistReliability,
+  useProducts, useTemplates, usePanelists,
   useInsertProduct, useUpdateProduct, useInsertTemplate, useDeleteTemplate,
   useUpdatePanelistId, useAllResponses,
 } from '../lib/hooks';
+// Note: usePanelistReliability is no longer used directly here — handled by PanelistPerformancePanel
 import {
   Plus, Settings, Trash2, Save, CheckCircle2, FolderOpen, Layers,
-  ClipboardList, Users, AlertCircle, Search, Activity,
+  ClipboardList, Users, AlertCircle, Search, Activity, FlaskConical,
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { useAuth } from '../contexts/auth-context';
+import { PanelistPerformancePanel } from './panelist-performance';
 
 type QuestionnaireTemplate = Template;
 
@@ -53,7 +55,8 @@ export function AdminConfig() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createStep, setCreateStep] = useState<'form' | 'review' | 'configure'>('form');
   const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
-  const [productType, setProductType] = useState<'single' | 'multi'>('single');
+  const [productType, setProductType] = useState<'single' | 'multi' | 'calibration'>('single');
+  const [referenceScores, setReferenceScores] = useState({ overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 });
   const [newProductName, setNewProductName] = useState('');
   const [newProductCategory, setNewProductCategory] = useState('');
   const [samples, setSamples] = useState<{ id: string; code: string; label: string }[]>([
@@ -115,6 +118,7 @@ export function AdminConfig() {
     setProductType('single');
     setSamples([{ id: '1', code: '', label: '' }]);
     setCustomAttributes([...DEFAULT_CATA_ATTRIBUTES]);
+    setReferenceScores({ overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 });
   };
 
   const closeCreateModal = () => {
@@ -126,6 +130,7 @@ export function AdminConfig() {
     setProductType('single');
     setSamples([{ id: '1', code: '', label: '' }]);
     setCustomAttributes([...DEFAULT_CATA_ATTRIBUTES]);
+    setReferenceScores({ overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 });
   };
 
   const handleCreateProduct = () => {
@@ -145,6 +150,8 @@ export function AdminConfig() {
       customAttributes: [...DEFAULT_CATA_ATTRIBUTES],
       isMultiSample: productType === 'multi',
       samples: productType === 'multi' ? samples.filter(s => s.code && s.label) : undefined,
+      isCalibration: productType === 'calibration',
+      referenceScores: productType === 'calibration' ? { ...referenceScores } : null,
     };
     setPendingProduct(p);
     setCustomAttributes([...DEFAULT_CATA_ATTRIBUTES]);
@@ -162,6 +169,8 @@ export function AdminConfig() {
         customAttributes,
         isMultiSample: pendingProduct.isMultiSample,
         samples: pendingProduct.samples,
+        isCalibration: pendingProduct.isCalibration,
+        referenceScores: pendingProduct.referenceScores,
       });
       closeCreateModal();
       setShowSuccess(true);
@@ -541,72 +550,41 @@ export function AdminConfig() {
         </CardContent>
       </Card>
 
-      {/* Panelists */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="size-5 text-slate-600" />
-            Panelists ({panelists.length})
-          </CardTitle>
-          <p className="text-sm text-slate-600">Manage panelist IDs and view session counts</p>
-        </CardHeader>
-        <CardContent>
-          {panelists.length === 0 ? (
-            <div className="text-center py-10 text-slate-400">
-              <Users className="size-10 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No panelists yet</p>
+      {/* Panelist ID management (compact, above the full intelligence panel) */}
+      {panelists.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Users className="size-4 text-slate-500" />
+              Panelist IDs
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {panelists.map(p => (
+                <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
+                  <span className="text-sm font-medium text-slate-800">{p.name}</span>
+                  {editingPanelistId === p.id ? (
+                    <div className="flex gap-1">
+                      <Input value={panelistIdInput} onChange={e => setPanelistIdInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSavePanelistId(p.id)} className="h-6 text-xs w-24" autoFocus />
+                      <Button size="sm" className="h-6 text-xs px-2 bg-emerald-600 hover:bg-emerald-700" onClick={() => handleSavePanelistId(p.id)}>Save</Button>
+                      <Button size="sm" variant="ghost" className="h-6 text-xs px-1" onClick={() => setEditingPanelistId(null)}>×</Button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className={`font-mono text-xs ${p.panelistId ? 'text-slate-600' : 'text-slate-400 italic'}`}>{p.panelistId ?? 'no ID'}</span>
+                      <Button size="sm" variant="ghost" className="h-6 text-xs px-1" onClick={() => handleEditPanelistId(p.id, p.panelistId)}>Edit</Button>
+                    </>
+                  )}
+                </div>
+              ))}
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200">
-                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Name</th>
-                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Panelist ID</th>
-                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Sessions</th>
-                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Reliability</th>
-                    <th className="py-2 px-3" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {panelists.map(p => {
-                    const rel = reliability.find(r => r.userId === p.id);
-                    return (
-                      <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50">
-                        <td className="py-2 px-3 font-medium text-slate-900">{p.name}</td>
-                        <td className="py-2 px-3">
-                          {editingPanelistId === p.id ? (
-                            <div className="flex gap-2">
-                              <Input value={panelistIdInput} onChange={e => setPanelistIdInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSavePanelistId(p.id)} className="h-7 text-xs w-28" autoFocus />
-                              <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700" onClick={() => handleSavePanelistId(p.id)}>Save</Button>
-                              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingPanelistId(null)}>Cancel</Button>
-                            </div>
-                          ) : (
-                            <span className={`font-mono text-xs ${p.panelistId ? 'text-slate-700' : 'text-slate-400 italic'}`}>{p.panelistId ?? 'not set'}</span>
-                          )}
-                        </td>
-                        <td className="py-2 px-3 text-slate-600">{p.completedCount}</td>
-                        <td className="py-2 px-3">
-                          {rel?.meanDeviation != null ? (
-                            <Badge className={`text-xs ${rel.meanDeviation < 1.5 ? 'bg-emerald-100 text-emerald-800' : rel.meanDeviation < 2.5 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
-                              {rel.meanDeviation.toFixed(2)}
-                            </Badge>
-                          ) : <span className="text-xs text-slate-400">–</span>}
-                        </td>
-                        <td className="py-2 px-3">
-                          {editingPanelistId !== p.id && (
-                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => handleEditPanelistId(p.id, p.panelistId)}>Edit ID</Button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Panel Intelligence — full performance panel */}
+      <PanelistPerformancePanel />
 
       {/* Create Product Modal */}
       <Dialog open={showCreateModal} onOpenChange={open => !open && closeCreateModal()}>
@@ -631,37 +609,61 @@ export function AdminConfig() {
               <>
                 <div className="space-y-3">
                   <Label className="text-base font-bold text-slate-900">Product Type</Label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     {([
-                      { type: 'single' as const, icon: ClipboardList, label: 'Single Sample', desc: 'One product evaluation with CATA, intensity, hedonic, and emotional response', color: 'blue' },
-                      { type: 'multi' as const, icon: Layers, label: 'Multi-Sample Comparison', desc: 'Compare samples with discrimination test and preference ranking', color: 'purple' },
+                      { type: 'single' as const, icon: ClipboardList, label: 'Single Sample', desc: 'Full evaluation: CATA, intensity, hedonic, and emotional response', color: 'blue' },
+                      { type: 'multi' as const, icon: Layers, label: 'Multi-Sample', desc: 'Compare samples with discrimination test and preference ranking', color: 'purple' },
+                      { type: 'calibration' as const, icon: FlaskConical, label: 'Calibration Session', desc: 'Panel training: set reference scores to measure panelist accuracy', color: 'amber' },
                     ]).map(({ type, icon: Icon, label, desc, color }) => (
                       <button
                         key={type}
                         onClick={() => setProductType(type)}
                         className={`p-4 rounded-lg border-2 transition-all text-left ${
                           productType === type
-                            ? color === 'blue' ? 'border-blue-600 bg-blue-50' : 'border-purple-600 bg-gradient-to-br from-purple-50 to-pink-50'
-                            : color === 'blue' ? 'border-slate-200 hover:border-blue-300 bg-white' : 'border-slate-200 hover:border-purple-300 bg-white'
+                            ? color === 'blue' ? 'border-blue-600 bg-blue-50' : color === 'purple' ? 'border-purple-600 bg-gradient-to-br from-purple-50 to-pink-50' : 'border-amber-500 bg-amber-50'
+                            : color === 'blue' ? 'border-slate-200 hover:border-blue-300 bg-white' : color === 'purple' ? 'border-slate-200 hover:border-purple-300 bg-white' : 'border-slate-200 hover:border-amber-300 bg-white'
                         }`}
                       >
                         <div className="flex items-start gap-3">
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${productType === type ? (color === 'blue' ? 'bg-blue-600' : 'bg-purple-600') : 'bg-slate-200'}`}>
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${productType === type ? (color === 'blue' ? 'bg-blue-600' : color === 'purple' ? 'bg-purple-600' : 'bg-amber-500') : 'bg-slate-200'}`}>
                             <Icon className={`size-5 ${productType === type ? 'text-white' : 'text-slate-500'}`} />
                           </div>
                           <div>
-                            <div className="font-bold text-slate-900 mb-1">{label}</div>
+                            <div className="font-bold text-slate-900 mb-1 text-sm">{label}</div>
                             <p className="text-xs text-slate-600">{desc}</p>
                           </div>
                         </div>
                         {productType === type && (
-                          <div className={`mt-2 flex items-center gap-1 text-xs font-medium ${color === 'blue' ? 'text-blue-700' : 'text-purple-700'}`}>
+                          <div className={`mt-2 flex items-center gap-1 text-xs font-medium ${color === 'blue' ? 'text-blue-700' : color === 'purple' ? 'text-purple-700' : 'text-amber-700'}`}>
                             <CheckCircle2 className="size-3" />Selected
                           </div>
                         )}
                       </button>
                     ))}
                   </div>
+
+                  {/* Reference scores for calibration type */}
+                  {productType === 'calibration' && (
+                    <div className="space-y-3 p-4 bg-amber-50 rounded-lg border border-amber-200 mt-1">
+                      <Label className="text-sm font-bold text-amber-900">Reference Scores (known correct answers)</Label>
+                      <p className="text-xs text-slate-600">Set the expected hedonic scores for this calibration product. Panelists are scored by how closely they match these values.</p>
+                      <div className="grid grid-cols-5 gap-3">
+                        {(['overall', 'appearance', 'aroma', 'flavor', 'texture'] as const).map(key => (
+                          <div key={key} className="space-y-1">
+                            <Label className="text-xs capitalize text-amber-800">{key}</Label>
+                            <Input
+                              type="number"
+                              min={1} max={9} step={0.5}
+                              value={referenceScores[key]}
+                              onChange={e => setReferenceScores(prev => ({ ...prev, [key]: parseFloat(e.target.value) || 5 }))}
+                              className="h-8 text-sm text-center"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-amber-700">Scale: 1 (Dislike extremely) → 9 (Like extremely)</p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -709,10 +711,10 @@ export function AdminConfig() {
                   <Button variant="outline" onClick={closeCreateModal} className="flex-1">Cancel</Button>
                   <Button
                     onClick={handleCreateProduct}
-                    className={`flex-1 py-5 ${productType === 'multi' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                    className={`flex-1 py-5 ${productType === 'multi' ? 'bg-purple-600 hover:bg-purple-700' : productType === 'calibration' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-600 hover:bg-blue-700'}`}
                     disabled={!newProductName || !newProductCategory}
                   >
-                    {productType === 'multi' ? <Layers className="size-4 mr-2" /> : <Plus className="size-4 mr-2" />}
+                    {productType === 'multi' ? <Layers className="size-4 mr-2" /> : productType === 'calibration' ? <FlaskConical className="size-4 mr-2" /> : <Plus className="size-4 mr-2" />}
                     Review & Configure
                   </Button>
                 </div>

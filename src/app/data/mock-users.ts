@@ -1,5 +1,13 @@
 // Shared types and constants — no mock data
 
+export interface HedonicReferenceScores {
+  overall: number;
+  appearance: number;
+  aroma: number;
+  flavor: number;
+  texture: number;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -9,6 +17,8 @@ export interface Product {
   customAttributes?: string[];
   isMultiSample?: boolean;
   samples?: { id: string; code: string; label: string }[];
+  isCalibration?: boolean;
+  referenceScores?: HedonicReferenceScores | null;
 }
 
 export interface QuestionnaireResponse {
