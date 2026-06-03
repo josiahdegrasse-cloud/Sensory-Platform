@@ -91,73 +91,186 @@ const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   ranking: 'Ranking',
 };
 
+const CATEGORY_BAR_COLORS: Record<Question['category'], string> = {
+  appeal:       'bg-blue-500',
+  purchase:     'bg-emerald-500',
+  price:        'bg-amber-500',
+  attributes:   'bg-purple-500',
+  demographics: 'bg-slate-500',
+  usage:        'bg-rose-500',
+};
+
+const QUESTION_SECONDS: Record<QuestionType, number> = {
+  scale: 25, multiple_choice: 35, open_text: 90, ranking: 45,
+};
+
 // ─── Step components ─────────────────────────────────────────────────────────
 
 function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: ConceptDraft) => void }) {
   const set = (field: keyof ConceptDraft) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     onChange({ ...draft, [field]: e.target.value });
 
+  const completeness = [
+    draft.name ? 20 : 0,
+    draft.category ? 20 : 0,
+    draft.description ? 20 : 0,
+    draft.targetMarket ? 10 : 0,
+    draft.pricePoint ? 10 : 0,
+    draft.keyBenefits ? 10 : 0,
+    draft.technicalChallenges ? 10 : 0,
+  ].reduce((a, b) => a + b, 0);
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold text-slate-900">Define your concept</h2>
-        <p className="text-slate-500 text-sm mt-1">Describe the product you want consumers to evaluate.</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-5">
-        <div className="space-y-1.5">
-          <Label className="font-medium">Product name <span className="text-rose-500">*</span></Label>
-          <Input value={draft.name} onChange={set('name')} placeholder="e.g. Vitacheeze Original Cheddar" />
+    <div className="grid grid-cols-2 gap-6">
+      {/* Left: form inputs */}
+      <div className="space-y-5">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">Define your concept</h2>
+          <p className="text-slate-500 text-sm mt-1">Describe the product you want consumers to evaluate.</p>
         </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label className="font-medium">Product name <span className="text-rose-500">*</span></Label>
+            <Input value={draft.name} onChange={set('name')} placeholder="e.g. Vitacheeze Original Cheddar" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="font-medium">Category <span className="text-rose-500">*</span></Label>
+            <Input value={draft.category} onChange={set('category')} placeholder="e.g. Plant-based cheese" />
+          </div>
+        </div>
+
         <div className="space-y-1.5">
-          <Label className="font-medium">Category <span className="text-rose-500">*</span></Label>
-          <Input value={draft.category} onChange={set('category')} placeholder="e.g. Plant-based cheese, Artisan bread" />
+          <Label className="font-medium">Concept description <span className="text-rose-500">*</span></Label>
+          <Textarea
+            value={draft.description}
+            onChange={set('description')}
+            placeholder="Describe the product concept as you'd present it to a consumer — ingredients, format, occasion, key claims…"
+            rows={4}
+            className="resize-none"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label className="font-medium flex items-center gap-1.5"><Target className="size-3.5" /> Target market</Label>
+            <Input value={draft.targetMarket} onChange={set('targetMarket')} placeholder="e.g. Health-conscious adults 25–45" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="font-medium flex items-center gap-1.5"><DollarSign className="size-3.5" /> Expected price point</Label>
+            <Input value={draft.pricePoint} onChange={set('pricePoint')} placeholder="e.g. $6.99 / 200g block" />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="font-medium flex items-center gap-1.5"><Star className="size-3.5" /> Key consumer benefits</Label>
+          <Textarea
+            value={draft.keyBenefits}
+            onChange={set('keyBenefits')}
+            placeholder="e.g. Melts like dairy, high-protein (10g/serving), allergen-free, sustainable sourcing…"
+            rows={2}
+            className="resize-none"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="font-medium flex items-center gap-1.5"><Package className="size-3.5" /> Technical challenges / R&D notes</Label>
+          <Textarea
+            value={draft.technicalChallenges}
+            onChange={set('technicalChallenges')}
+            placeholder="e.g. Achieving melt properties from cashew base, protein source binding, shelf stability…"
+            rows={2}
+            className="resize-none"
+          />
+          <p className="text-xs text-slate-400">Internal only — not shown to panelists.</p>
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label className="font-medium">Concept description <span className="text-rose-500">*</span></Label>
-        <Textarea
-          value={draft.description}
-          onChange={set('description')}
-          placeholder="Describe the product concept as you'd present it to a consumer — ingredients, format, occasion, key claims…"
-          rows={4}
-          className="resize-none"
-        />
-      </div>
+      {/* Right: live panelist preview */}
+      <div className="sticky top-0 self-start space-y-3">
+        <div className="rounded-xl border-2 border-blue-200 overflow-hidden shadow-sm">
+          <div className="px-4 py-2 bg-blue-600 flex items-center justify-between">
+            <span className="text-xs font-bold text-white tracking-wider uppercase">Panelist View</span>
+            <div className="flex items-center gap-1.5 text-xs text-blue-200">
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-300 animate-pulse" />
+              Live preview
+            </div>
+          </div>
 
-      <div className="grid grid-cols-2 gap-5">
-        <div className="space-y-1.5">
-          <Label className="font-medium flex items-center gap-1.5"><Target className="size-3.5" /> Target market</Label>
-          <Input value={draft.targetMarket} onChange={set('targetMarket')} placeholder="e.g. Health-conscious adults 25–45" />
+          <div className="p-5 space-y-4 bg-gradient-to-br from-blue-50 to-slate-50 min-h-[200px]">
+            {draft.name ? (
+              <div>
+                <h3 className="text-xl font-black text-slate-900 leading-tight">{draft.name}</h3>
+                {draft.category && (
+                  <span className="inline-block mt-1.5 text-xs font-semibold px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">{draft.category}</span>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="h-6 bg-slate-200 rounded animate-pulse w-3/4" />
+                <div className="h-4 bg-slate-200 rounded animate-pulse w-1/3" />
+              </div>
+            )}
+
+            {draft.description ? (
+              <p className="text-sm text-slate-700 leading-relaxed">{draft.description}</p>
+            ) : (
+              <div className="space-y-1.5">
+                <div className="h-3 bg-slate-200 rounded animate-pulse" />
+                <div className="h-3 bg-slate-200 rounded animate-pulse w-4/5" />
+                <div className="h-3 bg-slate-200 rounded animate-pulse w-3/5" />
+              </div>
+            )}
+
+            {(draft.pricePoint || draft.targetMarket) && (
+              <div className="flex flex-wrap gap-3 text-xs text-slate-600 border-t border-slate-200 pt-3">
+                {draft.pricePoint && (
+                  <span className="flex items-center gap-1"><DollarSign className="size-3 text-slate-400" />{draft.pricePoint}</span>
+                )}
+                {draft.targetMarket && (
+                  <span className="flex items-center gap-1"><Target className="size-3 text-slate-400" />{draft.targetMarket}</span>
+                )}
+              </div>
+            )}
+
+            {draft.keyBenefits && (
+              <div className="border-t border-slate-200 pt-3">
+                <p className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wide">Key Benefits</p>
+                <div className="space-y-1">
+                  {draft.keyBenefits.split(/[,\n]+/).filter(Boolean).map((b, i) => (
+                    <div key={i} className="flex items-start gap-1.5 text-xs text-slate-600">
+                      <CheckCircle2 className="size-3 text-emerald-500 flex-shrink-0 mt-0.5" />
+                      {b.trim()}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Completeness bar */}
+          <div className="px-5 py-3 bg-white border-t border-slate-200">
+            <div className="flex items-center justify-between text-xs mb-1.5">
+              <span className="text-slate-500 font-medium">Concept completeness</span>
+              <span className={`font-bold ${completeness >= 80 ? 'text-emerald-600' : completeness >= 50 ? 'text-amber-600' : 'text-rose-500'}`}>
+                {completeness}%
+              </span>
+            </div>
+            <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${completeness >= 80 ? 'bg-emerald-500' : completeness >= 50 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                style={{ width: `${completeness}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1.5">
+              {completeness < 60
+                ? 'Add more details to strengthen this concept'
+                : completeness < 80
+                  ? 'Good concept — add pricing or benefits to complete it'
+                  : 'Well-defined concept ready for testing'}
+            </p>
+          </div>
         </div>
-        <div className="space-y-1.5">
-          <Label className="font-medium flex items-center gap-1.5"><DollarSign className="size-3.5" /> Expected price point</Label>
-          <Input value={draft.pricePoint} onChange={set('pricePoint')} placeholder="e.g. $6.99 / 200g block" />
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label className="font-medium flex items-center gap-1.5"><Star className="size-3.5" /> Key consumer benefits</Label>
-        <Textarea
-          value={draft.keyBenefits}
-          onChange={set('keyBenefits')}
-          placeholder="e.g. Melts like dairy, high-protein (10g/serving), allergen-free, sustainable sourcing…"
-          rows={2}
-          className="resize-none"
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label className="font-medium flex items-center gap-1.5"><Package className="size-3.5" /> Technical challenges / R&D notes</Label>
-        <Textarea
-          value={draft.technicalChallenges}
-          onChange={set('technicalChallenges')}
-          placeholder="e.g. Achieving melt properties from cashew base, protein source binding, shelf stability…"
-          rows={2}
-          className="resize-none"
-        />
-        <p className="text-xs text-slate-400">Internal only — not shown to panelists.</p>
       </div>
     </div>
   );
@@ -468,6 +581,8 @@ function QuestionsStep({
 }) {
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   const handleGenerate = () => {
     setGenerating(true);
@@ -489,6 +604,29 @@ function QuestionsStep({
     onChange(questions.map(q => q.id === id ? { ...q, [field]: value } : q));
   };
 
+  const handleDrop = (targetIdx: number) => {
+    if (draggedIdx === null || draggedIdx === targetIdx) {
+      setDraggedIdx(null);
+      setDragOverIdx(null);
+      return;
+    }
+    const reordered = [...questions];
+    const [moved] = reordered.splice(draggedIdx, 1);
+    reordered.splice(targetIdx, 0, moved);
+    onChange(reordered);
+    setDraggedIdx(null);
+    setDragOverIdx(null);
+  };
+
+  // Coverage & time
+  const categoryCounts = questions.reduce<Partial<Record<Question['category'], number>>>((acc, q) => {
+    acc[q.category] = (acc[q.category] ?? 0) + 1;
+    return acc;
+  }, {});
+  const maxCatCount = Math.max(1, ...Object.values(categoryCounts).filter((v): v is number => v !== undefined));
+  const estimatedSeconds = questions.reduce((total, q) => total + QUESTION_SECONDS[q.type], 0);
+  const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
+
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between">
@@ -499,26 +637,51 @@ function QuestionsStep({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={addBlank}
-            className="text-slate-700 border-slate-300"
-          >
-            <Plus className="size-3.5 mr-1" />
-            Add question
+          <Button variant="outline" size="sm" onClick={addBlank} className="text-slate-700 border-slate-300">
+            <Plus className="size-3.5 mr-1" />Add question
           </Button>
-          <Button
-            size="sm"
-            onClick={handleGenerate}
-            disabled={generating}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
+          <Button size="sm" onClick={handleGenerate} disabled={generating} className="bg-blue-600 hover:bg-blue-700 text-white">
             <Sparkles className="size-3.5 mr-1.5" />
             {generating ? 'Generating…' : generated ? 'Regenerate with AI' : 'Generate with AI'}
           </Button>
         </div>
       </div>
+
+      {/* Coverage meter */}
+      {questions.length > 0 && (
+        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Survey Coverage</p>
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+              estimatedMinutes <= 20 ? 'bg-emerald-100 text-emerald-700' :
+              estimatedMinutes <= 30 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'
+            }`}>~{estimatedMinutes} min</span>
+          </div>
+          {(Object.keys(CATEGORY_BAR_COLORS) as Question['category'][]).map(cat => {
+            const count = categoryCounts[cat] ?? 0;
+            const width = count === 0 ? 0 : Math.round((count / maxCatCount) * 100);
+            return (
+              <div key={cat} className="flex items-center gap-3">
+                <div className="w-24 text-[10px] font-semibold text-slate-500 capitalize text-right">{cat}</div>
+                <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                  {count > 0 && (
+                    <div
+                      className={`h-full rounded-full transition-all duration-300 ${CATEGORY_BAR_COLORS[cat]}`}
+                      style={{ width: `${width}%` }}
+                    />
+                  )}
+                </div>
+                <div className="w-5 text-[10px] font-bold text-center">
+                  {count === 0
+                    ? <span className="text-rose-400">✗</span>
+                    : <span className="text-slate-600">{count}</span>
+                  }
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {questions.length === 0 && (
         <Card className="border-2 border-dashed border-blue-200 bg-blue-50">
@@ -534,17 +697,29 @@ function QuestionsStep({
 
       <div className="space-y-2">
         {questions.map((q, i) => (
-          <Card key={q.id} className="border border-slate-200 hover:border-slate-300 transition-colors">
+          <Card
+            key={q.id}
+            draggable
+            onDragStart={() => setDraggedIdx(i)}
+            onDragOver={e => { e.preventDefault(); setDragOverIdx(i); }}
+            onDrop={() => handleDrop(i)}
+            onDragEnd={() => { setDraggedIdx(null); setDragOverIdx(null); }}
+            className={`border transition-all ${
+              dragOverIdx === i && draggedIdx !== i
+                ? 'border-blue-400 shadow-md bg-blue-50'
+                : 'border-slate-200 hover:border-slate-300'
+            } ${draggedIdx === i ? 'opacity-40' : ''}`}
+          >
             <CardContent className="py-3 px-4">
               <div className="flex items-start gap-3">
-                <div className="flex flex-col items-center gap-1 mt-1 text-slate-300">
+                <div className="flex flex-col items-center gap-1 mt-1 text-slate-300 cursor-grab active:cursor-grabbing">
                   <GripVertical className="size-4" />
                   <span className="text-[11px] font-bold text-slate-400">{i + 1}</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <Input
                     value={q.text}
-                    onChange={(e) => update(q.id, 'text', e.target.value)}
+                    onChange={e => update(q.id, 'text', e.target.value)}
                     placeholder="Question text…"
                     className="border-0 px-0 py-0 h-auto text-sm font-medium text-slate-900 focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-slate-400"
                   />
@@ -560,10 +735,7 @@ function QuestionsStep({
                     )}
                   </div>
                 </div>
-                <button
-                  onClick={() => remove(q.id)}
-                  className="mt-1 text-slate-300 hover:text-rose-500 transition-colors flex-shrink-0"
-                >
+                <button onClick={() => remove(q.id)} className="mt-1 text-slate-300 hover:text-rose-500 transition-colors flex-shrink-0">
                   <Trash2 className="size-4" />
                 </button>
               </div>
@@ -575,26 +747,9 @@ function QuestionsStep({
       {questions.length > 0 && (
         <div className="flex justify-center">
           <Button variant="outline" size="sm" onClick={addBlank} className="text-slate-600">
-            <Plus className="size-3.5 mr-1.5" />
-            Add another question
+            <Plus className="size-3.5 mr-1.5" />Add another question
           </Button>
         </div>
-      )}
-
-      {/* Category legend */}
-      {questions.length > 0 && (
-        <Card className="border border-slate-100 bg-slate-50">
-          <CardContent className="py-3 px-4">
-            <p className="text-xs font-semibold text-slate-600 mb-2">Question categories</p>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(CATEGORY_COLORS).map(([cat, cls]) => (
-                <span key={cat} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${cls}`}>
-                  {cat}
-                </span>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
       )}
     </div>
   );

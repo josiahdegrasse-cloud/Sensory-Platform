@@ -5,92 +5,138 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Checkbox } from './ui/checkbox';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { type Product, DEFAULT_CATA_ATTRIBUTES } from '../data/mock-users';
-import { type Template, type PanelistInfo, type PanelistReliability } from '../lib/database';
+import { type Template } from '../lib/database';
 import {
   useProducts, useTemplates, usePanelists, usePanelistReliability,
-  useInsertProduct, useUpdateProduct, useInsertTemplate, useDeleteTemplate, useUpdatePanelistId,
+  useInsertProduct, useUpdateProduct, useInsertTemplate, useDeleteTemplate,
+  useUpdatePanelistId, useAllResponses,
 } from '../lib/hooks';
-import { Plus, Settings, Trash2, Save, CheckCircle2, Bookmark, FolderOpen, Layers, ClipboardList, Users, AlertCircle } from 'lucide-react';
+import {
+  Plus, Settings, Trash2, Save, CheckCircle2, FolderOpen, Layers,
+  ClipboardList, Users, AlertCircle, Search, Activity,
+} from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { useAuth } from '../contexts/auth-context';
-import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
 
 type QuestionnaireTemplate = Template;
 
 export function AdminConfig() {
   const { user } = useAuth();
-  const { data: products = [] } = useProducts()
-  const { data: panelists = [] } = usePanelists()
-  const { data: reliability = [] } = usePanelistReliability()
-  const { data: templates = [] } = useTemplates()
-  const insertProductMutation = useInsertProduct()
-  const updateProductMutation = useUpdateProduct()
-  const insertTemplateMutation = useInsertTemplate()
-  const deleteTemplateMutation = useDeleteTemplate()
-  const updatePanelistIdMutation = useUpdatePanelistId()
+  const { data: products = [] } = useProducts();
+  const { data: panelists = [] } = usePanelists();
+  const { data: reliability = [] } = usePanelistReliability();
+  const { data: templates = [] } = useTemplates();
+  const { data: allResponses = [] } = useAllResponses();
+
+  const insertProductMutation = useInsertProduct();
+  const updateProductMutation = useUpdateProduct();
+  const insertTemplateMutation = useInsertTemplate();
+  const deleteTemplateMutation = useDeleteTemplate();
+  const updatePanelistIdMutation = useUpdatePanelistId();
+
   const [editingPanelistId, setEditingPanelistId] = useState<string | null>(null);
   const [panelistIdInput, setPanelistIdInput] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [customAttributes, setCustomAttributes] = useState<string[]>([]);
-  const [newProductName, setNewProductName] = useState('');
-  const [newProductCategory, setNewProductCategory] = useState('');
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [mutationError, setMutationError] = useState('');
   const [newAttribute, setNewAttribute] = useState('');
   const [templateName, setTemplateName] = useState('');
-  const [showTemplateSave, setShowTemplateSave] = useState(false);
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
-  const [confirmationStep, setConfirmationStep] = useState<'review' | 'configure'>('review');
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [mutationError, setMutationError] = useState('');
 
-  // Multi-sample state
+  // List filters
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'completed'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Create modal
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createStep, setCreateStep] = useState<'form' | 'review' | 'configure'>('form');
+  const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
   const [productType, setProductType] = useState<'single' | 'multi'>('single');
+  const [newProductName, setNewProductName] = useState('');
+  const [newProductCategory, setNewProductCategory] = useState('');
   const [samples, setSamples] = useState<{ id: string; code: string; label: string }[]>([
-    { id: '1', code: '', label: '' }
+    { id: '1', code: '', label: '' },
   ]);
 
   useEffect(() => {
-    // Load custom attributes when product is selected
     if (selectedProduct) {
       const product = products.find(p => p.id === selectedProduct);
       setCustomAttributes(product?.customAttributes || [...DEFAULT_CATA_ATTRIBUTES]);
     }
   }, [selectedProduct, products]);
 
-  const handleAddSample = () => {
-    setSamples([...samples, { id: String(samples.length + 1), code: '', label: '' }]);
-  };
+  // ── Computed stats ────────────────────────────────────────────────────────────
+
+  const sessionsByProduct = allResponses.reduce<Record<string, number>>((acc, r) => {
+    acc[r.productId] = (acc[r.productId] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const lastActivityByProduct = allResponses.reduce<Record<string, string>>((acc, r) => {
+    if (!acc[r.productId] || r.timestamp > acc[r.productId]) acc[r.productId] = r.timestamp;
+    return acc;
+  }, {});
+
+  const activeCount = products.filter(p => p.status === 'active').length;
+  const completedCount = products.filter(p => p.status === 'completed').length;
+  const totalSessions = allResponses.length;
+
+  const filteredProducts = products
+    .filter(p => filterStatus === 'all' || p.status === filterStatus)
+    .filter(p =>
+      !searchQuery.trim() ||
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.category.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+  // ── Sample handlers ───────────────────────────────────────────────────────────
+
+  const handleAddSample = () =>
+    setSamples(prev => [...prev, { id: String(prev.length + 1), code: '', label: '' }]);
 
   const handleRemoveSample = (index: number) => {
-    if (samples.length <= 1) return; // Keep at least one sample
-    setSamples(samples.filter((_, i) => i !== index));
+    if (samples.length <= 1) return;
+    setSamples(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleUpdateSample = (index: number, field: 'code' | 'label', value: string) => {
-    const updated = [...samples];
-    updated[index][field] = value;
-    setSamples(updated);
+  const handleUpdateSample = (index: number, field: 'code' | 'label', value: string) =>
+    setSamples(prev => prev.map((s, i) => i === index ? { ...s, [field]: value } : s));
+
+  // ── Modal helpers ─────────────────────────────────────────────────────────────
+
+  const openCreateModal = () => {
+    setShowCreateModal(true);
+    setCreateStep('form');
+    setPendingProduct(null);
+    setNewProductName('');
+    setNewProductCategory('');
+    setProductType('single');
+    setSamples([{ id: '1', code: '', label: '' }]);
+    setCustomAttributes([...DEFAULT_CATA_ATTRIBUTES]);
+  };
+
+  const closeCreateModal = () => {
+    setShowCreateModal(false);
+    setCreateStep('form');
+    setPendingProduct(null);
+    setNewProductName('');
+    setNewProductCategory('');
+    setProductType('single');
+    setSamples([{ id: '1', code: '', label: '' }]);
+    setCustomAttributes([...DEFAULT_CATA_ATTRIBUTES]);
   };
 
   const handleCreateProduct = () => {
     if (!newProductName || !newProductCategory) return;
-
-    // Validate multi-sample fields
     if (productType === 'multi') {
-      const validSamples = samples.filter(s => s.code && s.label);
-      if (validSamples.length < 2) {
-        alert('Multi-sample products require at least 2 samples with code and label');
-        return;
-      }
-      const codes = validSamples.map(s => s.code);
-      if (new Set(codes).size !== codes.length) {
-        alert('Each sample must have a unique code. Please remove duplicate codes.');
-        return;
-      }
+      const valid = samples.filter(s => s.code && s.label);
+      if (valid.length < 2) { alert('Multi-sample products require at least 2 samples with code and label'); return; }
+      const codes = valid.map(s => s.code);
+      if (new Set(codes).size !== codes.length) { alert('Each sample must have a unique code'); return; }
     }
-
-    const newProduct: Product = {
+    const p: Product = {
       id: `prod${Date.now()}`,
       name: newProductName,
       category: newProductCategory,
@@ -98,18 +144,11 @@ export function AdminConfig() {
       status: 'active',
       customAttributes: [...DEFAULT_CATA_ATTRIBUTES],
       isMultiSample: productType === 'multi',
-      samples: productType === 'multi' ? samples.filter(s => s.code && s.label) : undefined
+      samples: productType === 'multi' ? samples.filter(s => s.code && s.label) : undefined,
     };
-
-    setPendingProduct(newProduct);
-    setShowConfirmation(true);
-  };
-
-  const confirmCreateProduct = () => {
-    if (!pendingProduct) return;
-    
-    // Move to configuration step
-    setConfirmationStep('configure');
+    setPendingProduct(p);
+    setCustomAttributes([...DEFAULT_CATA_ATTRIBUTES]);
+    setCreateStep('review');
   };
 
   const finalizeProductCreation = async () => {
@@ -120,18 +159,11 @@ export function AdminConfig() {
         name: pendingProduct.name,
         category: pendingProduct.category,
         status: 'active',
-        customAttributes: customAttributes,
+        customAttributes,
         isMultiSample: pendingProduct.isMultiSample,
         samples: pendingProduct.samples,
       });
-      setNewProductName('');
-      setNewProductCategory('');
-      setShowConfirmation(false);
-      setPendingProduct(null);
-      setConfirmationStep('review');
-      setCustomAttributes([...DEFAULT_CATA_ATTRIBUTES]);
-      setProductType('single');
-      setSamples([{ id: '1', code: '', label: '' }]);
+      closeCreateModal();
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
@@ -139,14 +171,7 @@ export function AdminConfig() {
     }
   };
 
-  const cancelCreateProduct = () => {
-    setShowConfirmation(false);
-    setPendingProduct(null);
-    setConfirmationStep('review');
-    setCustomAttributes([...DEFAULT_CATA_ATTRIBUTES]);
-    setProductType('single');
-    setSamples([{ id: '1', code: '', label: '' }]);
-  };
+  // ── Attribute handlers ────────────────────────────────────────────────────────
 
   const handleSaveAttributes = async () => {
     if (!selectedProduct) return;
@@ -156,17 +181,12 @@ export function AdminConfig() {
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Failed to save attributes. Please try again.');
+      setMutationError(err instanceof Error ? err.message : 'Failed to save attributes.');
     }
   };
 
-  const handleToggleAttribute = (attr: string) => {
-    setCustomAttributes(prev =>
-      prev.includes(attr) 
-        ? prev.filter(a => a !== attr)
-        : [...prev, attr]
-    );
-  };
+  const handleToggleAttribute = (attr: string) =>
+    setCustomAttributes(prev => prev.includes(attr) ? prev.filter(a => a !== attr) : [...prev, attr]);
 
   const handleAddCustomAttribute = () => {
     if (!newAttribute || customAttributes.includes(newAttribute)) return;
@@ -174,9 +194,8 @@ export function AdminConfig() {
     setNewAttribute('');
   };
 
-  const handleRemoveAttribute = (attr: string) => {
+  const handleRemoveAttribute = (attr: string) =>
     setCustomAttributes(prev => prev.filter(a => a !== attr));
-  };
 
   const handleToggleProductStatus = async (productId: string) => {
     const product = products.find(p => p.id === productId);
@@ -186,7 +205,7 @@ export function AdminConfig() {
     try {
       await updateProductMutation.mutateAsync({ id: productId, updates: { status: newStatus } });
     } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Failed to update product status. Please try again.');
+      setMutationError(err instanceof Error ? err.message : 'Failed to update status.');
     }
   };
 
@@ -196,11 +215,10 @@ export function AdminConfig() {
     try {
       await insertTemplateMutation.mutateAsync({ name: templateName, attributes: customAttributes });
       setTemplateName('');
-      setShowTemplateSave(false);
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Failed to save template. Please try again.');
+      setMutationError(err instanceof Error ? err.message : 'Failed to save template.');
     }
   };
 
@@ -214,7 +232,7 @@ export function AdminConfig() {
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Failed to apply template. Please try again.');
+      setMutationError(err instanceof Error ? err.message : 'Failed to apply template.');
     }
   };
 
@@ -234,6 +252,8 @@ export function AdminConfig() {
     }
   };
 
+  // ── Render ────────────────────────────────────────────────────────────────────
+
   return (
     <div className="space-y-6">
       <div>
@@ -247,7 +267,6 @@ export function AdminConfig() {
           <AlertDescription className="text-emerald-700">Changes saved successfully!</AlertDescription>
         </Alert>
       )}
-
       {mutationError && (
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
@@ -255,271 +274,161 @@ export function AdminConfig() {
         </Alert>
       )}
 
-      {/* Create New Product */}
+      {/* Stats strip */}
+      <div className="flex items-center gap-5 px-5 py-3 bg-white border border-slate-200 rounded-xl shadow-sm flex-wrap">
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${activeCount > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+          <span className="text-sm font-bold text-slate-900">{activeCount}</span>
+          <span className="text-sm text-slate-500">active product{activeCount !== 1 ? 's' : ''}</span>
+        </div>
+        <div className="w-px h-4 bg-slate-200" />
+        <div className="flex items-center gap-2">
+          <Users className="size-3.5 text-slate-400" />
+          <span className="text-sm font-bold text-slate-900">{panelists.length}</span>
+          <span className="text-sm text-slate-500">panelist{panelists.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div className="w-px h-4 bg-slate-200" />
+        <div className="flex items-center gap-2">
+          <Activity className="size-3.5 text-slate-400" />
+          <span className="text-sm font-bold text-slate-900">{totalSessions}</span>
+          <span className="text-sm text-slate-500">total session{totalSessions !== 1 ? 's' : ''}</span>
+        </div>
+        <div className="w-px h-4 bg-slate-200" />
+        <span className="text-sm text-slate-500">{completedCount} completed</span>
+      </div>
+
+      {/* Products + Attribute Config */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Plus className="size-5 text-slate-600" />
-            Create New Product for Evaluation
-          </CardTitle>
-          <p className="text-sm text-slate-600">Add a new plant-based cheese sample to evaluate with panelists</p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Product Type Toggle */}
-          <div className="space-y-3">
-            <Label className="text-base font-bold text-slate-900">Product Type</Label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setProductType('single')}
-                className={`p-4 rounded-lg border-2 transition-all text-left ${
-                  productType === 'single'
-                    ? 'border-blue-600 bg-blue-50'
-                    : 'border-slate-200 hover:border-blue-300 bg-white'
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                    productType === 'single' ? 'bg-blue-600' : 'bg-slate-200'
-                  }`}>
-                    <ClipboardList className={`size-5 ${productType === 'single' ? 'text-white' : 'text-slate-500'}`} />
-                  </div>
-                  <div>
-                    <div className="font-bold text-slate-900 mb-1">Single Sample</div>
-                    <p className="text-xs text-slate-600">
-                      One product evaluation with CATA, intensity, hedonic, and emotional response
-                    </p>
-                  </div>
-                </div>
-                {productType === 'single' && (
-                  <div className="mt-2 flex items-center gap-1 text-xs text-blue-700 font-medium">
-                    <CheckCircle2 className="size-3" />
-                    Selected
-                  </div>
-                )}
-              </button>
-
-              <button
-                onClick={() => setProductType('multi')}
-                className={`p-4 rounded-lg border-2 transition-all text-left ${
-                  productType === 'multi'
-                    ? 'border-purple-600 bg-gradient-to-br from-purple-50 to-pink-50'
-                    : 'border-slate-200 hover:border-purple-300 bg-white'
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                    productType === 'multi' ? 'bg-purple-600' : 'bg-slate-200'
-                  }`}>
-                    <Layers className={`size-5 ${productType === 'multi' ? 'text-white' : 'text-slate-500'}`} />
-                  </div>
-                  <div>
-                    <div className="font-bold text-slate-900 mb-1">Multi-Sample Comparison</div>
-                    <p className="text-xs text-slate-600">
-                      Compare samples with discrimination test and preference ranking
-                    </p>
-                  </div>
-                </div>
-                {productType === 'multi' && (
-                  <div className="mt-2 flex items-center gap-1 text-xs text-purple-700 font-medium">
-                    <CheckCircle2 className="size-3" />
-                    Selected
-                  </div>
-                )}
-              </button>
-            </div>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="size-5 text-blue-600" />
+              Products & Questionnaire Setup
+            </CardTitle>
+            <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700">
+              <Plus className="size-4 mr-2" />New Product
+            </Button>
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="productName">Product Name</Label>
-              <Input
-                id="productName"
-                placeholder={productType === 'single' ? 'e.g., Coconut Cheddar v3.0' : 'e.g., Coconut Cheddar Comparison'}
-                value={newProductName}
-                onChange={(e) => setNewProductName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="productCategory">Category</Label>
-              <Input
-                id="productCategory"
-                placeholder={productType === 'single' ? 'e.g., Coconut-based' : 'e.g., Multi-sample comparison'}
-                value={newProductCategory}
-                onChange={(e) => setNewProductCategory(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Multi-Sample Configuration */}
-          {productType === 'multi' && (
-            <div className="space-y-3 p-4 bg-purple-50 rounded-lg border border-purple-200">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-bold text-purple-900">Sample Configuration</Label>
-                <Button size="sm" onClick={handleAddSample} variant="outline">
-                  <Plus className="size-4 mr-1" />
-                  Add Sample
-                </Button>
-              </div>
-              <p className="text-xs text-slate-600">
-                Define each sample with a 3-digit code and descriptive label. Minimum 2 samples required.
-              </p>
-              <div className="space-y-2">
-                {samples.map((sample, index) => (
-                  <div key={index} className="flex items-center gap-2 p-3 bg-white rounded border border-purple-200">
-                    <div className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
-                      {index + 1}
-                    </div>
-                    <Input
-                      placeholder="3-digit code (e.g., 341)"
-                      value={sample.code}
-                      onChange={(e) => handleUpdateSample(index, 'code', e.target.value)}
-                      className="w-32"
-                      maxLength={3}
-                    />
-                    <Input
-                      placeholder="Sample label (e.g., Coconut Cheddar v2.0)"
-                      value={sample.label}
-                      onChange={(e) => handleUpdateSample(index, 'label', e.target.value)}
-                      className="flex-1"
-                    />
-                    {samples.length > 1 && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleRemoveSample(index)}
-                        className="text-rose-600 hover:text-rose-700"
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Summary */}
-              {samples.filter(s => s.code && s.label).length >= 2 && (
-                <div className="mt-3 p-3 bg-white rounded-lg border-2 border-purple-300">
-                  <div className="text-xs font-bold text-purple-900 mb-2">Multi-Sample Evaluation Flow:</div>
-                  <div className="space-y-1 text-xs text-slate-700">
-                    <p>✓ Panelists will evaluate <strong>{samples.filter(s => s.code && s.label).length} samples</strong> sequentially</p>
-                    <p>✓ Each sample gets full questionnaire (CATA + Intensity + Hedonic + Emotions)</p>
-                    <p>✓ Discrimination test: Identify which sample is different</p>
-                    <p>✓ Preference ranking: Rank from best to worst</p>
-                    <p className="text-slate-500 mt-2">Est. time: {15 + (samples.filter(s => s.code && s.label).length - 3) * 5}-{20 + (samples.filter(s => s.code && s.label).length - 3) * 5} minutes</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          <Button
-            onClick={handleCreateProduct}
-            className={`w-full text-base py-6 ${productType === 'multi' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-            disabled={!newProductName || !newProductCategory}
-          >
-            {productType === 'multi' ? <Layers className="size-5 mr-2" /> : <Plus className="size-5 mr-2" />}
-            Create {productType === 'multi' ? 'Multi-Sample ' : ''}Product & Open for Evaluation
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Products + Attribute Config (2-column master-detail) */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="size-5 text-blue-600" />
-            Products & Questionnaire Setup
-          </CardTitle>
           <p className="text-sm text-slate-600">Select a product to configure its questionnaire attributes</p>
+          <div className="flex items-center gap-3 mt-2 flex-wrap">
+            <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs">
+              {(['all', 'active', 'completed'] as const).map(s => (
+                <button
+                  key={s}
+                  onClick={() => setFilterStatus(s)}
+                  className={`px-3 py-1.5 font-semibold capitalize transition-colors ${
+                    filterStatus === s ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {s === 'all' ? `All (${products.length})` : s === 'active' ? `Active (${activeCount})` : `Done (${completedCount})`}
+                </button>
+              ))}
+            </div>
+            <div className="relative">
+              <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Input
+                placeholder="Search products…"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="pl-8 h-8 text-sm w-52"
+              />
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-5 gap-5">
-            {/* Left: product list */}
+            {/* Product list */}
             <div className="col-span-2 space-y-2">
-              {products.length === 0 ? (
+              {filteredProducts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-slate-400">
                   <ClipboardList className="size-10 mb-2 opacity-40" />
-                  <p className="text-sm">No products yet — create one above</p>
+                  <p className="text-sm">
+                    {products.length === 0 ? 'No products yet — create one' : 'No products match filter'}
+                  </p>
                 </div>
-              ) : products.map(product => (
-              <div
-                key={product.id}
-                className={`p-4 rounded-lg border-2 transition-all ${
-                  product.isMultiSample
-                    ? selectedProduct === product.id
-                      ? 'border-purple-600 bg-gradient-to-br from-purple-50 to-pink-50'
-                      : 'border-purple-200 bg-purple-50/30 hover:border-purple-400'
-                    : selectedProduct === product.id
-                      ? 'border-blue-600 bg-blue-50'
-                      : 'border-slate-200 hover:border-blue-300 bg-white'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                          product.isMultiSample ? 'bg-purple-600' : 'bg-blue-600'
-                        }`}
-                      >
-                        {product.isMultiSample ? (
-                          <Layers className="size-6 text-white" />
-                        ) : (
-                          <ClipboardList className="size-6 text-white" />
+              ) : filteredProducts.map(product => {
+                const sessions = sessionsByProduct[product.id] ?? 0;
+                const lastActive = lastActivityByProduct[product.id];
+                const attrs = product.customAttributes ?? DEFAULT_CATA_ATTRIBUTES;
+                const previewAttrs = attrs.slice(0, 4);
+                const extraCount = attrs.length - 4;
+                return (
+                  <div
+                    key={product.id}
+                    className={`rounded-lg border-2 transition-all relative overflow-hidden ${
+                      product.isMultiSample
+                        ? selectedProduct === product.id
+                          ? 'border-purple-600 bg-gradient-to-br from-purple-50 to-pink-50'
+                          : 'border-purple-200 bg-purple-50/30 hover:border-purple-400'
+                        : selectedProduct === product.id
+                          ? 'border-blue-600 bg-blue-50'
+                          : 'border-slate-200 hover:border-blue-300 bg-white'
+                    }`}
+                  >
+                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${product.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                    <div className="p-4 pl-5">
+                      <div className="flex items-start justify-between gap-2 mb-1.5">
+                        <button onClick={() => setSelectedProduct(product.id)} className="text-left flex-1 min-w-0">
+                          <div className="font-bold text-slate-900 truncate flex items-center gap-2 flex-wrap">
+                            {product.name}
+                            {product.isMultiSample && (
+                              <Badge className="bg-purple-600 text-[10px] px-1.5 py-0">
+                                <Layers className="size-2.5 mr-0.5" />Multi
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-xs text-slate-500 mt-0.5">{product.category}</div>
+                        </button>
+                        <Badge className={`text-[10px] px-1.5 py-0.5 flex-shrink-0 ${product.status === 'active' ? 'bg-emerald-600' : 'bg-slate-400'}`}>
+                          {product.status === 'active' ? 'Active' : 'Done'}
+                        </Badge>
+                      </div>
+
+                      <div className="flex items-center gap-3 mb-2 text-xs text-slate-500">
+                        <span className="flex items-center gap-1">
+                          <Activity className="size-3 text-slate-400" />
+                          {sessions} session{sessions !== 1 ? 's' : ''}
+                        </span>
+                        <span>·</span>
+                        {lastActive
+                          ? <span>Last: {new Date(lastActive).toLocaleDateString()}</span>
+                          : <span className="italic">No activity yet</span>
+                        }
+                      </div>
+
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {previewAttrs.map(attr => (
+                          <span key={attr} className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded-full">{attr}</span>
+                        ))}
+                        {extraCount > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded-full">+{extraCount} more</span>
                         )}
                       </div>
-                      <button
-                        onClick={() => setSelectedProduct(product.id)}
-                        className="text-left flex-1"
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="font-bold text-slate-900 text-lg">{product.name}</div>
-                          {product.isMultiSample && (
-                            <Badge className="bg-purple-600 text-xs">
-                              <Layers className="size-3 mr-1" />
-                              Multi-Sample
-                            </Badge>
-                          )}
-                          <Badge className={product.status === 'active' ? 'bg-emerald-600' : 'bg-slate-400'}>
-                            {product.status === 'active' ? 'Active' : 'Completed'}
-                          </Badge>
-                        </div>
-                        <div className="text-sm text-slate-600">{product.category}</div>
-                        {product.isMultiSample && product.samples && (
-                          <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
-                            <span>{product.samples.length} samples</span>
-                            <span>·</span>
-                            <span>Discrimination + Ranking</span>
-                          </div>
-                        )}
-                        <div className="text-xs text-slate-500 mt-1">Created {new Date(product.createdDate).toLocaleDateString()}</div>
-                      </button>
+
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleToggleProductStatus(product.id)}
+                          className={`h-7 text-xs flex-1 ${product.status !== 'active' ? 'border-emerald-600 text-emerald-700' : ''}`}
+                        >
+                          {product.status === 'active' ? 'Mark Complete' : 'Reopen'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => setSelectedProduct(product.id)}
+                          className={`h-7 text-xs flex-shrink-0 ${product.isMultiSample ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                        >
+                          <Settings className="size-3 mr-1" />Configure
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleToggleProductStatus(product.id)}
-                      className={product.status === 'active' ? '' : 'border-emerald-600 text-emerald-700'}
-                    >
-                      {product.status === 'active' ? 'Mark Complete' : 'Reopen'}
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => setSelectedProduct(product.id)}
-                      className={product.isMultiSample ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}
-                    >
-                      <Settings className="size-4 mr-1" />
-                      Configure
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))}
+                );
+              })}
             </div>
 
-            {/* Right: attribute config + templates */}
+            {/* Attribute config panel */}
             <div className="col-span-3 border-l border-slate-100 pl-5 space-y-4 overflow-y-auto max-h-[640px]">
               {!selectedProduct ? (
                 <div className="flex flex-col items-center justify-center h-full py-20 text-slate-400 text-center">
@@ -587,8 +496,7 @@ export function AdminConfig() {
                     onMouseEnter={e => (e.currentTarget.style.background = '#5a6878')}
                     onMouseLeave={e => (e.currentTarget.style.background = '#6B7890')}
                   >
-                    <Save className="size-4 mr-2" />
-                    Save Attributes
+                    <Save className="size-4 mr-2" />Save Attributes
                   </Button>
 
                   <div className="border-t border-slate-200 pt-3 space-y-2">
@@ -607,10 +515,7 @@ export function AdminConfig() {
                       <div className="space-y-1 max-h-28 overflow-y-auto">
                         {templates.map(t => (
                           <div key={t.id} className="flex items-center gap-2 p-1.5 bg-slate-50 rounded border border-slate-200">
-                            <button
-                              onClick={() => handleLoadTemplate(t.id)}
-                              className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 flex-shrink-0"
-                            >
+                            <button onClick={() => handleLoadTemplate(t.id)} className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 flex-shrink-0">
                               <FolderOpen className="size-3" />Load
                             </button>
                             <span className="text-xs flex-1 truncate">{t.name}</span>
@@ -672,20 +577,12 @@ export function AdminConfig() {
                         <td className="py-2 px-3">
                           {editingPanelistId === p.id ? (
                             <div className="flex gap-2">
-                              <Input
-                                value={panelistIdInput}
-                                onChange={e => setPanelistIdInput(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && handleSavePanelistId(p.id)}
-                                className="h-7 text-xs w-28"
-                                autoFocus
-                              />
+                              <Input value={panelistIdInput} onChange={e => setPanelistIdInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSavePanelistId(p.id)} className="h-7 text-xs w-28" autoFocus />
                               <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700" onClick={() => handleSavePanelistId(p.id)}>Save</Button>
                               <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingPanelistId(null)}>Cancel</Button>
                             </div>
                           ) : (
-                            <span className={`font-mono text-xs ${p.panelistId ? 'text-slate-700' : 'text-slate-400 italic'}`}>
-                              {p.panelistId ?? 'not set'}
-                            </span>
+                            <span className={`font-mono text-xs ${p.panelistId ? 'text-slate-700' : 'text-slate-400 italic'}`}>{p.panelistId ?? 'not set'}</span>
                           )}
                         </td>
                         <td className="py-2 px-3 text-slate-600">{p.completedCount}</td>
@@ -694,9 +591,7 @@ export function AdminConfig() {
                             <Badge className={`text-xs ${rel.meanDeviation < 1.5 ? 'bg-emerald-100 text-emerald-800' : rel.meanDeviation < 2.5 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
                               {rel.meanDeviation.toFixed(2)}
                             </Badge>
-                          ) : (
-                            <span className="text-xs text-slate-400">–</span>
-                          )}
+                          ) : <span className="text-xs text-slate-400">–</span>}
                         </td>
                         <td className="py-2 px-3">
                           {editingPanelistId !== p.id && (
@@ -713,252 +608,234 @@ export function AdminConfig() {
         </CardContent>
       </Card>
 
-      {/* Confirmation Dialog */}
-      {showConfirmation && pendingProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-4xl shadow-xl max-h-[90vh] overflow-y-auto">
-            <CardHeader className="bg-white border-b sticky top-0 z-10">
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  {confirmationStep === 'review' && (
-                    <>
-                      <CheckCircle2 className="size-6 text-purple-600" />
-                      Step 1: Review Product Details
-                    </>
-                  )}
-                  {confirmationStep === 'configure' && (
-                    <>
-                      <Settings className="size-6 text-purple-600" />
-                      Step 2: Configure Questionnaire
-                    </>
-                  )}
-                </CardTitle>
-                <Badge className="bg-purple-600">
-                  {confirmationStep === 'review' ? '1 of 2' : '2 of 2'}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-6 space-y-6">
-              {confirmationStep === 'review' && (
-                <>
-                  <div className="space-y-4">
+      {/* Create Product Modal */}
+      <Dialog open={showCreateModal} onOpenChange={open => !open && closeCreateModal()}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center justify-between pr-6">
+              <DialogTitle className="flex items-center gap-2">
+                {createStep === 'form' && <><Plus className="size-5 text-blue-600" />New Product</>}
+                {createStep === 'review' && <><CheckCircle2 className="size-5 text-purple-600" />Step 1: Review Details</>}
+                {createStep === 'configure' && <><Settings className="size-5 text-purple-600" />Step 2: Configure Questionnaire</>}
+              </DialogTitle>
+              {createStep !== 'form' && (
+                <Badge className="bg-purple-600">{createStep === 'review' ? '1 of 2' : '2 of 2'}</Badge>
+              )}
+            </div>
+          </DialogHeader>
+
+          <div className="pt-2 space-y-5">
+
+            {/* FORM STEP */}
+            {createStep === 'form' && (
+              <>
+                <div className="space-y-3">
+                  <Label className="text-base font-bold text-slate-900">Product Type</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {([
+                      { type: 'single' as const, icon: ClipboardList, label: 'Single Sample', desc: 'One product evaluation with CATA, intensity, hedonic, and emotional response', color: 'blue' },
+                      { type: 'multi' as const, icon: Layers, label: 'Multi-Sample Comparison', desc: 'Compare samples with discrimination test and preference ranking', color: 'purple' },
+                    ]).map(({ type, icon: Icon, label, desc, color }) => (
+                      <button
+                        key={type}
+                        onClick={() => setProductType(type)}
+                        className={`p-4 rounded-lg border-2 transition-all text-left ${
+                          productType === type
+                            ? color === 'blue' ? 'border-blue-600 bg-blue-50' : 'border-purple-600 bg-gradient-to-br from-purple-50 to-pink-50'
+                            : color === 'blue' ? 'border-slate-200 hover:border-blue-300 bg-white' : 'border-slate-200 hover:border-purple-300 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${productType === type ? (color === 'blue' ? 'bg-blue-600' : 'bg-purple-600') : 'bg-slate-200'}`}>
+                            <Icon className={`size-5 ${productType === type ? 'text-white' : 'text-slate-500'}`} />
+                          </div>
+                          <div>
+                            <div className="font-bold text-slate-900 mb-1">{label}</div>
+                            <p className="text-xs text-slate-600">{desc}</p>
+                          </div>
+                        </div>
+                        {productType === type && (
+                          <div className={`mt-2 flex items-center gap-1 text-xs font-medium ${color === 'blue' ? 'text-blue-700' : 'text-purple-700'}`}>
+                            <CheckCircle2 className="size-3" />Selected
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="productName">Product Name</Label>
+                    <Input id="productName" placeholder={productType === 'single' ? 'e.g., Coconut Cheddar v3.0' : 'e.g., Coconut Cheddar Comparison'} value={newProductName} onChange={e => setNewProductName(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="productCategory">Category</Label>
+                    <Input id="productCategory" placeholder={productType === 'single' ? 'e.g., Coconut-based' : 'e.g., Multi-sample comparison'} value={newProductCategory} onChange={e => setNewProductCategory(e.target.value)} />
+                  </div>
+                </div>
+
+                {productType === 'multi' && (
+                  <div className="space-y-3 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-bold text-purple-900">Sample Configuration</Label>
+                      <Button size="sm" onClick={handleAddSample} variant="outline"><Plus className="size-4 mr-1" />Add Sample</Button>
+                    </div>
+                    <p className="text-xs text-slate-600">Define each sample with a 3-digit code and label. Minimum 2 required.</p>
+                    <div className="space-y-2">
+                      {samples.map((sample, index) => (
+                        <div key={index} className="flex items-center gap-2 p-3 bg-white rounded border border-purple-200">
+                          <div className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">{index + 1}</div>
+                          <Input placeholder="3-digit code" value={sample.code} onChange={e => handleUpdateSample(index, 'code', e.target.value)} className="w-28" maxLength={3} />
+                          <Input placeholder="Sample label" value={sample.label} onChange={e => handleUpdateSample(index, 'label', e.target.value)} className="flex-1" />
+                          {samples.length > 1 && (
+                            <Button size="sm" variant="ghost" onClick={() => handleRemoveSample(index)} className="text-rose-600 hover:text-rose-700"><Trash2 className="size-4" /></Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {samples.filter(s => s.code && s.label).length >= 2 && (
+                      <div className="p-3 bg-white rounded-lg border-2 border-purple-300 text-xs text-slate-700 space-y-1">
+                        <p className="font-bold text-purple-900 mb-1">Evaluation Flow:</p>
+                        <p>✓ <strong>{samples.filter(s => s.code && s.label).length} samples</strong> evaluated sequentially</p>
+                        <p>✓ Full questionnaire per sample (CATA + Intensity + Hedonic + Emotions)</p>
+                        <p>✓ Discrimination test + Preference ranking</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <Button variant="outline" onClick={closeCreateModal} className="flex-1">Cancel</Button>
+                  <Button
+                    onClick={handleCreateProduct}
+                    className={`flex-1 py-5 ${productType === 'multi' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                    disabled={!newProductName || !newProductCategory}
+                  >
+                    {productType === 'multi' ? <Layers className="size-4 mr-2" /> : <Plus className="size-4 mr-2" />}
+                    Review & Configure
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {/* REVIEW STEP */}
+            {createStep === 'review' && pendingProduct && (
+              <>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
                       <div className="text-sm text-slate-600 mb-1">Product Name</div>
-                      <div className="font-bold text-slate-900 text-xl flex items-center gap-2">
+                      <div className="font-bold text-slate-900 text-lg flex items-center gap-2 flex-wrap">
                         {pendingProduct.name}
-                        {pendingProduct.isMultiSample && (
-                          <Badge className="bg-purple-600">
-                            <Layers className="size-3 mr-1" />
-                            Multi-Sample
-                          </Badge>
-                        )}
+                        {pendingProduct.isMultiSample && <Badge className="bg-purple-600"><Layers className="size-3 mr-1" />Multi-Sample</Badge>}
                       </div>
                     </div>
                     <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
                       <div className="text-sm text-slate-600 mb-1">Category</div>
-                      <div className="font-bold text-slate-900 text-xl">{pendingProduct.category}</div>
-                    </div>
-
-                    {/* Show samples for multi-sample products */}
-                    {pendingProduct.isMultiSample && pendingProduct.samples && (
-                      <div className="p-4 bg-purple-50 rounded-lg border-2 border-purple-300">
-                        <div className="text-sm font-bold text-purple-900 mb-3">Samples ({pendingProduct.samples.length})</div>
-                        <div className="space-y-2">
-                          {pendingProduct.samples.map((sample, idx) => (
-                            <div key={sample.id} className="flex items-center gap-3 p-3 bg-white rounded border border-purple-200">
-                              <div className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-sm">
-                                {idx + 1}
-                              </div>
-                              <div className="flex-1">
-                                <div className="font-bold text-slate-900">Code: {sample.code}</div>
-                                <div className="text-sm text-slate-600">{sample.label}</div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                      <div className="text-sm font-semibold text-slate-700 mb-3">What happens next</div>
-                      <ul className="text-sm text-slate-600 space-y-2">
-                        <li className="flex items-start gap-2">
-                          <CheckCircle2 className="size-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-                          <span>Product will be created and set to "Open for Evaluation"</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <CheckCircle2 className="size-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-                          <span>You'll configure which attributes panelists will evaluate</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <CheckCircle2 className="size-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-                          <span>
-                            Panelists will {pendingProduct.isMultiSample ? 'evaluate each sample and rank them' : 'see this product in their questionnaire'}
-                          </span>
-                        </li>
-                      </ul>
+                      <div className="font-bold text-slate-900 text-lg">{pendingProduct.category}</div>
                     </div>
                   </div>
-                  <div className="flex gap-3 pt-4 border-t">
-                    <Button
-                      variant="outline"
-                      onClick={cancelCreateProduct}
-                      className="flex-1"
-                      size="lg"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={confirmCreateProduct}
-                      className="flex-1 bg-purple-600 hover:bg-purple-700"
-                      size="lg"
-                    >
-                      Next: Configure Questionnaire
-                      <Settings className="size-4 ml-2" />
-                    </Button>
-                  </div>
-                </>
-              )}
-
-              {confirmationStep === 'configure' && (
-                <>
-                  <div className="space-y-6">
-                    <div className="p-4 bg-purple-50 rounded-lg border-2 border-purple-200">
-                      <div className="text-sm font-semibold text-purple-900 mb-1">Configuring:</div>
-                      <div className="font-bold text-purple-900 text-lg flex items-center gap-2">
-                        {pendingProduct.name}
-                        {pendingProduct.isMultiSample && (
-                          <Badge className="bg-purple-600">
-                            <Layers className="size-3 mr-1" />
-                            Multi-Sample
-                          </Badge>
-                        )}
-                      </div>
-                      {pendingProduct.isMultiSample && (
-                        <div className="text-xs text-purple-700 mt-2">
-                          All {pendingProduct.samples?.length} samples will use the same questionnaire attributes
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Add Custom Attribute */}
-                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                      <Label htmlFor="newAttrModal" className="text-sm font-bold text-blue-900 mb-2 block">
-                        Add Product-Specific Attribute
-                      </Label>
-                      <p className="text-xs text-slate-600 mb-3">Add custom attributes relevant to this specific product (e.g., "Smoky" for smoked varieties)</p>
-                      <div className="flex gap-2">
-                        <Input
-                          id="newAttrModal"
-                          placeholder="e.g., Smoky, Herbal, Peppery, Aged"
-                          value={newAttribute}
-                          onChange={(e) => setNewAttribute(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleAddCustomAttribute()}
-                        />
-                        <Button onClick={handleAddCustomAttribute} className="bg-blue-600 hover:bg-blue-700">
-                          <Plus className="size-4 mr-1" />
-                          Add
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Attribute Selection */}
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <Label className="text-base font-bold text-slate-900">
-                          Select Questionnaire Attributes ({customAttributes.length} selected)
-                        </Label>
-                        <div className="flex gap-2">
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => setCustomAttributes([...DEFAULT_CATA_ATTRIBUTES])}
-                          >
-                            Reset to Default
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => setCustomAttributes([])}
-                          >
-                            Clear All
-                          </Button>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-3 gap-3 max-h-80 overflow-y-auto p-4 bg-slate-50 rounded-lg border border-slate-200">
-                        {/* Default attributes */}
-                        {DEFAULT_CATA_ATTRIBUTES.map(attr => (
-                          <div key={attr} className="flex items-center space-x-2 p-2 bg-white rounded border border-slate-200">
-                            <Checkbox
-                              id={`attr-modal-${attr}`}
-                              checked={customAttributes.includes(attr)}
-                              onCheckedChange={() => handleToggleAttribute(attr)}
-                            />
-                            <Label htmlFor={`attr-modal-${attr}`} className="text-sm cursor-pointer flex-1">
-                              {attr}
-                            </Label>
+                  {pendingProduct.isMultiSample && pendingProduct.samples && (
+                    <div className="p-4 bg-purple-50 rounded-lg border-2 border-purple-300">
+                      <div className="text-sm font-bold text-purple-900 mb-3">Samples ({pendingProduct.samples.length})</div>
+                      <div className="space-y-2">
+                        {pendingProduct.samples.map((sample, idx) => (
+                          <div key={sample.id} className="flex items-center gap-3 p-3 bg-white rounded border border-purple-200">
+                            <div className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-sm">{idx + 1}</div>
+                            <div><div className="font-bold text-slate-900">Code: {sample.code}</div><div className="text-sm text-slate-600">{sample.label}</div></div>
                           </div>
                         ))}
-                        
-                        {/* Custom attributes */}
-                        {customAttributes
-                          .filter(attr => !DEFAULT_CATA_ATTRIBUTES.includes(attr))
-                          .map(attr => (
-                            <div key={attr} className="flex items-center space-x-2 p-2 bg-purple-50 rounded border-2 border-purple-300">
-                              <Checkbox
-                                id={`attr-modal-${attr}`}
-                                checked={true}
-                                disabled
-                              />
-                              <Label htmlFor={`attr-modal-${attr}`} className="text-sm flex-1 font-medium text-purple-900">
-                                {attr}
-                              </Label>
-                              <button
-                                onClick={() => handleRemoveAttribute(attr)}
-                                className="text-rose-600 hover:text-rose-700"
-                              >
-                                <Trash2 className="size-4" />
-                              </button>
-                            </div>
-                          ))}
                       </div>
                     </div>
+                  )}
+                  <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <div className="text-sm font-semibold text-slate-700 mb-3">What happens next</div>
+                    <ul className="text-sm text-slate-600 space-y-2">
+                      <li className="flex items-start gap-2"><CheckCircle2 className="size-4 text-emerald-600 flex-shrink-0 mt-0.5" />Product created and set to "Open for Evaluation"</li>
+                      <li className="flex items-start gap-2"><CheckCircle2 className="size-4 text-emerald-600 flex-shrink-0 mt-0.5" />Configure which attributes panelists will evaluate</li>
+                      <li className="flex items-start gap-2"><CheckCircle2 className="size-4 text-emerald-600 flex-shrink-0 mt-0.5" />{pendingProduct.isMultiSample ? 'Panelists evaluate each sample and rank them' : 'Panelists see this product in their questionnaire'}</li>
+                    </ul>
+                  </div>
+                </div>
+                <div className="flex gap-3 pt-2 border-t">
+                  <Button variant="outline" onClick={() => setCreateStep('form')} className="flex-1">Back</Button>
+                  <Button onClick={() => setCreateStep('configure')} className="flex-1 bg-purple-600 hover:bg-purple-700">
+                    Next: Configure Questionnaire<Settings className="size-4 ml-2" />
+                  </Button>
+                </div>
+              </>
+            )}
 
-                    <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
-                      <div className="flex items-start gap-3">
-                        <CheckCircle2 className="size-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-                        <div className="text-sm text-emerald-900">
-                          <strong>Ready to finalize:</strong> Your product will be created with {customAttributes.length} attributes. Panelists will see these attributes when evaluating {pendingProduct.name}.
+            {/* CONFIGURE STEP */}
+            {createStep === 'configure' && pendingProduct && (
+              <>
+                <div className="space-y-5">
+                  <div className="p-4 bg-purple-50 rounded-lg border-2 border-purple-200">
+                    <div className="text-sm font-semibold text-purple-900 mb-1">Configuring:</div>
+                    <div className="font-bold text-purple-900 text-lg flex items-center gap-2 flex-wrap">
+                      {pendingProduct.name}
+                      {pendingProduct.isMultiSample && <Badge className="bg-purple-600"><Layers className="size-3 mr-1" />Multi-Sample</Badge>}
+                    </div>
+                    {pendingProduct.isMultiSample && (
+                      <div className="text-xs text-purple-700 mt-1">All {pendingProduct.samples?.length} samples use the same questionnaire attributes</div>
+                    )}
+                  </div>
+
+                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <Label htmlFor="newAttrModal" className="text-sm font-bold text-blue-900 mb-2 block">Add Product-Specific Attribute</Label>
+                    <p className="text-xs text-slate-600 mb-3">Custom attributes relevant to this product (e.g., "Smoky" for smoked varieties)</p>
+                    <div className="flex gap-2">
+                      <Input id="newAttrModal" placeholder="e.g., Smoky, Herbal, Peppery" value={newAttribute} onChange={e => setNewAttribute(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddCustomAttribute()} />
+                      <Button onClick={handleAddCustomAttribute} className="bg-blue-600 hover:bg-blue-700"><Plus className="size-4 mr-1" />Add</Button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <Label className="text-base font-bold text-slate-900">Select Attributes ({customAttributes.length} selected)</Label>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => setCustomAttributes([...DEFAULT_CATA_ATTRIBUTES])}>Reset</Button>
+                        <Button size="sm" variant="outline" onClick={() => setCustomAttributes([])}>Clear</Button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 max-h-72 overflow-y-auto p-4 bg-slate-50 rounded-lg border border-slate-200">
+                      {DEFAULT_CATA_ATTRIBUTES.map(attr => (
+                        <div key={attr} className="flex items-center space-x-2 p-2 bg-white rounded border border-slate-200">
+                          <Checkbox id={`attr-modal-${attr}`} checked={customAttributes.includes(attr)} onCheckedChange={() => handleToggleAttribute(attr)} />
+                          <Label htmlFor={`attr-modal-${attr}`} className="text-sm cursor-pointer flex-1">{attr}</Label>
                         </div>
-                      </div>
+                      ))}
+                      {customAttributes.filter(attr => !DEFAULT_CATA_ATTRIBUTES.includes(attr)).map(attr => (
+                        <div key={attr} className="flex items-center space-x-2 p-2 bg-purple-50 rounded border-2 border-purple-300">
+                          <Checkbox id={`attr-modal-${attr}`} checked disabled />
+                          <Label htmlFor={`attr-modal-${attr}`} className="text-sm flex-1 font-medium text-purple-900">{attr}</Label>
+                          <button onClick={() => handleRemoveAttribute(attr)} className="text-rose-600 hover:text-rose-700"><Trash2 className="size-4" /></button>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
-                  <div className="flex gap-3 pt-4 border-t">
-                    <Button
-                      variant="outline"
-                      onClick={cancelCreateProduct}
-                      className="flex-1"
-                      size="lg"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={finalizeProductCreation}
-                      className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-                      size="lg"
-                    >
-                      <Save className="size-5 mr-2" />
-                      Create Product & Save Configuration
-                    </Button>
+                  <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle2 className="size-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <div className="text-sm text-emerald-900">
+                        <strong>Ready to finalize:</strong> Product will be created with {customAttributes.length} attributes for {pendingProduct.name}.
+                      </div>
+                    </div>
                   </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
+                </div>
+                <div className="flex gap-3 pt-4 border-t">
+                  <Button variant="outline" onClick={closeCreateModal} className="flex-1">Cancel</Button>
+                  <Button onClick={finalizeProductCreation} className="flex-1 bg-emerald-600 hover:bg-emerald-700">
+                    <Save className="size-5 mr-2" />Create Product & Save Configuration
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
