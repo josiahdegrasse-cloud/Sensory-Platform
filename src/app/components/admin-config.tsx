@@ -218,85 +218,28 @@ export function AdminConfig() {
     }
   };
 
+  const handleEditPanelistId = (userId: string, currentId: string | null) => {
+    setEditingPanelistId(userId);
+    setPanelistIdInput(currentId ?? '');
+  };
+
+  const handleSavePanelistId = async (userId: string) => {
+    setMutationError('');
+    try {
+      await updatePanelistIdMutation.mutateAsync({ userId, panelistId: panelistIdInput });
+      setEditingPanelistId(null);
+      setPanelistIdInput('');
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : 'Failed to update panelist ID.');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Product Configuration</h1>
-        <p className="text-sm text-slate-500 mt-1">Manage products and customize questionnaire attributes for each evaluation</p>
+        <p className="text-sm text-slate-500 mt-1">Manage products, questionnaire attributes, and panelists</p>
       </div>
-
-      {/* Panelist Management */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="size-5 text-blue-600" />
-            Panelists ({panelists.length})
-          </CardTitle>
-          <p className="text-sm text-slate-600">All registered panelists and their survey completion status</p>
-        </CardHeader>
-        <CardContent>
-          {panelists.length === 0 ? (
-            <p className="text-sm text-slate-500 text-center py-4">No panelists have signed up yet</p>
-          ) : (
-            <div className="space-y-2">
-              {panelists.map(p => {
-                const rel = reliability.find(r => r.userId === p.id);
-                const reliabilityBadge = rel == null ? null : rel.meanDeviation === null
-                  ? <Badge variant="outline" className="text-slate-500 border-slate-300 text-xs">Insufficient data</Badge>
-                  : rel.meanDeviation < 1.0
-                    ? <Badge className="bg-emerald-600 text-xs">Consistent</Badge>
-                    : rel.meanDeviation <= 2.0
-                      ? <Badge className="bg-amber-600 text-xs">Variable</Badge>
-                      : <Badge className="bg-rose-600 text-xs">Outlier — review</Badge>;
-                return (
-                <div key={p.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-slate-900">{p.name}</span>
-                      {reliabilityBadge}
-                    </div>
-                    <div className="text-xs text-slate-500 mt-0.5">
-                      {p.panelistId ? `ID: ${p.panelistId}` : 'No panelist ID set'} · {p.completedCount} survey{p.completedCount !== 1 ? 's' : ''} completed
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {editingPanelistId === p.id ? (
-                      <>
-                        <Input
-                          className="w-28 h-8 text-sm"
-                          placeholder="e.g. P006"
-                          value={panelistIdInput}
-                          onChange={e => setPanelistIdInput(e.target.value)}
-                        />
-                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={async () => {
-                          setMutationError('');
-                          try {
-                            await updatePanelistIdMutation.mutateAsync({ userId: p.id, panelistId: panelistIdInput });
-                            setEditingPanelistId(null);
-                          } catch (err) {
-                            setMutationError(err instanceof Error ? err.message : 'Failed to update panelist ID. Please try again.');
-                          }
-                        }}>
-                          Save
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => setEditingPanelistId(null)}>Cancel</Button>
-                      </>
-                    ) : (
-                      <Button size="sm" variant="outline" onClick={() => {
-                        setEditingPanelistId(p.id);
-                        setPanelistIdInput(p.panelistId ?? '');
-                      }}>
-                        {p.panelistId ? 'Edit ID' : 'Assign ID'}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {showSuccess && (
         <Alert className="border-emerald-300 bg-emerald-50">
@@ -471,7 +414,7 @@ export function AdminConfig() {
 
           <Button
             onClick={handleCreateProduct}
-            className={`w-full text-base py-6 ${productType === 'multi' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-purple-600 hover:bg-purple-700'}`}
+            className={`w-full text-base py-6 ${productType === 'multi' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}
             disabled={!newProductName || !newProductCategory}
           >
             {productType === 'multi' ? <Layers className="size-5 mr-2" /> : <Plus className="size-5 mr-2" />}
@@ -480,17 +423,25 @@ export function AdminConfig() {
         </CardContent>
       </Card>
 
-      {/* Product List */}
+      {/* Products + Attribute Config (2-column master-detail) */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Settings className="size-5 text-blue-600" />
-            Manage Products & Evaluation Status
+            Products & Questionnaire Setup
           </CardTitle>
+          <p className="text-sm text-slate-600">Select a product to configure its questionnaire attributes</p>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {products.map(product => (
+          <div className="grid grid-cols-5 gap-5">
+            {/* Left: product list */}
+            <div className="col-span-2 space-y-2">
+              {products.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-slate-400">
+                  <ClipboardList className="size-10 mb-2 opacity-40" />
+                  <p className="text-sm">No products yet — create one above</p>
+                </div>
+              ) : products.map(product => (
               <div
                 key={product.id}
                 className={`p-4 rounded-lg border-2 transition-all ${
@@ -566,220 +517,199 @@ export function AdminConfig() {
                 </div>
               </div>
             ))}
+            </div>
+
+            {/* Right: attribute config + templates */}
+            <div className="col-span-3 border-l border-slate-100 pl-5 space-y-4 overflow-y-auto max-h-[640px]">
+              {!selectedProduct ? (
+                <div className="flex flex-col items-center justify-center h-full py-20 text-slate-400 text-center">
+                  <Settings className="size-10 mb-3 opacity-30" />
+                  <p className="text-sm font-medium">Select a product to configure</p>
+                  <p className="text-xs mt-1 max-w-[200px]">Choose a product from the list to customise its questionnaire attributes</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-0.5">Configuring</p>
+                    <div className="font-bold text-slate-900 flex items-center gap-2">
+                      {products.find(p => p.id === selectedProduct)?.name}
+                      {products.find(p => p.id === selectedProduct)?.isMultiSample && (
+                        <Badge className="bg-purple-600 text-xs"><Layers className="size-3 mr-1" />Multi</Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-700">Add Attribute</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="e.g., Smoky, Herbal"
+                        value={newAttribute}
+                        onChange={e => setNewAttribute(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleAddCustomAttribute()}
+                        className="text-sm"
+                      />
+                      <Button size="sm" onClick={handleAddCustomAttribute} className="bg-blue-600 hover:bg-blue-700 flex-shrink-0">
+                        <Plus className="size-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="text-xs font-bold text-slate-700">Attributes ({customAttributes.length})</Label>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" className="text-xs h-6 px-2" onClick={() => setCustomAttributes([...DEFAULT_CATA_ATTRIBUTES])}>Reset</Button>
+                        <Button size="sm" variant="ghost" className="text-xs h-6 px-2" onClick={() => setCustomAttributes([])}>Clear</Button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 max-h-52 overflow-y-auto p-2 bg-slate-50 rounded-lg border border-slate-200">
+                      {DEFAULT_CATA_ATTRIBUTES.map(attr => (
+                        <div key={attr} className="flex items-center gap-1.5 p-1.5 bg-white rounded border border-slate-200">
+                          <Checkbox id={`rp-${attr}`} checked={customAttributes.includes(attr)} onCheckedChange={() => handleToggleAttribute(attr)} />
+                          <Label htmlFor={`rp-${attr}`} className="text-xs cursor-pointer">{attr}</Label>
+                        </div>
+                      ))}
+                      {customAttributes.filter(attr => !DEFAULT_CATA_ATTRIBUTES.includes(attr)).map(attr => (
+                        <div key={attr} className="flex items-center gap-1.5 p-1.5 bg-purple-50 rounded border border-purple-300">
+                          <Checkbox id={`rp-${attr}`} checked disabled />
+                          <Label htmlFor={`rp-${attr}`} className="text-xs font-medium text-purple-900 flex-1">{attr}</Label>
+                          <button onClick={() => handleRemoveAttribute(attr)} className="text-rose-500 hover:text-rose-700"><Trash2 className="size-3" /></button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={handleSaveAttributes}
+                    className="w-full"
+                    style={{ background: '#6B7890' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#5a6878')}
+                    onMouseLeave={e => (e.currentTarget.style.background = '#6B7890')}
+                  >
+                    <Save className="size-4 mr-2" />
+                    Save Attributes
+                  </Button>
+
+                  <div className="border-t border-slate-200 pt-3 space-y-2">
+                    <Label className="text-xs font-bold text-slate-700">Templates ({templates.length})</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Template name…"
+                        value={templateName}
+                        onChange={e => setTemplateName(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleSaveTemplate()}
+                        className="text-sm"
+                      />
+                      <Button size="sm" onClick={handleSaveTemplate} variant="outline" className="flex-shrink-0 text-xs">Save</Button>
+                    </div>
+                    {templates.length > 0 && (
+                      <div className="space-y-1 max-h-28 overflow-y-auto">
+                        {templates.map(t => (
+                          <div key={t.id} className="flex items-center gap-2 p-1.5 bg-slate-50 rounded border border-slate-200">
+                            <button
+                              onClick={() => handleLoadTemplate(t.id)}
+                              className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 flex-shrink-0"
+                            >
+                              <FolderOpen className="size-3" />Load
+                            </button>
+                            <span className="text-xs flex-1 truncate">{t.name}</span>
+                            <button
+                              onClick={async () => {
+                                setMutationError('');
+                                try { await deleteTemplateMutation.mutateAsync(t.id); }
+                                catch (err) { setMutationError(err instanceof Error ? err.message : 'Failed to delete template.'); }
+                              }}
+                              className="text-rose-500 hover:text-rose-700"
+                            >
+                              <Trash2 className="size-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Attribute Configuration */}
-      {selectedProduct && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="size-5 text-slate-600" />
-              Customize Questionnaire Attributes
-            </CardTitle>
-            <p className="text-sm text-slate-600">
-              Select which flavor/aroma attributes panelists will evaluate for <strong>{products.find(p => p.id === selectedProduct)?.name}</strong>
-              {products.find(p => p.id === selectedProduct)?.isMultiSample && (
-                <span className="block text-purple-700 font-medium mt-1">
-                  <Layers className="size-3 inline mr-1" />
-                  Multi-sample product - all samples use the same questionnaire attributes
-                </span>
-              )}
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Add Custom Attribute */}
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <Label htmlFor="newAttr" className="text-sm font-bold text-blue-900 mb-2 block">
-                Add Product-Specific Attribute
-              </Label>
-              <p className="text-xs text-slate-600 mb-3">Add custom attributes relevant to this specific product (e.g., "Smoky" for smoked varieties)</p>
-              <div className="flex gap-2">
-                <Input
-                  id="newAttr"
-                  placeholder="e.g., Smoky, Herbal, Peppery, Aged"
-                  value={newAttribute}
-                  onChange={(e) => setNewAttribute(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddCustomAttribute()}
-                />
-                <Button onClick={handleAddCustomAttribute} className="bg-blue-600 hover:bg-blue-700">
-                  <Plus className="size-4 mr-1" />
-                  Add
-                </Button>
-              </div>
+      {/* Panelists */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="size-5 text-slate-600" />
+            Panelists ({panelists.length})
+          </CardTitle>
+          <p className="text-sm text-slate-600">Manage panelist IDs and view session counts</p>
+        </CardHeader>
+        <CardContent>
+          {panelists.length === 0 ? (
+            <div className="text-center py-10 text-slate-400">
+              <Users className="size-10 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">No panelists yet</p>
             </div>
-
-            {/* Attribute Selection */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <Label className="text-sm font-bold text-slate-700">
-                  Selected Attributes for Questionnaire ({customAttributes.length})
-                </Label>
-                <div className="flex gap-2">
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => setCustomAttributes([...DEFAULT_CATA_ATTRIBUTES])}
-                  >
-                    Reset to Default
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => setCustomAttributes([])}
-                  >
-                    Clear All
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-3 gap-3 max-h-96 overflow-y-auto p-4 bg-slate-50 rounded-lg border border-slate-200">
-                {/* Default attributes */}
-                {DEFAULT_CATA_ATTRIBUTES.map(attr => (
-                  <div key={attr} className="flex items-center space-x-2 p-2 bg-white rounded border border-slate-200">
-                    <Checkbox
-                      id={`attr-${attr}`}
-                      checked={customAttributes.includes(attr)}
-                      onCheckedChange={() => handleToggleAttribute(attr)}
-                    />
-                    <Label htmlFor={`attr-${attr}`} className="text-sm cursor-pointer flex-1">
-                      {attr}
-                    </Label>
-                  </div>
-                ))}
-                
-                {/* Custom attributes */}
-                {customAttributes
-                  .filter(attr => !DEFAULT_CATA_ATTRIBUTES.includes(attr))
-                  .map(attr => (
-                    <div key={attr} className="flex items-center space-x-2 p-2 bg-purple-50 rounded border-2 border-purple-300">
-                      <Checkbox
-                        id={`attr-${attr}`}
-                        checked={true}
-                        disabled
-                      />
-                      <Label htmlFor={`attr-${attr}`} className="text-sm flex-1 font-medium text-purple-900">
-                        {attr}
-                      </Label>
-                      <button
-                        onClick={() => handleRemoveAttribute(attr)}
-                        className="text-rose-600 hover:text-rose-700"
-                      >
-                        <Trash2 className="size-4" />
-                      </button>
-                    </div>
-                  ))}
-              </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200">
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Name</th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Panelist ID</th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Sessions</th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Reliability</th>
+                    <th className="py-2 px-3" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {panelists.map(p => {
+                    const rel = reliability.find(r => r.userId === p.id);
+                    return (
+                      <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50">
+                        <td className="py-2 px-3 font-medium text-slate-900">{p.name}</td>
+                        <td className="py-2 px-3">
+                          {editingPanelistId === p.id ? (
+                            <div className="flex gap-2">
+                              <Input
+                                value={panelistIdInput}
+                                onChange={e => setPanelistIdInput(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && handleSavePanelistId(p.id)}
+                                className="h-7 text-xs w-28"
+                                autoFocus
+                              />
+                              <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700" onClick={() => handleSavePanelistId(p.id)}>Save</Button>
+                              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingPanelistId(null)}>Cancel</Button>
+                            </div>
+                          ) : (
+                            <span className={`font-mono text-xs ${p.panelistId ? 'text-slate-700' : 'text-slate-400 italic'}`}>
+                              {p.panelistId ?? 'not set'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 text-slate-600">{p.completedCount}</td>
+                        <td className="py-2 px-3">
+                          {rel?.meanDeviation != null ? (
+                            <Badge className={`text-xs ${rel.meanDeviation < 1.5 ? 'bg-emerald-100 text-emerald-800' : rel.meanDeviation < 2.5 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
+                              {rel.meanDeviation.toFixed(2)}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-slate-400">–</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3">
+                          {editingPanelistId !== p.id && (
+                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => handleEditPanelistId(p.id, p.panelistId)}>Edit ID</Button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-
-            {/* Save Button */}
-            <Button 
-              onClick={handleSaveAttributes} 
-              className="w-full text-lg py-6"
-              style={{ background: '#6B7890' }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#5a6878')}
-              onMouseLeave={e => (e.currentTarget.style.background = '#6B7890')}
-            >
-              <Save className="size-5 mr-2" />
-              Save Questionnaire Configuration
-            </Button>
-            <p className="text-xs text-slate-600 text-center">
-              Panelists will see these attributes when evaluating {products.find(p => p.id === selectedProduct)?.name}
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Template Management */}
-      {selectedProduct && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bookmark className="size-5 text-slate-600" />
-              Manage Questionnaire Templates
-            </CardTitle>
-            <p className="text-sm text-slate-600">
-              Save and load questionnaire templates for quick configuration
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Add Template */}
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <Label htmlFor="templateName" className="text-sm font-bold text-blue-900 mb-2 block">
-                Add New Template
-              </Label>
-              <p className="text-xs text-slate-600 mb-3">Create a new template with the current attribute set</p>
-              <div className="flex gap-2">
-                <Input
-                  id="templateName"
-                  placeholder="e.g., Smoky Variety Template"
-                  value={templateName}
-                  onChange={(e) => setTemplateName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSaveTemplate()}
-                />
-                <Button onClick={handleSaveTemplate} className="bg-blue-600 hover:bg-blue-700">
-                  <Plus className="size-4 mr-1" />
-                  Add Template
-                </Button>
-              </div>
-            </div>
-
-            {/* Template Selection */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <Label className="text-sm font-bold text-slate-700">
-                  Available Templates ({templates.length})
-                </Label>
-                <div />
-              </div>
-              
-              <div className="grid grid-cols-3 gap-3 max-h-96 overflow-y-auto p-4 bg-slate-50 rounded-lg border border-slate-200">
-                {/* Templates */}
-                {templates.map(template => (
-                  <div key={template.id} className="flex items-center space-x-2 p-2 bg-white rounded border border-slate-200">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleLoadTemplate(template.id)}
-                    >
-                      <FolderOpen className="size-4 mr-1" />
-                      Load
-                    </Button>
-                    <span className="text-sm flex-1">{template.name}</span>
-                    <button
-                      onClick={async () => {
-                        setMutationError('');
-                        try {
-                          await deleteTemplateMutation.mutateAsync(template.id);
-                        } catch (err) {
-                          setMutationError(err instanceof Error ? err.message : 'Failed to delete template. Please try again.');
-                        }
-                      }}
-                      className="text-rose-500 hover:text-rose-700"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Info Card */}
-      <Card className="bg-slate-50 border border-slate-200">
-        <CardContent className="pt-6">
-          <h3 className="font-bold text-slate-900 mb-2">How Product Configuration Works</h3>
-          <ul className="text-sm text-slate-600 space-y-1">
-            <li>• <strong>Create Products:</strong> Add new plant-based cheese samples to evaluate</li>
-            <li>• <strong>Single vs Multi-Sample:</strong> Single products get one questionnaire. Multi-sample products compare multiple samples with discrimination test and ranking</li>
-            <li>• <strong>Customize Attributes:</strong> Choose which CATA attributes panelists will evaluate</li>
-            <li>• <strong>Product-Specific Customization:</strong> Different products can have different attribute sets</li>
-            <li>• <strong>Manage Status:</strong> Mark products as "Open for Evaluation" or "Evaluation Completed"</li>
-            <li>• <strong>Panelist View:</strong> Panelists only see active products with your customized attributes</li>
-          </ul>
+          )}
         </CardContent>
       </Card>
 

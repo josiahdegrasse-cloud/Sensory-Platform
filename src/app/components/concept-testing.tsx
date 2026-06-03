@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -188,7 +189,13 @@ function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: Co
       if (res.status === 503) { await new Promise(r => setTimeout(r, 20000)); continue; }
       if (!res.ok) throw new Error(`${res.status}`);
       const blob = await res.blob();
-      return URL.createObjectURL(blob);
+      // Convert to data URL so it persists through to the database
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
     }
     throw new Error('Model unavailable after retries');
   };
@@ -221,7 +228,8 @@ function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: Co
     setGenerating(false);
   };
 
-  const isHttpsUrl = (u: string) => { try { return new URL(u).protocol === 'https:'; } catch { return false; } };
+  const isValidImageUrl = (u: string) =>
+    u.startsWith('data:image/') || ((): boolean => { try { return new URL(u).protocol === 'https:'; } catch { return false; } })();
 
   const addSelected = () => {
     const toAdd = aiCandidates.filter(c => c.selected && c.url).map(c => c.url);
@@ -232,7 +240,7 @@ function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: Co
   const removeImage = (i: number) =>
     onChange({ ...draft, marketingImages: draft.marketingImages.filter((_, j) => j !== i) });
 
-  const validImages = draft.marketingImages.filter(u => u.trim() && isHttpsUrl(u));
+  const validImages = draft.marketingImages.filter(u => u.trim() && isValidImageUrl(u));
   const canGenerate = !!(draft.name || draft.category || draft.description);
 
   return (
@@ -389,26 +397,36 @@ function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: Co
         </div>
 
         {draft.marketingImages.map((url, i) => (
-          <div key={i} className="space-y-1">
-            <div className="flex gap-2 items-center">
-              <Input
-                value={url}
-                onChange={(e) => {
-                  const next = [...draft.marketingImages];
-                  next[i] = e.target.value;
-                  onChange({ ...draft, marketingImages: next });
-                }}
-                placeholder="https://… (paste a URL)"
-                className="flex-1 text-xs"
-              />
+          url.startsWith('data:') ? (
+            <div key={i} className="flex items-center gap-3 p-2 bg-slate-50 rounded-lg border border-slate-200">
+              <img src={url} alt="" className="w-12 h-12 object-cover rounded flex-shrink-0" />
+              <span className="text-xs text-slate-500 flex-1">AI-generated image {i + 1}</span>
               <button type="button" onClick={() => removeImage(i)} className="text-slate-300 hover:text-rose-500 flex-shrink-0">
                 <Trash2 className="size-4" />
               </button>
             </div>
-            {url.trim() && !isHttpsUrl(url) && (
-              <p className="text-xs text-rose-500 pl-1">URL must start with https://</p>
-            )}
-          </div>
+          ) : (
+            <div key={i} className="space-y-1">
+              <div className="flex gap-2 items-center">
+                <Input
+                  value={url}
+                  onChange={(e) => {
+                    const next = [...draft.marketingImages];
+                    next[i] = e.target.value;
+                    onChange({ ...draft, marketingImages: next });
+                  }}
+                  placeholder="https://… (paste a URL)"
+                  className="flex-1 text-xs"
+                />
+                <button type="button" onClick={() => removeImage(i)} className="text-slate-300 hover:text-rose-500 flex-shrink-0">
+                  <Trash2 className="size-4" />
+                </button>
+              </div>
+              {url.trim() && !isValidImageUrl(url) && (
+                <p className="text-xs text-rose-500 pl-1">URL must start with https://</p>
+              )}
+            </div>
+          )
         ))}
 
         {validImages.length > 0 ? (
@@ -822,7 +840,11 @@ function ReviewStep({ draft, questions, panelSize, segments, assignedPanelistIds
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
+const isValidImageUrlLaunch = (u: string) =>
+  u.startsWith('data:image/') || ((): boolean => { try { return new URL(u).protocol === 'https:'; } catch { return false; } })();
+
 export function ConceptTesting() {
+  const navigate = useNavigate();
   const [step, setStep] = useState<WizardStep>('concept');
   const [draft, setDraft] = useState<ConceptDraft>({
     name: '', category: '', description: '', marketingImages: [],
@@ -840,6 +862,15 @@ export function ConceptTesting() {
 
   const conceptValid = draft.name.trim() && draft.category.trim() && draft.description.trim();
 
+  const resetForm = () => {
+    setStep('concept');
+    setDraft({ name: '', category: '', description: '', marketingImages: [], targetMarket: '', pricePoint: '', keyBenefits: '', technicalChallenges: '' });
+    setQuestions([]);
+    setSegments([]);
+    setAssignedPanelistIds([]);
+    setPanelSize(50);
+  };
+
   const handleLaunch = async () => {
     setLaunching(true);
     setLaunchError('');
@@ -848,7 +879,7 @@ export function ConceptTesting() {
         name: draft.name,
         category: draft.category,
         description: draft.description,
-        imageUrls: draft.marketingImages.filter(u => u.trim() && (() => { try { return new URL(u).protocol === 'https:'; } catch { return false; } })()),
+        imageUrls: draft.marketingImages.filter(u => u.trim() && isValidImageUrlLaunch(u)),
         targetMarket: draft.targetMarket,
         pricePoint: draft.pricePoint,
         keyBenefits: draft.keyBenefits,
@@ -860,7 +891,12 @@ export function ConceptTesting() {
       setStep('launched');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      setLaunchError(`Launch failed: ${msg}`);
+      const isMissingTable = msg.includes('concept_tests') || msg.includes('does not exist') || msg.includes('relation');
+      setLaunchError(
+        isMissingTable
+          ? 'Database setup required: the concept_tests table does not exist yet. Run the SQL migrations at the top of src/app/lib/database.ts in your Supabase SQL editor.'
+          : `Launch failed: ${msg}`
+      );
     } finally {
       setLaunching(false);
     }
@@ -874,17 +910,14 @@ export function ConceptTesting() {
         </div>
         <h2 className="text-3xl font-black text-slate-900">Concept test launched!</h2>
         <p className="text-slate-500 text-lg">
-          Your survey has been sent to <strong>{panelSize} panelists</strong>.
+          Your survey has been sent to <strong>{assignedPanelistIds.length > 0 ? assignedPanelistIds.length : panelSize} panelists</strong>.
           Results will appear in <strong>Analyze Results</strong> as responses come in.
         </p>
         <div className="flex items-center justify-center gap-3 pt-4">
-          <Button
-            variant="outline"
-            onClick={() => { setStep('concept'); setDraft({ name:'',category:'',description:'',marketingImages:[],targetMarket:'',pricePoint:'',keyBenefits:'',technicalChallenges:'' }); setQuestions([]); setSegments([]); setAssignedPanelistIds([]); setPanelSize(50); }}
-          >
+          <Button variant="outline" onClick={resetForm}>
             New concept test
           </Button>
-          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white">
+          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => navigate('/survey-analysis')}>
             View responses
           </Button>
         </div>
