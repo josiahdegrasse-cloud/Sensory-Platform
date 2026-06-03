@@ -33,6 +33,11 @@ export function ConceptSurvey() {
 
   const handleSubmit = async () => {
     if (!user?.id || !conceptId) return;
+    const unanswered = test?.questions.filter(q => q.required && (answers[q.id] === undefined || answers[q.id] === '' || (Array.isArray(answers[q.id]) && (answers[q.id] as string[]).length === 0)));
+    if (unanswered && unanswered.length > 0) {
+      setError(`Please answer all required questions before submitting (${unanswered.length} remaining).`);
+      return;
+    }
     setSubmitting(true);
     setError('');
     try {

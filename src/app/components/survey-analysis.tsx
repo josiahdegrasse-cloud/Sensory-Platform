@@ -40,7 +40,7 @@ function sanitizeCsvCell(value: string | number): string {
 
 export function SurveyAnalysis() {
   const { user } = useAuth();
-  const { data: allResponsesData } = useAllResponses();
+  const { data: allResponsesData, isError: liveDataFetchFailed } = useAllResponses();
   const { data: allProducts = [] } = useProducts();
 
   const [selectedSample, setSelectedSample] = useState<string>("S1");
@@ -51,7 +51,6 @@ export function SurveyAnalysis() {
   const [selectedMultiProduct, setSelectedMultiProduct] = useState<string>('');
   const [liveAggregations, setLiveAggregations] = useState<LiveAggregation[]>([]);
   const [commentsByProduct, setCommentsByProduct] = useState<Record<string, string[]>>({});
-  const [liveDataFetchFailed, setLiveDataFetchFailed] = useState(false);
 
   // Single fetch — split into multi-sample responses and single-sample aggregations
   useEffect(() => {

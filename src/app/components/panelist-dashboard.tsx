@@ -46,6 +46,12 @@ export function PanelistDashboard() {
         </Alert>
       )}
 
+      {loading && (
+        <Card className="bg-slate-50">
+          <CardContent className="pt-12 pb-12 text-center text-slate-500">Loading questionnaires…</CardContent>
+        </Card>
+      )}
+
       {/* Statistics */}
       <div className="grid grid-cols-4 gap-4">
         <Card>
@@ -342,12 +348,6 @@ export function PanelistDashboard() {
       )}
 
       {/* Empty State */}
-      {loading && (
-        <Card className="bg-slate-50">
-          <CardContent className="pt-12 pb-12 text-center text-slate-500">Loading questionnaires…</CardContent>
-        </Card>
-      )}
-
       {!loading && !fetchError && availableProducts.length === 0 && completedProductsList.length === 0 && availableConceptTests.length === 0 && completedConceptTests.length === 0 && (
         <Card className="bg-slate-50">
           <CardContent className="pt-12 pb-12 text-center">

@@ -231,7 +231,8 @@ export function AdminConfig() {
 
   const handleLoadTemplate = async (templateId: string) => {
     const template = templates.find(t => t.id === templateId);
-    if (!template || !selectedProduct) return;
+    if (!selectedProduct) { setMutationError('Select a product first, then load the template.'); return; }
+    if (!template) return;
     setMutationError('');
     try {
       await updateProductMutation.mutateAsync({ id: selectedProduct, updates: { customAttributes: template.attributes } });

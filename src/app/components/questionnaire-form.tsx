@@ -51,7 +51,7 @@ export function QuestionnaireForm() {
     selectedCata: [],
     intensityRatings: {},
     hedonicScores: {
-      overall: 3,
+      overall: 5,
       appearance: 5,
       aroma: 5,
       flavor: 5,
@@ -86,7 +86,7 @@ export function QuestionnaireForm() {
         setFormData({
           selectedCata: existing.cataAttributes || [],
           intensityRatings: existing.intensityRatings || {},
-          hedonicScores: existing.hedonicScores || { overall: 3, appearance: 5, aroma: 5, flavor: 5, texture: 5 },
+          hedonicScores: existing.hedonicScores || { overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 },
           emotions: existing.emotionalProfile || {},
           comments: existing.comments || '',
         });
@@ -208,21 +208,21 @@ export function QuestionnaireForm() {
               </div>
               <div className="p-4 bg-white rounded-xl border-2 border-blue-200">
                 <div className="font-bold text-blue-900 mb-2">Steps 2 & 3 — Rating Scales</div>
-                <p className="text-sm text-slate-600 mb-3">All scales run from <strong>1 to 5</strong>. The left end is the lowest, the right end is highest.</p>
+                <p className="text-sm text-slate-600 mb-3">Intensity uses a <strong>1–5 scale</strong>; liking uses a <strong>1–9 scale</strong>. Left end is lowest, right end is highest.</p>
                 <div className="space-y-2">
                   <div>
-                    <div className="text-xs font-medium text-slate-500 mb-1">Intensity example:</div>
+                    <div className="text-xs font-medium text-slate-500 mb-1">Intensity example (1–5):</div>
                     <div className="flex justify-between text-xs text-slate-600">
                       <span>1 = Not present</span><span>5 = Extremely intense</span>
                     </div>
                     <div className="w-full bg-blue-200 rounded-full h-2 mt-1"><div className="bg-blue-600 h-2 rounded-full w-3/5" /></div>
                   </div>
                   <div>
-                    <div className="text-xs font-medium text-slate-500 mb-1">Liking example:</div>
+                    <div className="text-xs font-medium text-slate-500 mb-1">Liking example (1–9):</div>
                     <div className="flex justify-between text-xs text-slate-600">
-                      <span>1 = Dislike</span><span>5 = Like</span>
+                      <span>1 = Dislike</span><span>9 = Like</span>
                     </div>
-                    <div className="w-full bg-emerald-200 rounded-full h-2 mt-1"><div className="bg-emerald-600 h-2 rounded-full w-4/5" /></div>
+                    <div className="w-full bg-emerald-200 rounded-full h-2 mt-1"><div className="bg-emerald-600 h-2 rounded-full w-8/9" /></div>
                   </div>
                 </div>
               </div>
@@ -361,7 +361,7 @@ export function QuestionnaireForm() {
             <button
               onClick={() => {
                 localStorage.removeItem(`qs_draft_${user?.id}_${productId}`);
-                setFormData({ selectedCata: [], intensityRatings: {}, hedonicScores: { overall: 3, appearance: 5, aroma: 5, flavor: 5, texture: 5 }, emotions: {}, comments: '' });
+                setFormData({ selectedCata: [], intensityRatings: {}, hedonicScores: { overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 }, emotions: {}, comments: '' });
                 setShowDraftBanner(false);
               }}
               className="ml-4 text-xs text-amber-700 underline hover:text-amber-900 whitespace-nowrap"
@@ -472,7 +472,7 @@ export function QuestionnaireForm() {
               Rate how much you like or dislike each aspect of the product.
             </p>
             <div className="mt-2 flex justify-between text-xs text-slate-400 bg-slate-50 rounded px-3 py-1.5">
-              <span>Scale: 1 = Dislike extremely</span><span>5 = Like extremely</span>
+              <span>Scale: 1 = Dislike extremely</span><span>9 = Like extremely</span>
             </div>
           </CardHeader>
           <CardContent>
@@ -486,22 +486,22 @@ export function QuestionnaireForm() {
                         definition={HEDONIC_DEFINITIONS[aspect] || 'Rate your liking'}
                       />
                     </Label>
-                    <span className="text-sm font-bold text-blue-600">{value} / 5</span>
+                    <span className="text-sm font-bold text-blue-600">{value} / 9</span>
                   </div>
                   <input
                     type="range"
                     min="1"
-                    max="5"
+                    max="9"
                     step="1"
                     value={value}
                     onChange={(e) => handleHedonicChange(aspect, parseInt(e.target.value))}
-                    style={sliderFill(value, 1, 5, '#2563eb')}
+                    style={sliderFill(value, 1, 9, '#2563eb')}
                     className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-600"
                   />
                   <div className="flex justify-between text-xs text-slate-500">
                     <span>1 — Dislike extremely</span>
-                    <span>3 — Neither</span>
-                    <span>5 — Like extremely</span>
+                    <span>5 — Neither</span>
+                    <span>9 — Like extremely</span>
                   </div>
                 </div>
               ))}
@@ -680,7 +680,7 @@ export function QuestionnaireForm() {
                 {Object.entries(formData.hedonicScores).map(([aspect, value]) => (
                   <div key={aspect} className="flex items-center justify-between text-sm">
                     <span className="text-slate-700 capitalize">{aspect.replace(/([A-Z])/g, ' $1').trim()}:</span>
-                    <span className="font-bold text-blue-600">{value}/5</span>
+                    <span className="font-bold text-blue-600">{value}/9</span>
                   </div>
                 ))}
               </div>

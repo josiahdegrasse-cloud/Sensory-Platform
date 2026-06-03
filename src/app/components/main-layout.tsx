@@ -44,7 +44,6 @@ export function MainLayout() {
 
   useEffect(() => {
     if (user?.role === 'panelist' && location.pathname === '/') navigate('/panelist');
-    if (user?.role === 'admin'    && location.pathname === '/') navigate('/stage1');
   }, [user, location.pathname, navigate]);
 
   const handleLogout = async () => {
