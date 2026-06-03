@@ -161,7 +161,7 @@ export function DairyComparison() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-slate-900">Dairy Benchmark Comparison</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Dairy Benchmark Comparison</h1>
         <p className="text-slate-600 mt-2">Compare plant-based cheese samples to dairy controls and receive formulation suggestions</p>
       </div>
 

@@ -111,7 +111,7 @@ export function ConceptTesting() {
           <Lightbulb className="size-5 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-black text-slate-900">Concept Testing</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Concept Testing</h1>
           <p className="text-slate-500 text-sm">Design consumer surveys to validate product concepts before launch.</p>
         </div>
         <Badge className="ml-auto bg-slate-900 text-white text-xs font-bold">Pro</Badge>
