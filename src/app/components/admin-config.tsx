@@ -59,6 +59,7 @@ export function AdminConfig() {
   const [referenceScores, setReferenceScores] = useState({ overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 });
   const [newProductName, setNewProductName] = useState('');
   const [newProductCategory, setNewProductCategory] = useState('');
+  const [blindedStudy, setBlindedStudy] = useState(false);
   const [samples, setSamples] = useState<{ id: string; code: string; label: string }[]>([
     { id: '1', code: '', label: '' },
   ]);
@@ -153,6 +154,7 @@ export function AdminConfig() {
       samples: productType === 'multi' ? samples.filter(s => s.code && s.label) : undefined,
       isCalibration: productType === 'calibration',
       referenceScores: productType === 'calibration' ? { ...referenceScores } : null,
+      blinded: blindedStudy,
     };
     setPendingProduct(p);
     setCustomAttributes([...DEFAULT_CATA_ATTRIBUTES]);
@@ -172,6 +174,7 @@ export function AdminConfig() {
         samples: pendingProduct.samples,
         isCalibration: pendingProduct.isCalibration,
         referenceScores: pendingProduct.referenceScores,
+        blinded: pendingProduct.blinded,
       });
       closeCreateModal();
       setShowSuccess(true);
@@ -413,6 +416,9 @@ export function AdminConfig() {
                               <Badge className="bg-purple-600 text-[10px] px-1.5 py-0">
                                 <Layers className="size-2.5 mr-0.5" />Multi
                               </Badge>
+                            )}
+                            {product.blinded && (
+                              <Badge className="bg-slate-800 text-[10px] px-1.5 py-0">Blinded</Badge>
                             )}
                           </div>
                           <div className="text-xs text-slate-500 mt-0.5">{product.category}</div>
@@ -729,6 +735,20 @@ export function AdminConfig() {
                   <div className="space-y-2">
                     <Label htmlFor="productCategory">Category</Label>
                     <Input id="productCategory" placeholder={productType === 'single' ? 'e.g., Coconut-based' : 'e.g., Multi-sample comparison'} value={newProductCategory} onChange={e => setNewProductCategory(e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50">
+                  <Checkbox
+                    id="blindedStudy"
+                    checked={blindedStudy}
+                    onCheckedChange={v => setBlindedStudy(!!v)}
+                  />
+                  <div>
+                    <Label htmlFor="blindedStudy" className="font-semibold text-slate-800 cursor-pointer">Blinded study</Label>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Panelists will see sample codes only — product name and category will not be disclosed during evaluation.
+                    </p>
                   </div>
                 </div>
 

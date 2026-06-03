@@ -328,10 +328,17 @@ export function MultiSampleQuestionnaire() {
             </div>
             
             <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-              <h4 className="font-bold text-purple-900 mb-2">Session Information:</h4>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-bold text-purple-900">Session Information:</h4>
+                {product.blinded ? (
+                  <Badge className="bg-slate-900 text-white text-xs tracking-wider">BLINDED</Badge>
+                ) : (
+                  <Badge variant="outline" className="text-xs text-amber-700 border-amber-300 bg-amber-50">UNBLINDED</Badge>
+                )}
+              </div>
               <div className="text-sm space-y-1 text-slate-700">
-                <p><strong>Study:</strong> {product.name}</p>
-                <p><strong>Category:</strong> {product.category}</p>
+                <p><strong>Study:</strong> {product.blinded ? "Blinded Study" : product.name}</p>
+                <p><strong>Category:</strong> {product.blinded ? "Concealed" : product.category}</p>
                 <p><strong>Panelist ID:</strong> {user?.panelistId}</p>
                 <p><strong>Samples:</strong> {samples.length}</p>
                 <p><strong>Estimated time:</strong> {15 + (samples.length - 3) * 5}-{20 + (samples.length - 3) * 5} minutes</p>

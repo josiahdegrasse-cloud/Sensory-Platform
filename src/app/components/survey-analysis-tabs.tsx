@@ -2,7 +2,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
-  Cell, ErrorBar
+  Cell, ErrorBar, LabelList
 } from "recharts";
 import { CheckSquare, TrendingUp, Heart, Smile, Frown, AlertCircle, MessageCircle, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -35,6 +35,29 @@ interface Emotions {
   negative: number;
 }
 
+// ─── Binomial significance threshold (one-tailed, p=0.5 null) ────────────────
+
+function binomProb(n: number, p: number): number {
+  return Math.pow(0.5, n) * (() => {
+    let c = 1;
+    for (let i = 0; i < Math.min(p, n - p); i++) c = c * (n - i) / (i + 1);
+    return c;
+  })();
+}
+
+function pValueOneTailed(count: number, n: number): number {
+  let p = 0;
+  for (let k = count; k <= n; k++) p += binomProb(n, k);
+  return p;
+}
+
+function sigLabel(count: number, n: number): string {
+  const p = pValueOneTailed(count, n);
+  if (p <= 0.01) return "**";
+  if (p <= 0.05) return "*";
+  return "";
+}
+
 // ─── CATA Tab ────────────────────────────────────────────────────────────────
 
 interface CATATabProps {
@@ -45,6 +68,18 @@ interface CATATabProps {
 }
 
 export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, activeSampleId }: CATATabProps) {
+  const critP05 = (() => {
+    for (let k = activePanelistN; k >= 0; k--) {
+      if (pValueOneTailed(k, activePanelistN) > 0.05) return k + 1;
+    }
+    return activePanelistN + 1;
+  })();
+
+  const dataWithSig = activeCataAttributes.map(a => ({
+    ...a,
+    sig: sigLabel(a.count, activePanelistN),
+  }));
+
   return (
     <TabsContent value="cata">
       <Card>
@@ -54,17 +89,21 @@ export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, 
             Check-All-That-Apply (CATA) Results
           </CardTitle>
           <p className="text-sm text-slate-600">
-            Frequency of attribute selection across {activePanelistN} {usingLiveData ? 'panelists (live)' : 'semi-trained panelists'}
+            Frequency of attribute selection across {activePanelistN} {usingLiveData ? 'panelists (live)' : 'semi-trained panelists'}.{" "}
+            Significance threshold: ≥{critP05}/{activePanelistN} (binomial, p=0.5, α=0.05).
           </p>
         </CardHeader>
         <CardContent>
           <div className="bg-white p-4 rounded-lg border-2 border-slate-200">
-            <h3 className="font-bold text-slate-900 mb-3">Top Attributes (CATA)</h3>
-            <ResponsiveContainer width="100%" height={400} key={`cata-chart-container-${activeSampleId}`}>
+            <h3 className="font-bold text-slate-900 mb-3">
+              Top Attributes (CATA)
+              <span className="ml-2 text-xs font-normal text-slate-500">* p&lt;0.05 &nbsp; ** p&lt;0.01 &nbsp; (binomial test vs chance, n={activePanelistN})</span>
+            </h3>
+            <ResponsiveContainer width="100%" height={Math.max(300, dataWithSig.length * 28)} key={`cata-chart-container-${activeSampleId}`}>
               <BarChart
-                data={activeCataAttributes}
+                data={dataWithSig}
                 layout="vertical"
-                margin={{ left: 100 }}
+                margin={{ left: 100, right: 40 }}
                 id={`cata-chart-${activeSampleId}`}
               >
                 <CartesianGrid strokeDasharray="3 3" />
@@ -73,12 +112,16 @@ export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, 
                 <RechartsTooltip
                   content={({ active, payload }) => {
                     if (active && payload && payload.length) {
-                      const data = payload[0].payload;
+                      const d = payload[0].payload;
+                      const p = pValueOneTailed(d.count, activePanelistN);
                       return (
                         <div className="bg-white p-3 shadow-lg rounded-lg border">
-                          <p className="font-bold text-slate-900">{data.attribute}</p>
-                          <p className="text-sm text-slate-700">Count: {data.count}/{activePanelistN}</p>
-                          <p className="text-sm text-slate-700">Percentage: {data.percentage.toFixed(0)}%</p>
+                          <p className="font-bold text-slate-900">{d.attribute}</p>
+                          <p className="text-sm text-slate-700">Selected by {d.count}/{activePanelistN} ({d.percentage.toFixed(0)}%)</p>
+                          <p className="text-sm text-slate-600">
+                            p = {p < 0.001 ? "<0.001" : p.toFixed(3)}{" "}
+                            {d.sig ? <span className="font-bold text-emerald-700">{d.sig}</span> : "(n.s.)"}
+                          </p>
                         </div>
                       );
                     }
@@ -86,15 +129,24 @@ export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, 
                   }}
                 />
                 <Bar dataKey="count" fill="#3b82f6" isAnimationActive={false}>
-                  {activeCataAttributes.map((entry) => (
+                  {dataWithSig.map((entry) => (
                     <Cell
                       key={`cell-${entry.id}`}
-                      fill={entry.count >= 10 ? "#10b981" : entry.count >= 7 ? "#3b82f6" : "#64748b"}
+                      fill={entry.sig === "**" ? "#059669" : entry.sig === "*" ? "#3b82f6" : "#94a3b8"}
                     />
                   ))}
+                  <LabelList
+                    dataKey="sig"
+                    position="right"
+                    style={{ fontSize: 13, fontWeight: 700, fill: "#059669" }}
+                  />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+
+            <div className="mt-4 text-xs text-slate-400">
+              Green bars = statistically significant above chance (binomial test, one-tailed, p=0.5 null hypothesis). ** p&lt;0.01 &nbsp; * p&lt;0.05 &nbsp; grey = not significant.
+            </div>
 
             <div className="mt-6 grid grid-cols-3 gap-4">
               <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
@@ -118,7 +170,7 @@ export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, 
               <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-3 h-3 rounded-full bg-slate-600"></div>
-                  <span className="text-sm font-semibold text-slate-900">Weak (&lt;50%)</span>
+                  <span className="text-sm font-semibold text-slate-900">Not significant (&lt;50%)</span>
                 </div>
                 <div className="text-xs text-slate-700">
                   {activeCataAttributes.filter(a => a.count < activePanelistN * 0.5).map(a => a.attribute).join(", ") || "None"}
@@ -219,6 +271,7 @@ export function IntensityTab({ activeIntensityData, activePanelistN, usingLiveDa
 interface HedonicTabProps {
   activeHedonicData: HedonicDatum[];
   activeAvgHedonic: string;
+  activePanelistN: number;
 }
 
 function getHedonicColor(score: number): string {
@@ -227,7 +280,14 @@ function getHedonicColor(score: number): string {
   return "#ef4444";
 }
 
-export function HedonicTab({ activeHedonicData, activeAvgHedonic }: HedonicTabProps) {
+export function HedonicTab({ activeHedonicData, activeAvgHedonic, activePanelistN }: HedonicTabProps) {
+  const n = activePanelistN;
+  const dataWithSem = activeHedonicData.map(d => ({
+    ...d,
+    sem: d.sd / Math.sqrt(n),
+    ci95: 1.96 * d.sd / Math.sqrt(n),
+  }));
+
   return (
     <TabsContent value="hedonic">
       <Card>
@@ -237,26 +297,42 @@ export function HedonicTab({ activeHedonicData, activeAvgHedonic }: HedonicTabPr
             Hedonic Liking Scores (9-point scale)
           </CardTitle>
           <p className="text-sm text-slate-600">
-            Consumer acceptance ratings: 1 = Dislike Extremely, 9 = Like Extremely
+            Consumer acceptance ratings: 1 = Dislike Extremely, 9 = Like Extremely · n={n} panelists
           </p>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={activeHedonicData}>
+            <BarChart data={dataWithSem}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="category" />
               <YAxis domain={[0, 9]} />
-              <RechartsTooltip />
+              <RechartsTooltip
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const d = payload[0].payload;
+                    return (
+                      <div className="bg-white p-3 shadow-lg rounded-lg border">
+                        <p className="font-bold text-slate-900">{d.category}</p>
+                        <p className="text-sm text-slate-700">Mean: {d.score.toFixed(2)} / 9</p>
+                        <p className="text-sm text-slate-600">SD: ±{d.sd.toFixed(2)}</p>
+                        <p className="text-sm text-slate-600">SEM: ±{d.sem.toFixed(2)} (n={n})</p>
+                        <p className="text-sm text-emerald-700 font-medium">95% CI: {(d.score - d.ci95).toFixed(2)} – {(d.score + d.ci95).toFixed(2)}</p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
               <Bar dataKey="score" radius={[8, 8, 0, 0]}>
-                <ErrorBar dataKey="sd" width={4} strokeWidth={2} stroke="#64748b" />
-                {activeHedonicData.map((entry) => (
+                <ErrorBar dataKey="ci95" width={4} strokeWidth={2} stroke="#475569" />
+                {dataWithSem.map((entry) => (
                   <Cell key={`hedonic-bar-${entry.id}`} fill={getHedonicColor(entry.score)} />
                 ))}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
           <p className="text-xs text-slate-500 mt-2 text-center">
-            Error bars show ±1 SD. Overlap between samples suggests no meaningful difference.
+            Error bars show 95% CI (±1.96 × SEM, n={n}). Non-overlapping intervals indicate a statistically meaningful difference between dimensions.
           </p>
 
           <div className="mt-6 grid grid-cols-4 gap-4">

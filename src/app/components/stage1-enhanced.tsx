@@ -9,24 +9,105 @@ import { JargonTooltip } from "./jargon-tooltip";
 import { QualityStandardsCard } from "./quality-standards-card";
 import { QUALITY_STANDARDS } from "../data/quality-standards";
 
+// ── Real PCA via covariance matrix + power iteration ──────────────────────────
+function computePCA(rawMatrix: number[][]): {
+  scores: Array<{ pc1: number; pc2: number }>;
+  varExplained: [number, number];
+} {
+  const n = rawMatrix.length;
+  const p = rawMatrix[0].length;
+
+  // Standardise columns (z-score)
+  const means = Array.from({ length: p }, (_, j) =>
+    rawMatrix.reduce((s, r) => s + r[j], 0) / n
+  );
+  const stds = Array.from({ length: p }, (_, j) => {
+    const m = means[j];
+    const v = rawMatrix.reduce((s, r) => s + (r[j] - m) ** 2, 0) / (n - 1);
+    return Math.sqrt(v) || 1;
+  });
+  const X = rawMatrix.map(r => r.map((v, j) => (v - means[j]) / stds[j]));
+
+  // Correlation matrix (= cov of standardised data)
+  const C: number[][] = Array.from({ length: p }, (_, i) =>
+    Array.from({ length: p }, (_, j) =>
+      X.reduce((s, r) => s + r[i] * r[j], 0) / (n - 1)
+    )
+  );
+
+  // Power iteration — deterministic start vector
+  function powerIter(M: number[][], iters = 120): number[] {
+    let v = Array.from({ length: p }, (_, i) => (i === 0 ? 1 : 0));
+    for (let t = 0; t < iters; t++) {
+      const mv = Array.from({ length: p }, (_, i) =>
+        M[i].reduce((s, mij, j) => s + mij * v[j], 0)
+      );
+      const norm = Math.sqrt(mv.reduce((s, x) => s + x * x, 0)) || 1;
+      v = mv.map(x => x / norm);
+    }
+    // Fix sign: first non-zero element positive
+    const sign = v.find(x => Math.abs(x) > 1e-9)! >= 0 ? 1 : -1;
+    return v.map(x => x * sign);
+  }
+
+  function eigenvalue(M: number[][], v: number[]) {
+    return v.reduce(
+      (s, vi, i) => s + vi * M[i].reduce((ss, mij, j) => ss + mij * v[j], 0),
+      0
+    );
+  }
+
+  const e1 = powerIter(C);
+  const λ1 = eigenvalue(C, e1);
+
+  // Deflate
+  const Cd = C.map((row, i) => row.map((val, j) => val - λ1 * e1[i] * e1[j]));
+  const e2 = powerIter(Cd);
+  const λ2 = eigenvalue(Cd, e2);
+
+  // Variance explained (trace of correlation matrix = p for standardised data)
+  const varExplained: [number, number] = [λ1 / p, λ2 / p];
+
+  // Project samples
+  const scores = X.map(r => ({
+    pc1: Number(r.reduce((s, xi, i) => s + xi * e1[i], 0).toFixed(3)),
+    pc2: Number(r.reduce((s, xi, i) => s + xi * e2[i], 0).toFixed(3)),
+  }));
+
+  return { scores, varExplained };
+}
+
 export function Stage1Enhanced() {
   const [selectedSample, setSelectedSample] = useState<string>("S3");
 
   const selectedData = ENHANCED_SENSORY_DATA.find(s => s.sampleId === selectedSample);
 
-  // PCA visualization
+  // Real PCA on 9 E-Tongue taste dimensions
+  const tasteMatrix = ENHANCED_SENSORY_DATA.map(s => [
+    s.taste.sourness,
+    s.taste.bitterness,
+    s.taste.astringency,
+    s.taste.umami,
+    s.taste.saltiness,
+    s.taste.sweetness,
+    s.taste.astringencyAftertaste,
+    s.taste.umamiAftertaste,
+    s.taste.richness,
+  ]);
+  const { scores: pcaScores, varExplained } = computePCA(tasteMatrix);
+  const pc1Pct = (varExplained[0] * 100).toFixed(1);
+  const pc2Pct = (varExplained[1] * 100).toFixed(1);
+
   const pcaData = ENHANCED_SENSORY_DATA.map((sample, idx) => {
-    const pc1 = sample.taste.saltiness * 0.5 + sample.taste.umami * 0.4 - sample.taste.sourness * 0.3;
-    const pc2 = sample.taste.bitterness * 0.4 + sample.taste.sourness * 0.35 - sample.taste.sweetness * 0.25;
     const sampleInfo = SAMPLES.find(s => s.id === sample.sampleId);
     return {
       sampleId: sample.sampleId,
       uniqueId: `${sample.sampleId}-${idx}`,
       name: sampleInfo?.name || sample.sampleId,
-      pc1: Number(pc1.toFixed(2)),
-      pc2: Number(pc2.toFixed(2)),
+      pc1: pcaScores[idx].pc1,
+      pc2: pcaScores[idx].pc2,
       category: sampleInfo?.category || "Unknown",
-      type: sampleInfo?.type || "pbca"
+      type: sampleInfo?.type || "pbca",
     };
   });
 
@@ -73,30 +154,31 @@ export function Stage1Enhanced() {
       <Card>
         <CardHeader>
           <CardTitle>Taste Space Similarity</CardTitle>
-          <p className="text-sm text-slate-500 mt-0.5">Samples that cluster together taste more alike. Closer to dairy reference = stronger match.</p>
+          <p className="text-sm text-slate-500 mt-0.5">
+            Samples that cluster together taste more alike. Closer to dairy reference = stronger match.{" "}
+            <span className="text-slate-400">PC1 explains {pc1Pct}% of taste variance, PC2 explains {pc2Pct}%.</span>
+          </p>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={400} key="pca-chart-container">
+          <ResponsiveContainer width="100%" height={420} key="pca-chart-container">
             <ScatterChart
-              margin={{ top: 20, right: 30, bottom: 40, left: 60 }}
+              margin={{ top: 20, right: 30, bottom: 50, left: 70 }}
               id="pca-scatter-chart"
             >
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 type="number"
                 dataKey="pc1"
-                name="Savory-Salty Dimension"
-                domain={[-2, 2]}
-                tick={{ fill: '#475569', fontSize: 12 }}
-                label={{ value: 'Savory-Salty Dimension', position: 'insideBottom', offset: -10, style: { fill: '#475569', fontSize: 12, fontWeight: 500 } }}
+                name="PC1"
+                tick={{ fill: '#475569', fontSize: 11 }}
+                label={{ value: `PC1 — Savory-Salty Axis (${pc1Pct}% variance)`, position: 'insideBottom', offset: -15, style: { fill: '#475569', fontSize: 11, fontWeight: 500 } }}
               />
               <YAxis
                 type="number"
                 dataKey="pc2"
-                name="Bitter-Sour Dimension"
-                domain={[-2, 2]}
-                tick={{ fill: '#475569', fontSize: 12 }}
-                label={{ value: 'Bitter-Sour Dimension', angle: -90, position: 'insideLeft', offset: 15, style: { fill: '#475569', fontSize: 12, fontWeight: 500 } }}
+                name="PC2"
+                tick={{ fill: '#475569', fontSize: 11 }}
+                label={{ value: `PC2 — Bitter-Sour Axis (${pc2Pct}% variance)`, angle: -90, position: 'insideLeft', offset: 20, style: { fill: '#475569', fontSize: 11, fontWeight: 500 } }}
               />
               <Tooltip
                 content={({ active, payload }) => {
@@ -105,7 +187,7 @@ export function Stage1Enhanced() {
                     return (
                       <div className="bg-white p-3 shadow-xl rounded-lg border border-slate-200">
                         <p className="font-bold text-slate-900">{data.name}</p>
-                        <p className="text-xs text-slate-500">Savory-Salty: {data.pc1} | Bitter-Sour: {data.pc2}</p>
+                        <p className="text-xs text-slate-500">PC1 (savory-salty): {data.pc1} | PC2 (bitter-sour): {data.pc2}</p>
                         <p className="text-xs text-slate-600">{data.category}</p>
                       </div>
                     );

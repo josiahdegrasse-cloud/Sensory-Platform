@@ -430,6 +430,7 @@ export function SurveyAnalysis() {
           <HedonicTab
             activeHedonicData={activeHedonicData}
             activeAvgHedonic={activeAvgHedonic}
+            activePanelistN={activePanelistN}
           />
           <CommentsTab
             usingLiveData={usingLiveData}

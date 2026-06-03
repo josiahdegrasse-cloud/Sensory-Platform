@@ -2,10 +2,12 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, Eye, EyeOff, Activity, Award, Zap } from "lucide-react";
+import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, Eye, EyeOff, Activity, Award, Zap, ClipboardCheck } from "lucide-react";
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, BarChart, Bar, LineChart, Line, Legend, ReferenceArea, ReferenceLine } from "recharts";
 import { ENHANCED_SENSORY_DATA } from "../data/enhanced-sensory";
 import { METHOD_COMPARISON } from "../data/validation-data";
+import { DecisionLog, appendDecision } from "./decision-log";
+import { useAuth } from "../contexts/auth-context";
 
 interface SampleDecision {
   sampleId: string;
@@ -187,11 +189,16 @@ function PathToGoPanel({
 }
 
 export function Stage4Enhanced() {
+  const { user } = useAuth();
   const [selectedSample, setSelectedSample] = useState<string>(ENHANCED_SENSORY_DATA[0]?.sampleId ?? "S1");
   const [showRawData, setShowRawData] = useState(false);
   const [showQualitative, setShowQualitative] = useState(true);
   const [showWeightConfig, setShowWeightConfig] = useState(false);
   const [weights, setWeights] = useState({ hedonic: 30, texture: 25, cata: 25, emotional: 15 });
+  const [showAuditTrail, setShowAuditTrail] = useState(false);
+  const [auditNote, setAuditNote] = useState("");
+  const [logRefreshKey, setLogRefreshKey] = useState(0);
+  const [confirmPending, setConfirmPending] = useState(false);
 
   // Calculate actual correlations and decisions for each sample
   const sampleDecisions: SampleDecision[] = ENHANCED_SENSORY_DATA.map(sample => {
@@ -418,6 +425,18 @@ export function Stage4Enhanced() {
             {showRawData ? <EyeOff className="size-4 mr-2" /> : <Eye className="size-4 mr-2" />}
             Raw Data
           </Button>
+          <Button
+            onClick={() => setConfirmPending(true)}
+            size="sm"
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            <ClipboardCheck className="size-4 mr-2" />
+            Confirm Decision
+          </Button>
+          <Button onClick={() => setShowAuditTrail(v => !v)} variant="outline" size="sm">
+            <ClipboardCheck className="size-4 mr-2" />
+            Audit Trail
+          </Button>
         </div>
       </div>
 
@@ -493,24 +512,39 @@ export function Stage4Enhanced() {
           <div className="flex rounded-lg overflow-hidden h-9 shadow-inner">
             {stats.go > 0 && (
               <div
-                className="bg-emerald-500 flex items-center justify-center text-white text-sm font-bold gap-1 transition-all"
+                className="bg-emerald-500 flex items-center justify-center text-white text-sm font-bold gap-1 transition-all cursor-pointer hover:bg-emerald-600"
                 style={{ width: `${(stats.go / sampleDecisions.length) * 100}%` }}
+                title="Click to select first GO sample"
+                onClick={() => {
+                  const first = sampleDecisions.find(d => d.decision === "GO");
+                  if (first) setSelectedSample(first.sampleId);
+                }}
               >
                 ▲ {stats.go}
               </div>
             )}
             {stats.tweak > 0 && (
               <div
-                className="bg-amber-500 flex items-center justify-center text-white text-sm font-bold gap-1 transition-all"
+                className="bg-amber-500 flex items-center justify-center text-white text-sm font-bold gap-1 transition-all cursor-pointer hover:bg-amber-600"
                 style={{ width: `${(stats.tweak / sampleDecisions.length) * 100}%` }}
+                title="Click to select first TWEAK sample"
+                onClick={() => {
+                  const first = sampleDecisions.find(d => d.decision === "TWEAK");
+                  if (first) setSelectedSample(first.sampleId);
+                }}
               >
                 ◆ {stats.tweak}
               </div>
             )}
             {stats.stop > 0 && (
               <div
-                className="bg-rose-500 flex items-center justify-center text-white text-sm font-bold gap-1 transition-all"
+                className="bg-rose-500 flex items-center justify-center text-white text-sm font-bold gap-1 transition-all cursor-pointer hover:bg-rose-600"
                 style={{ width: `${(stats.stop / sampleDecisions.length) * 100}%` }}
+                title="Click to select first STOP sample"
+                onClick={() => {
+                  const first = sampleDecisions.find(d => d.decision === "STOP");
+                  if (first) setSelectedSample(first.sampleId);
+                }}
               >
                 ■ {stats.stop}
               </div>
@@ -602,7 +636,6 @@ export function Stage4Enhanced() {
                 dataKey="issf"
                 isAnimationActive={false}
                 style={{ cursor: 'pointer' }}
-                onClick={(data: any) => { if (data?.sampleId) setSelectedSample(data.sampleId); }}
                 shape={(props: any) => {
                   const { cx, cy, payload } = props;
                   const isSelected = payload.sampleId === selectedSample;
@@ -610,10 +643,11 @@ export function Stage4Enhanced() {
                   if (payload.decision === "STOP") color = "#ef4444";
                   if (payload.decision === "TWEAK") color = "#f59e0b";
                   const s = isSelected ? 9 : 6;
-                  const key = `shape-${payload.id || payload.sample}`;
+                  const shapeKey = `shape-${payload.id || payload.sample}`;
+                  const handleClick = () => setSelectedSample(payload.sampleId);
                   if (payload.decision === "GO") {
                     return (
-                      <g key={key}>
+                      <g key={shapeKey} onClick={handleClick} style={{ cursor: 'pointer' }}>
                         {isSelected && <circle cx={cx} cy={cy} r={15} fill="none" stroke="#1d4ed8" strokeWidth={2.5} />}
                         <polygon points={`${cx},${cy - s} ${cx + s * 0.9},${cy + s * 0.5} ${cx - s * 0.9},${cy + s * 0.5}`} fill={color} stroke="#fff" strokeWidth={1} />
                       </g>
@@ -621,14 +655,14 @@ export function Stage4Enhanced() {
                   }
                   if (payload.decision === "STOP") {
                     return (
-                      <g key={key}>
+                      <g key={shapeKey} onClick={handleClick} style={{ cursor: 'pointer' }}>
                         {isSelected && <circle cx={cx} cy={cy} r={13} fill="none" stroke="#1d4ed8" strokeWidth={2.5} />}
                         <rect x={cx - s} y={cy - s} width={s * 2} height={s * 2} fill={color} stroke="#fff" strokeWidth={1} />
                       </g>
                     );
                   }
                   return (
-                    <g key={key}>
+                    <g key={shapeKey} onClick={handleClick} style={{ cursor: 'pointer' }}>
                       {isSelected && <circle cx={cx} cy={cy} r={14} fill="none" stroke="#1d4ed8" strokeWidth={2.5} />}
                       <polygon points={`${cx},${cy - s} ${cx + s},${cy} ${cx},${cy + s} ${cx - s},${cy}`} fill={color} stroke="#fff" strokeWidth={1} />
                     </g>
@@ -840,6 +874,59 @@ export function Stage4Enhanced() {
           )}
         </div>
       </div>
+
+      {/* Confirm Decision dialog */}
+      {confirmPending && selected && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full space-y-4">
+            <h2 className="text-lg font-bold text-slate-900">Confirm Decision</h2>
+            <p className="text-sm text-slate-600">
+              You are logging a <strong>{selected.decision}</strong> decision for <strong>{selected.sampleName}</strong>{" "}
+              (ISSF {selected.issfScore.toFixed(1)}, confidence {selected.confidenceScore.toFixed(0)}%) to the audit trail.
+            </p>
+            <div>
+              <label className="text-xs font-semibold text-slate-700 block mb-1">
+                Optional note (rationale, batch ID, etc.)
+              </label>
+              <textarea
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={3}
+                placeholder="e.g. Approved for pilot batch #2024-11-A after steering review"
+                value={auditNote}
+                onChange={e => setAuditNote(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => { setConfirmPending(false); setAuditNote(""); }}>
+                Cancel
+              </Button>
+              <Button
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => {
+                  appendDecision({
+                    sampleId: selected.sampleId,
+                    sampleName: selected.sampleName,
+                    decision: selected.decision,
+                    issfScore: selected.issfScore,
+                    confidence: selected.confidenceScore,
+                    user: user?.name ?? "Admin",
+                    note: auditNote.trim(),
+                  });
+                  setLogRefreshKey(k => k + 1);
+                  setShowAuditTrail(true);
+                  setConfirmPending(false);
+                  setAuditNote("");
+                }}
+              >
+                Log Decision
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Audit trail panel */}
+      {showAuditTrail && <DecisionLog refreshKey={logRefreshKey} />}
     </div>
   );
 }

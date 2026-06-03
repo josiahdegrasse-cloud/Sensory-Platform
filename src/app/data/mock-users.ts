@@ -19,6 +19,7 @@ export interface Product {
   samples?: { id: string; code: string; label: string }[];
   isCalibration?: boolean;
   referenceScores?: HedonicReferenceScores | null;
+  blinded?: boolean;
 }
 
 export interface QuestionnaireResponse {
