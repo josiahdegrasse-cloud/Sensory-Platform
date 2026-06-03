@@ -13,7 +13,7 @@ export interface Product {
   name: string;
   category: string;
   createdDate: string;
-  status: 'active' | 'completed';
+  status: 'active' | 'completed' | 'archived';
   customAttributes?: string[];
   isMultiSample?: boolean;
   samples?: { id: string; code: string; label: string }[];

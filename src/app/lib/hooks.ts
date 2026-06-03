@@ -5,7 +5,7 @@ import {
   fetchAllResponses, fetchUserResponses,
   fetchConceptTestsForPanelist, fetchUserConceptResponses,
   fetchConceptTest,
-  insertProduct, updateProduct,
+  insertProduct, updateProduct, deleteProduct,
   insertTemplate, deleteTemplate, updatePanelistId, updatePanelistTrainingLevel,
   insertConceptTest, insertConceptResponse,
   type Template, type ConceptTest,
@@ -98,6 +98,17 @@ export function useUpdateProduct() {
   return useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<Omit<Product, 'id' | 'createdDate'>> }) =>
       updateProduct(id, updates),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.products })
+      qc.invalidateQueries({ queryKey: queryKeys.activeProducts })
+    },
+  })
+}
+
+export function useDeleteProduct() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteProduct(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.products })
       qc.invalidateQueries({ queryKey: queryKeys.activeProducts })

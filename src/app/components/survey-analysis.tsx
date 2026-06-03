@@ -52,6 +52,21 @@ export function SurveyAnalysis() {
   const [liveAggregations, setLiveAggregations] = useState<LiveAggregation[]>([]);
   const [commentsByProduct, setCommentsByProduct] = useState<Record<string, string[]>>({});
 
+  // Auto-select first sample in filtered set when filter changes and current selection no longer exists
+  useEffect(() => {
+    const filtered = foodTypeFilter === "all"
+      ? ENHANCED_SENSORY_DATA
+      : ENHANCED_SENSORY_DATA.filter(s => {
+          const n = s.sampleName.toLowerCase();
+          const type = foodTypeFilter.toLowerCase();
+          if (type === 'dairy control') return n.includes('dairy') || n.includes('control');
+          return n.includes(type.split(' ')[0]);
+        });
+    if (filtered.length > 0 && !filtered.find(s => s.sampleId === selectedSample)) {
+      setSelectedSample(filtered[0].sampleId);
+    }
+  }, [foodTypeFilter]);
+
   // Single fetch — split into multi-sample responses and single-sample aggregations
   useEffect(() => {
     if (!allResponsesData) return;

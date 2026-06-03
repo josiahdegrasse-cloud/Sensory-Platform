@@ -172,6 +172,11 @@ export async function updateProduct(
   return toProduct(data);
 }
 
+export async function deleteProduct(id: string): Promise<void> {
+  const { error } = await supabase.from('products').delete().eq('id', id);
+  if (error) throw error;
+}
+
 // ─── Responses ────────────────────────────────────────────────────────────────
 
 export async function fetchAllResponses(): Promise<QuestionnaireResponse[]> {

@@ -10,12 +10,12 @@ import { type Product, DEFAULT_CATA_ATTRIBUTES } from '../data/mock-users';
 import { type Template } from '../lib/database';
 import {
   useProducts, useTemplates, usePanelists,
-  useInsertProduct, useUpdateProduct, useInsertTemplate, useDeleteTemplate,
+  useInsertProduct, useUpdateProduct, useDeleteProduct, useInsertTemplate, useDeleteTemplate,
   useUpdatePanelistId, useAllResponses,
 } from '../lib/hooks';
 import {
   Plus, Settings, Trash2, Save, CheckCircle2, FolderOpen, Layers,
-  ClipboardList, Users, AlertCircle, Search, Activity, FlaskConical,
+  ClipboardList, Users, AlertCircle, Search, Activity, FlaskConical, Archive, RotateCcw,
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { useAuth } from '../contexts/auth-context';
@@ -32,9 +32,11 @@ export function AdminConfig() {
 
   const insertProductMutation = useInsertProduct();
   const updateProductMutation = useUpdateProduct();
+  const deleteProductMutation = useDeleteProduct();
   const insertTemplateMutation = useInsertTemplate();
   const deleteTemplateMutation = useDeleteTemplate();
   const updatePanelistIdMutation = useUpdatePanelistId();
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const [editingPanelistId, setEditingPanelistId] = useState<string | null>(null);
   const [panelistIdInput, setPanelistIdInput] = useState('');
@@ -46,7 +48,7 @@ export function AdminConfig() {
   const [mutationError, setMutationError] = useState('');
 
   // List filters
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'completed'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'completed' | 'archived'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Create modal
@@ -84,8 +86,9 @@ export function AdminConfig() {
   const completedCount = products.filter(p => p.status === 'completed').length;
   const totalSessions = allResponses.length;
 
+  const archivedCount = products.filter(p => p.status === 'archived').length;
   const filteredProducts = products
-    .filter(p => filterStatus === 'all' || p.status === filterStatus)
+    .filter(p => filterStatus === 'archived' ? p.status === 'archived' : (filterStatus === 'all' ? p.status !== 'archived' : p.status === filterStatus))
     .filter(p =>
       !searchQuery.trim() ||
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -216,6 +219,36 @@ export function AdminConfig() {
     }
   };
 
+  const handleArchiveProduct = async (productId: string) => {
+    setMutationError('');
+    try {
+      await updateProductMutation.mutateAsync({ id: productId, updates: { status: 'archived' } });
+      if (selectedProduct === productId) setSelectedProduct(null);
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : 'Failed to archive product.');
+    }
+  };
+
+  const handleUnarchiveProduct = async (productId: string) => {
+    setMutationError('');
+    try {
+      await updateProductMutation.mutateAsync({ id: productId, updates: { status: 'active' } });
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : 'Failed to restore product.');
+    }
+  };
+
+  const handleDeleteProduct = async (productId: string) => {
+    setMutationError('');
+    try {
+      await deleteProductMutation.mutateAsync(productId);
+      if (selectedProduct === productId) setSelectedProduct(null);
+      setConfirmDeleteId(null);
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : 'Failed to delete product.');
+    }
+  };
+
   const handleSaveTemplate = async () => {
     if (!templateName || customAttributes.length === 0) return;
     setMutationError('');
@@ -305,30 +338,24 @@ export function AdminConfig() {
         <span className="text-sm text-slate-500">{completedCount} completed</span>
       </div>
 
-      {/* Products + Attribute Config */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="size-5 text-blue-600" />
-              Products & Questionnaire Setup
-            </CardTitle>
-            <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="size-4 mr-2" />New Product
-            </Button>
-          </div>
-          <p className="text-sm text-slate-600">Select a product to configure its questionnaire attributes</p>
-          <div className="flex items-center gap-3 mt-2 flex-wrap">
-            <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs">
-              {(['all', 'active', 'completed'] as const).map(s => (
+      {/* Products + Attribute Config — full-height split pane */}
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden" style={{ height: 'calc(100vh - 280px)', minHeight: '560px' }}>
+        {/* Toolbar */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50/60">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs bg-white">
+              {(['all', 'active', 'completed', 'archived'] as const).map(s => (
                 <button
                   key={s}
                   onClick={() => setFilterStatus(s)}
-                  className={`px-3 py-1.5 font-semibold capitalize transition-colors ${
-                    filterStatus === s ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
+                  className={`px-3 py-1.5 font-semibold capitalize transition-colors border-r border-slate-200 last:border-r-0 ${
+                    filterStatus === s ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
                   }`}
                 >
-                  {s === 'all' ? `All (${products.length})` : s === 'active' ? `Active (${activeCount})` : `Done (${completedCount})`}
+                  {s === 'all' ? `All (${products.filter(p => p.status !== 'archived').length})`
+                    : s === 'active' ? `Active (${activeCount})`
+                    : s === 'completed' ? `Done (${completedCount})`
+                    : `Archived (${archivedCount})`}
                 </button>
               ))}
             </div>
@@ -338,15 +365,18 @@ export function AdminConfig() {
                 placeholder="Search products…"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="pl-8 h-8 text-sm w-52"
+                className="pl-8 h-8 text-sm w-48"
               />
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-5 gap-5">
-            {/* Product list */}
-            <div className="col-span-2 space-y-2">
+          <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700 h-8 text-sm">
+            <Plus className="size-3.5 mr-1.5" />New Product
+          </Button>
+        </div>
+
+        <div className="flex h-[calc(100%-53px)]">
+          {/* Product list */}
+          <div className="w-[360px] flex-shrink-0 border-r border-slate-100 overflow-y-auto p-3 space-y-2">
               {filteredProducts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-slate-400">
                   <ClipboardList className="size-10 mb-2 opacity-40" />
@@ -373,7 +403,7 @@ export function AdminConfig() {
                           : 'border-slate-200 hover:border-blue-300 bg-white'
                     }`}
                   >
-                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${product.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${product.status === 'active' ? 'bg-emerald-500' : product.status === 'archived' ? 'bg-amber-400' : 'bg-slate-300'}`} />
                     <div className="p-4 pl-5">
                       <div className="flex items-start justify-between gap-2 mb-1.5">
                         <button onClick={() => setSelectedProduct(product.id)} className="text-left flex-1 min-w-0">
@@ -387,8 +417,8 @@ export function AdminConfig() {
                           </div>
                           <div className="text-xs text-slate-500 mt-0.5">{product.category}</div>
                         </button>
-                        <Badge className={`text-[10px] px-1.5 py-0.5 flex-shrink-0 ${product.status === 'active' ? 'bg-emerald-600' : 'bg-slate-400'}`}>
-                          {product.status === 'active' ? 'Active' : 'Done'}
+                        <Badge className={`text-[10px] px-1.5 py-0.5 flex-shrink-0 ${product.status === 'active' ? 'bg-emerald-600' : product.status === 'archived' ? 'bg-amber-500' : 'bg-slate-400'}`}>
+                          {product.status === 'active' ? 'Active' : product.status === 'archived' ? 'Archived' : 'Done'}
                         </Badge>
                       </div>
 
@@ -413,31 +443,58 @@ export function AdminConfig() {
                         )}
                       </div>
 
-                      <div className="flex items-center gap-1.5">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleToggleProductStatus(product.id)}
-                          className={`h-7 text-xs flex-1 ${product.status !== 'active' ? 'border-emerald-600 text-emerald-700' : ''}`}
-                        >
-                          {product.status === 'active' ? 'Mark Complete' : 'Reopen'}
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => setSelectedProduct(product.id)}
-                          className={`h-7 text-xs flex-shrink-0 ${product.isMultiSample ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-                        >
-                          <Settings className="size-3 mr-1" />Configure
-                        </Button>
-                      </div>
+                      {product.status === 'archived' ? (
+                        <div className="flex items-center gap-1.5">
+                          <Button size="sm" variant="outline" onClick={() => handleUnarchiveProduct(product.id)} className="h-7 text-xs flex-1 border-emerald-600 text-emerald-700">
+                            <RotateCcw className="size-3 mr-1" />Restore
+                          </Button>
+                          {confirmDeleteId === product.id ? (
+                            <div className="flex gap-1">
+                              <Button size="sm" onClick={() => handleDeleteProduct(product.id)} className="h-7 text-xs bg-rose-600 hover:bg-rose-700 px-2">Confirm</Button>
+                              <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteId(null)} className="h-7 text-xs px-2">Cancel</Button>
+                            </div>
+                          ) : (
+                            <Button size="sm" variant="outline" onClick={() => setConfirmDeleteId(product.id)} className="h-7 text-xs border-rose-300 text-rose-600 hover:bg-rose-50">
+                              <Trash2 className="size-3 mr-1" />Delete
+                            </Button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleToggleProductStatus(product.id)}
+                            className={`h-7 text-xs flex-1 ${product.status !== 'active' ? 'border-emerald-600 text-emerald-700' : ''}`}
+                          >
+                            {product.status === 'active' ? 'Mark Complete' : 'Reopen'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleArchiveProduct(product.id)}
+                            className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 px-2"
+                            title="Archive product"
+                          >
+                            <Archive className="size-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => setSelectedProduct(product.id)}
+                            className={`h-7 text-xs flex-shrink-0 ${product.isMultiSample ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                          >
+                            <Settings className="size-3 mr-1" />Configure
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
 
-            {/* Attribute config panel */}
-            <div className="col-span-3 border-l border-slate-100 pl-5 space-y-4 overflow-y-auto max-h-[640px]">
+          {/* Attribute config panel */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
               {!selectedProduct ? (
                 <div className="flex flex-col items-center justify-center h-full py-20 text-slate-400 text-center">
                   <Settings className="size-10 mb-3 opacity-30" />
@@ -544,10 +601,9 @@ export function AdminConfig() {
                   </div>
                 </div>
               )}
-            </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Panelist ID management (compact, above the full intelligence panel) */}
       {panelists.length > 0 && (
