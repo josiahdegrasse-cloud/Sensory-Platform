@@ -2,6 +2,7 @@ import { useState } from "react";
 import { RouterProvider } from "react-router";
 import { router } from "./routes.tsx";
 import { AuthProvider, useAuth } from "./contexts/auth-context.tsx";
+import { FoodTypeProvider } from "./contexts/food-type-context.tsx";
 import { LoginPage } from "./components/login-page.tsx";
 import { SignupPage } from "./components/signup-page.tsx";
 import { ResetPasswordPage } from "./components/reset-password-page.tsx";
@@ -33,7 +34,9 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <FoodTypeProvider>
+        <AppContent />
+      </FoodTypeProvider>
     </AuthProvider>
   );
 }

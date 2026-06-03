@@ -1,4 +1,5 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { useFoodType } from "../contexts/food-type-context";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { FlaskConical, AlertCircle, Upload, X, Check, Download, RotateCcw } from "lucide-react";
@@ -183,6 +184,21 @@ export function Stage1Instrumental() {
   const [usingDemoData, setUsingDemoData] = useState(true);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { foodType } = useFoodType();
+
+  const filteredETongueData = eTongueData.filter(s => {
+    if (foodType === 'all') return true;
+    const t = (s.type || inferType(s.sampleId)).toLowerCase();
+    if (foodType === 'bread') return t === 'bread' || s.sampleId.toUpperCase().startsWith('B');
+    if (foodType === 'cheese') return t === 'dairy' || t === 'pbca' || s.sampleId.toUpperCase().startsWith('S') || s.sampleId.toUpperCase().startsWith('D');
+    return true;
+  });
+
+  useEffect(() => {
+    if (filteredETongueData.length > 0 && !filteredETongueData.find(s => s.sampleId === selectedSamples[0])) {
+      setSelectedSamples([filteredETongueData[0].sampleId]);
+    }
+  }, [foodType]);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -404,14 +420,14 @@ export function Stage1Instrumental() {
 
   // ── derived display data ──────────────────────────────────────────────────
 
-  const displayedSamples = eTongueData.map((sample, idx) => {
+  const displayedSamples = filteredETongueData.map((sample, idx) => {
     const sampleInfo = SAMPLES.find((s) => s.id === sample.sampleId);
     const type = sample.type || sampleInfo?.type || inferType(sample.sampleId);
     const category = sample.category || sampleInfo?.category || inferCategory(sample.sampleId, "", type);
     return { id: sample.sampleId, uniqueKey: `${sample.sampleId}-${idx}`, name: sampleInfo?.name || sample.sampleId, category, type };
   });
 
-  const pcaData = eTongueData.map((sample, idx) => {
+  const pcaData = filteredETongueData.map((sample, idx) => {
     const pc1 = sample.saltiness * 0.5 + sample.umami * 0.4 - sample.sourness * 0.3;
     const pc2 = sample.bitterness * 0.4 + sample.sourness * 0.35 - sample.sweetness * 0.25;
     const sampleInfo = SAMPLES.find((s) => s.id === sample.sampleId);
@@ -429,7 +445,7 @@ export function Stage1Instrumental() {
     };
   });
 
-  const selectedSampleData      = eTongueData.find((s) => s.sampleId === selectedSamples[0]);
+  const selectedSampleData      = filteredETongueData.find((s) => s.sampleId === selectedSamples[0]);
   const selectedGCMSData        = gcmsData[selectedSamples[0]] || [];
   const selectedCompositionData = compositionData[selectedSamples[0]] || {};
   const selectedSampleInfo      = displayedSamples.find((s) => s.id === selectedSamples[0]);
@@ -449,7 +465,7 @@ export function Stage1Instrumental() {
   const compareRadarSeries = compareMode
     ? selectedSamples
         .map((sampleId, idx) => {
-          const sample = eTongueData.find((s) => s.sampleId === sampleId);
+          const sample = filteredETongueData.find((s) => s.sampleId === sampleId);
           if (!sample) return null;
           return {
             sampleId,

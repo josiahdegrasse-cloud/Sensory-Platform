@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useFoodType, sampleMatchesFoodType } from "../contexts/food-type-context";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -95,8 +96,8 @@ function PathToGoPanel({
   );
   const worstOffNote = [...offNoteCompounds].sort((a, b) => b.odourIntensity - a.odourIntensity)[0];
 
-  const chalky = selectedSensory.intensity.chalky;
-  const grainy = selectedSensory.intensity.grainy;
+  const chalky = selectedSensory.intensity.chalky ?? 0;
+  const grainy = selectedSensory.intensity.grainy ?? 0;
 
   const actionMap: Record<string, string> = {
     hedonic: "Rebalance flavor harmony — adjust sweetness-saltiness-umami to lift overall acceptability",
@@ -190,6 +191,7 @@ function PathToGoPanel({
 
 export function Stage4Enhanced() {
   const { user } = useAuth();
+  const { foodType, subCategory } = useFoodType();
   const [selectedSample, setSelectedSample] = useState<string>(ENHANCED_SENSORY_DATA[0]?.sampleId ?? "S1");
   const [showRawData, setShowRawData] = useState(false);
   const [showQualitative, setShowQualitative] = useState(true);
@@ -200,8 +202,21 @@ export function Stage4Enhanced() {
   const [logRefreshKey, setLogRefreshKey] = useState(0);
   const [confirmPending, setConfirmPending] = useState(false);
 
+  const filteredSensoryData = ENHANCED_SENSORY_DATA.filter(s => {
+    const ft = sampleMatchesFoodType(s.sampleId, s.sampleName);
+    if (foodType !== 'all' && ft !== foodType) return false;
+    if (subCategory && !s.sampleName.toLowerCase().includes(subCategory.toLowerCase())) return false;
+    return true;
+  });
+
+  useEffect(() => {
+    if (filteredSensoryData.length > 0 && !filteredSensoryData.find(s => s.sampleId === selectedSample)) {
+      setSelectedSample(filteredSensoryData[0].sampleId);
+    }
+  }, [foodType, subCategory]);
+
   // Calculate actual correlations and decisions for each sample
-  const sampleDecisions: SampleDecision[] = ENHANCED_SENSORY_DATA.map(sample => {
+  const sampleDecisions: SampleDecision[] = filteredSensoryData.map(sample => {
     // Calculate composite ISSF score based on:
     // 1. Instrumental-panel alignment
     // 2. Hedonic score
@@ -225,8 +240,8 @@ export function Stage4Enhanced() {
     const gcoPenalty = hasOffNotes ? 5 : 0;
     
     // Texture quality (based on creaminess, low graininess/chalkiness)
-    const textureScore = ((sample.intensity.creamy / 10) * 100) - 
-                         ((sample.intensity.grainy + sample.intensity.chalky) / 20 * 50);
+    const textureScore = (((sample.intensity.creamy ?? 5) / 10) * 100) -
+                         (((sample.intensity.grainy ?? 0) + (sample.intensity.chalky ?? 0)) / 20 * 50);
     
     // CATA positive attributes using actual lexicon
     const positiveAttributes = (sample.cata["Butter"] || 0) + (sample.cata["Milk"] || 0) + 
@@ -325,8 +340,8 @@ export function Stage4Enhanced() {
     if (sample.cata["Butter"] && sample.cata["Butter"] >= 9) {
       details.push(`High buttery note: ${sample.cata["Butter"]}/14 panelists`);
     }
-    if (sample.intensity.smooth >= 7.5) {
-      details.push(`Excellent smoothness: ${sample.intensity.smooth.toFixed(1)}/10`);
+    if ((sample.intensity.smooth ?? 0) >= 7.5) {
+      details.push(`Excellent smoothness: ${(sample.intensity.smooth ?? 0).toFixed(1)}/10`);
     }
     
     return {

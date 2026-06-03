@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from '../contexts/auth-context';
+import { useFoodType, sampleMatchesFoodType, matchFoodType } from '../contexts/food-type-context';
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
@@ -30,53 +31,33 @@ export function SurveyAnalysis() {
     commentsByProduct,
   } = useSurveyData();
 
+  const { foodType, subCategory } = useFoodType();
   const [selectedSample, setSelectedSample] = useState<string>("S1");
   const [showAllSamples, setShowAllSamples] = useState(false);
-  const [foodTypeFilter, setFoodTypeFilter] = useState<string>("all");
   const [analysisType, setAnalysisType] = useState<'single' | 'multi'>('single');
 
-  // Auto-select first sample in filtered set when filter changes and current selection no longer exists
+  // Auto-select first sample in filtered set when food type changes
   useEffect(() => {
-    const filtered = foodTypeFilter === "all"
-      ? ENHANCED_SENSORY_DATA
-      : ENHANCED_SENSORY_DATA.filter(s => {
-          const n = s.sampleName.toLowerCase();
-          const type = foodTypeFilter.toLowerCase();
-          if (type === 'dairy control') return n.includes('dairy') || n.includes('control');
-          return n.includes(type.split(' ')[0]);
-        });
+    const filtered = ENHANCED_SENSORY_DATA.filter(s => {
+      const ft = sampleMatchesFoodType(s.sampleId, s.sampleName);
+      if (foodType !== 'all' && ft !== foodType) return false;
+      if (subCategory && !s.sampleName.toLowerCase().includes(subCategory.toLowerCase())) return false;
+      return true;
+    });
     if (filtered.length > 0 && !filtered.find(s => s.sampleId === selectedSample)) {
       setSelectedSample(filtered[0].sampleId);
     }
-  }, [foodTypeFilter]);
+  }, [foodType, subCategory]);
 
   // All hooks called — safe to guard here
   if (user?.role !== 'admin') return null;
 
-  // Derive unique base types from sample names
-  const foodTypes = ["all", ...Array.from(new Set(
-    ENHANCED_SENSORY_DATA.map(s => {
-      const n = s.sampleName.toLowerCase();
-      if (n.includes('dairy') || n.includes('control')) return 'Dairy Control';
-      if (n.includes('sourdough') || n.includes('sandwich bread') || n.includes('multigrain') || n.includes('brioche') || n.includes('loaf') || n.includes('bread')) return 'Bread';
-      if (n.includes('coconut')) return 'Coconut';
-      if (n.includes('cashew')) return 'Cashew';
-      if (n.includes('almond')) return 'Almond';
-      if (n.includes('oat')) return 'Oat';
-      if (n.includes('mixed')) return 'Mixed Base';
-      return 'Other';
-    })
-  ))];
-
-  const filteredSamples = foodTypeFilter === "all"
-    ? ENHANCED_SENSORY_DATA
-    : ENHANCED_SENSORY_DATA.filter(s => {
-        const n = s.sampleName.toLowerCase();
-        const type = foodTypeFilter.toLowerCase();
-        if (type === 'dairy control') return n.includes('dairy') || n.includes('control');
-        if (type === 'bread') return n.includes('sourdough') || n.includes('bread') || n.includes('loaf') || n.includes('multigrain') || n.includes('brioche');
-        return n.includes(type.split(' ')[0]);
-      });
+  const filteredSamples = ENHANCED_SENSORY_DATA.filter(s => {
+    const ft = sampleMatchesFoodType(s.sampleId, s.sampleName);
+    if (foodType !== 'all' && ft !== foodType) return false;
+    if (subCategory && !s.sampleName.toLowerCase().includes(subCategory.toLowerCase())) return false;
+    return true;
+  });
 
   const selectedData = filteredSamples.find(s => s.sampleId === selectedSample);
 
@@ -177,7 +158,13 @@ export function SurveyAnalysis() {
     downloadCsv(csv, `issf-full-export-${new Date().toISOString().split('T')[0]}.csv`);
   };
 
-  const multiSampleProducts = allProducts.filter(p => p.isMultiSample);
+  const multiSampleProducts = allProducts.filter(p => {
+    if (!p.isMultiSample) return false;
+    if (foodType === 'all') return true;
+    if (matchFoodType(p.category) !== foodType) return false;
+    if (subCategory && p.category !== subCategory) return false;
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -289,27 +276,7 @@ export function SurveyAnalysis() {
 
       {analysisType === 'single' ? (
         <>
-          {/* Food Type Filter Tabs */}
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold text-slate-700">Filter:</span>
-            <div className="flex gap-2">
-              {foodTypes.map(type => (
-                <button
-                  key={type}
-                  onClick={() => setFoodTypeFilter(type)}
-                  className={`px-3 py-1 rounded-md text-sm font-medium transition-all ${
-                    foodTypeFilter === type
-                      ? "bg-purple-600 text-white"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                  }`}
-                >
-                  {type === "all" ? "All Products" : type}
-                </button>
-              ))}
-            </div>
-          </div>
-
-      {/* Sample Selector */}
+          {/* Sample Selector */}
       <Card>
         <CardHeader className="bg-gradient-to-r from-blue-50 to-slate-50 border-b">
           <CardTitle className="text-lg">Select Sample</CardTitle>

@@ -1,8 +1,9 @@
-import { Outlet, Link, useLocation, useNavigate, useSearchParams } from "react-router";
-import { FlaskConical, BarChart3, GitMerge, ClipboardList, Settings, LogOut, Lightbulb, Tag } from "lucide-react";
+import { Outlet, Link, useLocation, useNavigate } from "react-router";
+import { FlaskConical, BarChart3, GitMerge, ClipboardList, Settings, LogOut, Lightbulb, Tag, ChevronRight } from "lucide-react";
 import { useAuth } from "../contexts/auth-context";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useProducts } from "../lib/hooks";
+import { useFoodType, matchFoodType, type FoodType } from "../contexts/food-type-context";
 
 const NFI_BLUE = '#6B7890';
 
@@ -20,28 +21,47 @@ function NfiLogoMark({ size = 36 }: { size?: number }) {
 
 function CategorySidebar() {
   const { data: products = [] } = useProducts();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const selected = searchParams.get('category') ?? 'all';
+  const { foodType, subCategory, setSelection } = useFoodType();
+  const [cheeseOpen, setCheeseOpen] = useState(foodType === 'cheese');
+  const [breadOpen, setBreadOpen] = useState(foodType === 'bread');
 
-  const categories = useMemo(() => {
-    const cats = new Set(products.map(p => p.category).filter(Boolean));
+  const cheeseSubs = useMemo(() => {
+    const cats = new Set(
+      products.filter(p => matchFoodType(p.category) === 'cheese').map(p => p.category)
+    );
     return Array.from(cats).sort();
   }, [products]);
 
-  if (categories.length === 0) return null;
+  const breadSubs = useMemo(() => {
+    const cats = new Set(
+      products.filter(p => matchFoodType(p.category) === 'bread').map(p => p.category)
+    );
+    return Array.from(cats).sort();
+  }, [products]);
 
-  const handleSelect = (cat: string) => {
-    setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      if (cat === 'all') next.delete('category');
-      else next.set('category', cat);
-      return next;
-    }, { replace: true });
+  const handleTopLevel = (ft: FoodType) => {
+    setSelection(ft, null);
+    if (ft === 'cheese') { setCheeseOpen(true); setBreadOpen(false); }
+    else if (ft === 'bread') { setBreadOpen(true); setCheeseOpen(false); }
+    else { setCheeseOpen(false); setBreadOpen(false); }
   };
+
+  const handleSub = (ft: FoodType, cat: string) => {
+    setSelection(ft, cat);
+  };
+
+  const isActive = (ft: FoodType, sub?: string) =>
+    foodType === ft && (sub === undefined ? subCategory === null : subCategory === sub);
+
+  const btnStyle = (active: boolean) => ({
+    background: active ? '#f1f5f9' : 'transparent',
+    color: active ? NFI_BLUE : '#64748b',
+    fontWeight: active ? 600 : 400,
+  });
 
   return (
     <aside
-      className="w-44 shrink-0 self-start sticky top-[89px]"
+      className="w-48 shrink-0 self-start sticky top-[89px]"
       style={{ minHeight: 'calc(100vh - 89px)' }}
     >
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
@@ -50,34 +70,120 @@ function CategorySidebar() {
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Food Type</span>
         </div>
         <div className="p-1.5 flex flex-col gap-0.5">
+
+          {/* All Types */}
           <button
-            onClick={() => handleSelect('all')}
+            onClick={() => handleTopLevel('all')}
             className="w-full text-left px-2.5 py-1.5 rounded-lg text-sm transition-colors"
-            style={{
-              background: selected === 'all' ? '#f1f5f9' : 'transparent',
-              color: selected === 'all' ? NFI_BLUE : '#64748b',
-              fontWeight: selected === 'all' ? 600 : 400,
-            }}
+            style={btnStyle(foodType === 'all')}
           >
             All Types
           </button>
-          {categories.map(cat => (
+
+          {/* Cheese section */}
+          <div>
             <button
-              key={cat}
-              onClick={() => handleSelect(cat)}
-              className="w-full text-left px-2.5 py-1.5 rounded-lg text-sm transition-colors truncate"
-              style={{
-                background: selected === cat ? '#f1f5f9' : 'transparent',
-                color: selected === cat ? NFI_BLUE : '#64748b',
-                fontWeight: selected === cat ? 600 : 400,
+              onClick={() => {
+                if (foodType === 'cheese' && !subCategory) {
+                  setCheeseOpen(v => !v);
+                } else {
+                  handleTopLevel('cheese');
+                }
               }}
+              className="w-full text-left px-2.5 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-1"
+              style={btnStyle(foodType === 'cheese')}
             >
-              {cat}
+              <span className="mr-0.5">🧀</span>
+              <span className="flex-1">Cheese</span>
+              {cheeseSubs.length > 0 && (
+                <ChevronRight
+                  className="size-3.5 transition-transform shrink-0"
+                  style={{ transform: cheeseOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                />
+              )}
             </button>
-          ))}
+            {cheeseOpen && cheeseSubs.length > 0 && (
+              <div className="ml-3 mt-0.5 flex flex-col gap-0.5 border-l-2 border-slate-100 pl-2">
+                <button
+                  onClick={() => setSelection('cheese', null)}
+                  className="w-full text-left px-2 py-1 rounded-md text-xs transition-colors"
+                  style={btnStyle(isActive('cheese', undefined))}
+                >
+                  All Cheese
+                </button>
+                {cheeseSubs.map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => handleSub('cheese', cat)}
+                    className="w-full text-left px-2 py-1 rounded-md text-xs transition-colors truncate"
+                    style={btnStyle(subCategory === cat && foodType === 'cheese')}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Bread section */}
+          <div>
+            <button
+              onClick={() => {
+                if (foodType === 'bread' && !subCategory) {
+                  setBreadOpen(v => !v);
+                } else {
+                  handleTopLevel('bread');
+                }
+              }}
+              className="w-full text-left px-2.5 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-1"
+              style={btnStyle(foodType === 'bread')}
+            >
+              <span className="mr-0.5">🍞</span>
+              <span className="flex-1">Bread</span>
+              {breadSubs.length > 0 && (
+                <ChevronRight
+                  className="size-3.5 transition-transform shrink-0"
+                  style={{ transform: breadOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                />
+              )}
+            </button>
+            {breadOpen && breadSubs.length > 0 && (
+              <div className="ml-3 mt-0.5 flex flex-col gap-0.5 border-l-2 border-slate-100 pl-2">
+                <button
+                  onClick={() => setSelection('bread', null)}
+                  className="w-full text-left px-2 py-1 rounded-md text-xs transition-colors"
+                  style={btnStyle(isActive('bread', undefined))}
+                >
+                  All Bread
+                </button>
+                {breadSubs.map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => handleSub('bread', cat)}
+                    className="w-full text-left px-2 py-1 rounded-md text-xs transition-colors truncate"
+                    style={btnStyle(subCategory === cat && foodType === 'bread')}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
         </div>
       </div>
     </aside>
+  );
+}
+
+function FoodTypeBadge() {
+  const { foodType, subCategory } = useFoodType();
+  if (foodType === 'all') return null;
+  const label = subCategory ?? (foodType === 'cheese' ? '🧀 Cheese' : '🍞 Bread');
+  return (
+    <span className="px-2.5 py-1 rounded-full text-xs font-semibold border" style={{ background: '#f1f5f9', color: NFI_BLUE, borderColor: '#cbd5e1' }}>
+      {label}
+    </span>
   );
 }
 
@@ -132,6 +238,7 @@ export function MainLayout() {
             </Link>
 
             <div className="flex items-center gap-4">
+              {user?.role === 'admin' && <FoodTypeBadge />}
               <div className="text-right">
                 <div className="text-sm font-semibold text-slate-900">{user?.name}</div>
                 <div className="text-xs text-slate-400">
