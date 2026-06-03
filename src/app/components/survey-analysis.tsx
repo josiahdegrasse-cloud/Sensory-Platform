@@ -58,6 +58,7 @@ export function SurveyAnalysis() {
     ENHANCED_SENSORY_DATA.map(s => {
       const n = s.sampleName.toLowerCase();
       if (n.includes('dairy') || n.includes('control')) return 'Dairy Control';
+      if (n.includes('sourdough') || n.includes('sandwich bread') || n.includes('multigrain') || n.includes('brioche') || n.includes('loaf') || n.includes('bread')) return 'Bread';
       if (n.includes('coconut')) return 'Coconut';
       if (n.includes('cashew')) return 'Cashew';
       if (n.includes('almond')) return 'Almond';
@@ -73,6 +74,7 @@ export function SurveyAnalysis() {
         const n = s.sampleName.toLowerCase();
         const type = foodTypeFilter.toLowerCase();
         if (type === 'dairy control') return n.includes('dairy') || n.includes('control');
+        if (type === 'bread') return n.includes('sourdough') || n.includes('bread') || n.includes('loaf') || n.includes('multigrain') || n.includes('brioche');
         return n.includes(type.split(' ')[0]);
       });
 

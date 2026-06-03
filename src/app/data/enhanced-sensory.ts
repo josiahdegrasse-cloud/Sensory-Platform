@@ -50,16 +50,8 @@ export interface EnhancedSensoryProfile {
   };
   
   // Semi-trained panel intensity ratings (mean of 14 panelists, 0-10 scale)
-  intensity: {
-    sourMilk: number;
-    milkiness: number;
-    cheesiness: number;
-    creamy: number;
-    grainy: number;
-    oily: number;
-    chalky: number;
-    smooth: number;
-  };
+  // Keys are food-type specific (dairy: sourMilk/milkiness/etc; bread: yeastiness/crustiness/etc)
+  intensity: Record<string, number>;
   
   // 4 separate hedonic scales (9-point each - ISSF review Appendix D)
   hedonic: {
@@ -329,5 +321,61 @@ export const ENHANCED_SENSORY_DATA: EnhancedSensoryProfile[] = [
     hedonic: { appearance: 8.2, flavour: 7.9, texture: 7.8, overall: 7.6 },
     emotions: { positive: 4.4, negative: 0.8 },
     trainedPanelReference: { overallQuality: 93, recommendation: "GO", delta: 1.2 }
+  },
+  {
+    sampleId: "B1",
+    sampleName: "Sourdough Loaf v1.0",
+    taste: { sourness: 4.2, bitterness: 2.1, astringency: 2.4, umami: 2.2, saltiness: 2.8, sweetness: 1.6, astringencyAftertaste: 2.2, umamiAftertaste: 2.0, bitternessAftertaste: 1.9, richness: 3.8 },
+    composition: { salt: 1.8, fat: 3.2, protein: 9.4, starchDryMatter: 68.1 },
+    gcmsOlfactometry: [
+      { retentionTime: 5.1, compound: "Acetic acid", nistProbability: 94, peakArea: 342000, odour: "sour/vinegary", odourIntensity: 3.8, concentration: 9.2, threshold: 6.0 },
+      { retentionTime: 7.4, compound: "Acetaldehyde", nistProbability: 91, peakArea: 198000, odour: "yeasty/fermented", odourIntensity: 3.2, concentration: 5.8, threshold: 7.0 },
+      { retentionTime: 11.2, compound: "Furfural", nistProbability: 93, peakArea: 124000, odour: "caramel/toasted", odourIntensity: 2.6, concentration: 3.1 },
+      { retentionTime: 8.1, compound: "Diacetyl", nistProbability: 88, peakArea: 62000, odour: "buttery", odourIntensity: 1.4, concentration: 1.2, threshold: 10.0 },
+    ],
+    istdRecovery: 93.8,
+    olfactometryFlowSplit: "67:33 confirmed",
+    cata: { Yeasty: 12, "Fresh-baked": 11, Sour: 10, Crusty: 12, Chewy: 11, Tangy: 9, Wheaty: 7, Soft: 5 },
+    intensity: { yeastiness: 7.8, crustiness: 8.2, softness: 5.4, chewiness: 7.6, butteriness: 2.1, maltiness: 3.8, graininess: 5.2, sweetness: 2.0 },
+    hedonic: { appearance: 7.9, flavour: 7.6, texture: 7.8, overall: 7.7 },
+    emotions: { positive: 4.3, negative: 0.9 },
+    trainedPanelReference: { overallQuality: 88, recommendation: "GO", delta: 1.8 }
+  },
+  {
+    sampleId: "B2",
+    sampleName: "White Sandwich Bread v2.1",
+    taste: { sourness: 1.4, bitterness: 1.2, astringency: 1.1, umami: 1.6, saltiness: 2.4, sweetness: 3.2, astringencyAftertaste: 1.0, umamiAftertaste: 1.4, bitternessAftertaste: 1.1, richness: 3.1 },
+    composition: { salt: 1.4, fat: 5.8, protein: 8.1, starchDryMatter: 72.4 },
+    gcmsOlfactometry: [
+      { retentionTime: 8.0, compound: "Diacetyl", nistProbability: 90, peakArea: 88000, odour: "buttery", odourIntensity: 2.2, concentration: 2.1, threshold: 10.0 },
+      { retentionTime: 11.1, compound: "Furfural", nistProbability: 92, peakArea: 76000, odour: "caramel/sweet", odourIntensity: 1.9, concentration: 1.8 },
+      { retentionTime: 7.3, compound: "Acetaldehyde", nistProbability: 87, peakArea: 54000, odour: "yeasty", odourIntensity: 1.4, concentration: 1.6, threshold: 7.0 },
+    ],
+    istdRecovery: 94.6,
+    olfactometryFlowSplit: "67:33 confirmed",
+    cata: { Soft: 13, "Fresh-baked": 10, Sweet: 11, Buttery: 9, Mild: 10, Airy: 9, Yeasty: 6, Springy: 8 },
+    intensity: { yeastiness: 3.2, crustiness: 2.8, softness: 8.9, chewiness: 3.4, butteriness: 5.6, maltiness: 2.4, graininess: 1.6, sweetness: 6.2 },
+    hedonic: { appearance: 7.2, flavour: 6.8, texture: 7.4, overall: 7.0 },
+    emotions: { positive: 3.8, negative: 1.1 },
+    trainedPanelReference: { overallQuality: 79, recommendation: "GO", delta: 3.2 }
+  },
+  {
+    sampleId: "B3",
+    sampleName: "Multigrain Artisan v1.0",
+    taste: { sourness: 2.8, bitterness: 3.4, astringency: 3.1, umami: 2.8, saltiness: 3.1, sweetness: 2.2, astringencyAftertaste: 2.9, umamiAftertaste: 2.6, bitternessAftertaste: 3.2, richness: 4.2 },
+    composition: { salt: 1.9, fat: 4.6, protein: 10.8, starchDryMatter: 62.3 },
+    gcmsOlfactometry: [
+      { retentionTime: 11.3, compound: "Furfural", nistProbability: 95, peakArea: 186000, odour: "caramel/toasted", odourIntensity: 3.4, concentration: 4.6 },
+      { retentionTime: 19.8, compound: "Benzaldehyde", nistProbability: 86, peakArea: 72000, odour: "nutty/almond", odourIntensity: 2.1, concentration: 1.5 },
+      { retentionTime: 7.4, compound: "Acetaldehyde", nistProbability: 90, peakArea: 112000, odour: "yeasty", odourIntensity: 2.4, concentration: 3.2, threshold: 7.0 },
+      { retentionTime: 14.2, compound: "Hexanal", nistProbability: 88, peakArea: 58000, odour: "grassy/grain", odourIntensity: 1.8, concentration: 1.3, threshold: 5.0 },
+    ],
+    istdRecovery: 91.9,
+    olfactometryFlowSplit: "67:33 confirmed",
+    cata: { Grainy: 12, Nutty: 10, Wheaty: 11, Dense: 9, Malty: 8, "Fresh-baked": 9, Chewy: 10, Crusty: 7 },
+    intensity: { yeastiness: 5.2, crustiness: 6.8, softness: 3.6, chewiness: 7.2, butteriness: 2.8, maltiness: 6.4, graininess: 8.1, sweetness: 3.1 },
+    hedonic: { appearance: 6.6, flavour: 6.2, texture: 6.4, overall: 6.1 },
+    emotions: { positive: 3.2, negative: 1.6 },
+    trainedPanelReference: { overallQuality: 74, recommendation: "TWEAK", delta: 4.8 }
   },
 ];

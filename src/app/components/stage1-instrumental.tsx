@@ -67,6 +67,9 @@ const MOCK_ETONGUE_DATA: ETongueMeasurement[] = [
   { sampleId: "S12", sourness: 3.7, bitterness: 2.8, saltiness: 3.4, umami: 3.4, sweetness: 2.2, type: "pbca", category: "Cashew-based" },
   { sampleId: "D1", sourness: 2.2, bitterness: 2.1, saltiness: 4.5, umami: 4.3, sweetness: 2.0, type: "dairy", category: "Dairy" },
   { sampleId: "D2", sourness: 2.4, bitterness: 2.3, saltiness: 4.4, umami: 4.2, sweetness: 2.1, type: "dairy", category: "Dairy" },
+  { sampleId: "B1", sourness: 4.2, bitterness: 2.1, saltiness: 2.8, umami: 2.2, sweetness: 1.6, type: "bread", category: "Bread" },
+  { sampleId: "B2", sourness: 1.4, bitterness: 1.2, saltiness: 2.4, umami: 1.6, sweetness: 3.2, type: "bread", category: "Bread" },
+  { sampleId: "B3", sourness: 2.8, bitterness: 3.4, saltiness: 3.1, umami: 2.8, sweetness: 2.2, type: "bread", category: "Bread" },
 ];
 
 const MOCK_GCMS_DATA: Record<string, GCMSCompound[]> = {
@@ -143,7 +146,9 @@ function normalize(value?: string) {
 function inferType(sampleId: string, csvType?: string) {
   const normalized = normalize(csvType).toLowerCase();
   if (normalized === "dairy") return "dairy";
+  if (normalized === "bread") return "bread";
   if (normalized === "pbca" || normalized === "plant-based" || normalized === "plant base") return "pbca";
+  if (sampleId.toUpperCase().startsWith("B")) return "bread";
   return sampleId.toUpperCase().startsWith("D") ? "dairy" : "pbca";
 }
 
@@ -151,11 +156,13 @@ function inferCategory(sampleId: string, csvCategory?: string, type?: string) {
   const normalized = normalize(csvCategory);
   if (normalized) return normalized;
   if (type === "dairy") return "Dairy";
+  if (type === "bread") return "Bread";
   return "Coconut-based";
 }
 
 function getPointColor(type?: string, category?: string) {
   if (type === "dairy" || category === "Dairy") return "#10b981";
+  if (type === "bread" || category === "Bread") return "#d97706";
   if (category === "Cashew-based") return "#f59e0b";
   return "#3b82f6";
 }

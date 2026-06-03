@@ -306,53 +306,80 @@ export function AdminConfig() {
     }
   };
 
+  const handleSeedBreadDemo = async () => {
+    const breadProducts = [
+      { name: 'Sourdough Loaf v1.0',       category: 'Bread' },
+      { name: 'White Sandwich Bread v2.1', category: 'Bread' },
+      { name: 'Multigrain Artisan v1.0',   category: 'Bread' },
+    ];
+    setMutationError('');
+    try {
+      for (const p of breadProducts) {
+        await insertProductMutation.mutateAsync({
+          name: p.name, category: p.category, status: 'active',
+          customAttributes: getDefaultCataAttributes(p.category),
+        });
+      }
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : 'Failed to seed demo data.');
+    }
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Configure Products</h1>
-        <p className="text-sm text-slate-500 mt-1">Manage products, questionnaire attributes, and panelists</p>
+    <div className="flex flex-col gap-3" style={{ height: 'calc(100vh - 169px)', minHeight: '600px' }}>
+      {/* Header row */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900">Configure Products</h1>
+          <p className="text-xs text-slate-500 mt-0.5">Manage products, questionnaire attributes, and panelists</p>
+        </div>
+        {(showSuccess || mutationError) && (
+          <div className="max-w-sm">
+            {showSuccess && (
+              <Alert className="border-emerald-300 bg-emerald-50 py-2">
+                <CheckCircle2 className="size-3.5 text-emerald-600" />
+                <AlertDescription className="text-emerald-700 text-xs">Saved!</AlertDescription>
+              </Alert>
+            )}
+            {mutationError && (
+              <Alert variant="destructive" className="py-2">
+                <AlertCircle className="size-3.5" />
+                <AlertDescription className="text-xs">{mutationError}</AlertDescription>
+              </Alert>
+            )}
+          </div>
+        )}
       </div>
 
-      {showSuccess && (
-        <Alert className="border-emerald-300 bg-emerald-50">
-          <CheckCircle2 className="size-4 text-emerald-600" />
-          <AlertDescription className="text-emerald-700">Changes saved successfully!</AlertDescription>
-        </Alert>
-      )}
-      {mutationError && (
-        <Alert variant="destructive">
-          <AlertCircle className="size-4" />
-          <AlertDescription>{mutationError}</AlertDescription>
-        </Alert>
-      )}
-
       {/* Stats strip */}
-      <div className="flex items-center gap-5 px-5 py-3 bg-white border border-slate-200 rounded-xl shadow-sm flex-wrap">
+      <div className="flex items-center gap-4 px-4 py-2 bg-white border border-slate-200 rounded-lg shadow-sm flex-wrap shrink-0">
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${activeCount > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
           <span className="text-sm font-bold text-slate-900">{activeCount}</span>
-          <span className="text-sm text-slate-500">active product{activeCount !== 1 ? 's' : ''}</span>
+          <span className="text-xs text-slate-500">active product{activeCount !== 1 ? 's' : ''}</span>
         </div>
         <div className="w-px h-4 bg-slate-200" />
         <div className="flex items-center gap-2">
           <Users className="size-3.5 text-slate-400" />
           <span className="text-sm font-bold text-slate-900">{panelists.length}</span>
-          <span className="text-sm text-slate-500">panelist{panelists.length !== 1 ? 's' : ''}</span>
+          <span className="text-xs text-slate-500">panelist{panelists.length !== 1 ? 's' : ''}</span>
         </div>
         <div className="w-px h-4 bg-slate-200" />
         <div className="flex items-center gap-2">
           <Activity className="size-3.5 text-slate-400" />
           <span className="text-sm font-bold text-slate-900">{totalSessions}</span>
-          <span className="text-sm text-slate-500">total session{totalSessions !== 1 ? 's' : ''}</span>
+          <span className="text-xs text-slate-500">sessions</span>
         </div>
         <div className="w-px h-4 bg-slate-200" />
-        <span className="text-sm text-slate-500">{completedCount} completed</span>
+        <span className="text-xs text-slate-500">{completedCount} completed · {archivedCount} archived</span>
       </div>
 
-      {/* Products + Attribute Config — full-height split pane */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden" style={{ height: 'calc(100vh - 280px)', minHeight: '560px' }}>
+      {/* Products + Attribute Config — flex-1 split pane */}
+      <div className="flex-1 min-h-0 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         {/* Toolbar */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50/60">
           <div className="flex items-center gap-3 flex-wrap">
@@ -382,9 +409,19 @@ export function AdminConfig() {
               />
             </div>
           </div>
-          <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700 h-8 text-sm">
-            <Plus className="size-3.5 mr-1.5" />New Product
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleSeedBreadDemo}
+              disabled={insertProductMutation.isPending}
+              className="h-8 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+            >
+              Seed Bread Demo
+            </Button>
+            <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700 h-8 text-sm">
+              <Plus className="size-3.5 mr-1.5" />New Product
+            </Button>
+          </div>
         </div>
 
         <div className="flex h-[calc(100%-53px)]">
@@ -417,10 +454,10 @@ export function AdminConfig() {
                     }`}
                   >
                     <div className={`absolute left-0 top-0 bottom-0 w-1 ${product.status === 'active' ? 'bg-emerald-500' : product.status === 'archived' ? 'bg-amber-400' : 'bg-slate-300'}`} />
-                    <div className="p-4 pl-5">
-                      <div className="flex items-start justify-between gap-2 mb-1.5">
+                    <div className="p-3 pl-4">
+                      <div className="flex items-start justify-between gap-2 mb-1">
                         <button onClick={() => setSelectedProduct(product.id)} className="text-left flex-1 min-w-0">
-                          <div className="font-bold text-slate-900 truncate flex items-center gap-2 flex-wrap">
+                          <div className="font-semibold text-slate-900 text-sm truncate flex items-center gap-1.5 flex-wrap">
                             {product.name}
                             {product.isMultiSample && (
                               <Badge className="bg-purple-600 text-[10px] px-1.5 py-0">
@@ -431,31 +468,27 @@ export function AdminConfig() {
                               <Badge className="bg-slate-800 text-[10px] px-1.5 py-0">Blinded</Badge>
                             )}
                           </div>
-                          <div className="text-xs text-slate-500 mt-0.5">{product.category}</div>
+                          <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2">
+                            <span>{product.category}</span>
+                            <span>·</span>
+                            <span className="flex items-center gap-0.5">
+                              <Activity className="size-2.5 text-slate-400" />
+                              {sessions} session{sessions !== 1 ? 's' : ''}
+                            </span>
+                            {lastActive && <><span>·</span><span>{new Date(lastActive).toLocaleDateString()}</span></>}
+                          </div>
                         </button>
                         <Badge className={`text-[10px] px-1.5 py-0.5 flex-shrink-0 ${product.status === 'active' ? 'bg-emerald-600' : product.status === 'archived' ? 'bg-amber-500' : 'bg-slate-400'}`}>
                           {product.status === 'active' ? 'Active' : product.status === 'archived' ? 'Archived' : 'Done'}
                         </Badge>
                       </div>
 
-                      <div className="flex items-center gap-3 mb-2 text-xs text-slate-500">
-                        <span className="flex items-center gap-1">
-                          <Activity className="size-3 text-slate-400" />
-                          {sessions} session{sessions !== 1 ? 's' : ''}
-                        </span>
-                        <span>·</span>
-                        {lastActive
-                          ? <span>Last: {new Date(lastActive).toLocaleDateString()}</span>
-                          : <span className="italic">No activity yet</span>
-                        }
-                      </div>
-
-                      <div className="flex flex-wrap gap-1 mb-3">
+                      <div className="flex flex-wrap gap-1 mb-2">
                         {previewAttrs.map(attr => (
-                          <span key={attr} className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded-full">{attr}</span>
+                          <span key={attr} className="text-[10px] px-1.5 py-0 bg-slate-100 text-slate-600 rounded-full">{attr}</span>
                         ))}
                         {extraCount > 0 && (
-                          <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded-full">+{extraCount} more</span>
+                          <span className="text-[10px] px-1.5 py-0 bg-slate-100 text-slate-400 rounded-full">+{extraCount}</span>
                         )}
                       </div>
 
