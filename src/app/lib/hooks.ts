@@ -144,7 +144,10 @@ export function useInsertConceptTest() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (test: Omit<ConceptTest, 'id' | 'createdAt'>) => insertConceptTest(test),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.panelists }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['conceptTests'] })
+      qc.invalidateQueries({ queryKey: ['conceptTest'] })
+    },
   })
 }
 

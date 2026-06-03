@@ -187,8 +187,8 @@ export function MultiSampleQuestionnaire() {
   };
 
   const handleContinueFromRanking = () => {
-    if (ranking.length !== 3) {
-      setRankingError('Please rank all three samples before continuing.');
+    if (ranking.length !== samples.length) {
+      setRankingError(`Please rank all ${samples.length} samples before continuing.`);
       return;
     }
     setRankingError('');
@@ -209,7 +209,7 @@ export function MultiSampleQuestionnaire() {
           hedonicScores: response.hedonicScores,
           emotionalProfile: response.emotions,
           comments: JSON.stringify({
-            sessionType: '3-sample-sequential',
+            sessionType: `${samples.length}-sample-sequential`,
             sampleCode: response.sampleCode,
             differentSample,
             ranking,
@@ -637,7 +637,7 @@ export function MultiSampleQuestionnaire() {
           <CardHeader className="bg-amber-50">
             <CardTitle className="text-2xl">Discrimination Task</CardTitle>
             <p className="text-slate-600 mt-2">
-              You have just tasted three samples. One of them is different from the other two.
+              You have just tasted {samples.length} samples. One of them is different from the others.
             </p>
           </CardHeader>
           <CardContent className="pt-6">
@@ -710,15 +710,19 @@ export function MultiSampleQuestionnaire() {
           <CardHeader className="bg-purple-50">
             <CardTitle className="text-2xl">Preference Ranking</CardTitle>
             <p className="text-slate-600 mt-2">
-              Rank the three samples from <strong>BEST</strong> to <strong>WORST</strong> based on overall preference
+              Rank all {samples.length} samples from <strong>BEST</strong> to <strong>WORST</strong> based on overall preference
             </p>
           </CardHeader>
           <CardContent className="pt-6">
             <div className="space-y-6">
-              {[0, 1, 2].map(position => (
+              {samples.map((_, position) => {
+                const rankMedals: Record<number, string> = { 0: '🥇', 1: '🥈', 2: '🥉' };
+                const medal = rankMedals[position] ?? `#${position + 1}`;
+                const isLast = position === samples.length - 1;
+                return (
                 <div key={position} className="space-y-2">
                   <Label className="text-lg font-bold">
-                    {position === 0 ? '🥇 Best (Rank 1)' : position === 1 ? '🥈 Middle (Rank 2)' : '🥉 Worst (Rank 3)'}
+                    {medal} {position === 0 ? 'Best' : isLast ? 'Worst' : `Rank ${position + 1}`} (Rank {position + 1})
                   </Label>
                   <div className="grid grid-cols-3 gap-3">
                     {samples.map(sample => {
@@ -746,12 +750,13 @@ export function MultiSampleQuestionnaire() {
                     })}
                   </div>
                 </div>
-              ))}
-              
-              {ranking.length === 3 && (
+                );
+              })}
+
+              {ranking.length === samples.length && (
                 <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
                   <p className="text-sm font-bold text-emerald-900">
-                    ✓ Your ranking: {ranking[0]} (Best) → {ranking[1]} → {ranking[2]} (Worst)
+                    ✓ Your ranking: {ranking.map((code, i) => `${code}${i === 0 ? ' (Best)' : i === ranking.length - 1 ? ' (Worst)' : ''}`).join(' → ')}
                   </p>
                 </div>
               )}
@@ -770,7 +775,7 @@ export function MultiSampleQuestionnaire() {
           <CardContent className="pt-6">
             <Button
               onClick={handleContinueFromRanking}
-              disabled={ranking.length !== 3}
+              disabled={ranking.length !== samples.length}
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-lg py-6 disabled:opacity-50"
             >
               Review & Confirm
@@ -844,7 +849,7 @@ export function MultiSampleQuestionnaire() {
               <div>
                 <span className="font-bold text-slate-900">Preference Ranking: </span>
                 <span className="text-lg text-slate-700">
-                  {ranking[0]} (Best) → {ranking[1]} → {ranking[2]} (Worst)
+                  {ranking.map((code, i) => `${code}${i === 0 ? ' (Best)' : i === ranking.length - 1 ? ' (Worst)' : ''}`).join(' → ')}
                 </span>
               </div>
             </div>

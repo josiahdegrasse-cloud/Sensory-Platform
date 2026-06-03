@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
@@ -44,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionUser, setSessionUser] = useState<SupabaseUser | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+  const isPasswordRecoveryRef = useRef(false);
 
   // Step 1: listen for auth changes — sync only, no async db calls inside handler
   useEffect(() => {
@@ -57,8 +58,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSessionUser(session?.user ?? null);
       if (!session?.user) setUser(null);
       if (event === 'TOKEN_REFRESHED' && !session) supabase.auth.signOut();
-      if (event === 'PASSWORD_RECOVERY') setIsPasswordRecovery(true);
-      if (event === 'SIGNED_IN' && isPasswordRecovery) setIsPasswordRecovery(false);
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true);
+        isPasswordRecoveryRef.current = true;
+      }
+      if (event === 'SIGNED_IN' && isPasswordRecoveryRef.current) {
+        setIsPasswordRecovery(false);
+        isPasswordRecoveryRef.current = false;
+      }
     });
 
     return () => subscription.unsubscribe();

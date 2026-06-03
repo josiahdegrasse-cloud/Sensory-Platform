@@ -58,7 +58,7 @@ export function SurveyAnalysis() {
     if (!allResponsesData) return;
     const allResponses = allResponsesData;
     // Multi-sample: group per-sample rows into session-level objects
-    const multiRows = allResponses.filter(r => r.sessionType === '3-sample-sequential');
+    const multiRows = allResponses.filter(r => r.sessionType?.endsWith('-sample-sequential'));
     const sessionMap = new Map<string, {
       id: string; userId: string; productId: string;
       differentSample: string; ranking: string[];

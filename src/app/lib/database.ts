@@ -159,6 +159,8 @@ export async function updateProduct(
   if (updates.customAttributes !== undefined) patch.custom_attributes = updates.customAttributes;
   if (updates.isMultiSample !== undefined) patch.is_multi_sample = updates.isMultiSample;
   if (updates.samples !== undefined) patch.samples = updates.samples;
+  if (updates.isCalibration !== undefined) patch.is_calibration = updates.isCalibration;
+  if (updates.referenceScores !== undefined) patch.reference_scores = updates.referenceScores;
 
   const { data, error } = await supabase
     .from('products')
@@ -499,10 +501,15 @@ export async function fetchConceptTestsForPanelist(userId: string): Promise<Conc
     .from('concept_tests')
     .select('*')
     .eq('status', 'active')
-    .contains('assigned_panelist_ids', [userId])
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return (data ?? []).map(toConceptTest);
+  // Include tests explicitly assigned to this user OR tests with no specific assignment (global tests)
+  return (data ?? [])
+    .filter(row => {
+      const ids = (row.assigned_panelist_ids as string[]) ?? [];
+      return ids.length === 0 || ids.includes(userId);
+    })
+    .map(toConceptTest);
 }
 
 export async function insertConceptResponse(

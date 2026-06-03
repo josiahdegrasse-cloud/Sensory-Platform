@@ -61,6 +61,9 @@ export function QuestionnaireForm() {
     comments: '',
   });
 
+  const initialLoadComplete = useRef(false);
+  const [submitError, setSubmitError] = useState('');
+
   const cataAttributes = product?.customAttributes || DEFAULT_CATA_ATTRIBUTES;
   // Intensity only shows attributes the panelist selected in CATA
   const intensityAttributes = formData.selectedCata.length > 0 ? formData.selectedCata : [];
@@ -152,10 +155,6 @@ export function QuestionnaireForm() {
       window.scrollTo(0, 0);
     }
   };
-
-  const initialLoadComplete = useRef(false);
-
-  const [submitError, setSubmitError] = useState('');
 
   const handleSubmit = async () => {
     if (!user?.id || !productId) return;
