@@ -1,16 +1,10 @@
-import { Outlet, Link, useLocation, useNavigate } from "react-router";
-import { FlaskConical, BarChart3, GitMerge, ClipboardList, Settings, LogOut, Lightbulb, ChevronRight, Check } from "lucide-react";
+import { Outlet, Link, useLocation, useNavigate, useSearchParams } from "react-router";
+import { FlaskConical, BarChart3, GitMerge, ClipboardList, Settings, LogOut, Lightbulb, Tag } from "lucide-react";
 import { useAuth } from "../contexts/auth-context";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
+import { useProducts } from "../lib/hooks";
 
 const NFI_BLUE = '#6B7890';
-
-const RD_WORKFLOW_PATHS = ['/stage1', '/survey-analysis', '/decision'];
-const RD_WORKFLOW_STEPS = [
-  { path: '/stage1',          label: 'Machine Testing' },
-  { path: '/survey-analysis', label: 'Analyze Results' },
-  { path: '/decision',        label: 'Final Decision' },
-];
 
 function NfiLogoMark({ size = 36 }: { size?: number }) {
   return (
@@ -24,24 +18,73 @@ function NfiLogoMark({ size = 36 }: { size?: number }) {
   );
 }
 
+function CategorySidebar() {
+  const { data: products = [] } = useProducts();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selected = searchParams.get('category') ?? 'all';
+
+  const categories = useMemo(() => {
+    const cats = new Set(products.map(p => p.category).filter(Boolean));
+    return Array.from(cats).sort();
+  }, [products]);
+
+  if (categories.length === 0) return null;
+
+  const handleSelect = (cat: string) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (cat === 'all') next.delete('category');
+      else next.set('category', cat);
+      return next;
+    }, { replace: true });
+  };
+
+  return (
+    <aside
+      className="w-44 shrink-0 self-start sticky top-[89px]"
+      style={{ minHeight: 'calc(100vh - 89px)' }}
+    >
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div className="flex items-center gap-1.5 px-3 py-2.5 border-b border-slate-100">
+          <Tag className="size-3.5 text-slate-400" />
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Food Type</span>
+        </div>
+        <div className="p-1.5 flex flex-col gap-0.5">
+          <button
+            onClick={() => handleSelect('all')}
+            className="w-full text-left px-2.5 py-1.5 rounded-lg text-sm transition-colors"
+            style={{
+              background: selected === 'all' ? '#f1f5f9' : 'transparent',
+              color: selected === 'all' ? NFI_BLUE : '#64748b',
+              fontWeight: selected === 'all' ? 600 : 400,
+            }}
+          >
+            All Types
+          </button>
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => handleSelect(cat)}
+              className="w-full text-left px-2.5 py-1.5 rounded-lg text-sm transition-colors truncate"
+              style={{
+                background: selected === cat ? '#f1f5f9' : 'transparent',
+                color: selected === cat ? NFI_BLUE : '#64748b',
+                fontWeight: selected === cat ? 600 : 400,
+              }}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      </div>
+    </aside>
+  );
+}
+
 export function MainLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-
-  const [visitedWorkflowPaths, setVisitedWorkflowPaths] = useState<Set<string>>(() => new Set());
-
-  useEffect(() => {
-    const matched = RD_WORKFLOW_STEPS.find(s => location.pathname.startsWith(s.path));
-    if (matched) {
-      setVisitedWorkflowPaths(prev => {
-        if (prev.has(matched.path)) return prev;
-        const next = new Set(prev);
-        next.add(matched.path);
-        return next;
-      });
-    }
-  }, [location.pathname]);
 
   const isActive = (path: string) => {
     if (path === "/" && location.pathname === "/") return true;
@@ -133,39 +176,12 @@ export function MainLayout() {
         </div>
       </header>
 
-      {/* R&D Workflow Rail */}
-      {user?.role === 'admin' && RD_WORKFLOW_PATHS.some(p => location.pathname.startsWith(p)) && (
-        <div className="bg-slate-50 border-b border-slate-100">
-          <div className="max-w-[1600px] mx-auto px-6 py-2 flex items-center gap-1 text-xs">
-            <span className="text-slate-400 mr-1">R&amp;D Workflow:</span>
-            {RD_WORKFLOW_STEPS.map((step, i) => {
-              const active = location.pathname.startsWith(step.path);
-              const visited = !active && visitedWorkflowPaths.has(step.path);
-              return (
-                <span key={step.path} className="flex items-center gap-1">
-                  {i > 0 && <ChevronRight className="size-3 text-slate-300" />}
-                  <Link
-                    to={step.path}
-                    className="px-2 py-0.5 rounded transition-colors flex items-center gap-1"
-                    style={{
-                      color: active ? NFI_BLUE : visited ? '#475569' : '#94a3b8',
-                      fontWeight: active ? 600 : visited ? 500 : 400,
-                      background: active ? '#f1f5f9' : 'transparent',
-                    }}
-                  >
-                    {visited && <Check className="size-2.5" style={{ color: '#10b981' }} />}
-                    {step.label}
-                  </Link>
-                </span>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      <main className="max-w-[1600px] mx-auto px-6 py-8">
-        <Outlet />
-      </main>
+      <div className="max-w-[1600px] mx-auto px-6 py-8 flex gap-6 items-start">
+        {user?.role === 'admin' && <CategorySidebar />}
+        <main className="flex-1 min-w-0">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

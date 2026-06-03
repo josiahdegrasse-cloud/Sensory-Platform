@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -47,6 +48,9 @@ export function AdminConfig() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [mutationError, setMutationError] = useState('');
 
+  const [searchParams] = useSearchParams();
+  const categoryFilter = searchParams.get('category');
+
   // List filters
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'completed' | 'archived'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -94,7 +98,8 @@ export function AdminConfig() {
       !searchQuery.trim() ||
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.category.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    )
+    .filter(p => !categoryFilter || p.category === categoryFilter);
 
   // ── Sample handlers ───────────────────────────────────────────────────────────
 
