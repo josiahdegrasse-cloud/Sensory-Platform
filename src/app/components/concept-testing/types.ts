@@ -1,0 +1,56 @@
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type QuestionType = 'scale' | 'multiple_choice' | 'open_text' | 'ranking';
+
+export interface Question {
+  id: string;
+  text: string;
+  type: QuestionType;
+  options?: string[];
+  required: boolean;
+  category: 'appeal' | 'purchase' | 'price' | 'attributes' | 'demographics' | 'usage';
+}
+
+export interface ConceptDraft {
+  name: string;
+  category: string;
+  description: string;
+  marketingImages: string[];
+  targetMarket: string;
+  pricePoint: string;
+  keyBenefits: string;
+  technicalChallenges: string;
+}
+
+export type WizardStep = 'concept' | 'images' | 'questions' | 'panel' | 'review' | 'launched';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+export const CATEGORY_COLORS: Record<Question['category'], string> = {
+  appeal:       'bg-blue-100 text-blue-700',
+  purchase:     'bg-emerald-100 text-emerald-700',
+  price:        'bg-amber-100 text-amber-700',
+  attributes:   'bg-purple-100 text-purple-700',
+  demographics: 'bg-slate-100 text-slate-700',
+  usage:        'bg-rose-100 text-rose-700',
+};
+
+export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
+  scale: '1–9 Scale',
+  multiple_choice: 'Multiple Choice',
+  open_text: 'Open Text',
+  ranking: 'Ranking',
+};
+
+export const CATEGORY_BAR_COLORS: Record<Question['category'], string> = {
+  appeal:       'bg-blue-500',
+  purchase:     'bg-emerald-500',
+  price:        'bg-amber-500',
+  attributes:   'bg-purple-500',
+  demographics: 'bg-slate-500',
+  usage:        'bg-rose-500',
+};
+
+export const QUESTION_SECONDS: Record<QuestionType, number> = {
+  scale: 25, multiple_choice: 35, open_text: 90, ranking: 45,
+};

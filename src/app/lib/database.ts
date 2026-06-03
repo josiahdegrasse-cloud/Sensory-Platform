@@ -1,40 +1,3 @@
-/*
--- Run in Supabase SQL editor:
--- ALTER TABLE responses ADD COLUMN IF NOT EXISTS run_number INTEGER NOT NULL DEFAULT 1;
--- DROP INDEX IF EXISTS responses_user_id_product_id_key;
--- CREATE UNIQUE INDEX responses_user_product_run ON responses(user_id, product_id, run_number);
-
--- Panel intelligence columns (Priority 2 & 4):
--- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS training_level text NOT NULL DEFAULT 'screened';
--- ALTER TABLE products ADD COLUMN IF NOT EXISTS is_calibration boolean NOT NULL DEFAULT false;
--- ALTER TABLE products ADD COLUMN IF NOT EXISTS reference_scores jsonb DEFAULT NULL;
-
--- Concept testing tables:
--- CREATE TABLE concept_tests (
---   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
---   name text NOT NULL,
---   category text NOT NULL DEFAULT '',
---   description text DEFAULT '',
---   image_urls text[] DEFAULT '{}',
---   target_market text DEFAULT '',
---   price_point text DEFAULT '',
---   key_benefits text DEFAULT '',
---   questions jsonb NOT NULL DEFAULT '[]',
---   panel_size integer NOT NULL DEFAULT 50,
---   assigned_panelist_ids text[] DEFAULT '{}',
---   status text NOT NULL DEFAULT 'active',
---   created_at timestamptz DEFAULT now()
--- );
--- CREATE TABLE concept_responses (
---   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
---   user_id uuid REFERENCES profiles(id) ON DELETE CASCADE,
---   concept_test_id uuid REFERENCES concept_tests(id) ON DELETE CASCADE,
---   answers jsonb NOT NULL DEFAULT '{}',
---   created_at timestamptz DEFAULT now(),
---   UNIQUE (user_id, concept_test_id)
--- );
-*/
-
 import { supabase } from './supabase';
 import type { Product, QuestionnaireResponse, HedonicReferenceScores } from '../data/mock-users';
 import type { TrainingLevel } from '../utils/panelist-metrics';
@@ -71,21 +34,27 @@ function fromProduct(p: Omit<Product, 'id' | 'createdDate'>) {
 
 function toResponse(row: Record<string, unknown>): QuestionnaireResponse {
   const rawComments = (row.comments as string) ?? '';
-  let sessionType: string | undefined;
-  let sampleCode: string | undefined;
-  let differentSample: string | undefined;
-  let ranking: string[] | undefined;
+
+  // Prefer dedicated columns (migration 004); fall back to JSON-in-comments for
+  // rows written before that migration ran.
+  let sessionType = (row.session_type as string | undefined) ?? undefined;
+  let sampleCode = (row.sample_code as string | undefined) ?? undefined;
+  let differentSample = (row.different_sample as string | undefined) ?? undefined;
+  let ranking = Array.isArray(row.ranking) ? (row.ranking as string[]) : undefined;
   let comments = rawComments;
-  try {
-    const meta = JSON.parse(rawComments);
-    if (meta && typeof meta === 'object' && meta.sessionType) {
-      sessionType = meta.sessionType as string;
-      sampleCode = meta.sampleCode as string | undefined;
-      differentSample = meta.differentSample as string | undefined;
-      ranking = Array.isArray(meta.ranking) ? (meta.ranking as string[]) : undefined;
-      comments = meta.comments ?? '';
-    }
-  } catch { /* plain-text comment, not JSON */ }
+
+  if (!sessionType && rawComments) {
+    try {
+      const meta = JSON.parse(rawComments);
+      if (meta && typeof meta === 'object' && meta.sessionType) {
+        sessionType = meta.sessionType as string;
+        sampleCode = meta.sampleCode as string | undefined;
+        differentSample = meta.differentSample as string | undefined;
+        ranking = Array.isArray(meta.ranking) ? (meta.ranking as string[]) : undefined;
+        comments = meta.comments ?? '';
+      }
+    } catch { /* plain-text comment, not JSON */ }
+  }
 
   return {
     id: row.id as string,
@@ -109,12 +78,16 @@ function toResponse(row: Record<string, unknown>): QuestionnaireResponse {
 
 // ─── Products ─────────────────────────────────────────────────────────────────
 
+function dbError(error: { message?: string; code?: string }): Error {
+  return new Error(error.message || `Database error (code: ${error.code ?? 'unknown'})`);
+}
+
 export async function fetchProducts(): Promise<Product[]> {
   const { data, error } = await supabase
     .from('products')
     .select('*')
     .order('created_at', { ascending: false });
-  if (error) throw error;
+  if (error) throw dbError(error);
   return (data ?? []).map(toProduct);
 }
 
@@ -124,7 +97,7 @@ export async function fetchActiveProducts(): Promise<Product[]> {
     .select('*')
     .eq('status', 'active')
     .order('created_at', { ascending: false });
-  if (error) throw error;
+  if (error) throw dbError(error);
   return (data ?? []).map(toProduct);
 }
 
@@ -134,7 +107,7 @@ export async function fetchProduct(id: string): Promise<Product | null> {
     .select('*')
     .eq('id', id)
     .maybeSingle();
-  if (error) throw error;
+  if (error) throw dbError(error);
   return data ? toProduct(data) : null;
 }
 
@@ -144,7 +117,7 @@ export async function insertProduct(p: Omit<Product, 'id' | 'createdDate'>): Pro
     .insert(fromProduct(p))
     .select()
     .single();
-  if (error) throw error;
+  if (error) throw dbError(error);
   return toProduct(data);
 }
 
@@ -168,20 +141,29 @@ export async function updateProduct(
     .eq('id', id)
     .select()
     .single();
-  if (error) throw error;
+  if (error) throw dbError(error);
   return toProduct(data);
 }
 
 export async function deleteProduct(id: string): Promise<void> {
   const { error } = await supabase.from('products').delete().eq('id', id);
-  if (error) throw error;
+  if (error) throw dbError(error);
 }
 
 // ─── Responses ────────────────────────────────────────────────────────────────
 
-export async function fetchAllResponses(): Promise<QuestionnaireResponse[]> {
-  const { data, error } = await supabase.from('responses').select('*');
-  if (error) throw error;
+export async function fetchAllResponses(options?: {
+  limit?: number;
+  offset?: number;
+}): Promise<QuestionnaireResponse[]> {
+  const limit = options?.limit ?? 500;
+  const offset = options?.offset ?? 0;
+  const { data, error } = await supabase
+    .from('responses')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (error) throw dbError(error);
   return (data ?? []).map(toResponse);
 }
 
@@ -190,7 +172,7 @@ export async function fetchUserResponses(userId: string): Promise<QuestionnaireR
     .from('responses')
     .select('*')
     .eq('user_id', userId);
-  if (error) throw error;
+  if (error) throw dbError(error);
   return (data ?? []).map(toResponse);
 }
 
@@ -206,7 +188,7 @@ export async function fetchLatestUserResponse(
     .order('run_number', { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw error;
+  if (error) throw dbError(error);
   return data ? toResponse(data) : null;
 }
 
@@ -222,40 +204,53 @@ export async function fetchUserResponseAtRun(
     .eq('product_id', productId)
     .eq('run_number', runNumber)
     .maybeSingle();
-  if (error) throw error;
+  if (error) throw dbError(error);
   return data ? toResponse(data) : null;
 }
 
 export async function insertResponse(
   response: Omit<QuestionnaireResponse, 'id' | 'timestamp' | 'runNumber'>,
 ): Promise<QuestionnaireResponse> {
-  const { data: existing } = await supabase
-    .from('responses')
-    .select('run_number')
-    .eq('user_id', response.userId)
-    .eq('product_id', response.productId)
-    .order('run_number', { ascending: false })
-    .limit(1);
+  // Retry loop handles the race condition where two concurrent submissions
+  // read the same max run_number and both try to insert it.
+  // The unique constraint on (user_id, product_id, run_number) will reject
+  // the second insert (error code 23505) and we retry with a fresh read.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { data: existing } = await supabase
+      .from('responses')
+      .select('run_number')
+      .eq('user_id', response.userId)
+      .eq('product_id', response.productId)
+      .order('run_number', { ascending: false })
+      .limit(1);
 
-  const runNumber =
-    existing && existing.length > 0 ? (existing[0].run_number as number) + 1 : 1;
+    const runNumber =
+      existing && existing.length > 0 ? (existing[0].run_number as number) + 1 : 1;
 
-  const { data, error } = await supabase
-    .from('responses')
-    .insert({
-      user_id: response.userId,
-      product_id: response.productId,
-      run_number: runNumber,
-      cata_attributes: response.cataAttributes,
-      intensity_ratings: response.intensityRatings,
-      hedonic_scores: response.hedonicScores,
-      emotional_profile: response.emotionalProfile,
-      comments: response.comments ?? null,
-    })
-    .select()
-    .single();
-  if (error) throw error;
-  return toResponse(data);
+    const { data, error } = await supabase
+      .from('responses')
+      .insert({
+        user_id: response.userId,
+        product_id: response.productId,
+        run_number: runNumber,
+        cata_attributes: response.cataAttributes,
+        intensity_ratings: response.intensityRatings,
+        hedonic_scores: response.hedonicScores,
+        emotional_profile: response.emotionalProfile,
+        comments: response.comments ?? null,
+        session_type: response.sessionType ?? null,
+        sample_code: response.sampleCode ?? null,
+        different_sample: response.differentSample ?? null,
+        ranking: response.ranking ?? null,
+      })
+      .select()
+      .single();
+
+    if (!error) return toResponse(data);
+    if (error.code !== '23505') throw dbError(error);
+    // Unique constraint violation — another insert raced us, retry with next run_number
+  }
+  throw new Error('Failed to insert response: too many concurrent submissions for the same user/product');
 }
 
 // ─── Templates ────────────────────────────────────────────────────────────────
@@ -281,7 +276,7 @@ export async function fetchTemplates(): Promise<Template[]> {
     .from('templates')
     .select('*')
     .order('created_at', { ascending: false });
-  if (error) throw error;
+  if (error) throw dbError(error);
   return (data ?? []).map(toTemplate);
 }
 
@@ -291,13 +286,13 @@ export async function insertTemplate(name: string, attributes: string[]): Promis
     .insert({ name, attributes })
     .select()
     .single();
-  if (error) throw error;
+  if (error) throw dbError(error);
   return toTemplate(data);
 }
 
 export async function deleteTemplate(id: string): Promise<void> {
   const { error } = await supabase.from('templates').delete().eq('id', id);
-  if (error) throw error;
+  if (error) throw dbError(error);
 }
 
 // ─── Panelists (admin view) ───────────────────────────────────────────────────
@@ -343,7 +338,7 @@ export async function updatePanelistId(userId: string, panelistId: string): Prom
     .from('profiles')
     .update({ panelist_id: panelistId })
     .eq('id', userId);
-  if (error) throw error;
+  if (error) throw dbError(error);
 }
 
 export async function updatePanelistTrainingLevel(userId: string, level: TrainingLevel): Promise<void> {
@@ -351,7 +346,7 @@ export async function updatePanelistTrainingLevel(userId: string, level: Trainin
     .from('profiles')
     .update({ training_level: level })
     .eq('id', userId);
-  if (error) throw error;
+  if (error) throw dbError(error);
 }
 
 // ─── Panelist Reliability ─────────────────────────────────────────────────────
@@ -487,7 +482,7 @@ export async function insertConceptTest(
     })
     .select()
     .single();
-  if (error) throw error;
+  if (error) throw dbError(error);
   return toConceptTest(data);
 }
 
@@ -497,22 +492,38 @@ export async function fetchConceptTest(id: string): Promise<ConceptTest | null> 
     .select('*')
     .eq('id', id)
     .maybeSingle();
-  if (error) throw error;
+  if (error) throw dbError(error);
   return data ? toConceptTest(data) : null;
 }
 
 export async function fetchConceptTestsForPanelist(userId: string): Promise<ConceptTest[]> {
-  const { data, error } = await supabase
-    .from('concept_tests')
-    .select('*')
-    .eq('status', 'active')
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  // Include tests explicitly assigned to this user OR tests with no specific assignment (global tests)
-  return (data ?? [])
+  // Two targeted queries are cheaper than fetching all active tests and
+  // filtering client-side: one for tests with no assignment (global), one for
+  // tests explicitly assigned to this user.
+  const [globalResult, assignedResult] = await Promise.all([
+    supabase
+      .from('concept_tests')
+      .select('*')
+      .eq('status', 'active')
+      .filter('assigned_panelist_ids', 'eq', '{}')
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('concept_tests')
+      .select('*')
+      .eq('status', 'active')
+      .contains('assigned_panelist_ids', [userId])
+      .order('created_at', { ascending: false }),
+  ]);
+  if (globalResult.error) throw dbError(globalResult.error);
+  if (assignedResult.error) throw dbError(assignedResult.error);
+
+  const seen = new Set<string>();
+  return [...(globalResult.data ?? []), ...(assignedResult.data ?? [])]
     .filter(row => {
-      const ids = (row.assigned_panelist_ids as string[]) ?? [];
-      return ids.length === 0 || ids.includes(userId);
+      const id = row.id as string;
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
     })
     .map(toConceptTest);
 }
@@ -525,7 +536,7 @@ export async function insertConceptResponse(
   const { error } = await supabase
     .from('concept_responses')
     .upsert({ user_id: userId, concept_test_id: conceptTestId, answers });
-  if (error) throw error;
+  if (error) throw dbError(error);
 }
 
 export async function fetchUserConceptResponses(userId: string): Promise<ConceptResponse[]> {
@@ -533,7 +544,7 @@ export async function fetchUserConceptResponses(userId: string): Promise<Concept
     .from('concept_responses')
     .select('*')
     .eq('user_id', userId);
-  if (error) throw error;
+  if (error) throw dbError(error);
   return (data ?? []).map(r => ({
     id: r.id as string,
     userId: r.user_id as string,

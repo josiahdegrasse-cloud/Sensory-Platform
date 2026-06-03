@@ -1,0 +1,36 @@
+import type { Question } from './types';
+
+// ─── AI-suggested question templates by product type ────────────────────────
+
+export const AI_QUESTION_TEMPLATES: Question[] = [
+  { id: 'q1',  text: 'How appealing does this product concept sound to you overall?', type: 'scale', required: true, category: 'appeal' },
+  { id: 'q2',  text: 'How likely are you to purchase this product if it were available?', type: 'scale', required: true, category: 'purchase' },
+  { id: 'q3',  text: 'How well does this product fit your dietary preferences?', type: 'scale', required: true, category: 'appeal' },
+  { id: 'q4',  text: 'What price per unit would you expect to pay for this product?', type: 'multiple_choice', options: ['Under $3', '$3–$5', '$5–$8', '$8–$12', 'Over $12'], required: true, category: 'price' },
+  { id: 'q5',  text: 'What price would you consider too expensive for this product?', type: 'multiple_choice', options: ['Under $5', '$5–$8', '$8–$12', '$12–$18', 'Over $18'], required: false, category: 'price' },
+  { id: 'q6',  text: 'Which of these attributes are most important to you in this product? (select all that apply)', type: 'multiple_choice', options: ['Taste/flavor', 'Texture', 'Nutritional value', 'Price', 'Sustainability', 'Convenience', 'Brand trust'], required: true, category: 'attributes' },
+  { id: 'q7',  text: 'How well does this product deliver on its claimed benefits?', type: 'scale', required: true, category: 'appeal' },
+  { id: 'q8',  text: 'How unique is this product compared to others you have tried?', type: 'scale', required: false, category: 'attributes' },
+  { id: 'q9',  text: 'In which situations would you most likely use this product?', type: 'multiple_choice', options: ['Everyday meal', 'Special occasion', 'On-the-go snack', 'Cooking ingredient', 'Entertaining guests'], required: true, category: 'usage' },
+  { id: 'q10', text: 'How often would you expect to purchase this product?', type: 'multiple_choice', options: ['Daily', 'Several times a week', 'Once a week', 'Once or twice a month', 'Less often'], required: true, category: 'purchase' },
+  { id: 'q11', text: 'How would you rate the product name and branding?', type: 'scale', required: false, category: 'appeal' },
+  { id: 'q12', text: 'How well does the product packaging concept appeal to you?', type: 'scale', required: false, category: 'appeal' },
+  { id: 'q13', text: 'How confident are you that this product would taste as described?', type: 'scale', required: true, category: 'attributes' },
+  { id: 'q14', text: 'Compared to current options available, this product offers better value.', type: 'scale', required: true, category: 'purchase' },
+  { id: 'q15', text: 'What would most motivate you to try this product for the first time?', type: 'open_text', required: false, category: 'attributes' },
+  { id: 'q16', text: 'What concerns, if any, do you have about this product?', type: 'open_text', required: false, category: 'attributes' },
+  { id: 'q17', text: 'Who in your household would primarily consume this product?', type: 'multiple_choice', options: ['Myself', 'Children', 'Partner/spouse', 'Whole household', 'Guests'], required: false, category: 'demographics' },
+  { id: 'q18', text: 'How important is it to you that this product is plant-based / vegan?', type: 'scale', required: false, category: 'attributes' },
+  { id: 'q19', text: 'How important is the nutritional profile of this product to your purchase decision?', type: 'scale', required: true, category: 'attributes' },
+  { id: 'q20', text: 'Where would you expect to find this product for sale?', type: 'multiple_choice', options: ['Grocery store', 'Specialty / health food store', 'Online', 'Farmers market', 'Restaurant/foodservice'], required: false, category: 'usage' },
+  { id: 'q21', text: 'How likely are you to recommend this product to a friend or family member?', type: 'scale', required: true, category: 'purchase' },
+  { id: 'q22', text: 'How does this product compare to your preferred current alternative?', type: 'scale', required: false, category: 'attributes' },
+  { id: 'q23', text: 'What flavor or variety would you most want to see in this product line?', type: 'open_text', required: false, category: 'attributes' },
+  { id: 'q24', text: 'How important is the product\'s ingredient list to your purchase decision?', type: 'scale', required: false, category: 'attributes' },
+  { id: 'q25', text: 'Please rank the following product attributes in order of importance to you:', type: 'ranking', options: ['Taste', 'Price', 'Nutrition', 'Convenience', 'Sustainability'], required: false, category: 'attributes' },
+  { id: 'q26', text: 'How would you describe your interest in this product to someone else?', type: 'open_text', required: false, category: 'appeal' },
+  { id: 'q27', text: 'What age range do you fall into?', type: 'multiple_choice', options: ['18–24', '25–34', '35–44', '45–54', '55–64', '65+'], required: false, category: 'demographics' },
+  { id: 'q28', text: 'How would you describe your diet?', type: 'multiple_choice', options: ['No restrictions', 'Vegetarian', 'Vegan', 'Flexitarian', 'Gluten-free', 'Other'], required: false, category: 'demographics' },
+  { id: 'q29', text: 'How often do you currently purchase products in this category?', type: 'multiple_choice', options: ['Multiple times per week', 'Weekly', 'Monthly', 'A few times a year', 'Rarely/never'], required: true, category: 'usage' },
+  { id: 'q30', text: 'Any additional feedback you would like to share about this concept?', type: 'open_text', required: false, category: 'attributes' },
+];

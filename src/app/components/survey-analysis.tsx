@@ -1,56 +1,39 @@
 import { useState, useEffect } from "react";
 import { useAuth } from '../contexts/auth-context';
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip as RechartsTooltip, ResponsiveContainer,
-  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
-  Legend, Cell, LineChart, Line, ErrorBar
-} from "recharts";
+import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { ENHANCED_SENSORY_DATA } from "../data/enhanced-sensory";
-import { ESSENSE25_EMOTIONS, type QuestionnaireResponse } from "../data/mock-users";
-import { getSampleColor, SAMPLE_TYPE_LEGEND } from "../utils/sample-colors";
-import { useAllResponses, useProducts } from "../lib/hooks";
+import { getSampleColor } from "../utils/sample-colors";
+import { useProducts } from "../lib/hooks";
+import { useSurveyData } from "../lib/use-survey-data";
+import { buildSampleCSVRows, buildAllDataCSVRows, downloadCsv } from "../utils/survey-csv-export";
 import {
   Users, Heart, Smile, Frown, CheckSquare,
-  TrendingUp, AlertCircle, Eye, EyeOff, Download, Layers, Target, Trophy, MessageCircle
+  TrendingUp, AlertCircle, Eye, EyeOff, Download, Layers
 } from "lucide-react";
+import { MultiSampleAnalysis } from "./multi-sample-analysis";
+import { CATATab, IntensityTab, HedonicTab, CommentsTab, EmotionalTab } from "./survey-analysis-tabs";
+import { AllSamplesComparisonView } from "./all-samples-comparison";
 
 const RESEARCH_PANEL_N = 14;
 
-interface LiveAggregation {
-  productId: string;
-  productName: string;
-  n: number;
-  cata: Record<string, number>;
-  intensity: Record<string, number>;
-  hedonic: Record<string, number>;
-  hedonicSD: Record<string, number>;
-  emotions: { positive: number; negative: number };
-}
-
-function sanitizeCsvCell(value: string | number): string {
-  const str = String(value);
-  if (/^[=+\-@\t\r]/.test(str)) return `'${str}`;
-  return str;
-}
-
 export function SurveyAnalysis() {
   const { user } = useAuth();
-  const { data: allResponsesData, isError: liveDataFetchFailed } = useAllResponses();
   const { data: allProducts = [] } = useProducts();
+  const {
+    liveDataFetchFailed,
+    multiSampleResponses,
+    selectedMultiProduct,
+    setSelectedMultiProduct,
+    liveAggregations,
+    commentsByProduct,
+  } = useSurveyData();
 
   const [selectedSample, setSelectedSample] = useState<string>("S1");
   const [showAllSamples, setShowAllSamples] = useState(false);
   const [foodTypeFilter, setFoodTypeFilter] = useState<string>("all");
   const [analysisType, setAnalysisType] = useState<'single' | 'multi'>('single');
-  const [multiSampleResponses, setMultiSampleResponses] = useState<any[]>([]);
-  const [selectedMultiProduct, setSelectedMultiProduct] = useState<string>('');
-  const [liveAggregations, setLiveAggregations] = useState<LiveAggregation[]>([]);
-  const [commentsByProduct, setCommentsByProduct] = useState<Record<string, string[]>>({});
 
   // Auto-select first sample in filtered set when filter changes and current selection no longer exists
   useEffect(() => {
@@ -66,120 +49,6 @@ export function SurveyAnalysis() {
       setSelectedSample(filtered[0].sampleId);
     }
   }, [foodTypeFilter]);
-
-  // Single fetch — split into multi-sample responses and single-sample aggregations
-  useEffect(() => {
-    if (!allResponsesData) return;
-    const allResponses = allResponsesData;
-    // Multi-sample: group per-sample rows into session-level objects
-    const multiRows = allResponses.filter(r => r.sessionType?.endsWith('-sample-sequential'));
-    const sessionMap = new Map<string, {
-      id: string; userId: string; productId: string;
-      differentSample: string; ranking: string[];
-      samples: { sampleCode: string; cataAttributes: string[]; intensityRatings: Record<string, number>; hedonicScores: QuestionnaireResponse['hedonicScores']; emotionalProfile: Record<string, number> }[];
-    }>();
-    multiRows.forEach(r => {
-      const key = `${r.userId}:${r.productId}`;
-      if (!sessionMap.has(key)) {
-        sessionMap.set(key, {
-          id: r.id,
-          userId: r.userId,
-          productId: r.productId,
-          differentSample: r.differentSample ?? '',
-          ranking: r.ranking ?? [],
-          samples: [],
-        });
-      }
-      sessionMap.get(key)!.samples.push({
-        sampleCode: r.sampleCode ?? '',
-        cataAttributes: r.cataAttributes,
-        intensityRatings: r.intensityRatings,
-        hedonicScores: r.hedonicScores,
-        emotionalProfile: r.emotionalProfile,
-      });
-    });
-    const sessions = Array.from(sessionMap.values());
-    setMultiSampleResponses(sessions);
-    if (sessions.length > 0 && !selectedMultiProduct) {
-      setSelectedMultiProduct(sessions[0].productId);
-    }
-
-    // Single-sample aggregation
-    const singleResponses = allResponses.filter((r: any) => !(r as any).sessionType);
-    if (singleResponses.length === 0) return;
-
-    const grouped = new Map<string, QuestionnaireResponse[]>();
-    singleResponses.forEach(r => {
-      if (!grouped.has(r.productId)) grouped.set(r.productId, []);
-      grouped.get(r.productId)!.push(r);
-    });
-
-    const aggregations: LiveAggregation[] = [];
-    grouped.forEach((resps, productId) => {
-      const product = { name: productId };
-      const n = resps.length;
-
-      const cata: Record<string, number> = {};
-      resps.forEach(r => {
-        (r.cataAttributes || []).forEach(attr => { cata[attr] = (cata[attr] || 0) + 1; });
-      });
-
-      const intensityTotals: Record<string, { sum: number; count: number }> = {};
-      resps.forEach(r => {
-        Object.entries(r.intensityRatings || {}).forEach(([attr, val]) => {
-          if (!intensityTotals[attr]) intensityTotals[attr] = { sum: 0, count: 0 };
-          intensityTotals[attr].sum += Number(val);
-          intensityTotals[attr].count += 1;
-        });
-      });
-
-      const hedonicKeys = ['overall', 'appearance', 'aroma', 'flavor', 'texture'] as const;
-      const hedonicSums: Record<string, number> = { overall: 0, appearance: 0, aroma: 0, flavor: 0, texture: 0 };
-      resps.forEach(r => {
-        hedonicKeys.forEach(k => { hedonicSums[k] += (r.hedonicScores as Record<string, number>)?.[k] || 0; });
-      });
-      const hedonicMeans = Object.fromEntries(hedonicKeys.map(k => [k, hedonicSums[k] / n]));
-      const hedonicSDs: Record<string, number> = {};
-      hedonicKeys.forEach(k => {
-        const vals = resps.map(r => (r.hedonicScores as Record<string, number>)?.[k] || 0);
-        const mean = hedonicMeans[k];
-        hedonicSDs[k] = Math.sqrt(vals.reduce((acc, v) => acc + (v - mean) ** 2, 0) / n);
-      });
-
-      let posSum = 0, negSum = 0;
-      resps.forEach(r => {
-        ESSENSE25_EMOTIONS.positive.forEach(e => { posSum += (r.emotionalProfile || {})[e] || 0; });
-        ESSENSE25_EMOTIONS.negative.forEach(e => { negSum += (r.emotionalProfile || {})[e] || 0; });
-      });
-
-      aggregations.push({
-        productId,
-        productName: product?.name || productId,
-        n,
-        cata,
-        intensity: Object.fromEntries(
-          Object.entries(intensityTotals).map(([k, v]) => [k, v.sum / v.count])
-        ),
-        hedonic: Object.fromEntries(hedonicKeys.map(k => [k, hedonicSums[k] / n])),
-        hedonicSD: hedonicSDs,
-        emotions: {
-          positive: posSum / (n * ESSENSE25_EMOTIONS.positive.length),
-          negative: negSum / (n * ESSENSE25_EMOTIONS.negative.length),
-        },
-      });
-    });
-
-    setLiveAggregations(aggregations);
-
-    const commentsMap: Record<string, string[]> = {};
-    singleResponses.forEach(r => {
-      if (r.comments && r.comments.trim()) {
-        if (!commentsMap[r.productId]) commentsMap[r.productId] = [];
-        commentsMap[r.productId].push(r.comments.trim());
-      }
-    });
-    setCommentsByProduct(commentsMap);
-  }, [allResponsesData]);
 
   // All hooks called — safe to guard here
   if (user?.role !== 'admin') return null;
@@ -247,20 +116,6 @@ export function SurveyAnalysis() {
     appearance: s.hedonic.appearance
   }));
 
-  // Color coding for hedonic scores
-  const getHedonicColor = (score: number) => {
-    if (score >= 7) return "#10b981"; // emerald
-    if (score >= 5) return "#f59e0b"; // amber
-    return "#ef4444"; // rose
-  };
-
-  // Summary stats
-  const avgHedonic = (hedonicData.reduce((sum, d) => sum + d.score, 0) / 4).toFixed(1);
-  const avgIntensity = (Object.values(selectedData.intensity).reduce((sum, v) => sum + v, 0) / 
-                        Object.keys(selectedData.intensity).length).toFixed(1);
-  const topCataCount = cataAttributes.length > 0 ? cataAttributes[0].count : 0;
-  const emotionalBalance = (selectedData.emotions.positive - selectedData.emotions.negative).toFixed(1);
-
   // Auto-match: if panelists have submitted responses for this exact product name, use that data
   const matchingLiveData = liveAggregations.find(
     a => a.productName.toLowerCase() === selectedData.sampleName.toLowerCase()
@@ -311,66 +166,13 @@ export function SurveyAnalysis() {
 
   const exportSampleCSV = () => {
     if (!selectedData) return;
-    
-    const headers = ['Attribute', 'Value', 'Type', 'Category'];
-    const rows: string[] = [headers.join(',')];
-    
-    // CATA attributes
-    Object.entries(selectedData.cata).forEach(([attr, count]) => {
-      rows.push(`${attr},${count},CATA,CheckAllThatApply`);
-    });
-    
-    // Intensity ratings
-    Object.entries(selectedData.intensity).forEach(([attr, value]) => {
-      rows.push(`${attr},${value},Intensity,${usingLiveData ? 'Scale1to5' : 'Scale0to10'}`);
-    });
-    
-    // Hedonic scores
-    Object.entries(selectedData.hedonic).forEach(([attr, value]) => {
-      rows.push(`${attr},${value},Hedonic,Scale1to9`);
-    });
-    
-    // Emotions
-    rows.push(`Positive,${activeEmotions.positive},Emotion,Balance`);
-    rows.push(`Negative,${activeEmotions.negative},Emotion,Balance`);
-    
-    const csvContent = rows.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sample-${selectedSample}-data-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    const csv = buildSampleCSVRows(selectedData, selectedSample, usingLiveData, activeEmotions);
+    downloadCsv(csv, `sample-${selectedSample}-data-${new Date().toISOString().split('T')[0]}.csv`);
   };
 
   const exportAllDataCSV = () => {
-    const headers = ['ProductID', 'ProductName', 'PanelistID', 'RunNumber', 'AttributeType', 'Attribute', 'Value'];
-    const rows: string[] = [headers.join(',')];
-
-    liveAggregations.forEach(agg => {
-      const name = `"${sanitizeCsvCell(agg.productName)}"`;
-      Object.entries(agg.cata).forEach(([attr, count]) => rows.push([agg.productId, name, 'panel', 'latest', 'CATA', sanitizeCsvCell(attr), count].join(',')));
-      Object.entries(agg.intensity).forEach(([attr, mean]) => rows.push([agg.productId, name, 'panel', 'latest', 'Intensity', sanitizeCsvCell(attr), (mean as number).toFixed(2)].join(',')));
-      Object.entries(agg.hedonic).forEach(([dim, mean]) => rows.push([agg.productId, name, 'panel', 'latest', 'Hedonic', sanitizeCsvCell(dim), (mean as number).toFixed(2)].join(',')));
-      rows.push([agg.productId, name, 'panel', 'latest', 'Emotion', 'positive', agg.emotions.positive.toFixed(2)].join(','));
-      rows.push([agg.productId, name, 'panel', 'latest', 'Emotion', 'negative', agg.emotions.negative.toFixed(2)].join(','));
-    });
-
-    ENHANCED_SENSORY_DATA.forEach(sample => {
-      const name = `"${sanitizeCsvCell(sample.sampleName)}"`;
-      Object.entries(sample.cata).forEach(([attr, count]) => rows.push([sample.sampleId, name, 'mock', 0, 'CATA', sanitizeCsvCell(attr), count].join(',')));
-      Object.entries(sample.intensity).forEach(([attr, val]) => rows.push([sample.sampleId, name, 'mock', 0, 'Intensity', sanitizeCsvCell(attr), val].join(',')));
-      Object.entries(sample.hedonic).forEach(([dim, val]) => rows.push([sample.sampleId, name, 'mock', 0, 'Hedonic', sanitizeCsvCell(dim), val].join(',')));
-      rows.push([sample.sampleId, name, 'mock', 0, 'Emotion', 'positive', sample.emotions.positive].join(','));
-      rows.push([sample.sampleId, name, 'mock', 0, 'Emotion', 'negative', sample.emotions.negative].join(','));
-    });
-
-    const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `issf-full-export-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    const csv = buildAllDataCSVRows(liveAggregations);
+    downloadCsv(csv, `issf-full-export-${new Date().toISOString().split('T')[0]}.csv`);
   };
 
   const multiSampleProducts = allProducts.filter(p => p.isMultiSample);
@@ -379,8 +181,8 @@ export function SurveyAnalysis() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Survey Data Analysis</h1>
-          <p className="text-slate-600 mt-2">
+          <h1 className="text-2xl font-semibold text-slate-900">Analyze Results</h1>
+          <p className="text-sm text-slate-500 mt-1">
             {analysisType === 'single'
               ? `${usingLiveData ? 'Live panel responses' : 'E-Tongue + GC-MS + Semi-trained Panel'} (n=${activePanelistN}) — CATA, Intensity, Hedonic, Emotional`
               : 'Multi-sample comparative evaluations - Discrimination, Ranking, Preferences'}
@@ -613,431 +415,37 @@ export function SurveyAnalysis() {
             </TabsTrigger>
           </TabsList>
 
-          {/* CATA Analysis */}
-          <TabsContent value="cata">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CheckSquare className="size-5 text-blue-600" />
-                  Check-All-That-Apply (CATA) Results
-                </CardTitle>
-                <p className="text-sm text-slate-600">
-                  Frequency of attribute selection across {activePanelistN} {usingLiveData ? 'panelists (live)' : 'semi-trained panelists'}
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="bg-white p-4 rounded-lg border-2 border-slate-200">
-                  <h3 className="font-bold text-slate-900 mb-3">Top Attributes (CATA)</h3>
-                  <ResponsiveContainer width="100%" height={400} key={`cata-chart-container-${activeSampleId}`}>
-                    <BarChart
-                      data={activeCataAttributes}
-                      layout="vertical"
-                      margin={{ left: 100 }}
-                      id={`cata-chart-${activeSampleId}`}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis type="number" domain={[0, activePanelistN]} />
-                      <YAxis type="category" dataKey="attribute" width={90} />
-                      <RechartsTooltip
-                        content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            const data = payload[0].payload;
-                            return (
-                              <div className="bg-white p-3 shadow-lg rounded-lg border">
-                                <p className="font-bold text-slate-900">{data.attribute}</p>
-                                <p className="text-sm text-slate-700">Count: {data.count}/{activePanelistN}</p>
-                                <p className="text-sm text-slate-700">Percentage: {data.percentage.toFixed(0)}%</p>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }}
-                      />
-                      <Bar dataKey="count" fill="#3b82f6" isAnimationActive={false}>
-                        {activeCataAttributes.map((entry) => (
-                          <Cell
-                            key={`cell-${entry.id}`}
-                            fill={entry.count >= 10 ? "#10b981" : entry.count >= 7 ? "#3b82f6" : "#64748b"}
-                          />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-
-                  <div className="mt-6 grid grid-cols-3 gap-4">
-                    <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-3 h-3 rounded-full bg-emerald-600"></div>
-                        <span className="text-sm font-semibold text-emerald-900">Strong Agreement (≥70%)</span>
-                      </div>
-                      <div className="text-xs text-emerald-700">
-                        {activeCataAttributes.filter(a => a.count >= activePanelistN * 0.7).map(a => a.attribute).join(", ") || "None"}
-                      </div>
-                    </div>
-                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-3 h-3 rounded-full bg-blue-600"></div>
-                        <span className="text-sm font-semibold text-blue-900">Moderate (50–70%)</span>
-                      </div>
-                      <div className="text-xs text-blue-700">
-                        {activeCataAttributes.filter(a => a.count >= activePanelistN * 0.5 && a.count < activePanelistN * 0.7).map(a => a.attribute).join(", ") || "None"}
-                      </div>
-                    </div>
-                    <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-3 h-3 rounded-full bg-slate-600"></div>
-                        <span className="text-sm font-semibold text-slate-900">Weak (&lt;50%)</span>
-                      </div>
-                      <div className="text-xs text-slate-700">
-                        {activeCataAttributes.filter(a => a.count < activePanelistN * 0.5).map(a => a.attribute).join(", ") || "None"}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Intensity Ratings */}
-          <TabsContent value="intensity">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="size-5 text-purple-600" />
-                  Sensory Intensity Ratings ({usingLiveData ? '1–5' : '0–10'} scale)
-                </CardTitle>
-                <p className="text-sm text-slate-600">
-                  Mean intensity scores from {activePanelistN} {usingLiveData ? 'panelists (live)' : 'semi-trained panelists'}
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <ResponsiveContainer width="100%" height={350}>
-                      <RadarChart data={activeIntensityData}>
-                        <PolarGrid />
-                        <PolarAngleAxis dataKey="attribute" />
-                        <PolarRadiusAxis angle={90} domain={[0, intensityMax]} />
-                        <Radar 
-                          name="Intensity" 
-                          dataKey="value" 
-                          stroke="#8b5cf6" 
-                          fill="#8b5cf6" 
-                          fillOpacity={0.6} 
-                        />
-                        <RechartsTooltip />
-                      </RadarChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="space-y-3">
-                    {activeIntensityData.map(({ attribute, value }) => {
-                      const label = attribute.replace(/([A-Z])/g, ' $1').trim();
-                      const hi = usingLiveData ? 3.5 : 7;
-                      const mid = usingLiveData ? 2 : 4;
-                      const color = value >= hi ? "emerald" : value >= mid ? "blue" : "slate";
-                      return (
-                        <div key={attribute} className="space-y-1">
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="capitalize font-medium text-slate-700">{label}</span>
-                            <Badge className={`bg-${color}-600 text-white`}>
-                              {value.toFixed(1)}/{intensityMax}
-                            </Badge>
-                          </div>
-                          <div className="w-full bg-slate-200 rounded-full h-3">
-                            <div
-                              className={`bg-${color}-600 h-3 rounded-full transition-all`}
-                              style={{ width: `${(value / intensityMax) * 100}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="mt-6 p-4 bg-purple-50 rounded-lg border border-purple-200">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="size-5 text-purple-600 flex-shrink-0 mt-0.5" />
-                    <div className="text-sm text-purple-900">
-                      <strong>Panel Training:</strong> Semi-trained panelists completed 3-hour HFD (Human Factors Design) 
-                      training on intensity rating calibration using reference standards.
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Hedonic Scores */}
-          <TabsContent value="hedonic">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Heart className="size-5 text-rose-600" />
-                  Hedonic Liking Scores (9-point scale)
-                </CardTitle>
-                <p className="text-sm text-slate-600">
-                  Consumer acceptance ratings: 1 = Dislike Extremely, 9 = Like Extremely
-                </p>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={activeHedonicData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="category" />
-                    <YAxis domain={[0, 9]} />
-                    <RechartsTooltip />
-                    <Bar dataKey="score" radius={[8, 8, 0, 0]}>
-                      <ErrorBar dataKey="sd" width={4} strokeWidth={2} stroke="#64748b" />
-                      {activeHedonicData.map((entry) => (
-                        <Cell key={`hedonic-bar-${entry.id}`} fill={getHedonicColor(entry.score)} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-                <p className="text-xs text-slate-500 mt-2 text-center">
-                  Error bars show ±1 SD. Overlap between samples suggests no meaningful difference.
-                </p>
-
-                <div className="mt-6 grid grid-cols-4 gap-4">
-                  {activeHedonicData.map(item => {
-                    const color = item.score >= 7 ? "emerald" : item.score >= 5 ? "amber" : "rose";
-                    const interpretation =
-                      item.score >= 7 ? "Liked" :
-                      item.score >= 5 ? "Neither like nor dislike" :
-                      "Disliked";
-
-                    return (
-                      <div key={item.category} className={`p-4 bg-${color}-50 rounded-lg border border-${color}-200`}>
-                        <div className={`text-xs text-${color}-700 mb-1`}>{item.category}</div>
-                        <div className={`text-3xl font-bold text-${color}-900`}>{item.score.toFixed(1)}</div>
-                        <div className={`text-xs text-${color}-600 mt-1`}>{interpretation}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
-                  <div className="text-sm space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">Average Score:</span>
-                      <span className="font-bold text-slate-900">{activeAvgHedonic}/9</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">Highest Dimension:</span>
-                      <span className="font-bold text-slate-900">
-                        {activeHedonicData.reduce((max, item) => item.score > max.score ? item : max).category}
-                        ({activeHedonicData.reduce((max, item) => item.score > max.score ? item : max).score.toFixed(1)})
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">Lowest Dimension:</span>
-                      <span className="font-bold text-slate-900">
-                        {activeHedonicData.reduce((min, item) => item.score < min.score ? item : min).category}
-                        ({activeHedonicData.reduce((min, item) => item.score < min.score ? item : min).score.toFixed(1)})
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Panelist Comments */}
-          <TabsContent value="comments">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageCircle className="size-5 text-blue-600" />
-                  Panelist Comments
-                </CardTitle>
-                <p className="text-sm text-slate-600">
-                  Free-text feedback submitted by panelists for this sample
-                </p>
-              </CardHeader>
-              <CardContent>
-                {!usingLiveData || !matchingLiveData ? (
-                  <div className="py-12 text-center">
-                    <MessageCircle className="size-12 text-slate-300 mx-auto mb-3" />
-                    <p className="text-slate-500">No live responses for this sample yet.</p>
-                    <p className="text-sm text-slate-400 mt-1">Comments will appear once panelists submit evaluations.</p>
-                  </div>
-                ) : (() => {
-                  const comments = commentsByProduct[matchingLiveData.productId] ?? [];
-                  if (comments.length === 0) {
-                    return (
-                      <div className="py-12 text-center">
-                        <MessageCircle className="size-12 text-slate-300 mx-auto mb-3" />
-                        <p className="text-slate-500">No comments submitted yet.</p>
-                        <p className="text-sm text-slate-400 mt-1">{matchingLiveData.n} panelist{matchingLiveData.n !== 1 ? 's' : ''} responded but left no comments.</p>
-                      </div>
-                    );
-                  }
-                  return (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-semibold text-slate-700">{comments.length} comment{comments.length !== 1 ? 's' : ''}</span>
-                        <span className="text-xs text-slate-500">n={matchingLiveData.n} responses</span>
-                      </div>
-                      {comments.map((comment, idx) => (
-                        <div key={idx} className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                          <div className="flex items-start gap-3">
-                            <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
-                              {idx + 1}
-                            </div>
-                            <p className="text-sm text-slate-700 leading-relaxed">{comment}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Emotional Profile */}
-          <TabsContent value="emotional">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="size-5 text-blue-600" />
-                  Emotional Response Profile (EsSense25)
-                </CardTitle>
-                <p className="text-sm text-slate-600">
-                  17 positive + 8 negative emotions rated on 0-5 scale
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="p-6 bg-gradient-to-br from-emerald-50 to-white rounded-xl border-2 border-emerald-200">
-                    <div className="flex items-center gap-3 mb-4">
-                      <Smile className="size-10 text-emerald-600" />
-                      <div>
-                        <div className="text-sm text-emerald-700">Positive Emotions</div>
-                        <div className="text-4xl font-bold text-emerald-900">
-                          {activeEmotions.positive.toFixed(1)}
-                        </div>
-                        <div className="text-xs text-emerald-600">Average of 17 attributes</div>
-                      </div>
-                    </div>
-                    <div className="text-xs text-emerald-700 space-y-1">
-                      <p>Includes: Happy, Satisfied, Pleased, Contented, Good, Calm, Secure, Comfortable, 
-                        Enthusiastic, Energetic, Active, Adventurous, Interested, Warm, Loving, Affectionate, Nostalgic</p>
-                    </div>
-                  </div>
-
-                  <div className="p-6 bg-gradient-to-br from-rose-50 to-white rounded-xl border-2 border-rose-200">
-                    <div className="flex items-center gap-3 mb-4">
-                      <Frown className="size-10 text-rose-600" />
-                      <div>
-                        <div className="text-sm text-rose-700">Negative Emotions</div>
-                        <div className="text-4xl font-bold text-rose-900">
-                          {activeEmotions.negative.toFixed(1)}
-                        </div>
-                        <div className="text-xs text-rose-600">Average of 8 attributes</div>
-                      </div>
-                    </div>
-                    <div className="text-xs text-rose-700 space-y-1">
-                      <p>Includes: Worried, Disgusted, Bored, Aggressive, Guilty, Disappointed, 
-                        Sad, Unpleasant</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-6 p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border-2 border-blue-200">
-                  <h3 className="font-bold text-blue-900 mb-3">Emotional Balance Analysis</h3>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <div className="text-sm text-slate-600 mb-1">Net Emotional Score</div>
-                      <div className="text-3xl font-bold text-slate-900">{activeEmotionalBalance}</div>
-                      <div className="text-xs text-slate-500 mt-1">Positive - Negative</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-slate-600 mb-1">Interpretation</div>
-                      <Badge className={parseFloat(activeEmotionalBalance) >= 2 ? "bg-emerald-600" :
-                                       parseFloat(activeEmotionalBalance) >= 0 ? "bg-amber-600" : "bg-rose-600"}>
-                        {parseFloat(activeEmotionalBalance) >= 2 ? "Highly Positive" :
-                         parseFloat(activeEmotionalBalance) >= 0 ? "Neutral/Mixed" : "Negative"}
-                      </Badge>
-                    </div>
-                    <div>
-                      <div className="text-sm text-slate-600 mb-1">Consumer Readiness</div>
-                      <Badge className={parseFloat(activeEmotionalBalance) >= 1.5 ? "bg-emerald-600" : "bg-amber-600"}>
-                        {parseFloat(activeEmotionalBalance) >= 1.5 ? "Ready" : "Needs Work"}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="size-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                    <div className="text-sm text-blue-900">
-                      <strong>Method:</strong> EsSense25 profile adapted for plant-based cheese evaluation. 
-                      Panelists rated emotional intensity triggered by sample consumption on a 1–5 scale
-                      (1 = Not at all, 5 = Extremely).
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+          <CATATab
+            activeCataAttributes={activeCataAttributes}
+            activePanelistN={activePanelistN}
+            usingLiveData={usingLiveData}
+            activeSampleId={activeSampleId}
+          />
+          <IntensityTab
+            activeIntensityData={activeIntensityData}
+            activePanelistN={activePanelistN}
+            usingLiveData={usingLiveData}
+            intensityMax={intensityMax}
+          />
+          <HedonicTab
+            activeHedonicData={activeHedonicData}
+            activeAvgHedonic={activeAvgHedonic}
+          />
+          <CommentsTab
+            usingLiveData={usingLiveData}
+            matchingLiveData={matchingLiveData}
+            commentsByProduct={commentsByProduct}
+          />
+          <EmotionalTab
+            activeEmotions={activeEmotions}
+            activeEmotionalBalance={activeEmotionalBalance}
+          />
         </Tabs>
       ) : (
-        // All Samples Comparison View
-        <Card>
-          <CardHeader>
-            <CardTitle>All Samples: Hedonic Comparison</CardTitle>
-            <p className="text-sm text-slate-600">
-              Comparative view of all 14 samples across hedonic dimensions
-            </p>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={400}>
-              <LineChart data={allSamplesHedonic}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis domain={[0, 9]} />
-                <RechartsTooltip />
-                <Legend />
-                <Line key="line-overall" type="monotone" dataKey="overall" stroke="#8b5cf6" strokeWidth={2} name="Overall" />
-                <Line key="line-flavour" type="monotone" dataKey="flavour" stroke="#3b82f6" strokeWidth={2} name="Flavour" />
-                <Line key="line-texture" type="monotone" dataKey="texture" stroke="#10b981" strokeWidth={2} name="Texture" />
-                <Line key="line-appearance" type="monotone" dataKey="appearance" stroke="#f59e0b" strokeWidth={2} name="Appearance" />
-              </LineChart>
-            </ResponsiveContainer>
-
-            {/* Color legend */}
-            <div className="mt-4 flex flex-wrap gap-3 px-1">
-              {SAMPLE_TYPE_LEGEND.map(({ label, color }) => (
-                <div key={label} className="flex items-center gap-1.5 text-xs text-slate-600">
-                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                  {label}
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-4 grid grid-cols-7 gap-3">
-              {ENHANCED_SENSORY_DATA.map(sample => {
-                const avgScore = (sample.hedonic.overall + sample.hedonic.flavour +
-                                 sample.hedonic.texture + sample.hedonic.appearance) / 4;
-                const typeColor = getSampleColor(sample.sampleName);
-                return (
-                  <div
-                    key={sample.sampleId}
-                    className="p-3 rounded-lg border-2 text-center"
-                    style={{ borderColor: typeColor, backgroundColor: `${typeColor}18` }}
-                  >
-                    <div className="font-bold text-slate-900 text-xs mb-1 leading-tight">{sample.sampleName}</div>
-                    <div className="text-2xl font-bold mt-1" style={{ color: typeColor }}>{avgScore.toFixed(1)}</div>
-                    <div className="text-xs text-slate-500 mt-1">/ 9</div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+        <AllSamplesComparisonView
+          allSamplesHedonic={allSamplesHedonic}
+          enhancedSensoryData={ENHANCED_SENSORY_DATA}
+        />
       )}
         </>
       ) : (
@@ -1053,249 +461,3 @@ export function SurveyAnalysis() {
   );
 }
 
-/* Multi-Sample Analysis Component */
-function MultiSampleAnalysis({
-  multiSampleResponses,
-  multiSampleProducts,
-  selectedMultiProduct,
-  setSelectedMultiProduct
-}: {
-  multiSampleResponses: any[];
-  multiSampleProducts: any[];
-  selectedMultiProduct: string;
-  setSelectedMultiProduct: (id: string) => void;
-}) {
-  const selectedProduct = multiSampleProducts.find(p => p.id === selectedMultiProduct);
-  const productResponses = multiSampleResponses.filter(r => r.productId === selectedMultiProduct);
-
-  if (productResponses.length === 0) {
-    return (
-      <Card className="border-2 border-slate-200">
-        <CardContent className="pt-12 pb-12 text-center">
-          <Layers className="size-16 text-slate-400 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-slate-700 mb-2">No Multi-Sample Data Yet</h3>
-          <p className="text-slate-600">
-            Multi-sample evaluation responses will appear here once panelists complete them.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Calculate discrimination accuracy
-  const discriminationResults = productResponses.reduce((acc: any, response: any) => {
-    const sample = response.differentSample;
-    acc[sample] = (acc[sample] || 0) + 1;
-    return acc;
-  }, {});
-
-  // Calculate ranking consensus
-  const rankingData = productResponses.reduce((acc: any, response: any) => {
-    response.ranking.forEach((sampleCode: string, position: number) => {
-      if (!acc[sampleCode]) {
-        acc[sampleCode] = { rank1: 0, rank2: 0, rank3: 0, total: 0 };
-      }
-      acc[sampleCode][`rank${position + 1}`]++;
-      acc[sampleCode].total++;
-    });
-    return acc;
-  }, {});
-
-  const rankingChartData = Object.entries(rankingData).map(([code, data]: [string, any]) => ({
-    id: `ranking-${code}`,
-    sample: code,
-    'Best (1st)': data.rank1,
-    'Middle (2nd)': data.rank2,
-    'Worst (3rd)': data.rank3
-  }));
-
-  // Average hedonic scores per sample
-  const hedonicBySample = productResponses.reduce((acc: any, response: any) => {
-    response.samples.forEach((sample: any) => {
-      if (!acc[sample.sampleCode]) {
-        acc[sample.sampleCode] = { scores: [], count: 0 };
-      }
-      acc[sample.sampleCode].scores.push(sample.hedonicScores.overall);
-      acc[sample.sampleCode].count++;
-    });
-    return acc;
-  }, {});
-
-  const hedonicChartData = Object.entries(hedonicBySample).map(([code, data]: [string, any]) => ({
-    id: `hedonic-sample-${code}`,
-    sample: code,
-    avgScore: (data.scores.reduce((a: number, b: number) => a + b, 0) / data.count).toFixed(2),
-    count: data.count
-  })).sort((a, b) => parseFloat(b.avgScore) - parseFloat(a.avgScore));
-
-  const exportMultiSampleCSV = () => {
-    const headers = ['ResponseID', 'PanelistID', 'ProductID', 'SampleCode', 'Metric', 'Value'];
-    const rows: string[] = [headers.join(',')];
-
-    productResponses.forEach((response: any) => {
-      // Discrimination
-      rows.push(`${response.id},${response.userId},${response.productId},N/A,Discrimination,${response.differentSample}`);
-
-      // Ranking
-      response.ranking.forEach((code: string, idx: number) => {
-        rows.push(`${response.id},${response.userId},${response.productId},${code},Ranking,${idx + 1}`);
-      });
-
-      // Sample data
-      response.samples.forEach((sample: any) => {
-        rows.push(`${response.id},${response.userId},${response.productId},${sample.sampleCode},HedonicOverall,${sample.hedonicScores.overall}`);
-      });
-    });
-
-    const csvContent = rows.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `multi-sample-${selectedProduct?.name || 'analysis'}-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Product Selector */}
-      <Card className="border-2 border-purple-300">
-        <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Layers className="size-5 text-purple-600" />
-                Select Multi-Sample Study
-              </CardTitle>
-              <p className="text-sm text-slate-600 mt-1">{productResponses.length} panelist responses</p>
-            </div>
-            <Button onClick={exportMultiSampleCSV} variant="outline">
-              <Download className="size-4 mr-2" />
-              Export CSV
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-4">
-          <div className="grid grid-cols-2 gap-3">
-            {multiSampleProducts.map(product => (
-              <button
-                key={product.id}
-                onClick={() => setSelectedMultiProduct(product.id)}
-                className={`p-4 rounded-lg border-2 transition-all text-left ${
-                  selectedMultiProduct === product.id
-                    ? 'border-purple-600 bg-purple-50'
-                    : 'border-slate-200 hover:border-purple-300'
-                }`}
-              >
-                <div className="font-bold text-slate-900">{product.name}</div>
-                <div className="text-xs text-slate-600 mt-1">{product.category}</div>
-                <div className="text-xs text-purple-700 mt-1 font-medium">
-                  {multiSampleResponses.filter(r => r.productId === product.id).length} responses
-                </div>
-              </button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Discrimination Test Results */}
-      <Card className="border-2 border-amber-300">
-        <CardHeader className="bg-amber-50">
-          <CardTitle className="flex items-center gap-2">
-            <Target className="size-5 text-amber-600" />
-            Discrimination Test Results
-          </CardTitle>
-          <p className="text-sm text-slate-600">Which sample was identified as "different"</p>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-3 gap-4">
-            {Object.entries(discriminationResults).map(([sampleCode, count]: [string, any]) => {
-              const percentage = ((count / productResponses.length) * 100).toFixed(1);
-              return (
-                <div key={sampleCode} className="p-4 bg-amber-50 rounded-lg border-2 border-amber-200 text-center">
-                  <div className="w-14 h-14 rounded-full bg-amber-600 text-white flex items-center justify-center font-bold text-xl mx-auto mb-2">
-                    {sampleCode}
-                  </div>
-                  <div className="text-3xl font-bold text-amber-900">{count}</div>
-                  <div className="text-sm text-slate-600">({percentage}%)</div>
-                  <div className="text-xs text-slate-500 mt-1">panelists selected</div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Preference Ranking */}
-      <Card className="border-2 border-purple-300">
-        <CardHeader className="bg-purple-50">
-          <CardTitle className="flex items-center gap-2">
-            <Trophy className="size-5 text-purple-600" />
-            Preference Ranking Distribution
-          </CardTitle>
-          <p className="text-sm text-slate-600">How panelists ranked each sample</p>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={rankingChartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="sample" />
-              <YAxis />
-              <RechartsTooltip />
-              <Legend />
-              <Bar key="rank-best" dataKey="Best (1st)" fill="#10b981" />
-              <Bar key="rank-middle" dataKey="Middle (2nd)" fill="#f59e0b" />
-              <Bar key="rank-worst" dataKey="Worst (3rd)" fill="#ef4444" />
-            </BarChart>
-          </ResponsiveContainer>
-
-          <div className="mt-6 grid grid-cols-3 gap-4">
-            {rankingChartData.map((data: any) => {
-              const bestCount = data['Best (1st)'];
-              const total = bestCount + data['Middle (2nd)'] + data['Worst (3rd)'];
-              const percentage = ((bestCount / total) * 100).toFixed(1);
-              return (
-                <div key={data.sample} className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-center">
-                  <div className="w-12 h-12 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-lg mx-auto mb-2">
-                    {data.sample}
-                  </div>
-                  <div className="text-sm text-slate-600 mb-1">Ranked #1</div>
-                  <div className="text-2xl font-bold text-purple-900">{percentage}%</div>
-                  <div className="text-xs text-slate-500 mt-1">{bestCount}/{total} times</div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Average Hedonic Scores */}
-      <Card className="border-2 border-blue-300">
-        <CardHeader className="bg-blue-50">
-          <CardTitle className="flex items-center gap-2">
-            <Heart className="size-5 text-blue-600" />
-            Average Overall Liking by Sample
-          </CardTitle>
-          <p className="text-sm text-slate-600">Mean hedonic scores (1-9 scale)</p>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-3 gap-4">
-            {hedonicChartData.map((data: any) => {
-              const score = parseFloat(data.avgScore);
-              const color = score >= 7 ? 'emerald' : score >= 5 ? 'amber' : 'rose';
-              return (
-                <div key={data.sample} className={`p-4 bg-${color}-50 rounded-lg border-2 border-${color}-200 text-center`}>
-                  <div className="w-14 h-14 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-xl mx-auto mb-2">
-                    {data.sample}
-                  </div>
-                  <div className={`text-3xl font-bold text-${color}-900`}>{data.avgScore}</div>
-                  <div className="text-xs text-slate-500 mt-1">n={data.count} responses</div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
