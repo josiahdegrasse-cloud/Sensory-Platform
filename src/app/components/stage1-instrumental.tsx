@@ -186,11 +186,16 @@ function normalize(value?: string) {
   return (value || "").trim();
 }
 
+const KNOWN_TYPES: Record<string, string> = {
+  dairy: "dairy", cheese: "dairy", "plant-based": "pbca", "plant base": "pbca", pbca: "pbca", bread: "bread",
+};
+
 function inferType(sampleId: string, csvType?: string) {
   const normalized = normalize(csvType).toLowerCase();
-  if (normalized === "dairy") return "dairy";
-  if (normalized === "bread") return "bread";
-  if (normalized === "pbca" || normalized === "plant-based" || normalized === "plant base") return "pbca";
+  if (normalized && KNOWN_TYPES[normalized]) return KNOWN_TYPES[normalized];
+  // Unknown but explicit type from CSV — pass through
+  if (normalized) return normalized;
+  // Fall back to sampleId prefix heuristics
   if (sampleId.toUpperCase().startsWith("B")) return "bread";
   return sampleId.toUpperCase().startsWith("D") ? "dairy" : "pbca";
 }
@@ -200,6 +205,7 @@ function inferCategory(sampleId: string, csvCategory?: string, type?: string) {
   if (normalized) return normalized;
   if (type === "dairy") return "Dairy";
   if (type === "bread") return "Bread";
+  if (type) return type.charAt(0).toUpperCase() + type.slice(1);
   return "Coconut-based";
 }
 
@@ -240,14 +246,15 @@ export function Stage1Instrumental() {
   const [usingDemoData, setUsingDemoData] = useState(true);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { foodType } = useFoodType();
+  const { foodType, registerFoodTypes, clearExtraFoodTypes } = useFoodType();
 
   const filteredETongueData = eTongueData.filter(s => {
     if (foodType === 'all') return true;
     const t = (s.type || inferType(s.sampleId)).toLowerCase();
-    if (foodType === 'bread') return t === 'bread' || s.sampleId.toUpperCase().startsWith('B');
-    if (foodType === 'cheese') return t === 'dairy' || t === 'pbca' || s.sampleId.toUpperCase().startsWith('S') || s.sampleId.toUpperCase().startsWith('D');
-    return true;
+    if (foodType === 'bread')  return t === 'bread'  || s.sampleId.toUpperCase().startsWith('B');
+    if (foodType === 'cheese') return t === 'dairy'  || t === 'pbca' || s.sampleId.toUpperCase().startsWith('S') || s.sampleId.toUpperCase().startsWith('D');
+    // Custom food type: direct match
+    return t === foodType.toLowerCase();
   });
 
   useEffect(() => {
@@ -429,6 +436,11 @@ export function Stage1Instrumental() {
     if (importedCompCount > 0)
       parts.push(`${importedCompCount} composition profile${importedCompCount > 1 ? "s" : ""}`);
 
+    // Register any food types not already known so sidebar sections appear
+    const BUILTIN_TYPES = new Set(['bread', 'dairy', 'pbca']);
+    const newTypes = [...new Set(importedETongue.map(s => s.type).filter((t): t is string => !!t && !BUILTIN_TYPES.has(t)))];
+    if (newTypes.length > 0) registerFoodTypes(newTypes);
+
     setImportSuccess(`Imported ${parts.join(", ")}.`);
     setShowPreview(false);
     setUploadedFile(null);
@@ -457,6 +469,7 @@ export function Stage1Instrumental() {
     setImportSuccess(null);
     setImportError(null);
     setUploadedFile(null);
+    clearExtraFoodTypes();
     setShowPreview(false);
     setColumnReport(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
