@@ -235,7 +235,7 @@ export function Stage4Enhanced() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Final Decision</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Decision scoring will unlock when panel results exist for {activeLabel}.
+            Decision scoring will unlock after imported {activeLabel} samples have questionnaire responses.
           </p>
         </div>
 
@@ -247,9 +247,9 @@ export function Stage4Enhanced() {
                   <GitMerge className="size-5 text-amber-600" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-900">Decision model is waiting on panel data</h2>
+                  <h2 className="text-lg font-semibold text-slate-900">Create questionnaires from the imported data first</h2>
                   <p className="mt-1 text-sm text-slate-600">
-                    {activeLabel} is in the platform, but ISSF scoring needs sensory responses before it can produce GO, TWEAK, or STOP recommendations.
+                    {activeLabel} is in the platform. The next step is turning those imported machine samples into panelist questionnaires, then ISSF can score the responses.
                   </p>
                 </div>
               </div>
@@ -265,16 +265,16 @@ export function Stage4Enhanced() {
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                   <div className="text-2xl font-bold text-slate-900">0</div>
-                  <div className="text-sm text-slate-500">decision-ready samples</div>
+                  <div className="text-sm text-slate-500">completed questionnaires</div>
                 </div>
               </div>
 
               <div className="mt-6 flex flex-wrap gap-2">
                 <Button asChild>
-                  <Link to="/survey-analysis">Analyze panel results</Link>
+                  <Link to="/stage1">Create questionnaires</Link>
                 </Button>
                 <Button asChild variant="outline">
-                  <Link to="/stage1">Review machine data</Link>
+                  <Link to="/admin">Review questionnaire setup</Link>
                 </Button>
               </div>
             </div>

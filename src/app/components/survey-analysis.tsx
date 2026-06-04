@@ -80,7 +80,7 @@ export function SurveyAnalysis() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Analyze Results</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Panel response analysis for {activeLabel}.
+            Questionnaire results for {activeLabel}.
           </p>
         </div>
 
@@ -92,9 +92,9 @@ export function SurveyAnalysis() {
                   <ClipboardList className="size-5 text-blue-600" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-900">Panel results are waiting for {activeLabel}</h2>
+                  <h2 className="text-lg font-semibold text-slate-900">Create questionnaires from the imported {activeLabel} data</h2>
                   <p className="mt-1 text-sm text-slate-600">
-                    Imported machine data is available, but this food type does not have sensory questionnaire responses yet.
+                    The CSV import is the starting point. Turn those machine samples into questionnaire-ready products, then panelist submissions will populate these charts.
                   </p>
                 </div>
               </div>
@@ -110,7 +110,7 @@ export function SurveyAnalysis() {
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                   <div className="text-2xl font-bold text-slate-900">0</div>
-                  <div className="text-sm text-slate-500">matched panel runs</div>
+                  <div className="text-sm text-slate-500">completed questionnaires</div>
                 </div>
               </div>
 
@@ -118,11 +118,11 @@ export function SurveyAnalysis() {
                 <Button asChild>
                   <Link to="/stage1">
                     <FlaskConical className="size-4" />
-                    Review machine data
+                    Create questionnaires
                   </Link>
                 </Button>
                 <Button asChild variant="outline">
-                  <Link to="/admin">Configure products</Link>
+                  <Link to="/admin">Review questionnaire setup</Link>
                 </Button>
               </div>
             </div>

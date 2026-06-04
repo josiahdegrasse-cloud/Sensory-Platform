@@ -787,7 +787,7 @@ export function Stage1Instrumental() {
     });
 
     if (candidates.length === 0) {
-      setImportSuccess('Products already exist for the visible machine samples.');
+      setImportSuccess('Questionnaires already exist for the visible machine samples.');
       return;
     }
 
@@ -800,9 +800,9 @@ export function Stage1Instrumental() {
           customAttributes: getDefaultCataAttributes(sample.type),
         });
       }
-      setImportSuccess(`Created ${candidates.length} product${candidates.length === 1 ? '' : 's'} from visible machine samples.`);
+      setImportSuccess(`Created ${candidates.length} questionnaire${candidates.length === 1 ? '' : 's'} from visible machine samples.`);
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : 'Failed to create products from imported samples.');
+      setImportError(err instanceof Error ? err.message : 'Failed to create questionnaires from imported samples.');
     }
   };
 
@@ -1120,8 +1120,11 @@ export function Stage1Instrumental() {
                 className="w-full justify-center gap-2"
               >
                 <PackagePlus className="size-4" />
-                {insertProductMutation.isPending ? 'Creating products...' : 'Create products from samples'}
+                {insertProductMutation.isPending ? 'Creating questionnaires...' : 'Create questionnaires from samples'}
               </Button>
+              <p className="text-xs text-slate-500">
+                Uses the imported sample names, food type, and smart CATA attributes to create panelist-ready questionnaires.
+              </p>
             </CardContent>
           </Card>
 
