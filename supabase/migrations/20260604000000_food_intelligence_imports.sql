@@ -138,7 +138,7 @@ CREATE POLICY e_tongue_select_authenticated ON public.e_tongue_measurements
       SELECT 1
       FROM public.instrumental_samples s
       JOIN public.import_batches b ON b.id = s.import_batch_id
-      WHERE s.id = sample_id AND (b.status = 'active' OR is_admin())
+      WHERE s.id = e_tongue_measurements.sample_id AND (b.status = 'active' OR is_admin())
     )
   );
 
@@ -154,7 +154,7 @@ CREATE POLICY gcms_select_authenticated ON public.gcms_compounds
       SELECT 1
       FROM public.instrumental_samples s
       JOIN public.import_batches b ON b.id = s.import_batch_id
-      WHERE s.id = sample_id AND (b.status = 'active' OR is_admin())
+      WHERE s.id = gcms_compounds.sample_id AND (b.status = 'active' OR is_admin())
     )
   );
 
@@ -170,7 +170,7 @@ CREATE POLICY composition_select_authenticated ON public.composition_profiles
       SELECT 1
       FROM public.instrumental_samples s
       JOIN public.import_batches b ON b.id = s.import_batch_id
-      WHERE s.id = sample_id AND (b.status = 'active' OR is_admin())
+      WHERE s.id = composition_profiles.sample_id AND (b.status = 'active' OR is_admin())
     )
   );
 
