@@ -247,6 +247,60 @@ export async function deleteFoodTypeRecord(slug: string): Promise<void> {
   if (error) throw dbError(error);
 }
 
+export interface ImportBatchRecord {
+  id: string;
+  foodTypeSlug: string;
+  foodTypeLabel: string;
+  fileName: string;
+  rowCount: number;
+  recognizedColumns: string[];
+  ignoredColumns: string[];
+  detectionConfidence: number;
+  status: 'active' | 'archived' | 'deleted';
+  importedBy: string | null;
+  importedByName: string | null;
+  createdAt: string;
+  sampleCount: number;
+}
+
+export async function fetchImportBatches(): Promise<ImportBatchRecord[]> {
+  const { data, error } = await supabase
+    .from('import_batches')
+    .select(`
+      id, file_name, row_count, recognized_columns, ignored_columns,
+      detection_confidence, status, imported_by, created_at,
+      food_types(slug, label),
+      profiles(name),
+      instrumental_samples(count)
+    `)
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (error && isMissingFoodImportSchema(dbError(error))) return [];
+  if (error) throw dbError(error);
+
+  return ((data ?? []) as Record<string, unknown>[]).map(row => {
+    const ft = row.food_types as { slug?: string; label?: string } | null;
+    const profile = row.profiles as { name?: string } | null;
+    const countArr = row.instrumental_samples as { count?: number }[] | null;
+    return {
+      id: row.id as string,
+      foodTypeSlug: ft?.slug ?? 'generic',
+      foodTypeLabel: ft?.label ?? 'Generic',
+      fileName: row.file_name as string,
+      rowCount: row.row_count as number,
+      recognizedColumns: (row.recognized_columns as string[]) ?? [],
+      ignoredColumns: (row.ignored_columns as string[]) ?? [],
+      detectionConfidence: Number(row.detection_confidence ?? 0),
+      status: row.status as 'active' | 'archived' | 'deleted',
+      importedBy: (row.imported_by as string) ?? null,
+      importedByName: profile?.name ?? null,
+      createdAt: row.created_at as string,
+      sampleCount: countArr?.[0]?.count ?? 0,
+    };
+  });
+}
+
 export async function fetchInstrumentalDataset(): Promise<InstrumentalDataset> {
   const { data, error } = await supabase
     .from('instrumental_samples')

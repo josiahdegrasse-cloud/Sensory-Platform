@@ -5,7 +5,7 @@ import {
   fetchAllResponses, fetchUserResponses,
   fetchConceptTestsForPanelist, fetchUserConceptResponses,
   fetchConceptTest,
-  fetchFoodTypes, fetchInstrumentalDataset,
+  fetchFoodTypes, fetchInstrumentalDataset, fetchImportBatches,
   insertProduct, updateProduct, deleteProduct,
   insertTemplate, deleteTemplate, updatePanelistId, updatePanelistTrainingLevel,
   insertConceptTest, insertConceptResponse,
@@ -28,6 +28,7 @@ export const queryKeys = {
   conceptTest: (id: string) => ['conceptTest', id] as const,
   foodTypes: ['foodTypes'] as const,
   instrumentalDataset: ['instrumentalDataset'] as const,
+  importBatches: ['importBatches'] as const,
 }
 
 export function useProducts() {
@@ -238,5 +239,13 @@ export function useDeleteFoodType() {
       qc.invalidateQueries({ queryKey: queryKeys.foodTypes })
       qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
     },
+  })
+}
+
+export function useImportBatches(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.importBatches,
+    queryFn: fetchImportBatches,
+    enabled,
   })
 }

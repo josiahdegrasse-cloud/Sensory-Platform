@@ -12,24 +12,29 @@ import { type Template } from '../lib/database';
 import {
   useProducts, useTemplates, usePanelists,
   useInsertProduct, useUpdateProduct, useDeleteProduct, useInsertTemplate, useDeleteTemplate,
-  useUpdatePanelistId, useAllResponses,
+  useUpdatePanelistId, useAllResponses, useImportBatches,
 } from '../lib/hooks';
 import {
   Plus, Settings, Trash2, Save, CheckCircle2, FolderOpen, Layers,
   ClipboardList, Users, AlertCircle, Search, Activity, FlaskConical, Archive, RotateCcw,
+  Upload, FileText,
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { useAuth } from '../contexts/auth-context';
 import { PanelistPerformancePanel } from './panelist-performance';
 
+type AdminTab = 'products' | 'panelists' | 'templates' | 'imports';
+
 type QuestionnaireTemplate = Template;
 
 export function AdminConfig() {
   const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<AdminTab>('products');
   const { data: products = [] } = useProducts();
   const { data: panelists = [] } = usePanelists();
   const { data: templates = [] } = useTemplates();
   const { data: allResponses = [] } = useAllResponses();
+  const { data: importBatches = [] } = useImportBatches(activeTab === 'imports');
 
   const insertProductMutation = useInsertProduct();
   const updateProductMutation = useUpdateProduct();
@@ -333,11 +338,40 @@ export function AdminConfig() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
+  const tabs: { id: AdminTab; label: string; icon: React.ElementType }[] = [
+    { id: 'products',  label: 'Products',  icon: ClipboardList },
+    { id: 'panelists', label: 'Panelists', icon: Users },
+    { id: 'templates', label: 'Templates', icon: FileText },
+    { id: 'imports',   label: 'Imports',   icon: Upload },
+  ];
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Configure Products</h1>
-        <p className="text-sm text-slate-500 mt-1">Manage products, questionnaire attributes, and panelists</p>
+        <h1 className="text-2xl font-semibold text-slate-900">Configure</h1>
+        <p className="text-sm text-slate-500 mt-1">Manage products, panelists, templates, and import history</p>
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex items-center border-b border-slate-200 gap-1">
+        {tabs.map(tab => {
+          const Icon = tab.icon;
+          const active = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                active
+                  ? 'border-slate-800 text-slate-900'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+              }`}
+            >
+              <Icon className="size-3.5" />
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {showSuccess && (
@@ -352,6 +386,9 @@ export function AdminConfig() {
           <AlertDescription>{mutationError}</AlertDescription>
         </Alert>
       )}
+
+      {/* ── Products tab ── */}
+      {activeTab === 'products' && <>
 
       {/* Stats strip */}
       <div className="flex items-center gap-5 px-5 py-3 bg-white border border-slate-200 rounded-xl shadow-sm flex-wrap">
@@ -414,7 +451,7 @@ export function AdminConfig() {
               disabled={insertProductMutation.isPending}
               className="h-8 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
             >
-              Add Bread Starter Set
+              Add Reference Set
             </Button>
             <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700 h-8 text-sm">
               <Plus className="size-3.5 mr-1.5" />New Product
@@ -656,8 +693,19 @@ export function AdminConfig() {
         </div>
       </div>
 
-      {/* Panelist ID management (compact, above the full intelligence panel) */}
-      {panelists.length > 0 && (
+      </> /* end products tab */}
+
+      {/* ── Panelists tab ── */}
+      {activeTab === 'panelists' && <>
+
+      {panelists.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center text-slate-400">
+            <Users className="size-10 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">No panelists registered yet.</p>
+          </CardContent>
+        </Card>
+      ) : (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -689,8 +737,136 @@ export function AdminConfig() {
         </Card>
       )}
 
-      {/* Panel Intelligence — full performance panel */}
       <PanelistPerformancePanel />
+
+      </> /* end panelists tab */}
+
+      {/* ── Templates tab ── */}
+      {activeTab === 'templates' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <FileText className="size-4 text-slate-500" />
+              Attribute Templates
+            </CardTitle>
+            <p className="text-sm text-slate-500">Save and reuse questionnaire attribute sets across products.</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex gap-2">
+              <Input
+                placeholder="Template name…"
+                value={templateName}
+                onChange={e => setTemplateName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSaveTemplate()}
+                className="flex-1"
+              />
+              <Button onClick={handleSaveTemplate} disabled={!templateName} className="bg-slate-900 hover:bg-slate-700">
+                <Save className="size-4 mr-1.5" />Save
+              </Button>
+            </div>
+            {templates.length === 0 ? (
+              <div className="py-10 text-center text-slate-400">
+                <FileText className="size-8 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">No templates saved yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {templates.map(t => (
+                  <div key={t.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                    <FileText className="size-4 text-slate-400 shrink-0" />
+                    <span className="flex-1 text-sm font-medium text-slate-800">{t.name}</span>
+                    <span className="text-xs text-slate-500">{t.attributes.length} attributes</span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          if (selectedProduct) {
+                            handleLoadTemplate(t.id);
+                          } else {
+                            setMutationError('Select a product in the Products tab first.');
+                          }
+                        }}
+                      >
+                        <FolderOpen className="size-3 mr-1" />Apply
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs border-rose-300 text-rose-600 hover:bg-rose-50"
+                        onClick={async () => {
+                          setMutationError('');
+                          try { await deleteTemplateMutation.mutateAsync(t.id); }
+                          catch (err) { setMutationError(err instanceof Error ? err.message : 'Failed to delete template.'); }
+                        }}
+                      >
+                        <Trash2 className="size-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Imports tab ── */}
+      {activeTab === 'imports' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Upload className="size-4 text-slate-500" />
+              Import History
+            </CardTitle>
+            <p className="text-sm text-slate-500">All CSV instrument data imports with metadata and audit trail.</p>
+          </CardHeader>
+          <CardContent>
+            {importBatches.length === 0 ? (
+              <div className="py-12 text-center text-slate-400">
+                <Upload className="size-10 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">No imports yet. Upload a CSV in Machine Testing to get started.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b-2 border-slate-200 bg-slate-50 text-left">
+                      <th className="py-2.5 px-3 font-semibold text-slate-700">File</th>
+                      <th className="py-2.5 px-3 font-semibold text-slate-700">Food Type</th>
+                      <th className="py-2.5 px-3 font-semibold text-slate-700">Rows</th>
+                      <th className="py-2.5 px-3 font-semibold text-slate-700">Imported by</th>
+                      <th className="py-2.5 px-3 font-semibold text-slate-700">Date</th>
+                      <th className="py-2.5 px-3 font-semibold text-slate-700">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importBatches.map(batch => (
+                      <tr key={batch.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                        <td className="py-2.5 px-3 font-medium text-slate-800 max-w-[200px] truncate">{batch.fileName}</td>
+                        <td className="py-2.5 px-3">
+                          <Badge variant="outline" className="text-xs">{batch.foodTypeLabel}</Badge>
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-600">{batch.rowCount}</td>
+                        <td className="py-2.5 px-3 text-slate-600">{batch.importedByName ?? '—'}</td>
+                        <td className="py-2.5 px-3 text-slate-500 text-xs">
+                          {new Date(batch.createdAt).toLocaleDateString()} {new Date(batch.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <Badge className={batch.status === 'active' ? 'bg-emerald-600 text-xs' : 'bg-slate-400 text-xs'}>
+                            {batch.status}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Create Product Modal */}
       <Dialog open={showCreateModal} onOpenChange={open => !open && closeCreateModal()}>

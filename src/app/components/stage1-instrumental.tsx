@@ -423,6 +423,8 @@ export function Stage1Instrumental() {
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<Record<string, string>[]>([]);
   const [showPreview, setShowPreview] = useState(false);
+  const [importStep, setImportStep] = useState<1 | 2 | 3 | 4>(1);
+  const [batchName, setBatchName] = useState('');
   const [dragActive, setDragActive] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -570,7 +572,9 @@ export function Stage1Instrumental() {
     setColumnReport(recogniseColumns(headers));
     setPreviewData(data);
     setUploadedFile(fileName);
+    setBatchName(fileName.replace(/\.csv$/i, ''));
     setShowPreview(true);
+    setImportStep(2);
     setImportError(null);
   };
 
@@ -591,7 +595,7 @@ export function Stage1Instrumental() {
 
     try {
       const savedDataset = await insertInstrumentalImport.mutateAsync({
-        fileName: uploadedFile ?? 'Imported CSV',
+        fileName: batchName || uploadedFile || 'Imported CSV',
         rowCount: previewData.length,
         recognizedColumns: columnReport?.recognised ?? [],
         ignoredColumns: columnReport?.ignored ?? [],
@@ -635,6 +639,8 @@ export function Stage1Instrumental() {
     setShowPreview(false);
     setUploadedFile(null);
     setColumnReport(null);
+    setBatchName('');
+    setImportStep(1);
     setUsingDemoData(false);
     setImportError(null);
 
@@ -646,6 +652,8 @@ export function Stage1Instrumental() {
     setShowPreview(false);
     setUploadedFile(null);
     setColumnReport(null);
+    setBatchName('');
+    setImportStep(1);
     setImportError(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -842,8 +850,21 @@ export function Stage1Instrumental() {
           <CardHeader className="bg-slate-50 border-b rounded-t-lg">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Preview — {uploadedFile}</CardTitle>
-                <p className="text-xs text-slate-500 mt-0.5">Review before importing. Showing up to 10 rows.</p>
+                <div className="flex items-center gap-3 mb-1">
+                  {(['Upload', 'Detect', 'Map', 'Confirm'] as const).map((label, i) => (
+                    <div key={label} className="flex items-center gap-1.5">
+                      {i > 0 && <div className="w-6 h-px bg-slate-300" />}
+                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                        importStep === i + 1 ? 'bg-slate-900 text-white' :
+                        importStep > i + 1 ? 'bg-emerald-600 text-white' :
+                        'bg-slate-200 text-slate-500'
+                      }`}>
+                        {i + 1}. {label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <CardTitle className="text-base">{uploadedFile}</CardTitle>
               </div>
               <Button variant="ghost" size="sm" onClick={cancelPreview}>
                 <X className="size-4" />
@@ -933,13 +954,25 @@ export function Stage1Instrumental() {
               )}
             </div>
 
+            {/* Step 4: Name and confirm */}
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
+              <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Step 4 — Name this import batch</p>
+              <input
+                type="text"
+                value={batchName}
+                onChange={e => { setBatchName(e.target.value); setImportStep(4); }}
+                onFocus={() => setImportStep(4)}
+                placeholder="e.g., Plant-Based Meat June Trial"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+              />
+            </div>
             <div className="flex gap-3">
               <Button
                 onClick={importCSVData}
                 disabled={insertInstrumentalImport.isPending}
                 className="bg-slate-900 hover:bg-slate-700 disabled:opacity-60"
               >
-                {insertInstrumentalImport.isPending ? "Importing..." : "Import batch"}
+                {insertInstrumentalImport.isPending ? "Importing…" : "Confirm import"}
               </Button>
               <Button variant="outline" onClick={cancelPreview}>
                 Cancel

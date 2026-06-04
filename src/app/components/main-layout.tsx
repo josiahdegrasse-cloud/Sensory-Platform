@@ -1,8 +1,10 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
 import { FlaskConical, BarChart3, GitMerge, ClipboardList, Settings, LogOut, Lightbulb, Tag, Archive, Trash2, Undo2 } from "lucide-react";
 import { useAuth } from "../contexts/auth-context";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useFoodType } from "../contexts/food-type-context";
+import { useProducts } from "../lib/hooks";
+import { matchFoodType } from "../contexts/food-type-context";
 
 const NFI_BLUE = '#6B7890';
 
@@ -24,6 +26,16 @@ function capitalize(s: string) {
 
 function CategorySidebar() {
   const { foodType, setSelection, extraFoodTypes, archivedFoodTypes, archiveFoodType, restoreFoodType, deleteFoodType } = useFoodType();
+  const { data: products = [] } = useProducts();
+
+  const productCountByType = useMemo(() => {
+    const counts: Record<string, number> = {};
+    products.filter(p => p.status !== 'archived').forEach(p => {
+      const slug = matchFoodType(p.category);
+      counts[slug] = (counts[slug] ?? 0) + 1;
+    });
+    return counts;
+  }, [products]);
 
   const builtInTypes = ['cheese', 'bread'];
   const allTypes = [...builtInTypes, ...extraFoodTypes.filter(t => !builtInTypes.includes(t))];
@@ -51,14 +63,20 @@ function CategorySidebar() {
         <div className="p-1.5 flex flex-col gap-0.5">
           <button
             onClick={() => setSelection('all', null)}
-            className="w-full text-left px-2.5 py-1.5 rounded-lg text-sm transition-colors"
+            className="w-full text-left px-2.5 py-1.5 rounded-lg text-sm transition-colors flex items-center justify-between"
             style={btnStyle(foodType === 'all')}
           >
-            All Types
+            <span>All Types</span>
+            {products.length > 0 && (
+              <span className="text-[10px] text-slate-400 font-medium tabular-nums">
+                {products.filter(p => p.status !== 'archived').length}
+              </span>
+            )}
           </button>
           {allTypes.map(ft => {
             const imported = !builtInTypes.includes(ft);
             const active = foodType === ft;
+            const count = productCountByType[ft];
             return (
               <div
                 key={ft}
@@ -67,9 +85,12 @@ function CategorySidebar() {
               >
                 <button
                   onClick={() => setSelection(ft, null)}
-                  className="min-w-0 flex-1 text-left px-2.5 py-1.5 text-sm"
+                  className="min-w-0 flex-1 text-left px-2.5 py-1.5 text-sm flex items-center justify-between"
                 >
                   <span className="block truncate">{label(ft)}</span>
+                  {count !== undefined && count > 0 && (
+                    <span className="text-[10px] text-slate-400 font-medium tabular-nums ml-1 shrink-0">{count}</span>
+                  )}
                 </button>
                 {imported && (
                   <div className="flex items-center pr-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
