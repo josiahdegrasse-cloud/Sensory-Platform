@@ -205,6 +205,7 @@ export function useInsertInstrumentalImport() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.foodTypes })
       qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
+      qc.invalidateQueries({ queryKey: queryKeys.importBatches })
     },
   })
 }
@@ -216,6 +217,7 @@ export function useArchiveFoodType() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.foodTypes })
       qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
+      qc.invalidateQueries({ queryKey: queryKeys.importBatches })
     },
   })
 }
@@ -227,6 +229,7 @@ export function useRestoreFoodType() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.foodTypes })
       qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
+      qc.invalidateQueries({ queryKey: queryKeys.importBatches })
     },
   })
 }
@@ -238,6 +241,7 @@ export function useDeleteFoodType() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.foodTypes })
       qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
+      qc.invalidateQueries({ queryKey: queryKeys.importBatches })
     },
   })
 }

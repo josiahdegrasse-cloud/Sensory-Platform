@@ -1,10 +1,20 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
-import { FlaskConical, BarChart3, GitMerge, ClipboardList, Settings, LogOut, Lightbulb, Tag, Archive, Trash2, Undo2 } from "lucide-react";
+import { FlaskConical, BarChart3, GitMerge, ClipboardList, Settings, LogOut, Lightbulb, Tag, Archive, Trash2, Undo2, Database } from "lucide-react";
 import { useAuth } from "../contexts/auth-context";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useFoodType } from "../contexts/food-type-context";
-import { useProducts } from "../lib/hooks";
+import { useImportBatches, useInstrumentalDataset, useProducts } from "../lib/hooks";
 import { matchFoodType } from "../contexts/food-type-context";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
 
 const NFI_BLUE = '#6B7890';
 
@@ -27,6 +37,9 @@ function capitalize(s: string) {
 function CategorySidebar() {
   const { foodType, setSelection, extraFoodTypes, archivedFoodTypes, archiveFoodType, restoreFoodType, deleteFoodType } = useFoodType();
   const { data: products = [] } = useProducts();
+  const { data: importBatches = [] } = useImportBatches();
+  const { data: instrumentalDataset } = useInstrumentalDataset();
+  const [pendingAction, setPendingAction] = useState<{ type: string; action: 'archive' | 'delete' } | null>(null);
 
   const productCountByType = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -40,15 +53,29 @@ function CategorySidebar() {
   const builtInTypes = ['cheese', 'bread'];
   const allTypes = [...builtInTypes, ...extraFoodTypes.filter(t => !builtInTypes.includes(t))];
   const importedTypes = allTypes.filter(t => !builtInTypes.includes(t));
+  const label = (ft: string) =>
+    ft === 'cheese' ? 'Cheese' : ft === 'bread' ? 'Bread' : capitalize(ft);
+  const activeTypeLabel = foodType === 'all' ? 'All Types' : label(foodType);
+  const selectedSamples = useMemo(() => {
+    const samples = instrumentalDataset?.eTongueData ?? [];
+    if (foodType === 'all') return samples;
+    return samples.filter(sample => sample.type === foodType);
+  }, [foodType, instrumentalDataset]);
+  const selectedSampleIds = useMemo(() => new Set(selectedSamples.map(sample => sample.sampleId)), [selectedSamples]);
+  const selectedBatch = foodType === 'all'
+    ? importBatches[0]
+    : importBatches.find(batch => batch.foodTypeSlug === foodType);
+  const selectedDataTypes = [
+    selectedSamples.length > 0 ? 'E-tongue' : null,
+    Object.keys(instrumentalDataset?.gcmsData ?? {}).some(sampleId => selectedSampleIds.has(sampleId)) ? 'GC-MS' : null,
+    Object.keys(instrumentalDataset?.compositionData ?? {}).some(sampleId => selectedSampleIds.has(sampleId)) ? 'Composition' : null,
+  ].filter(Boolean);
 
   const btnStyle = (active: boolean) => ({
     background: active ? '#f1f5f9' : 'transparent',
     color: active ? NFI_BLUE : '#64748b',
     fontWeight: active ? 600 : 400,
   });
-
-  const label = (ft: string) =>
-    ft === 'cheese' ? 'Cheese' : ft === 'bread' ? 'Bread' : capitalize(ft);
 
   return (
     <aside
@@ -97,7 +124,7 @@ function CategorySidebar() {
                     <button
                       type="button"
                       title={`Archive ${label(ft)}`}
-                      onClick={() => archiveFoodType(ft)}
+                      onClick={() => setPendingAction({ type: ft, action: 'archive' })}
                       className="p-1 text-slate-400 hover:text-slate-700 rounded"
                     >
                       <Archive className="size-3.5" />
@@ -105,9 +132,7 @@ function CategorySidebar() {
                     <button
                       type="button"
                       title={`Delete ${label(ft)}`}
-                      onClick={() => {
-                        if (window.confirm(`Delete ${label(ft)} and its imported data?`)) deleteFoodType(ft);
-                      }}
+                      onClick={() => setPendingAction({ type: ft, action: 'delete' })}
                       className="p-1 text-slate-400 hover:text-rose-700 rounded"
                     >
                       <Trash2 className="size-3.5" />
@@ -140,9 +165,7 @@ function CategorySidebar() {
                     <button
                       type="button"
                       title={`Delete ${label(ft)}`}
-                      onClick={() => {
-                        if (window.confirm(`Delete ${label(ft)} and its imported data?`)) deleteFoodType(ft);
-                      }}
+                      onClick={() => setPendingAction({ type: ft, action: 'delete' })}
                       className="p-1 text-slate-400 hover:text-rose-700 rounded"
                     >
                       <Trash2 className="size-3.5" />
@@ -159,6 +182,66 @@ function CategorySidebar() {
           )}
         </div>
       </div>
+      {foodType !== 'all' && (
+        <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+            <Database className="size-3.5 text-slate-400" />
+            {activeTypeLabel}
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
+              <div className="font-bold text-slate-900">{selectedSamples.length}</div>
+              <div className="text-slate-500">machine samples</div>
+            </div>
+            <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
+              <div className="font-bold text-slate-900">{productCountByType[foodType] ?? 0}</div>
+              <div className="text-slate-500">products</div>
+            </div>
+          </div>
+          <div className="mt-3 text-[11px] text-slate-500">
+            {selectedBatch
+              ? `Last import: ${new Date(selectedBatch.createdAt).toLocaleDateString()}`
+              : 'No saved import batches yet.'}
+          </div>
+          {selectedDataTypes.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {selectedDataTypes.map(kind => (
+                <span key={kind} className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                  {kind}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      <AlertDialog open={!!pendingAction} onOpenChange={open => !open && setPendingAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingAction?.action === 'archive' ? 'Archive food type?' : 'Delete food type?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingAction?.action === 'archive'
+                ? `${label(pendingAction.type)} will be hidden from the active food type list. You can restore it from the archived section.`
+                : `${label(pendingAction?.type ?? '')} and its imported machine data will be permanently removed. This cannot be undone.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className={pendingAction?.action === 'delete' ? 'bg-rose-600 hover:bg-rose-700' : ''}
+              onClick={() => {
+                if (!pendingAction) return;
+                if (pendingAction.action === 'archive') archiveFoodType(pendingAction.type);
+                else deleteFoodType(pendingAction.type);
+                setPendingAction(null);
+              }}
+            >
+              {pendingAction?.action === 'archive' ? 'Archive type' : 'Delete type'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </aside>
   );
 }

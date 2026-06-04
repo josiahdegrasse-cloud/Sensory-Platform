@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router";
 import { useAuth } from '../contexts/auth-context';
 import { useFoodType, sampleMatchesFoodType, matchFoodType } from '../contexts/food-type-context';
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -6,12 +7,13 @@ import { Button } from "./ui/button";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { ENHANCED_SENSORY_DATA } from "../data/enhanced-sensory";
 import { getSampleColor } from "../utils/sample-colors";
-import { useProducts } from "../lib/hooks";
+import { useInstrumentalDataset, useProducts } from "../lib/hooks";
+import { formatFoodTypeLabel } from "../lib/food-intelligence";
 import { useSurveyData } from "../lib/use-survey-data";
 import { buildSampleCSVRows, buildAllDataCSVRows, downloadCsv } from "../utils/survey-csv-export";
 import {
   Users, Heart, Smile, Frown, CheckSquare,
-  TrendingUp, AlertCircle, Eye, EyeOff, Download, Layers
+  TrendingUp, AlertCircle, Eye, EyeOff, Download, Layers, FlaskConical, ClipboardList
 } from "lucide-react";
 import { MultiSampleAnalysis } from "./multi-sample-analysis";
 import { CATATab, IntensityTab, HedonicTab, CommentsTab, EmotionalTab } from "./survey-analysis-tabs";
@@ -22,6 +24,7 @@ const RESEARCH_PANEL_N = 14;
 export function SurveyAnalysis() {
   const { user } = useAuth();
   const { data: allProducts = [] } = useProducts();
+  const { data: instrumentalDataset } = useInstrumentalDataset(user?.role === 'admin');
   const {
     liveDataFetchFailed,
     multiSampleResponses,
@@ -61,7 +64,73 @@ export function SurveyAnalysis() {
 
   const selectedData = filteredSamples.find(s => s.sampleId === selectedSample);
 
-  if (!selectedData) return null;
+  if (!selectedData) {
+    const activeLabel = foodType === 'all' ? 'selected food types' : formatFoodTypeLabel(foodType);
+    const importedSamples = (instrumentalDataset?.eTongueData ?? []).filter(sample =>
+      foodType === 'all' ? true : sample.type === foodType
+    );
+    const activeProducts = allProducts.filter(product => {
+      if (product.status === 'archived') return false;
+      if (foodType === 'all') return true;
+      return matchFoodType(product.category) === foodType;
+    });
+
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Analyze Results</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Panel response analysis for {activeLabel}.
+          </p>
+        </div>
+
+        <Card className="border-dashed">
+          <CardContent className="py-10">
+            <div className="max-w-3xl">
+              <div className="flex items-center gap-3">
+                <div className="flex size-11 items-center justify-center rounded-lg bg-blue-50">
+                  <ClipboardList className="size-5 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">Panel results are waiting for {activeLabel}</h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Imported machine data is available, but this food type does not have sensory questionnaire responses yet.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 grid grid-cols-3 gap-3">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-2xl font-bold text-slate-900">{importedSamples.length}</div>
+                  <div className="text-sm text-slate-500">machine samples</div>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-2xl font-bold text-slate-900">{activeProducts.length}</div>
+                  <div className="text-sm text-slate-500">configured products</div>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-2xl font-bold text-slate-900">0</div>
+                  <div className="text-sm text-slate-500">matched panel runs</div>
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-2">
+                <Button asChild>
+                  <Link to="/stage1">
+                    <FlaskConical className="size-4" />
+                    Review machine data
+                  </Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link to="/admin">Configure products</Link>
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // Calculate CATA frequencies across all attributes
   const cataAttributes = Object.entries(selectedData.cata)
@@ -430,4 +499,3 @@ export function SurveyAnalysis() {
     </div>
   );
 }
-

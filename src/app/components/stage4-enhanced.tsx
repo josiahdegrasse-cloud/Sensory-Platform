@@ -1,14 +1,17 @@
 import { useState, useEffect } from "react";
-import { useFoodType, sampleMatchesFoodType } from "../contexts/food-type-context";
+import { Link } from "react-router";
+import { useFoodType, sampleMatchesFoodType, matchFoodType } from "../contexts/food-type-context";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, Eye, EyeOff, Activity, Award, Zap, ClipboardCheck } from "lucide-react";
+import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, Eye, EyeOff, Activity, Award, Zap, ClipboardCheck, GitMerge } from "lucide-react";
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, BarChart, Bar, LineChart, Line, Legend, ReferenceArea, ReferenceLine } from "recharts";
 import { ENHANCED_SENSORY_DATA } from "../data/enhanced-sensory";
 import { METHOD_COMPARISON } from "../data/validation-data";
 import { DecisionLog, appendDecision } from "./decision-log";
 import { useAuth } from "../contexts/auth-context";
+import { formatFoodTypeLabel } from "../lib/food-intelligence";
+import { useInstrumentalDataset, useProducts } from "../lib/hooks";
 
 interface SampleDecision {
   sampleId: string;
@@ -192,6 +195,8 @@ function PathToGoPanel({
 export function Stage4Enhanced() {
   const { user } = useAuth();
   const { foodType, subCategory } = useFoodType();
+  const { data: instrumentalDataset } = useInstrumentalDataset(user?.role === 'admin');
+  const { data: products = [] } = useProducts();
   const [selectedSample, setSelectedSample] = useState<string>(ENHANCED_SENSORY_DATA[0]?.sampleId ?? "S1");
   const [showRawData, setShowRawData] = useState(false);
   const [showQualitative, setShowQualitative] = useState(true);
@@ -214,6 +219,70 @@ export function Stage4Enhanced() {
       setSelectedSample(filteredSensoryData[0].sampleId);
     }
   }, [foodType, subCategory]);
+
+  if (filteredSensoryData.length === 0) {
+    const activeLabel = foodType === 'all' ? 'selected food types' : formatFoodTypeLabel(foodType);
+    const importedSamples = (instrumentalDataset?.eTongueData ?? []).filter(sample =>
+      foodType === 'all' ? true : sample.type === foodType
+    );
+    const activeProducts = products.filter(product => product.status !== 'archived');
+    const productCount = foodType === 'all'
+      ? activeProducts.length
+      : activeProducts.filter(product => matchFoodType(product.category) === foodType).length;
+
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Final Decision</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Decision scoring will unlock when panel results exist for {activeLabel}.
+          </p>
+        </div>
+
+        <Card className="border-dashed">
+          <CardContent className="py-10">
+            <div className="max-w-3xl">
+              <div className="flex items-center gap-3">
+                <div className="flex size-11 items-center justify-center rounded-lg bg-amber-50">
+                  <GitMerge className="size-5 text-amber-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">Decision model is waiting on panel data</h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {activeLabel} is in the platform, but ISSF scoring needs sensory responses before it can produce GO, TWEAK, or STOP recommendations.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 grid grid-cols-3 gap-3">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-2xl font-bold text-slate-900">{importedSamples.length}</div>
+                  <div className="text-sm text-slate-500">machine samples ready</div>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-2xl font-bold text-slate-900">{productCount}</div>
+                  <div className="text-sm text-slate-500">products configured</div>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-2xl font-bold text-slate-900">0</div>
+                  <div className="text-sm text-slate-500">decision-ready samples</div>
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-2">
+                <Button asChild>
+                  <Link to="/survey-analysis">Analyze panel results</Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link to="/stage1">Review machine data</Link>
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // Calculate actual correlations and decisions for each sample
   const sampleDecisions: SampleDecision[] = filteredSensoryData.map(sample => {

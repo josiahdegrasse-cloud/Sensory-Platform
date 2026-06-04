@@ -3,11 +3,12 @@ import { matchFoodType, useFoodType } from "../contexts/food-type-context";
 import { useAuth } from "../contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
-import { FlaskConical, AlertCircle, Upload, X, Check } from "lucide-react";
+import { FlaskConical, AlertCircle, Upload, X, Check, Download, PackagePlus, History } from "lucide-react";
 import { SAMPLES } from "../data/samples";
 import { detectFoodType, formatFoodTypeLabel, slugifyFoodType } from "../lib/food-intelligence";
-import { useInsertInstrumentalImport, useInstrumentalDataset } from "../lib/hooks";
+import { useImportBatches, useInsertInstrumentalImport, useInsertProduct, useInstrumentalDataset, useProducts } from "../lib/hooks";
 import { isMissingFoodImportSchema } from "../lib/database";
+import { getDefaultCataAttributes } from "../data/mock-users";
 import {
   ScatterChart,
   Scatter,
@@ -56,6 +57,11 @@ interface ChemicalComposition {
 interface ColumnReport {
   recognised: string[];
   ignored: string[];
+}
+
+interface ImportValidationReport {
+  errors: string[];
+  warnings: string[];
 }
 
 const MOCK_ETONGUE_DATA: ETongueMeasurement[] = [
@@ -396,6 +402,27 @@ function buildImportedDataset(previewData: Record<string, string>[], uploadedFil
   return { eTongueData, gcmsData: gcmsMap, compositionData: compositionMap, detection };
 }
 
+function validateImportedDataset(
+  rows: Record<string, string>[],
+  dataset: StoredImportedData,
+  columnReport: ColumnReport | null,
+): ImportValidationReport {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const sampleIds = dataset.eTongueData.map(sample => sample.sampleId);
+  const duplicates = sampleIds.filter((id, index) => sampleIds.indexOf(id) !== index);
+
+  if (rows.length === 0) errors.push('No data rows found.');
+  if (dataset.eTongueData.length === 0) errors.push('No e-tongue taste values found. Include at least one of sourness, bitterness, saltiness, umami, or sweetness.');
+  if (!columnReport || columnReport.recognised.length === 0) errors.push('No recognized columns found.');
+  if (duplicates.length > 0) warnings.push(`Duplicate sample IDs detected: ${Array.from(new Set(duplicates)).join(', ')}.`);
+  if ((columnReport?.ignored.length ?? 0) > 0) warnings.push(`${columnReport?.ignored.length} column${columnReport?.ignored.length === 1 ? '' : 's'} will be ignored.`);
+  if (Object.keys(dataset.gcmsData).length === 0) warnings.push('No GC-MS compounds found. Aroma/off-note panels will be empty for this batch.');
+  if (Object.keys(dataset.compositionData).length === 0) warnings.push('No composition profiles found. Nutrition/composition cards will be empty for this batch.');
+
+  return { errors, warnings };
+}
+
 function applyImportedDataset(
   dataset: StoredImportedData,
   setETongueData: (data: ETongueMeasurement[]) => void,
@@ -416,6 +443,9 @@ export function Stage1Instrumental() {
   const { user } = useAuth();
   const instrumentalDatasetQuery = useInstrumentalDataset(user?.role === 'admin');
   const insertInstrumentalImport = useInsertInstrumentalImport();
+  const insertProductMutation = useInsertProduct();
+  const { data: products = [] } = useProducts();
+  const { data: importBatches = [] } = useImportBatches(user?.role === 'admin');
   const [selectedSamples, setSelectedSamples] = useState<string[]>(["S3"]);
   const [eTongueData, setETongueData] = useState<ETongueMeasurement[]>(storedImportedData?.eTongueData ?? MOCK_ETONGUE_DATA);
   const [gcmsData, setGcmsData] = useState<Record<string, GCMSCompound[]>>(storedImportedData?.gcmsData ?? MOCK_GCMS_DATA);
@@ -445,6 +475,11 @@ export function Stage1Instrumental() {
       compositionCount: Object.keys(parsed.compositionData).length,
     };
   }, [previewData, showPreview, uploadedFile]);
+
+  const validationReport = useMemo(() => {
+    if (!showPreview || !importSummary) return null;
+    return validateImportedDataset(previewData, importSummary, columnReport);
+  }, [columnReport, importSummary, previewData, showPreview]);
 
   useEffect(() => {
     const dataset = instrumentalDatasetQuery.data;
@@ -524,6 +559,22 @@ export function Stage1Instrumental() {
     if (file) handleFile(file);
   };
 
+  const downloadCSVTemplate = () => {
+    const rows = [
+      ['sampleId', 'sampleName', 'foodType', 'category', 'sourness', 'bitterness', 'saltiness', 'umami', 'sweetness', 'compound', 'concentration', 'aroma', 'threshold', 'protein', 'fat', 'moisture', 'pH', 'saltContent', 'calciumMg'],
+      ['M1', 'Plant-Based Burger v1', 'meat', 'Burger', '1.2', '1.8', '2.6', '4.2', '0.8', 'Hexanal', '2.1', 'green/fatty', '5', '18.4', '12.2', '54.1', '6.1', '1.2', '42'],
+      ['M2', 'Plant-Based Burger v2', 'meat', 'Burger', '1.0', '1.4', '2.4', '4.8', '0.7', '2-methyl-3-furanthiol', '0.6', 'meaty', '0', '19.1', '11.8', '53.6', '6.0', '1.3', '44'],
+    ];
+    const csv = rows.map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'sensory-machine-import-template.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleFile = (file: File) => {
     setImportError(null);
     setImportSuccess(null);
@@ -588,6 +639,10 @@ export function Stage1Instrumental() {
       setImportError(
         "No data could be parsed. Column names may not match the template — download it to check."
       );
+      return;
+    }
+    if (validationReport?.errors.length) {
+      setImportError(validationReport.errors[0]);
       return;
     }
 
@@ -721,6 +776,36 @@ export function Stage1Instrumental() {
   const comparisonColors        = ["#9333ea", "#ec4899"];
   const activeFoodTypeLabel     = foodType === 'all' ? 'all sample types' : formatFoodTypeLabel(foodType);
 
+  const createProductsFromDisplayedSamples = async () => {
+    const normaliseName = (value: string) => value.trim().toLowerCase();
+    const candidates = displayedSamples.filter(sample => {
+      const generatedName = sample.name === sample.id ? sample.id : `${sample.name} (${sample.id})`;
+      return !products.some(product =>
+        normaliseName(product.name) === normaliseName(sample.name) ||
+        normaliseName(product.name) === normaliseName(generatedName)
+      );
+    });
+
+    if (candidates.length === 0) {
+      setImportSuccess('Products already exist for the visible machine samples.');
+      return;
+    }
+
+    try {
+      for (const sample of candidates) {
+        await insertProductMutation.mutateAsync({
+          name: sample.name === sample.id ? sample.id : `${sample.name} (${sample.id})`,
+          category: sample.type === 'dairy' || sample.type === 'pbca' ? 'Cheese' : formatFoodTypeLabel(sample.type),
+          status: 'active',
+          customAttributes: getDefaultCataAttributes(sample.type),
+        });
+      }
+      setImportSuccess(`Created ${candidates.length} product${candidates.length === 1 ? '' : 's'} from visible machine samples.`);
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Failed to create products from imported samples.');
+    }
+  };
+
   const radarData = selectedSampleData
     ? [
         { id: "sourness",   taste: "Sourness",   value: selectedSampleData.sourness,   fullMark: 5 },
@@ -780,6 +865,10 @@ export function Stage1Instrumental() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={downloadCSVTemplate} className="flex items-center gap-2">
+            <Download className="size-4" />
+            CSV template
+          </Button>
           <input
             ref={fileInputRef}
             type="file"
@@ -927,6 +1016,23 @@ export function Stage1Instrumental() {
               </div>
             )}
 
+            {validationReport && (validationReport.errors.length > 0 || validationReport.warnings.length > 0) && (
+              <div className="space-y-2">
+                {validationReport.errors.map(error => (
+                  <div key={error} className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+                    <AlertCircle className="size-4 shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                ))}
+                {validationReport.warnings.map(warning => (
+                  <div key={warning} className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                    <AlertCircle className="size-4 shrink-0" />
+                    <span>{warning}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Data table */}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -969,7 +1075,7 @@ export function Stage1Instrumental() {
             <div className="flex gap-3">
               <Button
                 onClick={importCSVData}
-                disabled={insertInstrumentalImport.isPending}
+                disabled={insertInstrumentalImport.isPending || !!validationReport?.errors.length}
                 className="bg-slate-900 hover:bg-slate-700 disabled:opacity-60"
               >
                 {insertInstrumentalImport.isPending ? "Importing…" : "Confirm import"}
@@ -980,6 +1086,84 @@ export function Stage1Instrumental() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {!showPreview && (
+        <div className="grid grid-cols-3 gap-4">
+          <Card className="border border-slate-200 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <FlaskConical className="size-4 text-slate-600" />
+                {foodType === 'all' ? 'Active Machine Data' : `${formatFoodTypeLabel(foodType)} Machine Data`}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                  <div className="text-lg font-bold text-slate-900">{displayedSamples.length}</div>
+                  <div className="text-slate-500">samples</div>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                  <div className="text-lg font-bold text-slate-900">{Object.keys(gcmsData).filter(id => displayedSamples.some(sample => sample.id === id)).length}</div>
+                  <div className="text-slate-500">GC-MS</div>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                  <div className="text-lg font-bold text-slate-900">{Object.keys(compositionData).filter(id => displayedSamples.some(sample => sample.id === id)).length}</div>
+                  <div className="text-slate-500">comp</div>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={createProductsFromDisplayedSamples}
+                disabled={displayedSamples.length === 0 || insertProductMutation.isPending}
+                className="w-full justify-center gap-2"
+              >
+                <PackagePlus className="size-4" />
+                {insertProductMutation.isPending ? 'Creating products...' : 'Create products from samples'}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="col-span-2 border border-slate-200 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <History className="size-4 text-slate-600" />
+                Recent Import History
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {importBatches.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+                  Imported CSV batches will appear here after they save to Supabase.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-left text-slate-500">
+                        <th className="py-2 pr-3 font-semibold">Batch</th>
+                        <th className="py-2 pr-3 font-semibold">Type</th>
+                        <th className="py-2 pr-3 font-semibold">Samples</th>
+                        <th className="py-2 pr-3 font-semibold">Imported</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importBatches.slice(0, 5).map(batch => (
+                        <tr key={batch.id} className="border-b border-slate-100 last:border-0">
+                          <td className="py-2 pr-3 font-medium text-slate-800 max-w-[260px] truncate">{batch.fileName}</td>
+                          <td className="py-2 pr-3 text-slate-600">{batch.foodTypeLabel}</td>
+                          <td className="py-2 pr-3 text-slate-600">{batch.sampleCount || batch.rowCount}</td>
+                          <td className="py-2 pr-3 text-slate-500">{new Date(batch.createdAt).toLocaleDateString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Main grid — no drag handlers; drop zone above handles it */}
