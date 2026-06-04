@@ -13,6 +13,7 @@ import {
   useProducts, useTemplates, usePanelists,
   useInsertProduct, useUpdateProduct, useDeleteProduct, useInsertTemplate, useDeleteTemplate,
   useUpdatePanelistId, useAllResponses, useImportBatches,
+  useInstrumentalDataset,
 } from '../lib/hooks';
 import {
   Plus, Settings, Trash2, Save, CheckCircle2, FolderOpen, Layers,
@@ -22,6 +23,7 @@ import {
 import { Alert, AlertDescription } from './ui/alert';
 import { useAuth } from '../contexts/auth-context';
 import { PanelistPerformancePanel } from './panelist-performance';
+import { formatFoodTypeLabel } from '../lib/food-intelligence';
 
 type AdminTab = 'products' | 'panelists' | 'templates' | 'imports';
 
@@ -35,6 +37,7 @@ export function AdminConfig() {
   const { data: templates = [] } = useTemplates();
   const { data: allResponses = [] } = useAllResponses();
   const { data: importBatches = [] } = useImportBatches(activeTab === 'imports');
+  const { data: instrumentalDataset } = useInstrumentalDataset(activeTab === 'products');
 
   const insertProductMutation = useInsertProduct();
   const updateProductMutation = useUpdateProduct();
@@ -99,6 +102,22 @@ export function AdminConfig() {
   const activeCount = products.filter(p => p.status === 'active').length;
   const completedCount = products.filter(p => p.status === 'completed').length;
   const totalSessions = allResponses.length;
+  const importedSamples = (instrumentalDataset?.eTongueData ?? []).filter(sample => {
+    if (foodType === 'all') return true;
+    return sample.type === foodType;
+  });
+  const importedSampleIds = new Set(importedSamples.map(sample => sample.sampleId));
+  const importedGcmsCount = Object.keys(instrumentalDataset?.gcmsData ?? {}).filter(id => importedSampleIds.has(id)).length;
+  const importedCompositionCount = Object.keys(instrumentalDataset?.compositionData ?? {}).filter(id => importedSampleIds.has(id)).length;
+  const normaliseProductName = (value: string) => value.trim().toLowerCase();
+  const importedSamplesWithoutQuestionnaires = importedSamples.filter(sample => {
+    const name = sample.sampleName || sample.sampleId;
+    const generatedName = name === sample.sampleId ? sample.sampleId : `${name} (${sample.sampleId})`;
+    return !products.some(product =>
+      normaliseProductName(product.name) === normaliseProductName(name) ||
+      normaliseProductName(product.name) === normaliseProductName(generatedName)
+    );
+  });
 
   const archivedCount = products.filter(p => p.status === 'archived').length;
   const filteredProducts = products
@@ -336,6 +355,38 @@ export function AdminConfig() {
     }
   };
 
+  const handleCreateQuestionnairesFromImports = async () => {
+    if (importedSamplesWithoutQuestionnaires.length === 0) {
+      setMutationError('');
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+      return;
+    }
+
+    setMutationError('');
+    try {
+      let firstCreatedId: string | null = null;
+      for (const sample of importedSamplesWithoutQuestionnaires) {
+        const name = sample.sampleName || sample.sampleId;
+        const category = sample.type === 'dairy' || sample.type === 'pbca'
+          ? 'Cheese'
+          : formatFoodTypeLabel(sample.type || sample.category || 'generic');
+        const created = await insertProductMutation.mutateAsync({
+          name: name === sample.sampleId ? sample.sampleId : `${name} (${sample.sampleId})`,
+          category,
+          status: 'active',
+          customAttributes: getDefaultCataAttributes(sample.type || category),
+        });
+        firstCreatedId = firstCreatedId ?? created.id;
+      }
+      if (firstCreatedId) setSelectedProduct(firstCreatedId);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : 'Failed to create questionnaires from imported samples.');
+    }
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
   const tabs: { id: AdminTab; label: string; icon: React.ElementType }[] = [
@@ -413,8 +464,45 @@ export function AdminConfig() {
         <span className="text-sm text-slate-500">{completedCount} completed</span>
       </div>
 
+      {importedSamples.length > 0 && (
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-blue-200 bg-blue-50 px-5 py-3">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-blue-600">
+              <ClipboardList className="size-5 text-white" />
+            </div>
+            <div className="min-w-0">
+              <div className="font-semibold text-slate-900">
+                Imported samples ready for questionnaires
+              </div>
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
+                <span>{importedSamples.length} sample{importedSamples.length === 1 ? '' : 's'}</span>
+                <span>{importedGcmsCount} GC-MS</span>
+                <span>{importedCompositionCount} comp</span>
+                <span>{importedSamplesWithoutQuestionnaires.length} not created yet</span>
+              </div>
+            </div>
+          </div>
+          <Button
+            onClick={handleCreateQuestionnairesFromImports}
+            disabled={insertProductMutation.isPending || importedSamplesWithoutQuestionnaires.length === 0}
+            className="shrink-0 bg-blue-600 hover:bg-blue-700"
+          >
+            <Plus className="size-4 mr-1.5" />
+            {importedSamplesWithoutQuestionnaires.length === 0
+              ? 'Questionnaires created'
+              : `Create ${importedSamplesWithoutQuestionnaires.length} questionnaire${importedSamplesWithoutQuestionnaires.length === 1 ? '' : 's'}`}
+          </Button>
+        </div>
+      )}
+
       {/* Products + Attribute Config — full-height split pane */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden" style={{ height: 'calc(100vh - 280px)', minHeight: '560px' }}>
+      <div
+        className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden"
+        style={{
+          height: importedSamples.length > 0 ? 'calc(100vh - 350px)' : 'calc(100vh - 280px)',
+          minHeight: importedSamples.length > 0 ? '520px' : '560px',
+        }}
+      >
         {/* Toolbar */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50/60">
           <div className="flex items-center gap-3 flex-wrap">

@@ -3,12 +3,11 @@ import { matchFoodType, useFoodType } from "../contexts/food-type-context";
 import { useAuth } from "../contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
-import { FlaskConical, AlertCircle, Upload, X, Check, Download, PackagePlus, History } from "lucide-react";
+import { FlaskConical, AlertCircle, Upload, X, Check, Download } from "lucide-react";
 import { SAMPLES } from "../data/samples";
 import { detectFoodType, formatFoodTypeLabel, slugifyFoodType } from "../lib/food-intelligence";
-import { useImportBatches, useInsertInstrumentalImport, useInsertProduct, useInstrumentalDataset, useProducts } from "../lib/hooks";
+import { useInsertInstrumentalImport, useInstrumentalDataset } from "../lib/hooks";
 import { isMissingFoodImportSchema } from "../lib/database";
-import { getDefaultCataAttributes } from "../data/mock-users";
 import {
   ScatterChart,
   Scatter,
@@ -443,9 +442,6 @@ export function Stage1Instrumental() {
   const { user } = useAuth();
   const instrumentalDatasetQuery = useInstrumentalDataset(user?.role === 'admin');
   const insertInstrumentalImport = useInsertInstrumentalImport();
-  const insertProductMutation = useInsertProduct();
-  const { data: products = [] } = useProducts();
-  const { data: importBatches = [] } = useImportBatches(user?.role === 'admin');
   const [selectedSamples, setSelectedSamples] = useState<string[]>(["S3"]);
   const [eTongueData, setETongueData] = useState<ETongueMeasurement[]>(storedImportedData?.eTongueData ?? MOCK_ETONGUE_DATA);
   const [gcmsData, setGcmsData] = useState<Record<string, GCMSCompound[]>>(storedImportedData?.gcmsData ?? MOCK_GCMS_DATA);
@@ -776,36 +772,6 @@ export function Stage1Instrumental() {
   const comparisonColors        = ["#9333ea", "#ec4899"];
   const activeFoodTypeLabel     = foodType === 'all' ? 'all sample types' : formatFoodTypeLabel(foodType);
 
-  const createProductsFromDisplayedSamples = async () => {
-    const normaliseName = (value: string) => value.trim().toLowerCase();
-    const candidates = displayedSamples.filter(sample => {
-      const generatedName = sample.name === sample.id ? sample.id : `${sample.name} (${sample.id})`;
-      return !products.some(product =>
-        normaliseName(product.name) === normaliseName(sample.name) ||
-        normaliseName(product.name) === normaliseName(generatedName)
-      );
-    });
-
-    if (candidates.length === 0) {
-      setImportSuccess('Questionnaires already exist for the visible machine samples.');
-      return;
-    }
-
-    try {
-      for (const sample of candidates) {
-        await insertProductMutation.mutateAsync({
-          name: sample.name === sample.id ? sample.id : `${sample.name} (${sample.id})`,
-          category: sample.type === 'dairy' || sample.type === 'pbca' ? 'Cheese' : formatFoodTypeLabel(sample.type),
-          status: 'active',
-          customAttributes: getDefaultCataAttributes(sample.type),
-        });
-      }
-      setImportSuccess(`Created ${candidates.length} questionnaire${candidates.length === 1 ? '' : 's'} from visible machine samples.`);
-    } catch (err) {
-      setImportError(err instanceof Error ? err.message : 'Failed to create questionnaires from imported samples.');
-    }
-  };
-
   const radarData = selectedSampleData
     ? [
         { id: "sourness",   taste: "Sourness",   value: selectedSampleData.sourness,   fullMark: 5 },
@@ -1086,87 +1052,6 @@ export function Stage1Instrumental() {
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {!showPreview && (
-        <div className="grid grid-cols-3 gap-4">
-          <Card className="border border-slate-200 shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <FlaskConical className="size-4 text-slate-600" />
-                {foodType === 'all' ? 'Active Machine Data' : `${formatFoodTypeLabel(foodType)} Machine Data`}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
-                  <div className="text-lg font-bold text-slate-900">{displayedSamples.length}</div>
-                  <div className="text-slate-500">samples</div>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
-                  <div className="text-lg font-bold text-slate-900">{Object.keys(gcmsData).filter(id => displayedSamples.some(sample => sample.id === id)).length}</div>
-                  <div className="text-slate-500">GC-MS</div>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
-                  <div className="text-lg font-bold text-slate-900">{Object.keys(compositionData).filter(id => displayedSamples.some(sample => sample.id === id)).length}</div>
-                  <div className="text-slate-500">comp</div>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={createProductsFromDisplayedSamples}
-                disabled={displayedSamples.length === 0 || insertProductMutation.isPending}
-                className="w-full justify-center gap-2"
-              >
-                <PackagePlus className="size-4" />
-                {insertProductMutation.isPending ? 'Creating questionnaires...' : 'Create questionnaires from samples'}
-              </Button>
-              <p className="text-xs text-slate-500">
-                Uses the imported sample names, food type, and smart CATA attributes to create panelist-ready questionnaires.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="col-span-2 border border-slate-200 shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <History className="size-4 text-slate-600" />
-                Recent Import History
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {importBatches.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-500">
-                  Imported CSV batches will appear here after they save to Supabase.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-200 text-left text-slate-500">
-                        <th className="py-2 pr-3 font-semibold">Batch</th>
-                        <th className="py-2 pr-3 font-semibold">Type</th>
-                        <th className="py-2 pr-3 font-semibold">Samples</th>
-                        <th className="py-2 pr-3 font-semibold">Imported</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {importBatches.slice(0, 5).map(batch => (
-                        <tr key={batch.id} className="border-b border-slate-100 last:border-0">
-                          <td className="py-2 pr-3 font-medium text-slate-800 max-w-[260px] truncate">{batch.fileName}</td>
-                          <td className="py-2 pr-3 text-slate-600">{batch.foodTypeLabel}</td>
-                          <td className="py-2 pr-3 text-slate-600">{batch.sampleCount || batch.rowCount}</td>
-                          <td className="py-2 pr-3 text-slate-500">{new Date(batch.createdAt).toLocaleDateString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
       )}
 
       {/* Main grid — no drag handlers; drop zone above handles it */}
