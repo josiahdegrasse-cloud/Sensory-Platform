@@ -1,8 +1,8 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { matchFoodType, useFoodType } from "../contexts/food-type-context";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
-import { FlaskConical, AlertCircle, Upload, X, Check, RotateCcw } from "lucide-react";
+import { FlaskConical, AlertCircle, Upload, X, Check, RotateCcw, Archive, Trash2, Undo2 } from "lucide-react";
 import { SAMPLES } from "../data/samples";
 import {
   ScatterChart,
@@ -228,8 +228,18 @@ const KNOWN_TYPES: Record<string, string> = {
   yoghurt: "yogurt",
 };
 
+const DEMO_TYPES = new Set(['bread', 'dairy', 'pbca']);
+
 function formatFoodType(value: string) {
   return value.trim().toLowerCase().replace(/[_\s-]+/g, "-");
+}
+
+function formatFoodTypeLabel(value: string) {
+  return value
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 function normalizeTypeLabel(value?: string, allowUnknown = false) {
@@ -312,23 +322,33 @@ export function Stage1Instrumental() {
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [columnReport, setColumnReport] = useState<ColumnReport | null>(null);
   const [usingDemoData, setUsingDemoData] = useState(true);
+  const [archivedFoodTypes, setArchivedFoodTypes] = useState<string[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { foodType, registerFoodTypes, clearExtraFoodTypes } = useFoodType();
+  const { foodType, setSelection, registerFoodTypes, removeFoodTypes, clearExtraFoodTypes } = useFoodType();
+
+  const importedFoodTypes = useMemo(() => [...new Set(
+    eTongueData.map(s => s.type).filter((t): t is string => !!t && !DEMO_TYPES.has(t))
+  )].sort(), [eTongueData]);
+
+  const activeImportedFoodTypes = useMemo(
+    () => importedFoodTypes.filter(t => !archivedFoodTypes.includes(t)),
+    [archivedFoodTypes, importedFoodTypes]
+  );
 
   // Reactively register any novel food types whenever imported data changes
   useEffect(() => {
-    if (usingDemoData) return;
-    const BUILTIN = new Set(['bread', 'dairy', 'pbca']);
-    const types = [...new Set(
-      eTongueData.map(s => s.type).filter((t): t is string => !!t && !BUILTIN.has(t))
-    )];
-    if (types.length > 0) registerFoodTypes(types);
-  }, [eTongueData, usingDemoData]);
+    if (usingDemoData) {
+      clearExtraFoodTypes();
+      return;
+    }
+    registerFoodTypes(activeImportedFoodTypes);
+  }, [activeImportedFoodTypes, clearExtraFoodTypes, registerFoodTypes, usingDemoData]);
 
   const filteredETongueData = eTongueData.filter(s => {
-    if (foodType === 'all') return true;
     const t = (s.type || inferType(s.sampleId)).toLowerCase();
+    if (archivedFoodTypes.includes(t)) return false;
+    if (foodType === 'all') return true;
     if (foodType === 'bread')  return t === 'bread'  || s.sampleId.toUpperCase().startsWith('B');
     if (foodType === 'cheese') return t === 'dairy'  || t === 'pbca' || s.sampleId.toUpperCase().startsWith('S') || s.sampleId.toUpperCase().startsWith('D');
     if (foodType === 'meat') return t === 'meat' || s.sampleId.toUpperCase().startsWith('M');
@@ -340,7 +360,7 @@ export function Stage1Instrumental() {
     if (filteredETongueData.length > 0 && !filteredETongueData.find(s => s.sampleId === selectedSamples[0])) {
       setSelectedSamples([filteredETongueData[0].sampleId]);
     }
-  }, [foodType]);
+  }, [filteredETongueData, selectedSamples]);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -506,6 +526,9 @@ export function Stage1Instrumental() {
     if (importedETongue.length > 0) {
       setETongueData(importedETongue);
       setSelectedSamples([importedETongue[0].sampleId]);
+      setArchivedFoodTypes([]);
+      const importedType = importedETongue[0].type;
+      if (importedType && !DEMO_TYPES.has(importedType)) setSelection(importedType, null);
     }
     if (importedGCMSCount > 0) setGcmsData(gcmsMap);
     if (importedCompCount  > 0) setCompositionData(compositionMap);
@@ -547,9 +570,42 @@ export function Stage1Instrumental() {
     setImportError(null);
     setUploadedFile(null);
     clearExtraFoodTypes();
+    setSelection('all', null);
+    setArchivedFoodTypes([]);
     setShowPreview(false);
     setColumnReport(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const archiveFoodType = (type: string) => {
+    setArchivedFoodTypes(prev => prev.includes(type) ? prev : [...prev, type]);
+    removeFoodTypes([type]);
+    if (foodType === type) setSelection('all', null);
+  };
+
+  const restoreFoodType = (type: string) => {
+    setArchivedFoodTypes(prev => prev.filter(t => t !== type));
+    registerFoodTypes(activeImportedFoodTypes.includes(type) ? activeImportedFoodTypes : [...activeImportedFoodTypes, type]);
+    setSelection(type, null);
+  };
+
+  const deleteFoodType = (type: string) => {
+    const sampleIds = eTongueData.filter(sample => sample.type === type).map(sample => sample.sampleId);
+    setETongueData(prev => prev.filter(sample => sample.type !== type));
+    setGcmsData(prev => {
+      const next = { ...prev };
+      sampleIds.forEach(sampleId => { delete next[sampleId]; });
+      return next;
+    });
+    setCompositionData(prev => {
+      const next = { ...prev };
+      sampleIds.forEach(sampleId => { delete next[sampleId]; });
+      return next;
+    });
+    setArchivedFoodTypes(prev => prev.filter(t => t !== type));
+    removeFoodTypes([type]);
+    setImportSuccess(`Deleted ${formatFoodTypeLabel(type)} data from the active session.`);
+    if (foodType === type) setSelection('all', null);
   };
 
   // ── derived display data ──────────────────────────────────────────────────
@@ -713,6 +769,57 @@ export function Stage1Instrumental() {
             <X className="size-4" />
           </button>
         </div>
+      )}
+
+      {!usingDemoData && importedFoodTypes.length > 0 && (
+        <Card className="border border-slate-200 shadow-sm">
+          <CardHeader className="py-3 border-b border-slate-100">
+            <CardTitle className="text-sm font-semibold text-slate-900">Imported Food Types</CardTitle>
+          </CardHeader>
+          <CardContent className="py-3">
+            <div className="flex flex-wrap gap-2">
+              {importedFoodTypes.map(type => {
+                const archived = archivedFoodTypes.includes(type);
+                return (
+                  <div
+                    key={type}
+                    className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 ${
+                      archived ? "border-slate-200 bg-slate-50" : "border-slate-300 bg-white"
+                    }`}
+                  >
+                    <span className={`text-sm font-semibold ${archived ? "text-slate-400" : "text-slate-800"}`}>
+                      {formatFoodTypeLabel(type)}
+                    </span>
+                    {archived ? (
+                      <Button variant="outline" size="sm" onClick={() => restoreFoodType(type)} className="h-7 gap-1.5 px-2 text-xs">
+                        <Undo2 className="size-3.5" />
+                        Restore
+                      </Button>
+                    ) : (
+                      <Button variant="outline" size="sm" onClick={() => archiveFoodType(type)} className="h-7 gap-1.5 px-2 text-xs">
+                        <Archive className="size-3.5" />
+                        Archive
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (window.confirm(`Delete ${formatFoodTypeLabel(type)} data from this import session?`)) {
+                          deleteFoodType(type);
+                        }
+                      }}
+                      className="h-7 gap-1.5 px-2 text-xs text-rose-700 hover:text-rose-800"
+                    >
+                      <Trash2 className="size-3.5" />
+                      Delete
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Preview card */}

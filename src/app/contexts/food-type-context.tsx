@@ -13,6 +13,7 @@ interface FoodTypeContextValue {
   setSelection: (foodType: FoodType, subCategory?: string | null) => void;
   extraFoodTypes: string[];
   registerFoodTypes: (types: string[]) => void;
+  removeFoodTypes: (types: string[]) => void;
   clearExtraFoodTypes: () => void;
 }
 
@@ -22,6 +23,7 @@ const FoodTypeContext = createContext<FoodTypeContextValue>({
   setSelection: () => {},
   extraFoodTypes: [],
   registerFoodTypes: () => {},
+  removeFoodTypes: () => {},
   clearExtraFoodTypes: () => {},
 });
 
@@ -36,11 +38,11 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
   };
 
   const registerFoodTypes = useCallback((types: string[]) => {
-    setExtraFoodTypes(prev => {
-      const existing = new Set(prev);
-      const added = types.filter(t => !existing.has(t));
-      return added.length > 0 ? [...prev, ...added] : prev;
-    });
+    setExtraFoodTypes([...new Set(types)].sort());
+  }, []);
+
+  const removeFoodTypes = useCallback((types: string[]) => {
+    setExtraFoodTypes(prev => prev.filter(t => !types.includes(t)));
   }, []);
 
   const clearExtraFoodTypes = useCallback(() => {
@@ -48,7 +50,7 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <FoodTypeContext.Provider value={{ foodType, subCategory, setSelection, extraFoodTypes, registerFoodTypes, clearExtraFoodTypes }}>
+    <FoodTypeContext.Provider value={{ foodType, subCategory, setSelection, extraFoodTypes, registerFoodTypes, removeFoodTypes, clearExtraFoodTypes }}>
       {children}
     </FoodTypeContext.Provider>
   );
