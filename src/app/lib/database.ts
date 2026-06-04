@@ -12,7 +12,7 @@ function toProduct(row: Record<string, unknown>): Product {
     name: row.name as string,
     category: row.category as string,
     createdDate: row.created_at as string,
-    status: row.status as 'active' | 'completed',
+    status: row.status as Product['status'],
     customAttributes: (row.custom_attributes as string[]) ?? undefined,
     isMultiSample: (row.is_multi_sample as boolean) ?? false,
     samples: (row.samples as Product['samples']) ?? undefined,
