@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useFoodType } from "../contexts/food-type-context";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
-import { FlaskConical, AlertCircle, Upload, X, Check, Download, RotateCcw } from "lucide-react";
+import { FlaskConical, AlertCircle, Upload, X, Check, RotateCcw } from "lucide-react";
 import { SAMPLES } from "../data/samples";
 import {
   ScatterChart,
@@ -462,18 +462,6 @@ export function Stage1Instrumental() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const downloadTemplate = () => {
-    const headers = "sampleId,type,category,sourness,bitterness,saltiness,umami,sweetness,protein,fat,moisture,pH,saltContent,calciumMg,compound,concentration,aroma,threshold";
-    const example = "S1,pbca,Coconut-based,2.3,3.1,4.2,2.8,1.5,18.2,22.5,42.1,5.8,1.8,485,,,, ";
-    const blob = new Blob([[headers, example].join("\n")], { type: "text/csv" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href     = url;
-    a.download = "nfi_import_template.csv";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   // ── derived display data ──────────────────────────────────────────────────
 
   const displayedSamples = filteredETongueData.map((sample, idx) => {
@@ -567,16 +555,6 @@ export function Stage1Instrumental() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={downloadTemplate} className="flex items-center gap-2 text-slate-600">
-            <Download className="size-4" />
-            Download template
-          </Button>
-          <a href="/sample_import.csv" download>
-            <Button variant="outline" size="sm" className="flex items-center gap-2 text-slate-600">
-              <Download className="size-4" />
-              Download sample data
-            </Button>
-          </a>
           {!usingDemoData && (
             <Button variant="outline" size="sm" onClick={resetToDemo} className="flex items-center gap-2 text-slate-600">
               <RotateCcw className="size-4" />
@@ -617,14 +595,11 @@ export function Stage1Instrumental() {
         >
           <Upload className="size-5 text-slate-400 shrink-0" />
           <p className="text-sm text-slate-500">
-            Drop a <span className="font-medium text-slate-700">.csv</span> file here, or use{" "}
+            Drop a <span className="font-medium text-slate-700">.csv</span> file here or use the{" "}
             <label htmlFor="csv-upload-header" className="font-medium text-slate-700 underline underline-offset-2 cursor-pointer">
               Import CSV
             </label>{" "}
-            above.{" "}
-            <button onClick={downloadTemplate} className="text-slate-500 underline underline-offset-2 hover:text-slate-800">
-              Download template
-            </button>
+            button above
           </p>
         </div>
       )}
