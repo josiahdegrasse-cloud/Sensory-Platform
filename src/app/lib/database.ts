@@ -84,6 +84,14 @@ function dbError(error: { message?: string; code?: string }): Error {
   return new Error(error.message || `Database error (code: ${error.code ?? 'unknown'})`);
 }
 
+export function isMissingFoodImportSchema(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    /food_types|instrumental_samples|import_batches|e_tongue_measurements|gcms_compounds|composition_profiles/i.test(message) &&
+    /schema cache|could not find|does not exist|PGRST205/i.test(message)
+  );
+}
+
 // ─── Food Intelligence / Instrumental Imports ───────────────────────────────
 
 export interface FoodTypeRecord {
@@ -161,6 +169,7 @@ export async function fetchFoodTypes(): Promise<FoodTypeRecord[]> {
     .select('*')
     .order('source', { ascending: false })
     .order('label', { ascending: true });
+  if (error && isMissingFoodImportSchema(dbError(error))) return [];
   if (error) throw dbError(error);
   return (data ?? []).map(toFoodType);
 }
@@ -255,6 +264,9 @@ export async function fetchInstrumentalDataset(): Promise<InstrumentalDataset> {
     .eq('import_batches.status', 'active')
     .order('created_at', { ascending: true });
 
+  if (error && isMissingFoodImportSchema(dbError(error))) {
+    return { eTongueData: [], gcmsData: {}, compositionData: {} };
+  }
   if (error) throw dbError(error);
 
   const eTongueData: ETongueMeasurementRecord[] = [];

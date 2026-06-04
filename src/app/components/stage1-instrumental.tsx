@@ -7,6 +7,7 @@ import { FlaskConical, AlertCircle, Upload, X, Check } from "lucide-react";
 import { SAMPLES } from "../data/samples";
 import { detectFoodType, formatFoodTypeLabel, slugifyFoodType } from "../lib/food-intelligence";
 import { useInsertInstrumentalImport, useInstrumentalDataset } from "../lib/hooks";
+import { isMissingFoodImportSchema } from "../lib/database";
 import {
   ScatterChart,
   Scatter,
@@ -395,6 +396,21 @@ function buildImportedDataset(previewData: Record<string, string>[], uploadedFil
   return { eTongueData, gcmsData: gcmsMap, compositionData: compositionMap, detection };
 }
 
+function applyImportedDataset(
+  dataset: StoredImportedData,
+  setETongueData: (data: ETongueMeasurement[]) => void,
+  setGcmsData: (data: Record<string, GCMSCompound[]>) => void,
+  setCompositionData: (data: Record<string, ChemicalComposition>) => void,
+  setSelectedSamples: (samples: string[]) => void,
+) {
+  if (dataset.eTongueData.length > 0) {
+    setETongueData(dataset.eTongueData);
+    setSelectedSamples([dataset.eTongueData[0].sampleId]);
+  }
+  setGcmsData(dataset.gcmsData);
+  setCompositionData(dataset.compositionData);
+}
+
 export function Stage1Instrumental() {
   const storedImportedData = useMemo(loadImportedData, []);
   const { user } = useAuth();
@@ -571,6 +587,8 @@ export function Stage1Instrumental() {
       return;
     }
 
+    let savedPermanently = true;
+
     try {
       const savedDataset = await insertInstrumentalImport.mutateAsync({
         fileName: uploadedFile ?? 'Imported CSV',
@@ -585,15 +603,15 @@ export function Stage1Instrumental() {
       });
 
       const nextDataset = savedDataset.eTongueData.length > 0 ? savedDataset : parsed;
-      if (nextDataset.eTongueData.length > 0) {
-        setETongueData(nextDataset.eTongueData);
-        setSelectedSamples([nextDataset.eTongueData[0].sampleId]);
-      }
-      setGcmsData(nextDataset.gcmsData);
-      setCompositionData(nextDataset.compositionData);
+      applyImportedDataset(nextDataset, setETongueData, setGcmsData, setCompositionData, setSelectedSamples);
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : "Import failed while saving to the database.");
-      return;
+      if (isMissingFoodImportSchema(err)) {
+        savedPermanently = false;
+        applyImportedDataset(parsed, setETongueData, setGcmsData, setCompositionData, setSelectedSamples);
+      } else {
+        setImportError(err instanceof Error ? err.message : "Import failed while saving to the database.");
+        return;
+      }
     }
 
     if (!DEMO_TYPES.has(parsed.detection.slug)) {
@@ -609,7 +627,11 @@ export function Stage1Instrumental() {
     if (importedCompCount > 0)
       parts.push(`${importedCompCount} composition profile${importedCompCount > 1 ? "s" : ""}`);
 
-    setImportSuccess(`Imported ${parts.join(", ")} into ${parsed.detection.label}.`);
+    setImportSuccess(
+      savedPermanently
+        ? `Imported ${parts.join(", ")} into ${parsed.detection.label}.`
+        : `${parsed.detection.label} imported locally. Apply the Supabase food intelligence migration to make it permanent for everyone.`
+    );
     setShowPreview(false);
     setUploadedFile(null);
     setColumnReport(null);
