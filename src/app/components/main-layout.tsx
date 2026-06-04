@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
-import { FlaskConical, BarChart3, GitMerge, ClipboardList, Settings, LogOut, Lightbulb, Tag } from "lucide-react";
+import { FlaskConical, BarChart3, GitMerge, ClipboardList, Settings, LogOut, Lightbulb, Tag, Archive, Trash2, Undo2 } from "lucide-react";
 import { useAuth } from "../contexts/auth-context";
 import { useEffect } from "react";
 import { useFoodType } from "../contexts/food-type-context";
@@ -23,10 +23,11 @@ function capitalize(s: string) {
 }
 
 function CategorySidebar() {
-  const { foodType, setSelection, extraFoodTypes } = useFoodType();
+  const { foodType, setSelection, extraFoodTypes, archivedFoodTypes, archiveFoodType, restoreFoodType, deleteFoodType } = useFoodType();
 
   const builtInTypes = ['cheese', 'bread'];
   const allTypes = [...builtInTypes, ...extraFoodTypes.filter(t => !builtInTypes.includes(t))];
+  const importedTypes = allTypes.filter(t => !builtInTypes.includes(t));
 
   const btnStyle = (active: boolean) => ({
     background: active ? '#f1f5f9' : 'transparent',
@@ -55,16 +56,86 @@ function CategorySidebar() {
           >
             All Types
           </button>
-          {allTypes.map(ft => (
-            <button
-              key={ft}
-              onClick={() => setSelection(ft, null)}
-              className="w-full text-left px-2.5 py-1.5 rounded-lg text-sm transition-colors"
-              style={btnStyle(foodType === ft)}
-            >
-              {label(ft)}
-            </button>
-          ))}
+          {allTypes.map(ft => {
+            const imported = !builtInTypes.includes(ft);
+            const active = foodType === ft;
+            return (
+              <div
+                key={ft}
+                className="group flex items-center rounded-lg transition-colors"
+                style={btnStyle(active)}
+              >
+                <button
+                  onClick={() => setSelection(ft, null)}
+                  className="min-w-0 flex-1 text-left px-2.5 py-1.5 text-sm"
+                >
+                  <span className="block truncate">{label(ft)}</span>
+                </button>
+                {imported && (
+                  <div className="flex items-center pr-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      title={`Archive ${label(ft)}`}
+                      onClick={() => archiveFoodType(ft)}
+                      className="p-1 text-slate-400 hover:text-slate-700 rounded"
+                    >
+                      <Archive className="size-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      title={`Delete ${label(ft)}`}
+                      onClick={() => {
+                        if (window.confirm(`Delete ${label(ft)} and its imported data?`)) deleteFoodType(ft);
+                      }}
+                      className="p-1 text-slate-400 hover:text-rose-700 rounded"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {archivedFoodTypes.length > 0 && (
+            <div className="mt-2 border-t border-slate-100 pt-2">
+              <div className="px-2.5 pb-1 text-[11px] font-semibold text-slate-400">Archived</div>
+              {archivedFoodTypes.map(ft => (
+                <div key={ft} className="group flex items-center rounded-lg text-slate-400 hover:bg-slate-50">
+                  <button
+                    onClick={() => restoreFoodType(ft)}
+                    className="min-w-0 flex-1 text-left px-2.5 py-1.5 text-sm"
+                  >
+                    <span className="block truncate">{label(ft)}</span>
+                  </button>
+                  <div className="flex items-center pr-1">
+                    <button
+                      type="button"
+                      title={`Restore ${label(ft)}`}
+                      onClick={() => restoreFoodType(ft)}
+                      className="p-1 text-slate-400 hover:text-slate-700 rounded"
+                    >
+                      <Undo2 className="size-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      title={`Delete ${label(ft)}`}
+                      onClick={() => {
+                        if (window.confirm(`Delete ${label(ft)} and its imported data?`)) deleteFoodType(ft);
+                      }}
+                      className="p-1 text-slate-400 hover:text-rose-700 rounded"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {importedTypes.length === 0 && archivedFoodTypes.length === 0 && (
+            <div className="px-2.5 py-2 text-xs text-slate-400">
+              Imported CSV types will appear here.
+            </div>
+          )}
         </div>
       </div>
     </aside>

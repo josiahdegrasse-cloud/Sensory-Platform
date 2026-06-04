@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { matchFoodType, useFoodType } from "../contexts/food-type-context";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
-import { FlaskConical, AlertCircle, Upload, X, Check, RotateCcw, Archive, Trash2, Undo2 } from "lucide-react";
+import { FlaskConical, AlertCircle, Upload, X, Check, RotateCcw } from "lucide-react";
 import { SAMPLES } from "../data/samples";
 import {
   ScatterChart,
@@ -229,6 +229,30 @@ const KNOWN_TYPES: Record<string, string> = {
 };
 
 const DEMO_TYPES = new Set(['bread', 'dairy', 'pbca']);
+const IMPORTED_DATA_STORAGE_KEY = 'sensory-dashboard-imported-machine-data';
+
+interface StoredImportedData {
+  eTongueData: ETongueMeasurement[];
+  gcmsData: Record<string, GCMSCompound[]>;
+  compositionData: Record<string, ChemicalComposition>;
+}
+
+function loadImportedData(): StoredImportedData | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(IMPORTED_DATA_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed?.eTongueData)) return null;
+    return {
+      eTongueData: parsed.eTongueData,
+      gcmsData: parsed.gcmsData ?? {},
+      compositionData: parsed.compositionData ?? {},
+    };
+  } catch {
+    return null;
+  }
+}
 
 function formatFoodType(value: string) {
   return value.trim().toLowerCase().replace(/[_\s-]+/g, "-");
@@ -309,10 +333,11 @@ function getPointColor(type?: string, category?: string) {
 }
 
 export function Stage1Instrumental() {
+  const storedImportedData = useMemo(loadImportedData, []);
   const [selectedSamples, setSelectedSamples] = useState<string[]>(["S3"]);
-  const [eTongueData, setETongueData] = useState<ETongueMeasurement[]>(MOCK_ETONGUE_DATA);
-  const [gcmsData, setGcmsData] = useState<Record<string, GCMSCompound[]>>(MOCK_GCMS_DATA);
-  const [compositionData, setCompositionData] = useState<Record<string, ChemicalComposition>>(MOCK_COMPOSITION_DATA);
+  const [eTongueData, setETongueData] = useState<ETongueMeasurement[]>(storedImportedData?.eTongueData ?? MOCK_ETONGUE_DATA);
+  const [gcmsData, setGcmsData] = useState<Record<string, GCMSCompound[]>>(storedImportedData?.gcmsData ?? MOCK_GCMS_DATA);
+  const [compositionData, setCompositionData] = useState<Record<string, ChemicalComposition>>(storedImportedData?.compositionData ?? MOCK_COMPOSITION_DATA);
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<Record<string, string>[]>([]);
   const [showPreview, setShowPreview] = useState(false);
@@ -321,20 +346,14 @@ export function Stage1Instrumental() {
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [columnReport, setColumnReport] = useState<ColumnReport | null>(null);
-  const [usingDemoData, setUsingDemoData] = useState(true);
-  const [archivedFoodTypes, setArchivedFoodTypes] = useState<string[]>([]);
+  const [usingDemoData, setUsingDemoData] = useState(!storedImportedData);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { foodType, setSelection, registerFoodTypes, removeFoodTypes, clearExtraFoodTypes } = useFoodType();
+  const { foodType, setSelection, registerFoodTypes, archivedFoodTypes, deleteFoodType, clearExtraFoodTypes } = useFoodType();
 
   const importedFoodTypes = useMemo(() => [...new Set(
     eTongueData.map(s => s.type).filter((t): t is string => !!t && !DEMO_TYPES.has(t))
   )].sort(), [eTongueData]);
-
-  const activeImportedFoodTypes = useMemo(
-    () => importedFoodTypes.filter(t => !archivedFoodTypes.includes(t)),
-    [archivedFoodTypes, importedFoodTypes]
-  );
 
   // Reactively register any novel food types whenever imported data changes
   useEffect(() => {
@@ -342,8 +361,24 @@ export function Stage1Instrumental() {
       clearExtraFoodTypes();
       return;
     }
-    registerFoodTypes(activeImportedFoodTypes);
-  }, [activeImportedFoodTypes, clearExtraFoodTypes, registerFoodTypes, usingDemoData]);
+    registerFoodTypes(importedFoodTypes);
+  }, [clearExtraFoodTypes, importedFoodTypes, registerFoodTypes, usingDemoData]);
+
+  useEffect(() => {
+    if (usingDemoData) return;
+    window.localStorage.setItem(IMPORTED_DATA_STORAGE_KEY, JSON.stringify({ eTongueData, gcmsData, compositionData }));
+  }, [compositionData, eTongueData, gcmsData, usingDemoData]);
+
+  useEffect(() => {
+    const handleDelete = (event: Event) => {
+      const type = (event as CustomEvent<{ type?: string }>).detail?.type;
+      if (!type) return;
+      deleteImportedFoodTypeData(type);
+    };
+
+    window.addEventListener('sensory-food-type-delete', handleDelete);
+    return () => window.removeEventListener('sensory-food-type-delete', handleDelete);
+  }, [eTongueData, foodType]);
 
   const filteredETongueData = eTongueData.filter(s => {
     const t = (s.type || inferType(s.sampleId)).toLowerCase();
@@ -526,7 +561,6 @@ export function Stage1Instrumental() {
     if (importedETongue.length > 0) {
       setETongueData(importedETongue);
       setSelectedSamples([importedETongue[0].sampleId]);
-      setArchivedFoodTypes([]);
       const importedType = importedETongue[0].type;
       if (importedType && !DEMO_TYPES.has(importedType)) setSelection(importedType, null);
     }
@@ -571,27 +605,26 @@ export function Stage1Instrumental() {
     setUploadedFile(null);
     clearExtraFoodTypes();
     setSelection('all', null);
-    setArchivedFoodTypes([]);
+    window.localStorage.removeItem(IMPORTED_DATA_STORAGE_KEY);
     setShowPreview(false);
     setColumnReport(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const archiveFoodType = (type: string) => {
-    setArchivedFoodTypes(prev => prev.includes(type) ? prev : [...prev, type]);
-    removeFoodTypes([type]);
-    if (foodType === type) setSelection('all', null);
-  };
-
-  const restoreFoodType = (type: string) => {
-    setArchivedFoodTypes(prev => prev.filter(t => t !== type));
-    registerFoodTypes(activeImportedFoodTypes.includes(type) ? activeImportedFoodTypes : [...activeImportedFoodTypes, type]);
-    setSelection(type, null);
-  };
-
-  const deleteFoodType = (type: string) => {
+  const deleteImportedFoodTypeData = (type: string) => {
     const sampleIds = eTongueData.filter(sample => sample.type === type).map(sample => sample.sampleId);
-    setETongueData(prev => prev.filter(sample => sample.type !== type));
+    const remainingETongueData = eTongueData.filter(sample => sample.type !== type);
+    if (remainingETongueData.length === 0) {
+      setETongueData(MOCK_ETONGUE_DATA);
+      setGcmsData(MOCK_GCMS_DATA);
+      setCompositionData(MOCK_COMPOSITION_DATA);
+      setSelectedSamples(["S3"]);
+      setUsingDemoData(true);
+      window.localStorage.removeItem(IMPORTED_DATA_STORAGE_KEY);
+      if (foodType === type) setSelection('all', null);
+      return;
+    }
+    setETongueData(remainingETongueData);
     setGcmsData(prev => {
       const next = { ...prev };
       sampleIds.forEach(sampleId => { delete next[sampleId]; });
@@ -602,9 +635,7 @@ export function Stage1Instrumental() {
       sampleIds.forEach(sampleId => { delete next[sampleId]; });
       return next;
     });
-    setArchivedFoodTypes(prev => prev.filter(t => t !== type));
-    removeFoodTypes([type]);
-    setImportSuccess(`Deleted ${formatFoodTypeLabel(type)} data from the active session.`);
+    setImportSuccess(`Deleted ${formatFoodTypeLabel(type)} data.`);
     if (foodType === type) setSelection('all', null);
   };
 
@@ -704,7 +735,7 @@ export function Stage1Instrumental() {
           {!usingDemoData && (
             <Button variant="outline" size="sm" onClick={resetToDemo} className="flex items-center gap-2 text-slate-600">
               <RotateCcw className="size-4" />
-              Reset to demo
+              Restore defaults
             </Button>
           )}
           <input
@@ -769,57 +800,6 @@ export function Stage1Instrumental() {
             <X className="size-4" />
           </button>
         </div>
-      )}
-
-      {!usingDemoData && importedFoodTypes.length > 0 && (
-        <Card className="border border-slate-200 shadow-sm">
-          <CardHeader className="py-3 border-b border-slate-100">
-            <CardTitle className="text-sm font-semibold text-slate-900">Imported Food Types</CardTitle>
-          </CardHeader>
-          <CardContent className="py-3">
-            <div className="flex flex-wrap gap-2">
-              {importedFoodTypes.map(type => {
-                const archived = archivedFoodTypes.includes(type);
-                return (
-                  <div
-                    key={type}
-                    className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 ${
-                      archived ? "border-slate-200 bg-slate-50" : "border-slate-300 bg-white"
-                    }`}
-                  >
-                    <span className={`text-sm font-semibold ${archived ? "text-slate-400" : "text-slate-800"}`}>
-                      {formatFoodTypeLabel(type)}
-                    </span>
-                    {archived ? (
-                      <Button variant="outline" size="sm" onClick={() => restoreFoodType(type)} className="h-7 gap-1.5 px-2 text-xs">
-                        <Undo2 className="size-3.5" />
-                        Restore
-                      </Button>
-                    ) : (
-                      <Button variant="outline" size="sm" onClick={() => archiveFoodType(type)} className="h-7 gap-1.5 px-2 text-xs">
-                        <Archive className="size-3.5" />
-                        Archive
-                      </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (window.confirm(`Delete ${formatFoodTypeLabel(type)} data from this import session?`)) {
-                          deleteFoodType(type);
-                        }
-                      }}
-                      className="h-7 gap-1.5 px-2 text-xs text-rose-700 hover:text-rose-800"
-                    >
-                      <Trash2 className="size-3.5" />
-                      Delete
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
       )}
 
       {/* Preview card */}
