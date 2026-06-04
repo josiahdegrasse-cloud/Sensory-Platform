@@ -25,7 +25,7 @@ function capitalize(s: string) {
 function CategorySidebar() {
   const { foodType, setSelection, extraFoodTypes } = useFoodType();
 
-  const builtInTypes = ['cheese', 'bread', 'meat'];
+  const builtInTypes = ['cheese', 'bread'];
   const allTypes = [...builtInTypes, ...extraFoodTypes.filter(t => !builtInTypes.includes(t))];
 
   const btnStyle = (active: boolean) => ({
@@ -35,7 +35,7 @@ function CategorySidebar() {
   });
 
   const label = (ft: string) =>
-    ft === 'cheese' ? 'Cheese' : ft === 'bread' ? 'Bread' : ft === 'meat' ? 'Meat' : capitalize(ft);
+    ft === 'cheese' ? 'Cheese' : ft === 'bread' ? 'Bread' : capitalize(ft);
 
   return (
     <aside
@@ -74,7 +74,7 @@ function CategorySidebar() {
 function FoodTypeBadge() {
   const { foodType, subCategory } = useFoodType();
   if (foodType === 'all') return null;
-  const typeLabel = foodType === 'cheese' ? 'Cheese' : foodType === 'bread' ? 'Bread' : foodType === 'meat' ? 'Meat' : capitalize(foodType);
+  const typeLabel = foodType === 'cheese' ? 'Cheese' : foodType === 'bread' ? 'Bread' : capitalize(foodType);
   const label = subCategory ?? typeLabel;
   return (
     <span className="px-2.5 py-1 rounded-full text-xs font-semibold border" style={{ background: '#f1f5f9', color: NFI_BLUE, borderColor: '#cbd5e1' }}>

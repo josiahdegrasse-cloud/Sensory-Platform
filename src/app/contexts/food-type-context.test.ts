@@ -8,6 +8,12 @@ describe('food type matching', () => {
     expect(sampleMatchesFoodType('M12', 'Soy Mince')).toBe('meat');
   });
 
+  it('classifies yogurt as its own expandable food type', () => {
+    expect(matchFoodType('Greek Yogurt')).toBe('yogurt');
+    expect(matchFoodType('Coconut yoghurt')).toBe('yogurt');
+    expect(sampleMatchesFoodType('Y3', 'Strawberry Skyr')).toBe('yogurt');
+  });
+
   it('keeps existing bread and cheese matching intact', () => {
     expect(matchFoodType('Sourdough loaf')).toBe('bread');
     expect(matchFoodType('Coconut-based cheese')).toBe('cheese');

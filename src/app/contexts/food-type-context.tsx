@@ -5,6 +5,7 @@ export type FoodType = string;
 const KNOWN_CHEESE_PATTERN = /cheese|dairy|milk|cream|butter|yogurt|pbca|plant.based|cheddar|mozzarella|brie|gouda|parmesan|blue|feta|camembert|ricotta|coconut.based|cashew|almond|oat.based/;
 const KNOWN_BREAD_PATTERN  = /bread|bak|loaf|pastry|dough|sourdough|multigrain|sandwich|rye|artisan|brioche|ciabatta|focaccia|bagel|pita|white.sandwich/;
 const KNOWN_MEAT_PATTERN = /meat|beef|pork|chicken|poultry|turkey|lamb|mutton|veal|duck|sausage|bacon|ham|steak|burger|patty|mince|jerky|fish|seafood|salmon|tuna|shrimp|protein/;
+const KNOWN_YOGURT_PATTERN = /yogurt|yoghurt|skyr|kefir/;
 
 interface FoodTypeContextValue {
   foodType: FoodType;
@@ -59,6 +60,7 @@ export function useFoodType() {
 
 export function matchFoodType(category: string): string {
   const c = category.toLowerCase();
+  if (KNOWN_YOGURT_PATTERN.test(c)) return 'yogurt';
   if (KNOWN_MEAT_PATTERN.test(c)) return 'meat';
   if (KNOWN_CHEESE_PATTERN.test(c)) return 'cheese';
   if (KNOWN_BREAD_PATTERN.test(c))  return 'bread';
@@ -67,6 +69,7 @@ export function matchFoodType(category: string): string {
 
 export function sampleMatchesFoodType(sampleId: string, sampleName: string): FoodType {
   if (sampleId.startsWith('B')) return 'bread';
+  if (sampleId.startsWith('Y')) return 'yogurt';
   if (sampleId.startsWith('M')) return 'meat';
   if (sampleId.startsWith('S') || sampleId.startsWith('D')) return 'cheese';
   return matchFoodType(sampleName);

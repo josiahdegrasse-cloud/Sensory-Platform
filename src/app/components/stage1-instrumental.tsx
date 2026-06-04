@@ -224,20 +224,27 @@ const KNOWN_TYPES: Record<string, string> = {
   patty: "meat",
   seafood: "meat",
   fish: "meat",
+  yogurt: "yogurt",
+  yoghurt: "yogurt",
 };
 
-function normalizeTypeLabel(value?: string) {
+function formatFoodType(value: string) {
+  return value.trim().toLowerCase().replace(/[_\s-]+/g, "-");
+}
+
+function normalizeTypeLabel(value?: string, allowUnknown = false) {
   const normalized = normalize(value).toLowerCase().replace(/[_-]/g, " ");
   if (!normalized) return "";
   if (KNOWN_TYPES[normalized]) return KNOWN_TYPES[normalized];
   const matchedFoodType = matchFoodType(normalized);
   if (matchedFoodType === "cheese") return "dairy";
-  if (matchedFoodType === "bread" || matchedFoodType === "meat") return matchedFoodType;
+  if (matchedFoodType !== normalized) return formatFoodType(matchedFoodType);
+  if (allowUnknown) return formatFoodType(normalized);
   return "";
 }
 
 function inferType(sampleId: string, csvType?: string, csvCategory?: string, sampleName?: string) {
-  const explicitType = normalizeTypeLabel(csvType);
+  const explicitType = normalizeTypeLabel(csvType, true);
   if (explicitType) return explicitType;
 
   const categoryType = normalizeTypeLabel(csvCategory);
@@ -312,7 +319,7 @@ export function Stage1Instrumental() {
   // Reactively register any novel food types whenever imported data changes
   useEffect(() => {
     if (usingDemoData) return;
-    const BUILTIN = new Set(['bread', 'dairy', 'pbca', 'meat']);
+    const BUILTIN = new Set(['bread', 'dairy', 'pbca']);
     const types = [...new Set(
       eTongueData.map(s => s.type).filter((t): t is string => !!t && !BUILTIN.has(t))
     )];
