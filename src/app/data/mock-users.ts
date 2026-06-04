@@ -1,4 +1,9 @@
-// Shared types and constants — no mock data
+// Shared types and constants
+import {
+  getDefaultCataAttributesForFoodType,
+  getDefaultIntensityAttributesForFoodType,
+  detectFoodType,
+} from '../lib/food-intelligence';
 
 export interface HedonicReferenceScores {
   overall: number;
@@ -46,50 +51,28 @@ export interface QuestionnaireResponse {
 }
 
 export const CATEGORY_CATA_ATTRIBUTES: Record<string, string[]> = {
-  dairy: [
-    'Milk', 'Creamy', 'Butter', 'Cheese', 'Tangy', 'Fresh', 'Mild', 'Sharp',
-    'Aged', 'Nutty', 'Sweet', 'Salty', 'Umami',
-    'Smooth', 'Firm', 'Spreadable', 'Crumbly',
-    'Rancid', 'Cardboard', 'Fermented', 'Bitter', 'Astringent', 'Soapy',
-    'Coconut', 'Beany', 'Chalky', 'Oily',
-  ],
-  bread: [
-    'Yeasty', 'Fresh-baked', 'Malty', 'Wheaty', 'Grainy', 'Honey', 'Nutty', 'Buttery', 'Sweet', 'Salty',
-    'Soft', 'Crusty', 'Chewy', 'Airy', 'Dense', 'Springy', 'Crumbly', 'Sticky',
-    'Stale', 'Gummy', 'Sour', 'Bitter', 'Bland', 'Doughy', 'Burnt', 'Musty',
-  ],
-  meat: [
-    'Beefy', 'Smoky', 'Savory', 'Juicy', 'Fatty', 'Salty', 'Umami', 'Spiced', 'Herby', 'Charred',
-    'Tender', 'Chewy', 'Firm', 'Juicy', 'Dry', 'Fibrous',
-    'Gamey', 'Rancid', 'Livery', 'Bland', 'Rubbery', 'Sour',
-  ],
-  beverage: [
-    'Sweet', 'Sour', 'Bitter', 'Tangy', 'Fresh', 'Fruity', 'Floral', 'Earthy', 'Woody', 'Spiced',
-    'Smooth', 'Astringent', 'Carbonated', 'Thin', 'Full-bodied',
-    'Off-note', 'Stale', 'Metallic', 'Musty', 'Soapy',
-  ],
-  generic: [
-    'Sweet', 'Salty', 'Sour', 'Bitter', 'Umami', 'Spicy', 'Fresh', 'Aromatic', 'Rich', 'Mild',
-    'Smooth', 'Soft', 'Firm', 'Crispy', 'Chewy', 'Moist', 'Dry',
-    'Bland', 'Off-note', 'Stale', 'Burnt', 'Bitter', 'Sour',
-  ],
+  dairy: getDefaultCataAttributesForFoodType('cheese'),
+  cheese: getDefaultCataAttributesForFoodType('cheese'),
+  bread: getDefaultCataAttributesForFoodType('bread'),
+  meat: getDefaultCataAttributesForFoodType('meat'),
+  yogurt: getDefaultCataAttributesForFoodType('yogurt'),
+  beverage: getDefaultCataAttributesForFoodType('beverage'),
+  generic: getDefaultCataAttributesForFoodType('generic'),
 };
 
 const CATEGORY_INTENSITY_ATTRIBUTES: Record<string, string[]> = {
-  dairy:    ['Milk', 'Creamy', 'Butter', 'Cheese', 'Tangy', 'Nutty', 'Salty', 'Sweet'],
-  bread:    ['Yeasty', 'Wheaty', 'Buttery', 'Sweet', 'Salty', 'Crusty', 'Malty', 'Soft'],
-  meat:     ['Savory', 'Smoky', 'Salty', 'Umami', 'Spiced', 'Juicy', 'Charred', 'Fatty'],
-  beverage: ['Sweet', 'Sour', 'Bitter', 'Fruity', 'Aromatic', 'Smooth', 'Tangy', 'Fresh'],
-  generic:  ['Sweet', 'Salty', 'Sour', 'Bitter', 'Aromatic', 'Rich', 'Smooth', 'Fresh'],
+  dairy: getDefaultIntensityAttributesForFoodType('cheese'),
+  cheese: getDefaultIntensityAttributesForFoodType('cheese'),
+  bread: getDefaultIntensityAttributesForFoodType('bread'),
+  meat: getDefaultIntensityAttributesForFoodType('meat'),
+  yogurt: getDefaultIntensityAttributesForFoodType('yogurt'),
+  beverage: getDefaultIntensityAttributesForFoodType('beverage'),
+  generic: getDefaultIntensityAttributesForFoodType('generic'),
 };
 
 function matchCategory(category: string): string {
-  const c = category.toLowerCase();
-  if (/cheese|dairy|milk|cream|butter|yogurt|pbca|plant.based/.test(c)) return 'dairy';
-  if (/bread|bak|loaf|pastry|dough|cake|cookie|biscuit|muffin|roll/.test(c)) return 'bread';
-  if (/meat|beef|pork|chicken|poultry|lamb|fish|seafood|protein/.test(c)) return 'meat';
-  if (/drink|beverage|juice|soda|wine|beer|coffee|tea|water/.test(c)) return 'beverage';
-  return 'generic';
+  const slug = detectFoodType(category).slug;
+  return slug === 'cheese' ? 'dairy' : slug;
 }
 
 export function getDefaultCataAttributes(category: string): string[] {

@@ -1,4 +1,5 @@
 // Definitions for sensory attributes to help panelists understand what each term means
+import { detectFoodType } from '../lib/food-intelligence';
 
 const DAIRY_DEFINITIONS: Record<string, string> = {
   // Positive dairy notes
@@ -64,6 +65,36 @@ const BREAD_DEFINITIONS: Record<string, string> = {
   'Musty': 'Mouldy, damp basement note — sign of spoilage or poor storage',
 };
 
+const MEAT_DEFINITIONS: Record<string, string> = {
+  'Beefy': 'Cooked beef-like savoury aroma and flavour',
+  'Smoky': 'Smoke, grilled, or cured character',
+  'Savory': 'Broad salty, cooked, non-sweet flavour depth',
+  'Juicy': 'Moist, succulent mouthfeel during chewing',
+  'Fatty': 'Rich fat flavour or mouth-coating perception',
+  'Spiced': 'Seasoning character from pepper, herbs, or warm spices',
+  'Herby': 'Green herb or botanical seasoning note',
+  'Charred': 'Grilled browned surface flavour without excessive burning',
+  'Tender': 'Easy to bite and chew',
+  'Fibrous': 'Stringy or muscle-fiber-like texture',
+  'Gamey': 'Strong animal-like flavour beyond clean cooked meat',
+  'Livery': 'Metallic organ-meat note',
+  'Rubbery': 'Elastic, bouncy texture that resists chewing',
+  'Sulfurous': 'Eggy, cabbage-like, or oniony sulfur note',
+};
+
+const YOGURT_DEFINITIONS: Record<string, string> = {
+  'Creamy': 'Smooth, rich dairy or cultured base mouthfeel',
+  'Tangy': 'Clean lactic acidity typical of cultured yogurt',
+  'Sour': 'Sharp acid taste, stronger than mild tang',
+  'Fresh': 'Clean cultured character without stale or cooked notes',
+  'Milky': 'Fresh milk-like flavour',
+  'Thick': 'Viscous spoonable body',
+  'Fermented': 'Cultured dairy aroma or flavour from fermentation',
+  'Fruity': 'Fruit-like flavour or aroma',
+  'Watery': 'Thin body or visible whey separation',
+  'Artificial': 'Synthetic flavour character rather than natural dairy or fruit',
+};
+
 const GENERIC_DEFINITIONS: Record<string, string> = {
   'Sweet': 'Sugar-like sweetness — pleasant mild sweetness',
   'Salty': 'The taste of salt — savoury mineral note',
@@ -91,15 +122,19 @@ const GENERIC_DEFINITIONS: Record<string, string> = {
 export const CATA_DEFINITIONS: Record<string, string> = {
   ...DAIRY_DEFINITIONS,
   ...BREAD_DEFINITIONS,
+  ...MEAT_DEFINITIONS,
+  ...YOGURT_DEFINITIONS,
   ...GENERIC_DEFINITIONS,
 };
 
 export function getCataDefinitions(category?: string): Record<string, string> {
   if (!category) return CATA_DEFINITIONS;
-  const c = category.toLowerCase();
-  if (/cheese|dairy|milk|cream|butter|yogurt|pbca|plant.based/.test(c))
+  const slug = detectFoodType(category).slug;
+  if (slug === 'yogurt') return { ...GENERIC_DEFINITIONS, ...YOGURT_DEFINITIONS };
+  if (slug === 'meat') return { ...GENERIC_DEFINITIONS, ...MEAT_DEFINITIONS };
+  if (slug === 'cheese')
     return { ...GENERIC_DEFINITIONS, ...DAIRY_DEFINITIONS };
-  if (/bread|bak|loaf|pastry|dough|cake|cookie|biscuit|muffin|roll/.test(c))
+  if (slug === 'bread')
     return { ...GENERIC_DEFINITIONS, ...BREAD_DEFINITIONS };
   return GENERIC_DEFINITIONS;
 }

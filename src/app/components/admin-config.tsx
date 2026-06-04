@@ -310,7 +310,7 @@ export function AdminConfig() {
     }
   };
 
-  const handleSeedBreadDemo = async () => {
+  const handleAddBreadStarterSet = async () => {
     const breadProducts = [
       { name: 'Sourdough Loaf v1.0',       category: 'Bread' },
       { name: 'White Sandwich Bread v2.1', category: 'Bread' },
@@ -327,7 +327,7 @@ export function AdminConfig() {
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Failed to seed demo data.');
+      setMutationError(err instanceof Error ? err.message : 'Failed to add bread starter products.');
     }
   };
 
@@ -410,11 +410,11 @@ export function AdminConfig() {
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
-              onClick={handleSeedBreadDemo}
+              onClick={handleAddBreadStarterSet}
               disabled={insertProductMutation.isPending}
               className="h-8 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
             >
-              Seed Bread Demo
+              Add Bread Starter Set
             </Button>
             <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700 h-8 text-sm">
               <Plus className="size-3.5 mr-1.5" />New Product

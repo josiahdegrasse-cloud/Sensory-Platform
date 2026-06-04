@@ -5,10 +5,12 @@ import {
   fetchAllResponses, fetchUserResponses,
   fetchConceptTestsForPanelist, fetchUserConceptResponses,
   fetchConceptTest,
+  fetchFoodTypes, fetchInstrumentalDataset,
   insertProduct, updateProduct, deleteProduct,
   insertTemplate, deleteTemplate, updatePanelistId, updatePanelistTrainingLevel,
   insertConceptTest, insertConceptResponse,
-  type Template, type ConceptTest,
+  insertInstrumentalImport, archiveFoodTypeRecord, restoreFoodTypeRecord, deleteFoodTypeRecord,
+  type Template, type ConceptTest, type InstrumentalImportInput,
 } from './database'
 import type { TrainingLevel } from '../utils/panelist-metrics'
 import type { Product } from '../data/mock-users'
@@ -24,6 +26,8 @@ export const queryKeys = {
   conceptTests: (userId: string) => ['conceptTests', userId] as const,
   conceptResponses: (userId: string) => ['conceptResponses', userId] as const,
   conceptTest: (id: string) => ['conceptTest', id] as const,
+  foodTypes: ['foodTypes'] as const,
+  instrumentalDataset: ['instrumentalDataset'] as const,
 }
 
 export function useProducts() {
@@ -79,6 +83,22 @@ export function useConceptTest(conceptId: string | undefined) {
     queryKey: queryKeys.conceptTest(conceptId ?? ''),
     queryFn: () => fetchConceptTest(conceptId!),
     enabled: !!conceptId,
+  })
+}
+
+export function useFoodTypes(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.foodTypes,
+    queryFn: fetchFoodTypes,
+    enabled,
+  })
+}
+
+export function useInstrumentalDataset(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.instrumentalDataset,
+    queryFn: fetchInstrumentalDataset,
+    enabled,
   })
 }
 
@@ -173,6 +193,50 @@ export function useInsertConceptResponse() {
     onSuccess: (_data, { userId }) => {
       qc.invalidateQueries({ queryKey: queryKeys.conceptResponses(userId) })
       qc.invalidateQueries({ queryKey: queryKeys.conceptTests(userId) })
+    },
+  })
+}
+
+export function useInsertInstrumentalImport() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: InstrumentalImportInput) => insertInstrumentalImport(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.foodTypes })
+      qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
+    },
+  })
+}
+
+export function useArchiveFoodType() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (slug: string) => archiveFoodTypeRecord(slug),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.foodTypes })
+      qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
+    },
+  })
+}
+
+export function useRestoreFoodType() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (slug: string) => restoreFoodTypeRecord(slug),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.foodTypes })
+      qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
+    },
+  })
+}
+
+export function useDeleteFoodType() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (slug: string) => deleteFoodTypeRecord(slug),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.foodTypes })
+      qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
     },
   })
 }

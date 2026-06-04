@@ -1,9 +1,12 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { matchFoodType, useFoodType } from "../contexts/food-type-context";
+import { useAuth } from "../contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
-import { FlaskConical, AlertCircle, Upload, X, Check, RotateCcw } from "lucide-react";
+import { FlaskConical, AlertCircle, Upload, X, Check } from "lucide-react";
 import { SAMPLES } from "../data/samples";
+import { detectFoodType, formatFoodTypeLabel, slugifyFoodType } from "../lib/food-intelligence";
+import { useInsertInstrumentalImport, useInstrumentalDataset } from "../lib/hooks";
 import {
   ScatterChart,
   Scatter,
@@ -202,32 +205,6 @@ function getRowValue(row: Record<string, string>, aliases: string[]) {
   return "";
 }
 
-const KNOWN_TYPES: Record<string, string> = {
-  dairy: "dairy",
-  cheese: "dairy",
-  "plant-based": "pbca",
-  "plant based": "pbca",
-  "plant base": "pbca",
-  pbca: "pbca",
-  bread: "bread",
-  meat: "meat",
-  beef: "meat",
-  pork: "meat",
-  chicken: "meat",
-  poultry: "meat",
-  turkey: "meat",
-  lamb: "meat",
-  sausage: "meat",
-  bacon: "meat",
-  ham: "meat",
-  burger: "meat",
-  patty: "meat",
-  seafood: "meat",
-  fish: "meat",
-  yogurt: "yogurt",
-  yoghurt: "yogurt",
-};
-
 const DEMO_TYPES = new Set(['bread', 'dairy', 'pbca']);
 const IMPORTED_DATA_STORAGE_KEY = 'sensory-dashboard-imported-machine-data';
 
@@ -254,26 +231,14 @@ function loadImportedData(): StoredImportedData | null {
   }
 }
 
-function formatFoodType(value: string) {
-  return value.trim().toLowerCase().replace(/[_\s-]+/g, "-");
-}
-
-function formatFoodTypeLabel(value: string) {
-  return value
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
 function normalizeTypeLabel(value?: string, allowUnknown = false) {
-  const normalized = normalize(value).toLowerCase().replace(/[_-]/g, " ");
+  const normalized = normalize(value);
   if (!normalized) return "";
-  if (KNOWN_TYPES[normalized]) return KNOWN_TYPES[normalized];
   const matchedFoodType = matchFoodType(normalized);
   if (matchedFoodType === "cheese") return "dairy";
-  if (matchedFoodType !== normalized) return formatFoodType(matchedFoodType);
-  if (allowUnknown) return formatFoodType(normalized);
+  const normalizedSlug = slugifyFoodType(normalized);
+  if (matchedFoodType !== normalizedSlug && matchedFoodType !== "generic") return slugifyFoodType(matchedFoodType);
+  if (allowUnknown) return normalizedSlug;
   return "";
 }
 
@@ -299,7 +264,7 @@ function inferCategory(sampleId: string, csvCategory?: string, type?: string) {
   if (type === "dairy") return "Dairy";
   if (type === "bread") return "Bread";
   if (type === "meat") return "Meat";
-  if (type) return type.charAt(0).toUpperCase() + type.slice(1);
+  if (type) return formatFoodTypeLabel(type);
   return "Coconut-based";
 }
 
@@ -332,8 +297,109 @@ function getPointColor(type?: string, category?: string) {
   return "#3b82f6";
 }
 
+function buildImportedDataset(previewData: Record<string, string>[], uploadedFile?: string | null) {
+  const eTongueMap = new Map<string, ETongueMeasurement>();
+  const gcmsMap: Record<string, GCMSCompound[]> = {};
+  const compositionMap: Record<string, ChemicalComposition> = {};
+
+  const detectionValues: string[] = [uploadedFile ?? ""];
+  previewData.forEach((row, index) => {
+    const sampleId =
+      getRowValue(row, ["sampleId", "sample", "id", "sampleCode", "code"]) || `Imported-${index + 1}`;
+    const sampleName = getRowValue(row, ["sampleName", "sampleLabel", "productName", "product", "food", "sample"]);
+    const csvCategory = getRowValue(row, ["category", "foodType", "food_type", "productType", "product_type"]);
+    const csvType = getRowValue(row, ["type", "foodType", "food_type", "productType", "product_type"]);
+    const type = inferType(sampleId, csvType, csvCategory, sampleName);
+    const category = inferCategory(sampleId, csvCategory, type);
+
+    detectionValues.push(sampleId, sampleName, csvCategory, csvType, category, type);
+
+    const sourness   = parseFloat(row.sourness   || row.Sourness   || row.SOURNESS   || "NaN");
+    const bitterness = parseFloat(row.bitterness || row.Bitterness || row.BITTERNESS || "NaN");
+    const saltiness  = parseFloat(row.saltiness  || row.Saltiness  || row.SALTINESS  || "NaN");
+    const umami      = parseFloat(row.umami      || row.Umami      || row.UMAMI      || "NaN");
+    const sweetness  = parseFloat(row.sweetness  || row.Sweetness  || row.SWEETNESS  || "NaN");
+
+    const hasAnyTaste = [sourness, bitterness, saltiness, umami, sweetness].some((v) => !Number.isNaN(v));
+    if (hasAnyTaste && !eTongueMap.has(sampleId)) {
+      eTongueMap.set(sampleId, {
+        sampleId,
+        sampleName,
+        sourness:   Number.isNaN(sourness)   ? 0 : sourness,
+        bitterness: Number.isNaN(bitterness) ? 0 : bitterness,
+        saltiness:  Number.isNaN(saltiness)  ? 0 : saltiness,
+        umami:      Number.isNaN(umami)      ? 0 : umami,
+        sweetness:  Number.isNaN(sweetness)  ? 0 : sweetness,
+        type,
+        category,
+      });
+    }
+
+    const compoundName  = row.compound || row.Compound || row.name || row.Name;
+    const concentration = parseFloat(row.concentration || row.Concentration || row.CONCENTRATION || "NaN");
+    const aroma         = row.aroma || row.Aroma || row.odour || row.Odour || "";
+    const threshold     = parseFloat(row.threshold || row.Threshold || row.THRESHOLD || "NaN");
+
+    if (compoundName && !Number.isNaN(concentration)) {
+      if (!gcmsMap[sampleId]) gcmsMap[sampleId] = [];
+      const alreadyExists = gcmsMap[sampleId].some((c) => c.name === compoundName);
+      if (!alreadyExists) {
+        gcmsMap[sampleId].push({
+          name: compoundName,
+          concentration,
+          aroma: aroma || "unknown",
+          threshold: Number.isNaN(threshold) ? 0 : threshold,
+        });
+      }
+    }
+
+    const protein     = parseFloat(row.protein     || row.Protein     || "NaN");
+    const fat         = parseFloat(row.fat         || row.Fat         || "NaN");
+    const moisture    = parseFloat(row.moisture    || row.Moisture    || "NaN");
+    const pH          = parseFloat(row.pH          || row.PH          || "NaN");
+    const saltContent = parseFloat(row.saltContent || row.SaltContent || "NaN");
+    const calciumMg   = parseFloat(row.calciumMg   || row.CalciumMg   || "NaN");
+
+    const compFields = [protein, fat, moisture, pH, saltContent, calciumMg];
+    const validCompCount = compFields.filter((v) => !Number.isNaN(v)).length;
+    if (validCompCount >= 2 && !compositionMap[sampleId]) {
+      compositionMap[sampleId] = {
+        protein:     Number.isNaN(protein)     ? 0 : protein,
+        fat:         Number.isNaN(fat)         ? 0 : fat,
+        moisture:    Number.isNaN(moisture)    ? 0 : moisture,
+        pH:          Number.isNaN(pH)          ? 0 : pH,
+        saltContent: Number.isNaN(saltContent) ? 0 : saltContent,
+        calciumMg:   Number.isNaN(calciumMg)   ? 0 : calciumMg,
+      };
+    }
+  });
+
+  const eTongueData = Array.from(eTongueMap.values());
+  const detection = detectFoodType(...detectionValues);
+  const explicitTypes = Array.from(new Set(eTongueData.map(sample => sample.type).filter(Boolean))) as string[];
+  if (explicitTypes.length === 1 && explicitTypes[0] && !DEMO_TYPES.has(explicitTypes[0])) {
+    const explicitSlug = slugifyFoodType(explicitTypes[0]);
+    return {
+      eTongueData,
+      gcmsData: gcmsMap,
+      compositionData: compositionMap,
+      detection: {
+        ...detection,
+        slug: explicitSlug,
+        label: formatFoodTypeLabel(explicitSlug),
+        confidence: Math.max(detection.confidence, 0.88),
+      },
+    };
+  }
+
+  return { eTongueData, gcmsData: gcmsMap, compositionData: compositionMap, detection };
+}
+
 export function Stage1Instrumental() {
   const storedImportedData = useMemo(loadImportedData, []);
+  const { user } = useAuth();
+  const instrumentalDatasetQuery = useInstrumentalDataset(user?.role === 'admin');
+  const insertInstrumentalImport = useInsertInstrumentalImport();
   const [selectedSamples, setSelectedSamples] = useState<string[]>(["S3"]);
   const [eTongueData, setETongueData] = useState<ETongueMeasurement[]>(storedImportedData?.eTongueData ?? MOCK_ETONGUE_DATA);
   const [gcmsData, setGcmsData] = useState<Record<string, GCMSCompound[]>>(storedImportedData?.gcmsData ?? MOCK_GCMS_DATA);
@@ -349,7 +415,30 @@ export function Stage1Instrumental() {
   const [usingDemoData, setUsingDemoData] = useState(!storedImportedData);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { foodType, setSelection, registerFoodTypes, archivedFoodTypes, deleteFoodType, clearExtraFoodTypes } = useFoodType();
+  const { foodType, setSelection, registerFoodTypes, archivedFoodTypes, clearExtraFoodTypes } = useFoodType();
+
+  const importSummary = useMemo(() => {
+    if (!showPreview || previewData.length === 0) return null;
+    const parsed = buildImportedDataset(previewData, uploadedFile);
+    return {
+      ...parsed,
+      sampleCount: parsed.eTongueData.length,
+      gcmsCount: Object.keys(parsed.gcmsData).length,
+      compositionCount: Object.keys(parsed.compositionData).length,
+    };
+  }, [previewData, showPreview, uploadedFile]);
+
+  useEffect(() => {
+    const dataset = instrumentalDatasetQuery.data;
+    if (!dataset || dataset.eTongueData.length === 0) return;
+    setETongueData(dataset.eTongueData);
+    setGcmsData(dataset.gcmsData);
+    setCompositionData(dataset.compositionData);
+    setUsingDemoData(false);
+    if (!dataset.eTongueData.find(sample => sample.sampleId === selectedSamples[0])) {
+      setSelectedSamples([dataset.eTongueData[0].sampleId]);
+    }
+  }, [instrumentalDatasetQuery.data, selectedSamples]);
 
   const importedFoodTypes = useMemo(() => [...new Set(
     eTongueData.map(s => s.type).filter((t): t is string => !!t && !DEMO_TYPES.has(t))
@@ -469,87 +558,11 @@ export function Stage1Instrumental() {
     setImportError(null);
   };
 
-  const importCSVData = () => {
-    const eTongueMap = new Map<string, ETongueMeasurement>();
-    const gcmsMap: Record<string, GCMSCompound[]> = {};
-    const compositionMap: Record<string, ChemicalComposition> = {};
-
-    previewData.forEach((row, index) => {
-      const sampleId =
-        getRowValue(row, ["sampleId", "sample", "id", "sampleCode", "code"]) || `Imported-${index + 1}`;
-      const sampleName = getRowValue(row, ["sampleName", "sampleLabel", "productName", "product", "food", "sample"]);
-      const csvCategory = getRowValue(row, ["category", "foodType", "food_type", "productType", "product_type"]);
-      const type = inferType(sampleId, getRowValue(row, ["type", "foodType", "food_type", "productType", "product_type"]), csvCategory, sampleName);
-      const category = inferCategory(sampleId, csvCategory, type);
-
-      // E-tongue: accept partial taste data — require at least one valid taste field
-      const sourness   = parseFloat(row.sourness   || row.Sourness   || row.SOURNESS   || "NaN");
-      const bitterness = parseFloat(row.bitterness || row.Bitterness || row.BITTERNESS || "NaN");
-      const saltiness  = parseFloat(row.saltiness  || row.Saltiness  || row.SALTINESS  || "NaN");
-      const umami      = parseFloat(row.umami      || row.Umami      || row.UMAMI      || "NaN");
-      const sweetness  = parseFloat(row.sweetness  || row.Sweetness  || row.SWEETNESS  || "NaN");
-
-      const hasAnyTaste = [sourness, bitterness, saltiness, umami, sweetness].some((v) => !Number.isNaN(v));
-
-      if (hasAnyTaste && !eTongueMap.has(sampleId)) {
-        eTongueMap.set(sampleId, {
-          sampleId,
-          sampleName,
-          sourness:   Number.isNaN(sourness)   ? 0 : sourness,
-          bitterness: Number.isNaN(bitterness) ? 0 : bitterness,
-          saltiness:  Number.isNaN(saltiness)  ? 0 : saltiness,
-          umami:      Number.isNaN(umami)      ? 0 : umami,
-          sweetness:  Number.isNaN(sweetness)  ? 0 : sweetness,
-          type,
-          category,
-        });
-      }
-
-      // GC-MS: append compounds per sample, deduplicate by compound name
-      const compoundName  = row.compound || row.Compound || row.name || row.Name;
-      const concentration = parseFloat(row.concentration || row.Concentration || row.CONCENTRATION || "NaN");
-      const aroma         = row.aroma || row.Aroma || row.odour || row.Odour || "";
-      const threshold     = parseFloat(row.threshold || row.Threshold || row.THRESHOLD || "NaN");
-
-      if (compoundName && !Number.isNaN(concentration)) {
-        if (!gcmsMap[sampleId]) gcmsMap[sampleId] = [];
-        const alreadyExists = gcmsMap[sampleId].some((c) => c.name === compoundName);
-        if (!alreadyExists) {
-          gcmsMap[sampleId].push({
-            name: compoundName,
-            concentration,
-            aroma: aroma || "unknown",
-            threshold: Number.isNaN(threshold) ? 0 : threshold,
-          });
-        }
-      }
-
-      // Composition: accept partial data — require at least 2 valid fields
-      const protein     = parseFloat(row.protein     || row.Protein     || "NaN");
-      const fat         = parseFloat(row.fat         || row.Fat         || "NaN");
-      const moisture    = parseFloat(row.moisture    || row.Moisture    || "NaN");
-      const pH          = parseFloat(row.pH          || row.PH          || "NaN");
-      const saltContent = parseFloat(row.saltContent || row.SaltContent || "NaN");
-      const calciumMg   = parseFloat(row.calciumMg   || row.CalciumMg   || "NaN");
-
-      const compFields = [protein, fat, moisture, pH, saltContent, calciumMg];
-      const validCompCount = compFields.filter((v) => !Number.isNaN(v)).length;
-
-      if (validCompCount >= 2 && !compositionMap[sampleId]) {
-        compositionMap[sampleId] = {
-          protein:     Number.isNaN(protein)     ? 0 : protein,
-          fat:         Number.isNaN(fat)         ? 0 : fat,
-          moisture:    Number.isNaN(moisture)    ? 0 : moisture,
-          pH:          Number.isNaN(pH)          ? 0 : pH,
-          saltContent: Number.isNaN(saltContent) ? 0 : saltContent,
-          calciumMg:   Number.isNaN(calciumMg)   ? 0 : calciumMg,
-        };
-      }
-    });
-
-    const importedETongue     = Array.from(eTongueMap.values());
-    const importedGCMSCount   = Object.keys(gcmsMap).length;
-    const importedCompCount   = Object.keys(compositionMap).length;
+  const importCSVData = async () => {
+    const parsed = importSummary ?? buildImportedDataset(previewData, uploadedFile);
+    const importedETongue = parsed.eTongueData;
+    const importedGCMSCount = Object.keys(parsed.gcmsData).length;
+    const importedCompCount = Object.keys(parsed.compositionData).length;
 
     if (importedETongue.length === 0 && importedGCMSCount === 0 && importedCompCount === 0) {
       setImportError(
@@ -558,14 +571,35 @@ export function Stage1Instrumental() {
       return;
     }
 
-    if (importedETongue.length > 0) {
-      setETongueData(importedETongue);
-      setSelectedSamples([importedETongue[0].sampleId]);
-      const importedType = importedETongue[0].type;
-      if (importedType && !DEMO_TYPES.has(importedType)) setSelection(importedType, null);
+    try {
+      const savedDataset = await insertInstrumentalImport.mutateAsync({
+        fileName: uploadedFile ?? 'Imported CSV',
+        rowCount: previewData.length,
+        recognizedColumns: columnReport?.recognised ?? [],
+        ignoredColumns: columnReport?.ignored ?? [],
+        detection: parsed.detection,
+        importedBy: user?.id ?? null,
+        eTongueData: importedETongue,
+        gcmsData: parsed.gcmsData,
+        compositionData: parsed.compositionData,
+      });
+
+      const nextDataset = savedDataset.eTongueData.length > 0 ? savedDataset : parsed;
+      if (nextDataset.eTongueData.length > 0) {
+        setETongueData(nextDataset.eTongueData);
+        setSelectedSamples([nextDataset.eTongueData[0].sampleId]);
+      }
+      setGcmsData(nextDataset.gcmsData);
+      setCompositionData(nextDataset.compositionData);
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Import failed while saving to the database.");
+      return;
     }
-    if (importedGCMSCount > 0) setGcmsData(gcmsMap);
-    if (importedCompCount  > 0) setCompositionData(compositionMap);
+
+    if (!DEMO_TYPES.has(parsed.detection.slug)) {
+      registerFoodTypes([parsed.detection.slug]);
+      setSelection(parsed.detection.slug, null);
+    }
 
     const parts: string[] = [];
     if (importedETongue.length > 0)
@@ -575,7 +609,7 @@ export function Stage1Instrumental() {
     if (importedCompCount > 0)
       parts.push(`${importedCompCount} composition profile${importedCompCount > 1 ? "s" : ""}`);
 
-    setImportSuccess(`Imported ${parts.join(", ")}.`);
+    setImportSuccess(`Imported ${parts.join(", ")} into ${parsed.detection.label}.`);
     setShowPreview(false);
     setUploadedFile(null);
     setColumnReport(null);
@@ -591,23 +625,6 @@ export function Stage1Instrumental() {
     setUploadedFile(null);
     setColumnReport(null);
     setImportError(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const resetToDemo = () => {
-    setETongueData(MOCK_ETONGUE_DATA);
-    setGcmsData(MOCK_GCMS_DATA);
-    setCompositionData(MOCK_COMPOSITION_DATA);
-    setSelectedSamples(["S3"]);
-    setUsingDemoData(true);
-    setImportSuccess(null);
-    setImportError(null);
-    setUploadedFile(null);
-    clearExtraFoodTypes();
-    setSelection('all', null);
-    window.localStorage.removeItem(IMPORTED_DATA_STORAGE_KEY);
-    setShowPreview(false);
-    setColumnReport(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -672,6 +689,7 @@ export function Stage1Instrumental() {
   const selectedSampleInfo      = displayedSamples.find((s) => s.id === selectedSamples[0]);
   const selectedColor           = getPointColor(selectedSampleInfo?.type, selectedSampleInfo?.category);
   const comparisonColors        = ["#9333ea", "#ec4899"];
+  const activeFoodTypeLabel     = foodType === 'all' ? 'all sample types' : formatFoodTypeLabel(foodType);
 
   const radarData = selectedSampleData
     ? [
@@ -732,12 +750,6 @@ export function Stage1Instrumental() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {!usingDemoData && (
-            <Button variant="outline" size="sm" onClick={resetToDemo} className="flex items-center gap-2 text-slate-600">
-              <RotateCcw className="size-4" />
-              Restore defaults
-            </Button>
-          )}
           <input
             ref={fileInputRef}
             type="file"
@@ -820,7 +832,23 @@ export function Stage1Instrumental() {
 
             {/* Column recognition report */}
             {columnReport && (
-              <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="grid grid-cols-3 gap-3 text-xs">
+                {importSummary && (
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                    <p className="font-semibold text-slate-800 mb-1.5">Detected food type</p>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-bold text-slate-900">{importSummary.detection.label}</span>
+                      <span className="rounded-full bg-white border border-slate-200 px-2 py-0.5 font-semibold text-slate-600">
+                        {Math.round(importSummary.detection.confidence * 100)}%
+                      </span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-1.5 text-[11px] text-slate-600">
+                      <span className="rounded bg-white border border-slate-200 px-1.5 py-1">{importSummary.sampleCount} samples</span>
+                      <span className="rounded bg-white border border-slate-200 px-1.5 py-1">{importSummary.gcmsCount} GC-MS</span>
+                      <span className="rounded bg-white border border-slate-200 px-1.5 py-1">{importSummary.compositionCount} comp</span>
+                    </div>
+                  </div>
+                )}
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
                   <p className="font-semibold text-emerald-800 mb-1.5">
                     Recognised ({columnReport.recognised.length})
@@ -884,8 +912,12 @@ export function Stage1Instrumental() {
             </div>
 
             <div className="flex gap-3">
-              <Button onClick={importCSVData} className="bg-slate-900 hover:bg-slate-700">
-                Confirm Import
+              <Button
+                onClick={importCSVData}
+                disabled={insertInstrumentalImport.isPending}
+                className="bg-slate-900 hover:bg-slate-700 disabled:opacity-60"
+              >
+                {insertInstrumentalImport.isPending ? "Importing..." : "Import batch"}
               </Button>
               <Button variant="outline" onClick={cancelPreview}>
                 Cancel
@@ -1168,13 +1200,13 @@ export function Stage1Instrumental() {
             Taste Similarity Analysis (PCA)
           </CardTitle>
           <p className="text-xs text-slate-600 mt-1">
-            {foodType === 'bread'
+            {foodType === 'all'
+              ? 'Principal component analysis across all sample types'
+              : foodType === 'bread'
               ? 'E-Tongue principal component analysis across bread formulations'
               : foodType === 'cheese'
               ? 'Comparison of plant-based formulations against dairy reference standards'
-              : foodType === 'meat'
-              ? 'E-Tongue principal component analysis across meat formulations'
-              : 'Principal component analysis across all sample types'}
+              : `E-Tongue principal component analysis across ${activeFoodTypeLabel} formulations`}
           </p>
         </CardHeader>
         <CardContent className="pt-6">
