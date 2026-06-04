@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { useFoodType } from "../contexts/food-type-context";
+import { matchFoodType, useFoodType } from "../contexts/food-type-context";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { FlaskConical, AlertCircle, Upload, X, Check, RotateCcw } from "lucide-react";
@@ -23,6 +23,7 @@ import { JargonTooltip } from "./jargon-tooltip";
 
 interface ETongueMeasurement {
   sampleId: string;
+  sampleName?: string;
   sourness: number;
   bitterness: number;
   saltiness: number;
@@ -147,7 +148,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 // Known column aliases for recognition report
 const KNOWN_ALIASES = [
   'sampleid', 'sample', 'id',
-  'type', 'category',
+  'type', 'category', 'samplename', 'name',
   'sourness', 'bitterness', 'saltiness', 'umami', 'sweetness',
   'compound', 'name', 'concentration', 'aroma', 'odour', 'threshold',
   'protein', 'fat', 'moisture', 'ph', 'saltcontent', 'calciummg',
@@ -186,18 +187,69 @@ function normalize(value?: string) {
   return (value || "").trim();
 }
 
+function getRowValue(row: Record<string, string>, aliases: string[]) {
+  const entries = Object.entries(row).map(([key, value]) => [
+    key.toLowerCase().replace(/[\s_\-]/g, ""),
+    value,
+  ]);
+
+  for (const alias of aliases) {
+    const normalizedAlias = alias.toLowerCase().replace(/[\s_\-]/g, "");
+    const found = entries.find(([key]) => key === normalizedAlias);
+    if (found) return found[1];
+  }
+
+  return "";
+}
+
 const KNOWN_TYPES: Record<string, string> = {
-  dairy: "dairy", cheese: "dairy", "plant-based": "pbca", "plant base": "pbca", pbca: "pbca", bread: "bread",
+  dairy: "dairy",
+  cheese: "dairy",
+  "plant-based": "pbca",
+  "plant based": "pbca",
+  "plant base": "pbca",
+  pbca: "pbca",
+  bread: "bread",
+  meat: "meat",
+  beef: "meat",
+  pork: "meat",
+  chicken: "meat",
+  poultry: "meat",
+  turkey: "meat",
+  lamb: "meat",
+  sausage: "meat",
+  bacon: "meat",
+  ham: "meat",
+  burger: "meat",
+  patty: "meat",
+  seafood: "meat",
+  fish: "meat",
 };
 
-function inferType(sampleId: string, csvType?: string) {
-  const normalized = normalize(csvType).toLowerCase();
-  if (normalized && KNOWN_TYPES[normalized]) return KNOWN_TYPES[normalized];
-  // Unknown but explicit type from CSV — pass through
-  if (normalized) return normalized;
-  // Fall back to sampleId prefix heuristics
-  if (sampleId.toUpperCase().startsWith("B")) return "bread";
-  return sampleId.toUpperCase().startsWith("D") ? "dairy" : "pbca";
+function normalizeTypeLabel(value?: string) {
+  const normalized = normalize(value).toLowerCase().replace(/[_-]/g, " ");
+  if (!normalized) return "";
+  if (KNOWN_TYPES[normalized]) return KNOWN_TYPES[normalized];
+  const matchedFoodType = matchFoodType(normalized);
+  if (matchedFoodType === "cheese") return "dairy";
+  if (matchedFoodType === "bread" || matchedFoodType === "meat") return matchedFoodType;
+  return "";
+}
+
+function inferType(sampleId: string, csvType?: string, csvCategory?: string, sampleName?: string) {
+  const explicitType = normalizeTypeLabel(csvType);
+  if (explicitType) return explicitType;
+
+  const categoryType = normalizeTypeLabel(csvCategory);
+  if (categoryType) return categoryType;
+
+  const nameType = normalizeTypeLabel(sampleName);
+  if (nameType) return nameType;
+
+  const prefix = sampleId.toUpperCase();
+  if (prefix.startsWith("B")) return "bread";
+  if (prefix.startsWith("M")) return "meat";
+  return prefix.startsWith("D") ? "dairy" : "pbca";
 }
 
 function inferCategory(sampleId: string, csvCategory?: string, type?: string) {
@@ -205,6 +257,7 @@ function inferCategory(sampleId: string, csvCategory?: string, type?: string) {
   if (normalized) return normalized;
   if (type === "dairy") return "Dairy";
   if (type === "bread") return "Bread";
+  if (type === "meat") return "Meat";
   if (type) return type.charAt(0).toUpperCase() + type.slice(1);
   return "Coconut-based";
 }
@@ -222,6 +275,14 @@ function getPointColor(type?: string, category?: string) {
     if (c.includes("wheat") || c.includes("multigrain")) return "#78350f";
     if (c.includes("white") || c.includes("sandwich")) return "#fbbf24";
     return "#d97706";
+  }
+  if (type === "meat") {
+    const c = (category || "").toLowerCase();
+    if (c.includes("chicken") || c.includes("poultry") || c.includes("turkey")) return "#ca8a04";
+    if (c.includes("pork") || c.includes("bacon") || c.includes("ham")) return "#db2777";
+    if (c.includes("fish") || c.includes("seafood") || c.includes("salmon") || c.includes("tuna")) return "#0891b2";
+    if (c.includes("lamb")) return "#7c3aed";
+    return "#b91c1c";
   }
   if (category === "Oat-based")   return "#8b5cf6";
   if (category === "Almond-based") return "#ec4899";
@@ -248,11 +309,22 @@ export function Stage1Instrumental() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { foodType, registerFoodTypes, clearExtraFoodTypes } = useFoodType();
 
+  // Reactively register any novel food types whenever imported data changes
+  useEffect(() => {
+    if (usingDemoData) return;
+    const BUILTIN = new Set(['bread', 'dairy', 'pbca', 'meat']);
+    const types = [...new Set(
+      eTongueData.map(s => s.type).filter((t): t is string => !!t && !BUILTIN.has(t))
+    )];
+    if (types.length > 0) registerFoodTypes(types);
+  }, [eTongueData, usingDemoData]);
+
   const filteredETongueData = eTongueData.filter(s => {
     if (foodType === 'all') return true;
     const t = (s.type || inferType(s.sampleId)).toLowerCase();
     if (foodType === 'bread')  return t === 'bread'  || s.sampleId.toUpperCase().startsWith('B');
     if (foodType === 'cheese') return t === 'dairy'  || t === 'pbca' || s.sampleId.toUpperCase().startsWith('S') || s.sampleId.toUpperCase().startsWith('D');
+    if (foodType === 'meat') return t === 'meat' || s.sampleId.toUpperCase().startsWith('M');
     // Custom food type: direct match
     return t === foodType.toLowerCase();
   });
@@ -342,9 +414,11 @@ export function Stage1Instrumental() {
 
     previewData.forEach((row, index) => {
       const sampleId =
-        row.sampleId || row.SampleID || row.sample || row.Sample || row.id || `Imported-${index + 1}`;
-      const type = inferType(sampleId, row.type || row.Type);
-      const category = inferCategory(sampleId, row.category || row.Category, type);
+        getRowValue(row, ["sampleId", "sample", "id", "sampleCode", "code"]) || `Imported-${index + 1}`;
+      const sampleName = getRowValue(row, ["sampleName", "sampleLabel", "productName", "product", "food", "sample"]);
+      const csvCategory = getRowValue(row, ["category", "foodType", "food_type", "productType", "product_type"]);
+      const type = inferType(sampleId, getRowValue(row, ["type", "foodType", "food_type", "productType", "product_type"]), csvCategory, sampleName);
+      const category = inferCategory(sampleId, csvCategory, type);
 
       // E-tongue: accept partial taste data — require at least one valid taste field
       const sourness   = parseFloat(row.sourness   || row.Sourness   || row.SOURNESS   || "NaN");
@@ -358,6 +432,7 @@ export function Stage1Instrumental() {
       if (hasAnyTaste && !eTongueMap.has(sampleId)) {
         eTongueMap.set(sampleId, {
           sampleId,
+          sampleName,
           sourness:   Number.isNaN(sourness)   ? 0 : sourness,
           bitterness: Number.isNaN(bitterness) ? 0 : bitterness,
           saltiness:  Number.isNaN(saltiness)  ? 0 : saltiness,
@@ -436,11 +511,6 @@ export function Stage1Instrumental() {
     if (importedCompCount > 0)
       parts.push(`${importedCompCount} composition profile${importedCompCount > 1 ? "s" : ""}`);
 
-    // Register any food types not already known so sidebar sections appear
-    const BUILTIN_TYPES = new Set(['bread', 'dairy', 'pbca']);
-    const newTypes = [...new Set(importedETongue.map(s => s.type).filter((t): t is string => !!t && !BUILTIN_TYPES.has(t)))];
-    if (newTypes.length > 0) registerFoodTypes(newTypes);
-
     setImportSuccess(`Imported ${parts.join(", ")}.`);
     setShowPreview(false);
     setUploadedFile(null);
@@ -481,7 +551,7 @@ export function Stage1Instrumental() {
     const sampleInfo = SAMPLES.find((s) => s.id === sample.sampleId);
     const type = sample.type || sampleInfo?.type || inferType(sample.sampleId);
     const category = sample.category || sampleInfo?.category || inferCategory(sample.sampleId, "", type);
-    return { id: sample.sampleId, uniqueKey: `${sample.sampleId}-${idx}`, name: sampleInfo?.name || sample.sampleId, category, type };
+    return { id: sample.sampleId, uniqueKey: `${sample.sampleId}-${idx}`, name: sample.sampleName || sampleInfo?.name || sample.sampleId, category, type };
   });
 
   const pcaData = filteredETongueData.map((sample, idx) => {
@@ -494,7 +564,7 @@ export function Stage1Instrumental() {
       id: `pca-${sample.sampleId}-${idx}`,
       sampleId: sample.sampleId,
       uniqueKey: `${sample.sampleId}-${idx}`,
-      name: sampleInfo?.name || sample.sampleId,
+      name: sample.sampleName || sampleInfo?.name || sample.sampleId,
       pc1: Number(pc1.toFixed(2)),
       pc2: Number(pc2.toFixed(2)),
       category,
@@ -1008,6 +1078,8 @@ export function Stage1Instrumental() {
               ? 'E-Tongue principal component analysis across bread formulations'
               : foodType === 'cheese'
               ? 'Comparison of plant-based formulations against dairy reference standards'
+              : foodType === 'meat'
+              ? 'E-Tongue principal component analysis across meat formulations'
               : 'Principal component analysis across all sample types'}
           </p>
         </CardHeader>
