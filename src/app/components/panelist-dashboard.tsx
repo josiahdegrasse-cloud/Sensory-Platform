@@ -22,9 +22,13 @@ export function PanelistDashboard() {
     ? 'Unable to load questionnaires. Please check your connection and refresh the page.'
     : ''
 
+  const assignedProducts = products.filter(product => {
+    const assignedIds = product.assignedPanelistIds ?? [];
+    return assignedIds.length === 0 || assignedIds.includes(userId);
+  });
   const completedProductIds = userResponses.map(r => r.productId);
-  const availableProducts = products.filter(p => !completedProductIds.includes(p.id) && p.status !== 'completed');
-  const completedProductsList = products.filter(p => completedProductIds.includes(p.id));
+  const availableProducts = assignedProducts.filter(p => !completedProductIds.includes(p.id) && p.status !== 'completed');
+  const completedProductsList = assignedProducts.filter(p => completedProductIds.includes(p.id));
 
   const completedConceptIds = conceptResponses.map(r => r.conceptTestId);
   const availableConceptTests = conceptTests.filter(t => !completedConceptIds.includes(t.id));
@@ -58,7 +62,7 @@ export function PanelistDashboard() {
           <CardContent className="pt-6">
             <div className="text-3xl font-bold text-blue-600">{availableProducts.length}</div>
             <div className="text-sm text-slate-600 mt-1">Food Evaluations Pending</div>
-            <div className="text-xs text-slate-400 mt-0.5">of {products.length} assigned</div>
+            <div className="text-xs text-slate-400 mt-0.5">of {assignedProducts.length} assigned</div>
           </CardContent>
         </Card>
         <Card>
@@ -74,7 +78,7 @@ export function PanelistDashboard() {
               {completedProductIds.length + completedConceptIds.length}
             </div>
             <div className="text-sm text-slate-600 mt-1">Completed</div>
-            <div className="text-xs text-slate-400 mt-0.5">of {products.length + conceptTests.length} total</div>
+            <div className="text-xs text-slate-400 mt-0.5">of {assignedProducts.length + conceptTests.length} total</div>
           </CardContent>
         </Card>
       </div>

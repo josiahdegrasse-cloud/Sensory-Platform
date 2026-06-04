@@ -57,6 +57,7 @@ export function AdminConfig() {
   const [mutationError, setMutationError] = useState('');
 
   const { foodType, subCategory } = useFoodType();
+  const currentFoodTypeLabel = formatFoodTypeLabel(foodType);
 
   // List filters
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'completed' | 'archived'>('all');
@@ -82,6 +83,12 @@ export function AdminConfig() {
     }
   }, [selectedProduct, products]);
 
+  useEffect(() => {
+    if (!selectedProduct) return;
+    const product = products.find(p => p.id === selectedProduct);
+    if (product && matchFoodType(product.category) !== foodType) setSelectedProduct(null);
+  }, [foodType, products, selectedProduct]);
+
   // ── Computed stats ────────────────────────────────────────────────────────────
 
   const sessionsByProduct = allResponses.reduce<Record<string, number>>((acc, r) => {
@@ -103,7 +110,6 @@ export function AdminConfig() {
   const completedCount = products.filter(p => p.status === 'completed').length;
   const totalSessions = allResponses.length;
   const importedSamples = (instrumentalDataset?.eTongueData ?? []).filter(sample => {
-    if (foodType === 'all') return true;
     return sample.type === foodType;
   });
   const importedSampleIds = new Set(importedSamples.map(sample => sample.sampleId));
@@ -120,6 +126,11 @@ export function AdminConfig() {
   });
 
   const archivedCount = products.filter(p => p.status === 'archived').length;
+  const foodTypeProducts = products.filter(p => matchFoodType(p.category) === foodType);
+  const scopedActiveCount = foodTypeProducts.filter(p => p.status === 'active').length;
+  const scopedCompletedCount = foodTypeProducts.filter(p => p.status === 'completed').length;
+  const scopedArchivedCount = foodTypeProducts.filter(p => p.status === 'archived').length;
+  const scopedSessions = foodTypeProducts.reduce((sum, product) => sum + (sessionsByProduct[product.id] ?? 0), 0);
   const filteredProducts = products
     .filter(p => filterStatus === 'archived' ? p.status === 'archived' : (filterStatus === 'all' ? p.status !== 'archived' : p.status === filterStatus))
     .filter(p =>
@@ -128,7 +139,6 @@ export function AdminConfig() {
       p.category.toLowerCase().includes(searchQuery.toLowerCase())
     )
     .filter(p => {
-      if (foodType === 'all') return true;
       if (matchFoodType(p.category) !== foodType) return false;
       if (subCategory && p.category !== subCategory) return false;
       return true;
@@ -154,10 +164,10 @@ export function AdminConfig() {
     setCreateStep('form');
     setPendingProduct(null);
     setNewProductName('');
-    setNewProductCategory('');
+    setNewProductCategory(currentFoodTypeLabel);
     setProductType('single');
     setSamples([{ id: '1', code: '', label: '' }]);
-    setCustomAttributes(getDefaultCataAttributes('generic'));
+    setCustomAttributes(getDefaultCataAttributes(currentFoodTypeLabel));
     setReferenceScores({ overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 });
   };
 
@@ -193,6 +203,7 @@ export function AdminConfig() {
       isCalibration: productType === 'calibration',
       referenceScores: productType === 'calibration' ? { ...referenceScores } : null,
       blinded: blindedStudy,
+      assignedPanelistIds: [],
     };
     setPendingProduct(p);
     setCustomAttributes(getDefaultCataAttributes(newProductCategory));
@@ -213,6 +224,7 @@ export function AdminConfig() {
         isCalibration: pendingProduct.isCalibration,
         referenceScores: pendingProduct.referenceScores,
         blinded: pendingProduct.blinded,
+        assignedPanelistIds: pendingProduct.assignedPanelistIds,
       });
       closeCreateModal();
       setShowSuccess(true);
@@ -276,6 +288,42 @@ export function AdminConfig() {
       await updateProductMutation.mutateAsync({ id: productId, updates: { status: 'active' } });
     } catch (err) {
       setMutationError(err instanceof Error ? err.message : 'Failed to restore product.');
+    }
+  };
+
+  const handleToggleSurveyAssignment = async (productId: string, panelistUserId: string) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    const current = product.assignedPanelistIds ?? [];
+    const next = current.includes(panelistUserId)
+      ? current.filter(id => id !== panelistUserId)
+      : [...current, panelistUserId];
+    setMutationError('');
+    try {
+      await updateProductMutation.mutateAsync({ id: productId, updates: { assignedPanelistIds: next } });
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : 'Failed to update panel assignments.');
+    }
+  };
+
+  const handleAssignAllPanelists = async (productId: string) => {
+    setMutationError('');
+    try {
+      await updateProductMutation.mutateAsync({
+        id: productId,
+        updates: { assignedPanelistIds: panelists.map(panelist => panelist.id) },
+      });
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : 'Failed to assign panelists.');
+    }
+  };
+
+  const handleClearPanelAssignments = async (productId: string) => {
+    setMutationError('');
+    try {
+      await updateProductMutation.mutateAsync({ id: productId, updates: { assignedPanelistIds: [] } });
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : 'Failed to clear panel assignments.');
     }
   };
 
@@ -376,6 +424,7 @@ export function AdminConfig() {
           category,
           status: 'active',
           customAttributes: getDefaultCataAttributes(sample.type || category),
+          assignedPanelistIds: [],
         });
         firstCreatedId = firstCreatedId ?? created.id;
       }
@@ -390,7 +439,7 @@ export function AdminConfig() {
   // ── Render ────────────────────────────────────────────────────────────────────
 
   const tabs: { id: AdminTab; label: string; icon: React.ElementType }[] = [
-    { id: 'products',  label: 'Products',  icon: ClipboardList },
+    { id: 'products',  label: 'Surveys',  icon: ClipboardList },
     { id: 'panelists', label: 'Panelists', icon: Users },
     { id: 'templates', label: 'Templates', icon: FileText },
     { id: 'imports',   label: 'Imports',   icon: Upload },
@@ -399,8 +448,8 @@ export function AdminConfig() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Configure</h1>
-        <p className="text-sm text-slate-500 mt-1">Manage products, panelists, templates, and import history</p>
+        <h1 className="text-2xl font-semibold text-slate-900">Configure {currentFoodTypeLabel} Surveys</h1>
+        <p className="text-sm text-slate-500 mt-1">Build, assign, archive, and tune panel questionnaires by food type.</p>
       </div>
 
       {/* Tab bar */}
@@ -444,9 +493,9 @@ export function AdminConfig() {
       {/* Stats strip */}
       <div className="flex items-center gap-5 px-5 py-3 bg-white border border-slate-200 rounded-xl shadow-sm flex-wrap">
         <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${activeCount > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
-          <span className="text-sm font-bold text-slate-900">{activeCount}</span>
-          <span className="text-sm text-slate-500">active product{activeCount !== 1 ? 's' : ''}</span>
+          <div className={`w-2 h-2 rounded-full ${scopedActiveCount > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+          <span className="text-sm font-bold text-slate-900">{scopedActiveCount}</span>
+          <span className="text-sm text-slate-500">active {currentFoodTypeLabel.toLowerCase()} survey{scopedActiveCount !== 1 ? 's' : ''}</span>
         </div>
         <div className="w-px h-4 bg-slate-200" />
         <div className="flex items-center gap-2">
@@ -457,11 +506,11 @@ export function AdminConfig() {
         <div className="w-px h-4 bg-slate-200" />
         <div className="flex items-center gap-2">
           <Activity className="size-3.5 text-slate-400" />
-          <span className="text-sm font-bold text-slate-900">{totalSessions}</span>
-          <span className="text-sm text-slate-500">total session{totalSessions !== 1 ? 's' : ''}</span>
+          <span className="text-sm font-bold text-slate-900">{scopedSessions}</span>
+          <span className="text-sm text-slate-500">total session{scopedSessions !== 1 ? 's' : ''}</span>
         </div>
         <div className="w-px h-4 bg-slate-200" />
-        <span className="text-sm text-slate-500">{completedCount} completed</span>
+        <span className="text-sm text-slate-500">{scopedCompletedCount} completed</span>
       </div>
 
       {importedSamples.length > 0 && (
@@ -472,7 +521,7 @@ export function AdminConfig() {
             </div>
             <div className="min-w-0">
               <div className="font-semibold text-slate-900">
-                Imported samples ready for questionnaires
+                Imported {currentFoodTypeLabel.toLowerCase()} samples ready for questionnaires
               </div>
               <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
                 <span>{importedSamples.length} sample{importedSamples.length === 1 ? '' : 's'}</span>
@@ -489,7 +538,7 @@ export function AdminConfig() {
           >
             <Plus className="size-4 mr-1.5" />
             {importedSamplesWithoutQuestionnaires.length === 0
-              ? 'Questionnaires created'
+                  ? 'Questionnaires created'
               : `Create ${importedSamplesWithoutQuestionnaires.length} questionnaire${importedSamplesWithoutQuestionnaires.length === 1 ? '' : 's'}`}
           </Button>
         </div>
@@ -499,8 +548,8 @@ export function AdminConfig() {
       <div
         className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden"
         style={{
-          height: importedSamples.length > 0 ? 'calc(100vh - 350px)' : 'calc(100vh - 280px)',
-          minHeight: importedSamples.length > 0 ? '520px' : '560px',
+          height: importedSamples.length > 0 ? 'calc(100vh - 335px)' : 'calc(100vh - 265px)',
+          minHeight: importedSamples.length > 0 ? '560px' : '600px',
         }}
       >
         {/* Toolbar */}
@@ -515,10 +564,10 @@ export function AdminConfig() {
                     filterStatus === s ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
                   }`}
                 >
-                  {s === 'all' ? `All (${products.filter(p => p.status !== 'archived').length})`
-                    : s === 'active' ? `Active (${activeCount})`
-                    : s === 'completed' ? `Done (${completedCount})`
-                    : `Archived (${archivedCount})`}
+                  {s === 'all' ? `All (${foodTypeProducts.filter(p => p.status !== 'archived').length})`
+                    : s === 'active' ? `Active (${scopedActiveCount})`
+                    : s === 'completed' ? `Done (${scopedCompletedCount})`
+                    : `Archived (${scopedArchivedCount})`}
                 </button>
               ))}
             </div>
@@ -542,19 +591,19 @@ export function AdminConfig() {
               Add Reference Set
             </Button>
             <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700 h-8 text-sm">
-              <Plus className="size-3.5 mr-1.5" />New Product
+              <Plus className="size-3.5 mr-1.5" />New Survey
             </Button>
           </div>
         </div>
 
         <div className="flex h-[calc(100%-53px)]">
           {/* Product list */}
-          <div className="w-[360px] flex-shrink-0 border-r border-slate-100 overflow-y-auto p-3 space-y-2">
+          <div className="w-[300px] flex-shrink-0 border-r border-slate-100 overflow-y-auto p-3 space-y-2">
               {filteredProducts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-slate-400">
                   <ClipboardList className="size-10 mb-2 opacity-40" />
                   <p className="text-sm">
-                    {products.length === 0 ? 'No products yet — create one' : 'No products match filter'}
+                    {foodTypeProducts.length === 0 ? `No ${currentFoodTypeLabel.toLowerCase()} surveys yet` : 'No surveys match filter'}
                   </p>
                 </div>
               ) : filteredProducts.map(product => {
@@ -592,6 +641,11 @@ export function AdminConfig() {
                             )}
                           </div>
                           <div className="text-xs text-slate-500 mt-0.5">{product.category}</div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">
+                            {(product.assignedPanelistIds?.length ?? 0) > 0
+                              ? `${product.assignedPanelistIds?.length} assigned`
+                              : 'Open to all panelists'}
+                          </div>
                         </button>
                         <Badge className={`text-[10px] px-1.5 py-0.5 flex-shrink-0 ${product.status === 'active' ? 'bg-emerald-600' : product.status === 'archived' ? 'bg-amber-500' : 'bg-slate-400'}`}>
                           {product.status === 'active' ? 'Active' : product.status === 'archived' ? 'Archived' : 'Done'}
@@ -674,8 +728,8 @@ export function AdminConfig() {
               {!selectedProduct ? (
                 <div className="flex flex-col items-center justify-center h-full py-20 text-slate-400 text-center">
                   <Settings className="size-10 mb-3 opacity-30" />
-                  <p className="text-sm font-medium">Select a product to configure</p>
-                  <p className="text-xs mt-1 max-w-[200px]">Choose a product from the list to customise its questionnaire attributes</p>
+                  <p className="text-sm font-medium">Select a survey to configure</p>
+                  <p className="text-xs mt-1 max-w-[220px]">Choose a {currentFoodTypeLabel.toLowerCase()} survey to tune attributes and assign panelists</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -687,6 +741,48 @@ export function AdminConfig() {
                         <Badge className="bg-purple-600 text-xs"><Layers className="size-3 mr-1" />Multi</Badge>
                       )}
                     </div>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <div>
+                        <Label className="text-xs font-bold text-slate-700">Panel Assignments</Label>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {(products.find(p => p.id === selectedProduct)?.assignedPanelistIds?.length ?? 0) > 0
+                            ? `${products.find(p => p.id === selectedProduct)?.assignedPanelistIds?.length} panelist${(products.find(p => p.id === selectedProduct)?.assignedPanelistIds?.length ?? 0) === 1 ? '' : 's'} will receive this survey`
+                            : 'No specific assignments means all active panelists can see it.'}
+                        </p>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleAssignAllPanelists(selectedProduct)}>
+                          Assign all
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleClearPanelAssignments(selectedProduct)}>
+                          Open to all
+                        </Button>
+                      </div>
+                    </div>
+                    {panelists.length === 0 ? (
+                      <p className="text-xs text-slate-500">No panelists are registered yet.</p>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+                        {panelists.map(panelist => {
+                          const assignedIds = products.find(p => p.id === selectedProduct)?.assignedPanelistIds ?? [];
+                          return (
+                            <label key={panelist.id} className="flex items-center gap-2 rounded border border-slate-200 bg-white px-2 py-1.5 text-xs">
+                              <Checkbox
+                                checked={assignedIds.includes(panelist.id)}
+                                onCheckedChange={() => handleToggleSurveyAssignment(selectedProduct, panelist.id)}
+                              />
+                              <span className="min-w-0 flex-1 truncate">
+                                {panelist.name}
+                                <span className="ml-1 text-slate-400">{panelist.panelistId ?? 'no ID'}</span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-1.5">

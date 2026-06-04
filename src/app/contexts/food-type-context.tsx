@@ -27,7 +27,7 @@ interface FoodTypeContextValue {
 }
 
 const FoodTypeContext = createContext<FoodTypeContextValue>({
-  foodType: 'all',
+  foodType: 'cheese',
   subCategory: null,
   setSelection: () => {},
   extraFoodTypes: [],
@@ -55,7 +55,7 @@ function loadFoodTypeRecords(): LocalFoodTypeRecord[] {
 }
 
 export function FoodTypeProvider({ children }: { children: ReactNode }) {
-  const [foodType, setFoodType] = useState<FoodType>('all');
+  const [foodType, setFoodType] = useState<FoodType>('cheese');
   const [subCategory, setSubCategory] = useState<string | null>(null);
   const [localFoodTypeRecords, setLocalFoodTypeRecords] = useState<LocalFoodTypeRecord[]>(loadFoodTypeRecords);
   const { isAuthenticated, user } = useAuth();
@@ -98,7 +98,7 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
   const archiveFoodType = useCallback((type: string) => {
     const slug = slugifyFoodType(type);
     setLocalFoodTypeRecords(prev => prev.map(record => record.type === slug ? { ...record, status: 'archived' } : record));
-    setFoodType(current => current === slug ? 'all' : current);
+    setFoodType(current => current === slug ? 'cheese' : current);
     void archiveFoodTypeMutation.mutateAsync(slug).catch(() => undefined);
   }, [archiveFoodTypeMutation]);
 
@@ -112,7 +112,7 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
   const deleteFoodType = useCallback((type: string) => {
     const slug = slugifyFoodType(type);
     setLocalFoodTypeRecords(prev => prev.filter(record => record.type !== slug));
-    setFoodType(current => current === slug ? 'all' : current);
+    setFoodType(current => current === slug ? 'cheese' : current);
     void deleteFoodTypeMutation.mutateAsync(slug).catch(() => undefined);
     if (typeof window !== 'undefined') {
       try {

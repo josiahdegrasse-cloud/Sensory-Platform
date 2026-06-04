@@ -25,6 +25,7 @@ export interface Product {
   isCalibration?: boolean;
   referenceScores?: HedonicReferenceScores | null;
   blinded?: boolean;
+  assignedPanelistIds?: string[];
 }
 
 export interface QuestionnaireResponse {

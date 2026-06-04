@@ -55,16 +55,13 @@ function CategorySidebar() {
   const importedTypes = allTypes.filter(t => !builtInTypes.includes(t));
   const label = (ft: string) =>
     ft === 'cheese' ? 'Cheese' : ft === 'bread' ? 'Bread' : capitalize(ft);
-  const activeTypeLabel = foodType === 'all' ? 'All Types' : label(foodType);
+  const activeTypeLabel = label(foodType);
   const selectedSamples = useMemo(() => {
     const samples = instrumentalDataset?.eTongueData ?? [];
-    if (foodType === 'all') return samples;
     return samples.filter(sample => sample.type === foodType);
   }, [foodType, instrumentalDataset]);
   const selectedSampleIds = useMemo(() => new Set(selectedSamples.map(sample => sample.sampleId)), [selectedSamples]);
-  const selectedBatch = foodType === 'all'
-    ? importBatches[0]
-    : importBatches.find(batch => batch.foodTypeSlug === foodType);
+  const selectedBatch = importBatches.find(batch => batch.foodTypeSlug === foodType);
   const selectedDataTypes = [
     selectedSamples.length > 0 ? 'E-tongue' : null,
     Object.keys(instrumentalDataset?.gcmsData ?? {}).some(sampleId => selectedSampleIds.has(sampleId)) ? 'GC-MS' : null,
@@ -88,18 +85,6 @@ function CategorySidebar() {
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Food Type</span>
         </div>
         <div className="p-1.5 flex flex-col gap-0.5">
-          <button
-            onClick={() => setSelection('all', null)}
-            className="w-full text-left px-2.5 py-1.5 rounded-lg text-sm transition-colors flex items-center justify-between"
-            style={btnStyle(foodType === 'all')}
-          >
-            <span>All Types</span>
-            {products.length > 0 && (
-              <span className="text-[10px] text-slate-400 font-medium tabular-nums">
-                {products.filter(p => p.status !== 'archived').length}
-              </span>
-            )}
-          </button>
           {allTypes.map(ft => {
             const imported = !builtInTypes.includes(ft);
             const active = foodType === ft;
@@ -182,38 +167,36 @@ function CategorySidebar() {
           )}
         </div>
       </div>
-      {foodType !== 'all' && (
-        <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
-            <Database className="size-3.5 text-slate-400" />
-            {activeTypeLabel}
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-            <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
-              <div className="font-bold text-slate-900">{selectedSamples.length}</div>
-              <div className="text-slate-500">machine samples</div>
-            </div>
-            <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
-              <div className="font-bold text-slate-900">{productCountByType[foodType] ?? 0}</div>
-              <div className="text-slate-500">products</div>
-            </div>
-          </div>
-          <div className="mt-3 text-[11px] text-slate-500">
-            {selectedBatch
-              ? `Last import: ${new Date(selectedBatch.createdAt).toLocaleDateString()}`
-              : 'No saved import batches yet.'}
-          </div>
-          {selectedDataTypes.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {selectedDataTypes.map(kind => (
-                <span key={kind} className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
-                  {kind}
-                </span>
-              ))}
-            </div>
-          )}
+      <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+          <Database className="size-3.5 text-slate-400" />
+          {activeTypeLabel}
         </div>
-      )}
+        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+          <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
+            <div className="font-bold text-slate-900">{selectedSamples.length}</div>
+            <div className="text-slate-500">machine samples</div>
+          </div>
+          <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
+            <div className="font-bold text-slate-900">{productCountByType[foodType] ?? 0}</div>
+            <div className="text-slate-500">surveys</div>
+          </div>
+        </div>
+        <div className="mt-3 text-[11px] text-slate-500">
+          {selectedBatch
+            ? `Last import: ${new Date(selectedBatch.createdAt).toLocaleDateString()}`
+            : 'No saved import batches yet.'}
+        </div>
+        {selectedDataTypes.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {selectedDataTypes.map(kind => (
+              <span key={kind} className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                {kind}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
       <AlertDialog open={!!pendingAction} onOpenChange={open => !open && setPendingAction(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -248,7 +231,6 @@ function CategorySidebar() {
 
 function FoodTypeBadge() {
   const { foodType, subCategory } = useFoodType();
-  if (foodType === 'all') return null;
   const typeLabel = foodType === 'cheese' ? 'Cheese' : foodType === 'bread' ? 'Bread' : capitalize(foodType);
   const label = subCategory ?? typeLabel;
   return (

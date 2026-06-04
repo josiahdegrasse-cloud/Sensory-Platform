@@ -18,6 +18,7 @@ function toProduct(row: Record<string, unknown>): Product {
     samples: (row.samples as Product['samples']) ?? undefined,
     isCalibration: (row.is_calibration as boolean) ?? false,
     referenceScores: (row.reference_scores as HedonicReferenceScores) ?? null,
+    assignedPanelistIds: (row.assigned_panelist_ids as string[]) ?? [],
   };
 }
 
@@ -31,6 +32,7 @@ function fromProduct(p: Omit<Product, 'id' | 'createdDate'>) {
     samples: p.samples ?? null,
     is_calibration: p.isCalibration ?? false,
     reference_scores: p.referenceScores ?? null,
+    assigned_panelist_ids: p.assignedPanelistIds ?? [],
   };
 }
 
@@ -522,6 +524,7 @@ export async function updateProduct(
   if (updates.samples !== undefined) patch.samples = updates.samples;
   if (updates.isCalibration !== undefined) patch.is_calibration = updates.isCalibration;
   if (updates.referenceScores !== undefined) patch.reference_scores = updates.referenceScores;
+  if (updates.assignedPanelistIds !== undefined) patch.assigned_panelist_ids = updates.assignedPanelistIds;
 
   const { data, error } = await supabase
     .from('products')
