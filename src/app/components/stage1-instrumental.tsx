@@ -83,13 +83,34 @@ const MOCK_ETONGUE_DATA: ETongueMeasurement[] = [
 ];
 
 const MOCK_GCMS_DATA: Record<string, GCMSCompound[]> = {
-  S3: [
-    { name: "Butyric acid", concentration: 12.4, aroma: "rancid", threshold: 8.0 },
-    { name: "Hexanal", concentration: 6.8, aroma: "cardboard", threshold: 5.0 },
-  ],
-  S7: [
-    { name: "Acetaldehyde", concentration: 8.1, aroma: "fermented", threshold: 3.5 },
-  ],
+  // Cheese / plant-based
+  S1:  [{ name: "Diacetyl",   concentration: 3.2,  aroma: "buttery",          threshold: 10.0 }, { name: "Vanillin",    concentration: 1.1, aroma: "vanilla",      threshold: 0 }],
+  S2:  [{ name: "Diacetyl",   concentration: 2.8,  aroma: "buttery",          threshold: 10.0 }, { name: "Limonene",   concentration: 0.4, aroma: "citrus",       threshold: 0 }],
+  S3:  [{ name: "Butyric acid", concentration: 12.4, aroma: "rancid",         threshold: 8.0  }, { name: "Hexanal",    concentration: 6.8, aroma: "cardboard",    threshold: 5.0 }, { name: "Acetaldehyde", concentration: 2.1, aroma: "fermented", threshold: 7.0 }],
+  S4:  [{ name: "Diacetyl",   concentration: 3.6,  aroma: "buttery",          threshold: 10.0 }, { name: "Benzaldehyde", concentration: 1.4, aroma: "nutty/almond", threshold: 0 }],
+  S5:  [{ name: "Benzaldehyde", concentration: 2.3, aroma: "nutty/almond",   threshold: 0    }, { name: "Vanillin",   concentration: 1.6, aroma: "vanilla",      threshold: 0 }, { name: "Diacetyl", concentration: 2.1, aroma: "buttery", threshold: 10.0 }],
+  S6:  [{ name: "Benzaldehyde", concentration: 2.0, aroma: "nutty/almond",   threshold: 0    }, { name: "Limonene",   concentration: 0.6, aroma: "citrus",       threshold: 0 }],
+  S7:  [{ name: "Acetaldehyde", concentration: 8.1, aroma: "fermented",       threshold: 3.5  }, { name: "Butyric acid", concentration: 4.2, aroma: "rancid",     threshold: 8.0 }],
+  S8:  [{ name: "Diacetyl",   concentration: 3.4,  aroma: "buttery",          threshold: 10.0 }, { name: "Benzaldehyde", concentration: 1.6, aroma: "nutty",      threshold: 0 }],
+  S9:  [{ name: "Diacetyl",   concentration: 2.2,  aroma: "buttery",          threshold: 10.0 }, { name: "Vanillin",   concentration: 1.8, aroma: "vanilla",      threshold: 0 }],
+  S10: [{ name: "Benzaldehyde", concentration: 3.1, aroma: "nutty",           threshold: 0    }, { name: "Diacetyl",   concentration: 1.9, aroma: "buttery",      threshold: 10.0 }],
+  S11: [{ name: "Diacetyl",   concentration: 2.6,  aroma: "buttery",          threshold: 10.0 }, { name: "Acetaldehyde", concentration: 1.4, aroma: "fermented",  threshold: 7.0 }],
+  S12: [{ name: "Diacetyl",   concentration: 3.0,  aroma: "buttery",          threshold: 10.0 }, { name: "Limonene",   concentration: 0.8, aroma: "citrus",       threshold: 0 }],
+  D1:  [{ name: "Diacetyl",   concentration: 4.8,  aroma: "buttery",          threshold: 10.0 }, { name: "Butyric acid", concentration: 3.2, aroma: "dairy/tangy", threshold: 8.0 }],
+  D2:  [{ name: "Diacetyl",   concentration: 4.6,  aroma: "buttery",          threshold: 10.0 }, { name: "Hexanal",    concentration: 1.8, aroma: "fresh dairy",  threshold: 5.0 }],
+  // Bread
+  B1:  [{ name: "Acetic acid",           concentration: 9.2,  aroma: "sour/vinegary",   threshold: 6.0  }, { name: "Acetaldehyde",       concentration: 5.8, aroma: "yeasty/fermented", threshold: 7.0 }, { name: "Furfural",   concentration: 3.1, aroma: "caramel/toasted", threshold: 0 }, { name: "Diacetyl", concentration: 1.2, aroma: "buttery", threshold: 10.0 }],
+  B2:  [{ name: "Diacetyl",              concentration: 2.1,  aroma: "buttery",          threshold: 10.0 }, { name: "Furfural",           concentration: 1.8, aroma: "caramel/sweet",    threshold: 0 }, { name: "Acetaldehyde", concentration: 1.6, aroma: "yeasty",        threshold: 7.0 }],
+  B3:  [{ name: "Furfural",              concentration: 4.6,  aroma: "caramel/toasted",  threshold: 0    }, { name: "Benzaldehyde",       concentration: 1.5, aroma: "nutty/almond",     threshold: 0 }, { name: "Acetaldehyde", concentration: 3.2, aroma: "yeasty",        threshold: 7.0 }, { name: "Hexanal", concentration: 1.3, aroma: "grassy/grain", threshold: 5.0 }],
+  B4:  [{ name: "Acetic acid",           concentration: 14.2, aroma: "sour/vinegary",    threshold: 6.0  }, { name: "Propionic acid",     concentration: 8.1, aroma: "pungent/rye",      threshold: 0 }, { name: "Furfural",   concentration: 4.1, aroma: "caramel/toasted", threshold: 0 }, { name: "Acetaldehyde", concentration: 3.4, aroma: "yeasty/fermented", threshold: 7.0 }],
+  B5:  [{ name: "Diacetyl",              concentration: 7.2,  aroma: "buttery/rich",     threshold: 10.0 }, { name: "Vanillin",           concentration: 3.8, aroma: "vanilla/sweet",    threshold: 0 }, { name: "Ethyl butanoate", concentration: 2.1, aroma: "fruity/sweet", threshold: 0 }, { name: "2-Phenylethanol", concentration: 1.8, aroma: "rose/honey", threshold: 0 }],
+  B6:  [{ name: "Furfural",              concentration: 2.6,  aroma: "caramel/toasted",  threshold: 0    }, { name: "Diacetyl",           concentration: 1.4, aroma: "buttery/mild",     threshold: 10.0 }, { name: "Acetaldehyde", concentration: 1.8, aroma: "yeasty",      threshold: 7.0 }, { name: "1-Octen-3-ol", concentration: 0.8, aroma: "mushroom/earthy", threshold: 0 }],
+  B7:  [{ name: "Furfural",              concentration: 3.4,  aroma: "caramel/wholegrain", threshold: 0  }, { name: "Benzaldehyde",       concentration: 1.8, aroma: "nutty/almond",     threshold: 0 }, { name: "Hexanal",    concentration: 1.6, aroma: "grassy/grain",    threshold: 5.0 }, { name: "Acetaldehyde", concentration: 1.4, aroma: "yeasty",        threshold: 7.0 }],
+  B8:  [{ name: "Acetic acid",           concentration: 11.4, aroma: "sour/vinegary",    threshold: 6.0  }, { name: "Limonene",           concentration: 6.2, aroma: "caraway/citrus",   threshold: 0 }, { name: "Benzaldehyde", concentration: 2.4, aroma: "nutty/seed",    threshold: 0 }, { name: "Furfural", concentration: 4.2, aroma: "toasted/malty",   threshold: 0 }],
+  B9:  [{ name: "2-Acetyl-1-pyrroline",  concentration: 6.8,  aroma: "popcorn/crust",    threshold: 0    }, { name: "Furfural",           concentration: 6.2, aroma: "caramel/toasted",  threshold: 0 }, { name: "Diacetyl",   concentration: 1.1, aroma: "buttery/mild",    threshold: 10.0 }, { name: "Acetaldehyde", concentration: 1.0, aroma: "yeasty/fresh",  threshold: 7.0 }],
+  B10: [{ name: "Linalool",              concentration: 4.8,  aroma: "floral/herby",     threshold: 0    }, { name: "Hexanal",            concentration: 2.8, aroma: "olive/green",       threshold: 5.0 }, { name: "Furfural",   concentration: 2.4, aroma: "caramel/toasted", threshold: 0 }, { name: "Diacetyl", concentration: 1.6, aroma: "buttery",          threshold: 10.0 }],
+  B11: [{ name: "Acetic acid",           concentration: 7.6,  aroma: "sour/balanced",    threshold: 6.0  }, { name: "2-Acetyl-1-pyrroline", concentration: 4.4, aroma: "popcorn/crust",  threshold: 0 }, { name: "Furfural",   concentration: 3.8, aroma: "caramel/toasted", threshold: 0 }, { name: "Diacetyl", concentration: 1.8, aroma: "buttery",          threshold: 10.0 }],
+  B12: [{ name: "Diacetyl",              concentration: 5.8,  aroma: "buttery/rich",     threshold: 10.0 }, { name: "Vanillin",           concentration: 2.8, aroma: "vanilla/sweet",    threshold: 0 }, { name: "Furfural",   concentration: 1.8, aroma: "caramel/mild",    threshold: 0 }, { name: "Acetaldehyde", concentration: 1.0, aroma: "yeasty/mild",   threshold: 7.0 }],
 };
 
 const MOCK_COMPOSITION_DATA: Record<string, ChemicalComposition> = {
@@ -184,7 +205,21 @@ function inferCategory(sampleId: string, csvCategory?: string, type?: string) {
 
 function getPointColor(type?: string, category?: string) {
   if (type === "dairy" || category === "Dairy") return "#10b981";
-  if (type === "bread" || category === "Bread") return "#d97706";
+  if (type === "bread") {
+    const c = (category || "").toLowerCase();
+    if (c.includes("sourdough")) return "#d97706";
+    if (c.includes("rye") || c.includes("seeded")) return "#92400e";
+    if (c.includes("brioche") || c.includes("enriched")) return "#f59e0b";
+    if (c.includes("ciabatta")) return "#ea580c";
+    if (c.includes("baguette")) return "#b45309";
+    if (c.includes("focaccia")) return "#16a34a";
+    if (c.includes("wheat") || c.includes("multigrain")) return "#78350f";
+    if (c.includes("white") || c.includes("sandwich")) return "#fbbf24";
+    return "#d97706";
+  }
+  if (category === "Oat-based")   return "#8b5cf6";
+  if (category === "Almond-based") return "#ec4899";
+  if (category === "Mixed base")  return "#6366f1";
   if (category === "Cashew-based") return "#f59e0b";
   return "#3b82f6";
 }
@@ -873,20 +908,16 @@ export function Stage1Instrumental() {
                       </div>
                     ))
                   ) : (
-                    <>
-                      <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
-                        <div className="h-3 w-3 rounded-full bg-emerald-600" />
-                        <span className="font-medium text-slate-700">Dairy</span>
+                    Array.from(new Map(displayedSamples.map(s => [s.category, getPointColor(s.type, s.category)]))).map(([cat, color]) => (
+                      <div
+                        key={cat}
+                        className="flex items-center gap-2 rounded-md border px-3 py-2"
+                        style={{ borderColor: `${color}40`, background: `${color}12` }}
+                      >
+                        <div className="h-3 w-3 rounded-full" style={{ background: color }} />
+                        <span className="font-medium text-slate-700">{cat}</span>
                       </div>
-                      <div className="flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2">
-                        <div className="h-3 w-3 rounded-full bg-blue-600" />
-                        <span className="font-medium text-slate-700">Coconut-based</span>
-                      </div>
-                      <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-                        <div className="h-3 w-3 rounded-full bg-amber-600" />
-                        <span className="font-medium text-slate-700">Cashew-based</span>
-                      </div>
-                    </>
+                    ))
                   )}
                 </div>
               </CardContent>
@@ -985,80 +1016,80 @@ export function Stage1Instrumental() {
             Taste Similarity Analysis (PCA)
           </CardTitle>
           <p className="text-xs text-slate-600 mt-1">
-            Comparison of plant-based formulations against dairy reference standards
+            {foodType === 'bread'
+              ? 'E-Tongue principal component analysis across bread formulations'
+              : foodType === 'cheese'
+              ? 'Comparison of plant-based formulations against dairy reference standards'
+              : 'Principal component analysis across all sample types'}
           </p>
         </CardHeader>
         <CardContent className="pt-6">
-          <ResponsiveContainer width="100%" height={400}>
-            <ScatterChart margin={{ top: 10, right: 20, bottom: 40, left: 60 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis
-                type="number"
-                dataKey="pc1"
-                name="Savory Dimension"
-                domain={[-2, 2]}
-                tick={{ fill: "#475569", fontSize: 12 }}
-                label={{ value: "PC1 - Savory Dimension", position: "insideBottom", offset: -5, style: { fill: "#475569", fontSize: 12, fontWeight: 500 } }}
-              />
-              <YAxis
-                type="number"
-                dataKey="pc2"
-                name="Bitter-Sour Dimension"
-                domain={[-2, 2]}
-                tick={{ fill: "#475569", fontSize: 12 }}
-                label={{ value: "PC2 - Bitter-Sour Dimension", angle: -90, position: "insideLeft", offset: 5, style: { fill: "#475569", fontSize: 12, fontWeight: 500 } }}
-              />
-              <Tooltip
-                content={({ active, payload }) => {
-                  if (active && payload && payload.length) {
-                    const data = payload[0].payload;
-                    return (
-                      <div className="bg-white p-3 shadow-lg rounded-lg border border-slate-200">
-                        <p className="font-semibold text-slate-900">{data.name}</p>
-                        <p className="text-xs text-slate-500 mt-1">PC1: {data.pc1} | PC2: {data.pc2}</p>
-                        <p className="text-xs text-slate-600 mt-1">{data.category}</p>
-                      </div>
-                    );
-                  }
-                  return null;
-                }}
-              />
-              <Scatter data={pcaData.filter((d) => d.type === "pbca")}>
-                {pcaData.filter((d) => d.type === "pbca").map((entry) => (
-                  <Cell key={`cell-${entry.id}`} fill={getPointColor(entry.type, entry.category)} />
-                ))}
-              </Scatter>
-              <Scatter data={pcaData.filter((d) => d.type === "dairy")}>
-                {pcaData.filter((d) => d.type === "dairy").map((entry) => (
-                  <Cell key={`cell-${entry.id}`} fill={getPointColor(entry.type, entry.category)} />
-                ))}
-              </Scatter>
-            </ScatterChart>
-          </ResponsiveContainer>
+          {(() => {
+            const uniqueTypes = Array.from(new Set(pcaData.map(d => d.type)));
+            const uniqueCategories = Array.from(
+              new Map(pcaData.map(d => [d.category, { type: d.type, color: getPointColor(d.type, d.category) }]))
+            );
+            return (
+              <>
+                <ResponsiveContainer width="100%" height={400}>
+                  <ScatterChart margin={{ top: 10, right: 20, bottom: 40, left: 60 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis
+                      type="number"
+                      dataKey="pc1"
+                      name="Savory Dimension"
+                      domain={['auto', 'auto']}
+                      tick={{ fill: "#475569", fontSize: 12 }}
+                      label={{ value: "PC1 - Savory/Salt Dimension", position: "insideBottom", offset: -5, style: { fill: "#475569", fontSize: 12, fontWeight: 500 } }}
+                    />
+                    <YAxis
+                      type="number"
+                      dataKey="pc2"
+                      name="Bitter-Sour Dimension"
+                      domain={['auto', 'auto']}
+                      tick={{ fill: "#475569", fontSize: 12 }}
+                      label={{ value: "PC2 - Acid/Bitter Dimension", angle: -90, position: "insideLeft", offset: 5, style: { fill: "#475569", fontSize: 12, fontWeight: 500 } }}
+                    />
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload;
+                          return (
+                            <div className="bg-white p-3 shadow-lg rounded-lg border border-slate-200">
+                              <p className="font-semibold text-slate-900">{data.name}</p>
+                              <p className="text-xs text-slate-500 mt-1">PC1: {data.pc1} | PC2: {data.pc2}</p>
+                              <p className="text-xs text-slate-600 mt-1">{data.category}</p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    {uniqueTypes.map(type => (
+                      <Scatter key={type} data={pcaData.filter(d => d.type === type)}>
+                        {pcaData.filter(d => d.type === type).map(entry => (
+                          <Cell key={`cell-${entry.id}`} fill={getPointColor(entry.type, entry.category)} />
+                        ))}
+                      </Scatter>
+                    ))}
+                  </ScatterChart>
+                </ResponsiveContainer>
 
-          <div className="mt-6 grid grid-cols-3 gap-4 text-sm">
-            <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-3 h-3 rounded-full bg-emerald-600" />
-                <span className="font-semibold">Dairy Reference</span>
-              </div>
-              <p className="text-xs text-slate-600">Real cheese baseline</p>
-            </div>
-            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-3 h-3 rounded-full bg-blue-600" />
-                <span className="font-semibold">Coconut-based</span>
-              </div>
-              <p className="text-xs text-slate-600">Coconut oil formulation</p>
-            </div>
-            <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-3 h-3 rounded-full bg-amber-600" />
-                <span className="font-semibold">Cashew-based</span>
-              </div>
-              <p className="text-xs text-slate-600">Cashew nut formulation</p>
-            </div>
-          </div>
+                <div className="mt-6 flex flex-wrap gap-3 text-sm">
+                  {uniqueCategories.map(([cat, { color }]) => (
+                    <div
+                      key={cat}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg border"
+                      style={{ borderColor: `${color}40`, background: `${color}12` }}
+                    >
+                      <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: color }} />
+                      <span className="font-semibold text-slate-700">{cat}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            );
+          })()}
         </CardContent>
       </Card>
 
