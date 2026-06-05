@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useAuth } from '../contexts/auth-context';
-import { AlertCircle, CheckCircle2, ChevronRight, FlaskConical, LineChart, ShieldCheck } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 
 interface Props {
@@ -78,26 +78,11 @@ export function LoginPage({ onSignup }: Props) {
     <div className="min-h-screen flex">
       {/* Left panel */}
       <div
-        className="hidden lg:flex lg:w-[48%] flex-col justify-between p-12 relative overflow-hidden"
-        style={{
-          background:
-            'radial-gradient(circle at 18% 18%, rgba(107,120,144,0.32), transparent 28%), radial-gradient(circle at 78% 72%, rgba(16,185,129,0.18), transparent 30%), linear-gradient(145deg, #0b0f14 0%, #111111 46%, #18202a 100%)',
-        }}
+        className="hidden lg:flex lg:w-[46%] flex-col justify-between p-12"
+        style={{ background: '#111111' }}
       >
-        <div
-          className="absolute inset-0 opacity-[0.09]"
-          style={{
-            backgroundImage:
-              'linear-gradient(rgba(255,255,255,0.55) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.55) 1px, transparent 1px)',
-            backgroundSize: '44px 44px',
-          }}
-        />
-        <div className="absolute left-12 right-12 top-28 h-px bg-white/10" />
-        <div className="absolute -right-20 top-28 h-72 w-72 rounded-full border border-white/10" />
-        <div className="absolute -right-10 top-44 h-48 w-48 rounded-full border border-white/10" />
-
         {/* Logo */}
-        <div className="relative z-10 flex items-center gap-3">
+        <div className="flex items-center gap-3">
           <NfiLogoMark size={42} />
           <div style={{ lineHeight: '1.3' }}>
             <div className="text-white/80 text-sm">new</div>
@@ -107,36 +92,24 @@ export function LoginPage({ onSignup }: Props) {
         </div>
 
         {/* Centre copy */}
-        <div className="relative z-10 max-w-[460px]">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.07] px-3 py-1.5 text-xs font-medium text-white/70">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            Sensory intelligence platform
-          </div>
-          <h1 className="text-[2.75rem] font-semibold text-white leading-[1.08] mb-6">
-            Food innovation, measured from lab bench to panel room.
-          </h1>
-          <p className="text-white/58 text-base leading-relaxed max-w-[390px]">
-            Import instrument data, generate panel surveys, and move from formulation evidence to confident product decisions.
+        <div>
+          <p className="text-white/35 text-xs font-semibold uppercase tracking-widest mb-5">
+            Sensory Analysis Platform
           </p>
-          <div className="mt-8 grid grid-cols-3 gap-3">
-            {[
-              { label: 'Machine data', icon: FlaskConical },
-              { label: 'Panel insight', icon: LineChart },
-              { label: 'Decision audit', icon: ShieldCheck },
-            ].map(({ label, icon: Icon }) => (
-              <div key={label} className="rounded-xl border border-white/12 bg-white/[0.06] p-3">
-                <Icon className="mb-2 size-4 text-white/70" />
-                <div className="text-xs font-medium text-white/68">{label}</div>
-              </div>
-            ))}
-          </div>
+          <h1 className="text-[2.5rem] font-bold text-white leading-[1.15] mb-6">
+            Guiding your journey,<br />
+            from concept to<br />
+            commercialisation.
+          </h1>
+          <p className="text-white/45 text-base leading-relaxed max-w-[300px]">
+            A professional sensory intelligence platform for food developers, R&D teams, and innovation consultants.
+          </p>
         </div>
 
         {/* Footer */}
-        <div className="relative z-10 flex items-center justify-between border-t border-white/10 pt-6 text-sm text-white/35">
-          <span>Supporting international food teams</span>
-          <span className="font-mono text-xs text-white/28">NFI OS</span>
-        </div>
+        <p className="text-white/25 text-sm">
+          Supporting over 60 international food companies.
+        </p>
       </div>
 
       {/* Right panel — form */}
@@ -210,11 +183,8 @@ export function LoginPage({ onSignup }: Props) {
           ) : (
             <>
               <div className="mb-8">
-                <div className="mb-3 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-                  Professional workspace
-                </div>
-                <h2 className="text-2xl font-bold text-slate-900">Sign in to NFI</h2>
-                <p className="text-slate-500 text-sm mt-1">Continue your sensory projects and panel surveys.</p>
+                <h2 className="text-2xl font-bold text-slate-900">Sign in</h2>
+                <p className="text-slate-500 text-sm mt-1">Access your NFI workspace</p>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-5">
