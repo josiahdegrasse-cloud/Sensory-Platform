@@ -220,6 +220,26 @@ interface StoredImportedData {
   compositionData: Record<string, ChemicalComposition>;
 }
 
+function mergeInstrumentalData(imported: StoredImportedData | null | undefined): StoredImportedData {
+  if (!imported) {
+    return {
+      eTongueData: MOCK_ETONGUE_DATA,
+      gcmsData: MOCK_GCMS_DATA,
+      compositionData: MOCK_COMPOSITION_DATA,
+    };
+  }
+
+  const samplesById = new Map<string, ETongueMeasurement>();
+  MOCK_ETONGUE_DATA.forEach(sample => samplesById.set(sample.sampleId, sample));
+  imported.eTongueData.forEach(sample => samplesById.set(sample.sampleId, sample));
+
+  return {
+    eTongueData: Array.from(samplesById.values()),
+    gcmsData: { ...MOCK_GCMS_DATA, ...imported.gcmsData },
+    compositionData: { ...MOCK_COMPOSITION_DATA, ...imported.compositionData },
+  };
+}
+
 function loadImportedData(): StoredImportedData | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -429,23 +449,25 @@ function applyImportedDataset(
   setCompositionData: (data: Record<string, ChemicalComposition>) => void,
   setSelectedSamples: (samples: string[]) => void,
 ) {
-  if (dataset.eTongueData.length > 0) {
-    setETongueData(dataset.eTongueData);
-    setSelectedSamples([dataset.eTongueData[0].sampleId]);
+  const mergedDataset = mergeInstrumentalData(dataset);
+  if (mergedDataset.eTongueData.length > 0) {
+    setETongueData(mergedDataset.eTongueData);
+    setSelectedSamples([dataset.eTongueData[0]?.sampleId ?? mergedDataset.eTongueData[0].sampleId]);
   }
-  setGcmsData(dataset.gcmsData);
-  setCompositionData(dataset.compositionData);
+  setGcmsData(mergedDataset.gcmsData);
+  setCompositionData(mergedDataset.compositionData);
 }
 
 export function Stage1Instrumental() {
   const storedImportedData = useMemo(loadImportedData, []);
+  const initialDataset = useMemo(() => mergeInstrumentalData(storedImportedData), [storedImportedData]);
   const { user } = useAuth();
   const instrumentalDatasetQuery = useInstrumentalDataset(user?.role === 'admin');
   const insertInstrumentalImport = useInsertInstrumentalImport();
   const [selectedSamples, setSelectedSamples] = useState<string[]>(["S3"]);
-  const [eTongueData, setETongueData] = useState<ETongueMeasurement[]>(storedImportedData?.eTongueData ?? MOCK_ETONGUE_DATA);
-  const [gcmsData, setGcmsData] = useState<Record<string, GCMSCompound[]>>(storedImportedData?.gcmsData ?? MOCK_GCMS_DATA);
-  const [compositionData, setCompositionData] = useState<Record<string, ChemicalComposition>>(storedImportedData?.compositionData ?? MOCK_COMPOSITION_DATA);
+  const [eTongueData, setETongueData] = useState<ETongueMeasurement[]>(initialDataset.eTongueData);
+  const [gcmsData, setGcmsData] = useState<Record<string, GCMSCompound[]>>(initialDataset.gcmsData);
+  const [compositionData, setCompositionData] = useState<Record<string, ChemicalComposition>>(initialDataset.compositionData);
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<Record<string, string>[]>([]);
   const [showPreview, setShowPreview] = useState(false);
@@ -480,12 +502,13 @@ export function Stage1Instrumental() {
   useEffect(() => {
     const dataset = instrumentalDatasetQuery.data;
     if (!dataset || dataset.eTongueData.length === 0) return;
-    setETongueData(dataset.eTongueData);
-    setGcmsData(dataset.gcmsData);
-    setCompositionData(dataset.compositionData);
+    const mergedDataset = mergeInstrumentalData(dataset);
+    setETongueData(mergedDataset.eTongueData);
+    setGcmsData(mergedDataset.gcmsData);
+    setCompositionData(mergedDataset.compositionData);
     setUsingDemoData(false);
-    if (!dataset.eTongueData.find(sample => sample.sampleId === selectedSamples[0])) {
-      setSelectedSamples([dataset.eTongueData[0].sampleId]);
+    if (!mergedDataset.eTongueData.find(sample => sample.sampleId === selectedSamples[0])) {
+      setSelectedSamples([mergedDataset.eTongueData[0].sampleId]);
     }
   }, [instrumentalDatasetQuery.data, selectedSamples]);
 
