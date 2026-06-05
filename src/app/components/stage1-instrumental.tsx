@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router";
 import { matchFoodType, useFoodType } from "../contexts/food-type-context";
 import { useAuth } from "../contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
-import { FlaskConical, AlertCircle, Upload, X, Check, Download } from "lucide-react";
+import { FlaskConical, AlertCircle, Upload, X, Check, Download, BarChart3, ClipboardList, Lightbulb, ArrowRight } from "lucide-react";
 import { SAMPLES } from "../data/samples";
 import { detectFoodType, formatFoodTypeLabel, slugifyFoodType } from "../lib/food-intelligence";
 import { useInsertInstrumentalImport, useInstrumentalDataset } from "../lib/hooks";
@@ -61,6 +62,16 @@ interface ColumnReport {
 interface ImportValidationReport {
   errors: string[];
   warnings: string[];
+}
+
+interface ImportCompletionSummary {
+  foodTypeSlug: string;
+  foodTypeLabel: string;
+  projectName: string;
+  sampleCount: number;
+  gcmsCount: number;
+  compositionCount: number;
+  savedPermanently: boolean;
 }
 
 const MOCK_ETONGUE_DATA: ETongueMeasurement[] = [
@@ -461,6 +472,7 @@ function applyImportedDataset(
 export function Stage1Instrumental() {
   const storedImportedData = useMemo(loadImportedData, []);
   const initialDataset = useMemo(() => mergeInstrumentalData(storedImportedData), [storedImportedData]);
+  const navigate = useNavigate();
   const { user } = useAuth();
   const instrumentalDatasetQuery = useInstrumentalDataset(user?.role === 'admin');
   const insertInstrumentalImport = useInsertInstrumentalImport();
@@ -477,6 +489,7 @@ export function Stage1Instrumental() {
   const [compareMode, setCompareMode] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  const [lastImportSummary, setLastImportSummary] = useState<ImportCompletionSummary | null>(null);
   const [columnReport, setColumnReport] = useState<ColumnReport | null>(null);
   const [usingDemoData, setUsingDemoData] = useState(!storedImportedData);
 
@@ -597,6 +610,7 @@ export function Stage1Instrumental() {
   const handleFile = (file: File) => {
     setImportError(null);
     setImportSuccess(null);
+    setLastImportSummary(null);
 
     if (!file.name.toLowerCase().endsWith(".csv")) {
       setImportError("Only .csv files are supported. Please export your data as CSV first.");
@@ -653,6 +667,7 @@ export function Stage1Instrumental() {
     const importedETongue = parsed.eTongueData;
     const importedGCMSCount = Object.keys(parsed.gcmsData).length;
     const importedCompCount = Object.keys(parsed.compositionData).length;
+    const projectName = batchName.trim() || uploadedFile?.replace(/\.csv$/i, '') || `${parsed.detection.label} import`;
 
     if (importedETongue.length === 0 && importedGCMSCount === 0 && importedCompCount === 0) {
       setImportError(
@@ -669,7 +684,7 @@ export function Stage1Instrumental() {
 
     try {
       const savedDataset = await insertInstrumentalImport.mutateAsync({
-        fileName: batchName || uploadedFile || 'Imported CSV',
+        fileName: projectName,
         rowCount: previewData.length,
         recognizedColumns: columnReport?.recognised ?? [],
         ignoredColumns: columnReport?.ignored ?? [],
@@ -710,6 +725,15 @@ export function Stage1Instrumental() {
         ? `Imported ${parts.join(", ")} into ${parsed.detection.label} and created panel surveys for the samples.`
         : `${parsed.detection.label} imported locally. Apply the Supabase food intelligence migration to make it permanent for everyone.`
     );
+    setLastImportSummary({
+      foodTypeSlug: parsed.detection.slug,
+      foodTypeLabel: parsed.detection.label,
+      projectName,
+      sampleCount: importedETongue.length,
+      gcmsCount: importedGCMSCount,
+      compositionCount: importedCompCount,
+      savedPermanently,
+    });
     setShowPreview(false);
     setUploadedFile(null);
     setColumnReport(null);
@@ -794,6 +818,18 @@ export function Stage1Instrumental() {
   const selectedColor           = getPointColor(selectedSampleInfo?.type, selectedSampleInfo?.category);
   const comparisonColors        = ["#9333ea", "#ec4899"];
   const activeFoodTypeLabel     = foodType === 'all' ? 'all sample types' : formatFoodTypeLabel(foodType);
+
+  const viewImportedCharts = (summary: ImportCompletionSummary) => {
+    setSelection(summary.foodTypeSlug, null);
+    window.setTimeout(() => {
+      document.getElementById('machine-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 0);
+  };
+
+  const openImportedWorkflow = (summary: ImportCompletionSummary, path: '/admin' | '/concept-testing') => {
+    setSelection(summary.foodTypeSlug, null);
+    navigate(path);
+  };
 
   const radarData = selectedSampleData
     ? [
@@ -914,11 +950,54 @@ export function Stage1Instrumental() {
 
       {/* Success banner */}
       {importSuccess && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between">
-          <span className="text-sm text-emerald-700 flex items-center gap-1"><Check className="size-3.5" />{importSuccess}</span>
-          <button onClick={() => setImportSuccess(null)} className="text-emerald-400 hover:text-emerald-700">
-            <X className="size-4" />
-          </button>
+        <div className="space-y-3">
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between">
+            <span className="text-sm text-emerald-700 flex items-center gap-1"><Check className="size-3.5" />{importSuccess}</span>
+            <button
+              onClick={() => { setImportSuccess(null); setLastImportSummary(null); }}
+              className="text-emerald-400 hover:text-emerald-700"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+          {lastImportSummary && (
+            <Card className="border-emerald-200 bg-white shadow-sm">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-600">
+                        <Check className="size-4 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-900">{lastImportSummary.foodTypeLabel} project is ready</p>
+                        <p className="text-xs text-slate-500">{lastImportSummary.projectName}</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                      <span className="rounded-full border border-slate-200 px-2.5 py-1 font-semibold text-slate-700">{lastImportSummary.sampleCount} surveys</span>
+                      <span className="rounded-full border border-slate-200 px-2.5 py-1 font-semibold text-slate-700">{lastImportSummary.gcmsCount} GC-MS</span>
+                      <span className="rounded-full border border-slate-200 px-2.5 py-1 font-semibold text-slate-700">{lastImportSummary.compositionCount} composition</span>
+                      <span className={`rounded-full px-2.5 py-1 font-semibold ${lastImportSummary.savedPermanently ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {lastImportSummary.savedPermanently ? 'Saved to platform' : 'Local only'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={() => viewImportedCharts(lastImportSummary)}>
+                      <BarChart3 className="size-4 mr-1.5" />View charts
+                    </Button>
+                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => openImportedWorkflow(lastImportSummary, '/admin')}>
+                      <ClipboardList className="size-4 mr-1.5" />Configure surveys
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => openImportedWorkflow(lastImportSummary, '/concept-testing')}>
+                      <Lightbulb className="size-4 mr-1.5" />Concepts
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 
@@ -1051,7 +1130,8 @@ export function Stage1Instrumental() {
 
             {/* Step 4: Name and confirm */}
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
-              <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Step 4 — Name this import batch</p>
+              <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Step 4 — Name this food project</p>
+              <p className="text-xs text-slate-500">This becomes the project folder in Configure, with one questionnaire created per sample.</p>
               <input
                 type="text"
                 value={batchName}
@@ -1067,7 +1147,9 @@ export function Stage1Instrumental() {
                 disabled={insertInstrumentalImport.isPending || !!validationReport?.errors.length}
                 className="bg-slate-900 hover:bg-slate-700 disabled:opacity-60"
               >
-                {insertInstrumentalImport.isPending ? "Importing…" : "Confirm import"}
+                {insertInstrumentalImport.isPending ? "Importing…" : (
+                  <span className="flex items-center gap-1.5">Create project <ArrowRight className="size-4" /></span>
+                )}
               </Button>
               <Button variant="outline" onClick={cancelPreview}>
                 Cancel
@@ -1078,7 +1160,7 @@ export function Stage1Instrumental() {
       )}
 
       {/* Main grid — no drag handlers; drop zone above handles it */}
-      <div className="grid grid-cols-4 gap-6">
+      <div id="machine-results" className="grid grid-cols-4 gap-6 scroll-mt-6">
         <Card className="border-2 border-slate-200 shadow-sm">
           <CardHeader className="bg-slate-50 border-b rounded-t-lg">
             <div className="flex items-center justify-between mb-1">

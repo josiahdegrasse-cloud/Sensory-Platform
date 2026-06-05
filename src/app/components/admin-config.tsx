@@ -144,7 +144,7 @@ export function AdminConfig() {
       return true;
     });
   const importBatchById = new Map(importBatches.map(batch => [batch.id, batch]));
-  const productProjectGroups = filteredProducts.reduce<Array<{ key: string; label: string; products: Product[] }>>((groups, product) => {
+  const productProjectGroups = filteredProducts.reduce<Array<{ key: string; label: string; products: Product[]; source: 'import' | 'manual' }>>((groups, product) => {
     const key = product.sourceImportBatchId ?? 'manual';
     const existing = groups.find(group => group.key === key);
     const batch = product.sourceImportBatchId ? importBatchById.get(product.sourceImportBatchId) : null;
@@ -152,9 +152,22 @@ export function AdminConfig() {
       ? `${batch.fileName.replace(/\.csv$/i, '')}`
       : `${currentFoodTypeLabel} manual surveys`;
     if (existing) existing.products.push(product);
-    else groups.push({ key, label, products: [product] });
+    else groups.push({ key, label, products: [product], source: batch ? 'import' : 'manual' });
     return groups;
   }, []);
+
+  const getSurveyWorkflowStatus = (product: Product) => {
+    if (product.status === 'archived') {
+      return { label: 'Archived', className: 'bg-amber-100 text-amber-700 border-amber-200' };
+    }
+    if (product.status === 'completed') {
+      return { label: 'Complete', className: 'bg-slate-100 text-slate-700 border-slate-200' };
+    }
+    if ((product.assignedPanelistIds?.length ?? 0) > 0) {
+      return { label: 'Assigned', className: 'bg-blue-100 text-blue-700 border-blue-200' };
+    }
+    return { label: 'Ready to assign', className: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
+  };
 
   // ── Sample handlers ───────────────────────────────────────────────────────────
 
@@ -533,13 +546,13 @@ export function AdminConfig() {
             </div>
             <div className="min-w-0">
               <div className="font-semibold text-slate-900">
-                Imported {currentFoodTypeLabel.toLowerCase()} samples ready for questionnaires
+                Imported {currentFoodTypeLabel.toLowerCase()} project workspace
               </div>
               <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
                 <span>{importedSamples.length} sample{importedSamples.length === 1 ? '' : 's'}</span>
                 <span>{importedGcmsCount} GC-MS</span>
                 <span>{importedCompositionCount} comp</span>
-                <span>{importedSamplesWithoutQuestionnaires.length} not created yet</span>
+                <span>{importedSamplesWithoutQuestionnaires.length === 0 ? 'surveys created' : `${importedSamplesWithoutQuestionnaires.length} surveys missing`}</span>
               </div>
             </div>
           </div>
@@ -618,16 +631,37 @@ export function AdminConfig() {
                     {foodTypeProducts.length === 0 ? `No ${currentFoodTypeLabel.toLowerCase()} surveys yet` : 'No surveys match filter'}
                   </p>
                 </div>
-              ) : productProjectGroups.map((group, groupIndex) => (
-                <div key={group.key} className="space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <div>
-                      <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
-                        Project {groupIndex + 1}
+              ) : productProjectGroups.map((group, groupIndex) => {
+                const assignedCount = group.products.filter(product => (product.assignedPanelistIds?.length ?? 0) > 0).length;
+                const readyCount = group.products.filter(product => product.status === 'active' && (product.assignedPanelistIds?.length ?? 0) === 0).length;
+                const completedProjectCount = group.products.filter(product => product.status === 'completed').length;
+                const archivedProjectCount = group.products.filter(product => product.status === 'archived').length;
+                return (
+                <div key={group.key} className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                  <div className="flex items-center justify-between gap-4 border-b border-slate-200 pb-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${group.source === 'import' ? 'bg-blue-600' : 'bg-slate-700'}`}>
+                        <FolderOpen className="size-5 text-white" />
                       </div>
-                      <h2 className="text-base font-semibold text-slate-900">{group.label}</h2>
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                          {group.source === 'import' ? `Imported project ${groupIndex + 1}` : 'Manual surveys'}
+                        </div>
+                        <h2 className="truncate text-base font-semibold text-slate-900">{group.label}</h2>
+                        <div className="mt-1 flex flex-wrap gap-1.5 text-[11px]">
+                          <span className="rounded-full bg-white px-2 py-0.5 font-semibold text-slate-600 ring-1 ring-slate-200">{group.products.length} sample{group.products.length === 1 ? '' : 's'}</span>
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700 ring-1 ring-emerald-200">{readyCount} ready</span>
+                          <span className="rounded-full bg-blue-50 px-2 py-0.5 font-semibold text-blue-700 ring-1 ring-blue-200">{assignedCount} assigned</span>
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-600 ring-1 ring-slate-200">{completedProjectCount} complete</span>
+                          {archivedProjectCount > 0 && (
+                            <span className="rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-700 ring-1 ring-amber-200">{archivedProjectCount} archived</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <Badge variant="outline" className="text-xs">{group.products.length} sample{group.products.length === 1 ? '' : 's'}</Badge>
+                    <Badge variant="outline" className="shrink-0 text-xs">
+                      {readyCount > 0 ? 'Needs assignment' : 'Configured'}
+                    </Badge>
                   </div>
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                     {group.products.map(product => {
@@ -636,6 +670,7 @@ export function AdminConfig() {
                       const attrs = product.customAttributes ?? DEFAULT_CATA_ATTRIBUTES;
                       const previewAttrs = attrs.slice(0, 4);
                       const extraCount = attrs.length - 4;
+                      const workflowStatus = getSurveyWorkflowStatus(product);
                       return (
                         <div
                           key={product.id}
@@ -661,8 +696,8 @@ export function AdminConfig() {
                                     : 'Open to all panelists'}
                                 </div>
                               </button>
-                              <Badge className={`text-[10px] px-1.5 py-0.5 flex-shrink-0 ${product.status === 'active' ? 'bg-emerald-600' : product.status === 'archived' ? 'bg-amber-500' : 'bg-slate-400'}`}>
-                                {product.status === 'active' ? 'Active' : product.status === 'archived' ? 'Archived' : 'Done'}
+                              <Badge variant="outline" className={`text-[10px] px-1.5 py-0.5 flex-shrink-0 ${workflowStatus.className}`}>
+                                {workflowStatus.label}
                               </Badge>
                             </div>
                             <div className="flex items-center gap-3 mb-2 text-xs text-slate-500">
@@ -711,7 +746,8 @@ export function AdminConfig() {
                     })}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
           {/* Attribute config panel */}
