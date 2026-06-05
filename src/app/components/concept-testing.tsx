@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import {
   Lightbulb, ChevronRight, ChevronLeft, Send, CheckCircle2, Image as ImageIcon,
-  ListChecks, Users, WandSparkles,
+  ListChecks, Users, WandSparkles, AlertTriangle,
 } from 'lucide-react';
 import { insertConceptTest } from '../lib/database';
 import { detectFoodType } from '../lib/food-intelligence';
@@ -42,13 +42,23 @@ export function ConceptTesting() {
 
   const conceptValid = draft.name.trim() && draft.category.trim() && draft.description.trim();
   const detection = detectFoodType(draft.category, draft.name, draft.description);
+  const validImageCount = draft.marketingImages.filter(u => u.trim()).length;
+  const visualReady = validImageCount >= 2 && validImageCount <= 4;
+  const questionReady = questions.length >= 18 && questions.length <= 30;
   const readinessItems = [
-    { label: 'Concept brief', ready: !!conceptValid },
-    { label: 'Concept visuals', ready: draft.marketingImages.filter(u => u.trim()).length > 0 },
-    { label: 'Survey questions', ready: questions.length >= 12 },
-    { label: 'Panel target', ready: assignedPanelistIds.length > 0 || panelSize > 0 || segments.length > 0 },
+    { label: 'Concept brief', ready: !!conceptValid, detail: conceptValid ? 'Name, category, and description are ready.' : 'Add name, category, and consumer-facing description.' },
+    { label: 'Concept visuals', ready: visualReady, detail: validImageCount === 0 ? 'Generate 4 visuals and select 2-4.' : `${validImageCount} visual${validImageCount !== 1 ? 's' : ''} selected.` },
+    { label: 'Survey questions', ready: questionReady, detail: questions.length === 0 ? 'Generate a tailored questionnaire.' : `${questions.length} question${questions.length !== 1 ? 's' : ''} in the survey.` },
+    { label: 'Panel target', ready: assignedPanelistIds.length > 0 || panelSize > 0 || segments.length > 0, detail: assignedPanelistIds.length > 0 ? `${assignedPanelistIds.length} named panelist${assignedPanelistIds.length !== 1 ? 's' : ''}.` : `${panelSize} target responses.` },
   ];
   const readyCount = readinessItems.filter(item => item.ready).length;
+  const nextBestAction = !conceptValid
+    ? 'Finish the concept brief first.'
+    : !visualReady
+      ? 'Generate 4 visuals and select the strongest 2-4.'
+      : !questionReady
+        ? 'Generate a tailored 18-30 question survey.'
+        : 'Assign panelists and launch when ready.';
 
   const resetForm = () => {
     setStep('concept');
@@ -136,7 +146,7 @@ export function ConceptTesting() {
           <div className="grid grid-cols-3 gap-3 lg:w-[420px]">
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
               <div className="flex items-center gap-1.5 text-xs text-slate-500"><ImageIcon className="size-3.5" /> Visuals</div>
-              <p className="text-lg font-bold text-slate-900">{draft.marketingImages.filter(u => u.trim()).length}</p>
+              <p className="text-lg font-bold text-slate-900">{validImageCount}/4</p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
               <div className="flex items-center gap-1.5 text-xs text-slate-500"><ListChecks className="size-3.5" /> Questions</div>
@@ -198,15 +208,27 @@ export function ConceptTesting() {
               </div>
               <div className="space-y-2">
                 {readinessItems.map(item => (
-                  <div key={item.label} className="flex items-center justify-between text-sm">
-                    <span className="text-slate-600">{item.label}</span>
-                    <span className={`flex size-5 items-center justify-center rounded-full ${
-                      item.ready ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-300'
-                    }`}>
-                      <CheckCircle2 className="size-3.5" />
-                    </span>
+                  <div key={item.label} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium text-slate-700">{item.label}</span>
+                      <span className={`flex size-5 items-center justify-center rounded-full ${
+                        item.ready ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-300'
+                      }`}>
+                        <CheckCircle2 className="size-3.5" />
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">{item.detail}</p>
                   </div>
                 ))}
+              </div>
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="size-4 text-amber-600 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-semibold text-amber-900">Next best action</p>
+                    <p className="text-xs text-amber-800 mt-0.5">{nextBestAction}</p>
+                  </div>
+                </div>
               </div>
               <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
                 <p className="text-xs font-semibold text-slate-500">Detected food type</p>

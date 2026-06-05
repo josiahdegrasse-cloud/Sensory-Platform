@@ -14,6 +14,9 @@ interface GenerateConceptImagesBody {
   count?: number;
 }
 
+const DEFAULT_IMAGE_COUNT = 4;
+const MAX_IMAGE_COUNT = 4;
+
 const modeDirections: Record<ConceptImageMode, string> = {
   packaging: 'front-facing premium retail packaging mockup, clear product name, realistic materials, white studio background',
   shelf: 'realistic grocery shelf context, adjacent category products softly visible, strong package readability',
@@ -73,6 +76,7 @@ Deno.serve(async (req: Request) => {
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
   const openAiKey = Deno.env.get('OPENAI_API_KEY');
   const imageModel = Deno.env.get('OPENAI_IMAGE_MODEL') ?? 'gpt-image-1.5';
+  const imageQuality = Deno.env.get('OPENAI_IMAGE_QUALITY') ?? 'medium';
 
   if (!openAiKey) {
     return new Response(JSON.stringify({ error: 'OPENAI_API_KEY is not configured for this Supabase project.' }), {
@@ -99,7 +103,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json() as GenerateConceptImagesBody;
-    const count = Math.max(1, Math.min(3, Number(body.count) || 3));
+    const count = Math.max(1, Math.min(MAX_IMAGE_COUNT, Number(body.count) || DEFAULT_IMAGE_COUNT));
     const prompt = buildPrompt(body);
 
     const response = await fetch('https://api.openai.com/v1/images/generations', {
@@ -113,7 +117,7 @@ Deno.serve(async (req: Request) => {
         prompt,
         n: count,
         size: '1024x1024',
-        quality: 'auto',
+        quality: imageQuality,
         background: 'opaque',
       }),
     });
@@ -131,7 +135,7 @@ Deno.serve(async (req: Request) => {
       }))
       .filter((item) => item.url);
 
-    return new Response(JSON.stringify({ images, model: imageModel, prompt }), {
+    return new Response(JSON.stringify({ images, model: imageModel, quality: imageQuality, prompt }), {
       headers: { ...headers, 'Content-Type': 'application/json' },
     });
   } catch (err) {

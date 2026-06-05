@@ -6,13 +6,14 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import {
   CheckCircle2, Image as ImageIcon, Layers3, Loader2, Package,
-  Plus, RefreshCw, Sparkles, Trash2, Utensils,
+  Plus, RefreshCw, Sparkles, Target, Trash2, Utensils,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { detectFoodType, getFoodTypeProfile } from '../../lib/food-intelligence';
 import type { ConceptDraft } from './types';
 
 type ImageMode = 'packaging' | 'shelf' | 'usage' | 'ingredient' | 'ad';
+const CONCEPT_IMAGE_COUNT = 4;
 
 interface CandidateImage {
   url: string;
@@ -69,7 +70,7 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
           profile.riskMarkers.length ? `Avoid sensory negatives: ${profile.riskMarkers.slice(0, 5).join(', ')}` : '',
         ].filter(Boolean).join('\n'),
         mode,
-        count: 3,
+        count: CONCEPT_IMAGE_COUNT,
       },
     });
 
@@ -106,7 +107,7 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
           </p>
         </div>
         <Badge className="w-fit bg-slate-900 text-white">
-          {detection.label} intelligence
+          {CONCEPT_IMAGE_COUNT} visuals · {detection.label} intelligence
         </Badge>
       </div>
 
@@ -145,7 +146,7 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
               <div>
                 <p className="font-semibold text-slate-900">OpenAI image generation</p>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Uses your Supabase Edge Function with `OPENAI_API_KEY`, so admins never paste provider tokens into the browser.
+                  Generates {CONCEPT_IMAGE_COUNT} medium-quality concept options through Supabase, with no provider tokens in the browser.
                 </p>
               </div>
               <Button
@@ -158,7 +159,7 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
                   ? <><Loader2 className="size-4 mr-2 animate-spin" />Generating</>
                   : aiCandidates.length > 0
                     ? <><RefreshCw className="size-4 mr-2" />Regenerate</>
-                    : <><Sparkles className="size-4 mr-2" />Generate visuals</>}
+                    : <><Sparkles className="size-4 mr-2" />Generate {CONCEPT_IMAGE_COUNT} visuals</>}
               </Button>
             </div>
 
@@ -176,9 +177,9 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
 
           {(generating || aiCandidates.length > 0) && (
             <div className="space-y-3">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {generating && aiCandidates.length === 0
-                  ? [0, 1, 2].map((i) => (
+                  ? Array.from({ length: CONCEPT_IMAGE_COUNT }, (_, i) => (
                       <div key={i} className="aspect-square rounded-xl border border-blue-100 bg-blue-50 flex flex-col items-center justify-center gap-2">
                         <Loader2 className="size-5 text-blue-500 animate-spin" />
                         <span className="text-xs font-medium text-blue-700">Building visual {i + 1}</span>
@@ -208,7 +209,7 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
 
               {!generating && aiCandidates.length > 0 && (
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-xs text-slate-500">Select the visuals that should be shown to panelists.</p>
+                  <p className="text-xs text-slate-500">Select 2-4 visuals for panelists. More variety helps, but too many images can dilute the read.</p>
                   <div className="flex gap-2">
                     <Button type="button" variant="outline" size="sm" onClick={() => setAiCandidates([])}>
                       Discard
@@ -231,10 +232,24 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
 
         <aside className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-4">
           <div>
-            <p className="text-sm font-semibold text-slate-900">Food-aware prompt inputs</p>
-            <p className="text-xs text-slate-500 mt-1">These signals are automatically passed into the generator.</p>
+            <p className="text-sm font-semibold text-slate-900">Concept intelligence</p>
+            <p className="text-xs text-slate-500 mt-1">These signals shape the prompt and help keep generated visuals category-credible.</p>
           </div>
           <div className="space-y-3 text-xs">
+            <div className="rounded-lg border border-white bg-white p-3">
+              <p className="font-semibold text-slate-600">Visual strategy</p>
+              <p className="mt-1 text-slate-500 leading-relaxed">
+                Lead with appetite appeal, make the product format instantly clear, and avoid visual claims that panelists could read as medical or nutritional proof.
+              </p>
+            </div>
+            {(draft.targetMarket || draft.pricePoint) && (
+              <div className="rounded-lg border border-white bg-white p-3">
+                <p className="font-semibold text-slate-600 flex items-center gap-1.5"><Target className="size-3.5" /> Market signal</p>
+                <p className="mt-1 text-slate-500 leading-relaxed">
+                  {[draft.targetMarket, draft.pricePoint].filter(Boolean).join(' · ')}
+                </p>
+              </div>
+            )}
             <div>
               <p className="font-semibold text-slate-600">Success cues</p>
               <div className="mt-1 flex flex-wrap gap-1.5">
