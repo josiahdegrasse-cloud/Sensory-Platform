@@ -783,14 +783,22 @@ export async function deleteTemplate(id: string): Promise<void> {
 export interface PanelistInfo {
   id: string;
   name: string;
+  email: string | null;
   panelistId: string | null;
+  status: 'active' | 'inactive' | 'archived';
+  consentAcceptedAt: string | null;
+  consentVersion: string | null;
   completedCount: number;
   trainingLevel: TrainingLevel;
 }
 
 export async function fetchPanelists(): Promise<PanelistInfo[]> {
   const [profilesResult, { data: responses }] = await Promise.all([
-    supabase.from('profiles').select('id, name, panelist_id, training_level').eq('role', 'panelist'),
+    supabase
+      .from('profiles')
+      .select('id, name, email, panelist_id, training_level, status, consent_accepted_at, consent_version')
+      .eq('role', 'panelist')
+      .order('created_at', { ascending: false }),
     supabase.from('responses').select('user_id'),
   ]);
 
@@ -810,7 +818,11 @@ export async function fetchPanelists(): Promise<PanelistInfo[]> {
   return (profiles ?? []).map((p: Record<string, unknown>) => ({
     id: p.id as string,
     name: (p.name as string) ?? 'Unknown',
+    email: (p.email as string) ?? null,
     panelistId: (p.panelist_id as string) ?? null,
+    status: ((p.status as PanelistInfo['status']) ?? 'active'),
+    consentAcceptedAt: (p.consent_accepted_at as string) ?? null,
+    consentVersion: (p.consent_version as string) ?? null,
     completedCount: counts[p.id as string] ?? 0,
     trainingLevel: ((p.training_level as TrainingLevel) ?? 'screened'),
   }));
@@ -830,6 +842,173 @@ export async function updatePanelistTrainingLevel(userId: string, level: Trainin
     .update({ training_level: level })
     .eq('id', userId);
   if (error) throw dbError(error);
+}
+
+export async function updatePanelistStatus(
+  userId: string,
+  status: PanelistInfo['status'],
+  actorId?: string | null,
+): Promise<void> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ status })
+    .eq('id', userId);
+  if (error) throw dbError(error);
+
+  await insertAuditEvent({
+    actorId: actorId ?? null,
+    eventType: 'panelist_status_updated',
+    entityType: 'profiles',
+    entityId: userId,
+    metadata: { status },
+  });
+}
+
+// ─── Workspace Settings / Audit ──────────────────────────────────────────────
+
+export interface WorkspaceSettings {
+  workspaceName: string;
+  organizationName: string;
+  adminContactEmail: string;
+  defaultTimezone: string;
+  dataRetentionMonths: number;
+  requirePanelistConsent: boolean;
+  allowSelfSignup: boolean;
+  updatedAt: string | null;
+}
+
+export interface AuditEventRecord {
+  id: string;
+  actorId: string | null;
+  actorName: string | null;
+  eventType: string;
+  entityType: string;
+  entityId: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+function defaultWorkspaceSettings(): WorkspaceSettings {
+  return {
+    workspaceName: 'Sensory Analysis Workspace',
+    organizationName: 'New Food Innovation',
+    adminContactEmail: '',
+    defaultTimezone: 'America/New_York',
+    dataRetentionMonths: 24,
+    requirePanelistConsent: true,
+    allowSelfSignup: true,
+    updatedAt: null,
+  };
+}
+
+function toWorkspaceSettings(row: Record<string, unknown>): WorkspaceSettings {
+  return {
+    workspaceName: (row.workspace_name as string) ?? 'Sensory Analysis Workspace',
+    organizationName: (row.organization_name as string) ?? 'New Food Innovation',
+    adminContactEmail: (row.admin_contact_email as string) ?? '',
+    defaultTimezone: (row.default_timezone as string) ?? 'America/New_York',
+    dataRetentionMonths: Number(row.data_retention_months ?? 24),
+    requirePanelistConsent: Boolean(row.require_panelist_consent ?? true),
+    allowSelfSignup: Boolean(row.allow_self_signup ?? true),
+    updatedAt: (row.updated_at as string) ?? null,
+  };
+}
+
+export async function fetchWorkspaceSettings(): Promise<WorkspaceSettings> {
+  const { data, error } = await supabase
+    .from('workspace_settings')
+    .select('*')
+    .eq('id', true)
+    .maybeSingle();
+
+  if (error) {
+    if (/workspace_settings|schema cache|does not exist/i.test(error.message ?? '')) return defaultWorkspaceSettings();
+    throw dbError(error);
+  }
+  return data ? toWorkspaceSettings(data) : defaultWorkspaceSettings();
+}
+
+export async function updateWorkspaceSettings(
+  updates: WorkspaceSettings,
+  actorId?: string | null,
+): Promise<WorkspaceSettings> {
+  const patch = {
+    id: true,
+    workspace_name: updates.workspaceName.trim() || 'Sensory Analysis Workspace',
+    organization_name: updates.organizationName.trim() || 'New Food Innovation',
+    admin_contact_email: updates.adminContactEmail.trim() || null,
+    default_timezone: updates.defaultTimezone.trim() || 'America/New_York',
+    data_retention_months: Math.min(120, Math.max(1, Number(updates.dataRetentionMonths) || 24)),
+    require_panelist_consent: updates.requirePanelistConsent,
+    allow_self_signup: updates.allowSelfSignup,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from('workspace_settings')
+    .upsert(patch)
+    .select()
+    .single();
+  if (error) throw dbError(error);
+
+  await insertAuditEvent({
+    actorId: actorId ?? null,
+    eventType: 'workspace_settings_updated',
+    entityType: 'workspace_settings',
+    metadata: {
+      workspaceName: patch.workspace_name,
+      organizationName: patch.organization_name,
+      dataRetentionMonths: patch.data_retention_months,
+      requirePanelistConsent: patch.require_panelist_consent,
+      allowSelfSignup: patch.allow_self_signup,
+    },
+  });
+
+  return toWorkspaceSettings(data);
+}
+
+export async function insertAuditEvent(input: {
+  actorId?: string | null;
+  eventType: string;
+  entityType: string;
+  entityId?: string | null;
+  metadata?: Record<string, unknown>;
+}): Promise<void> {
+  const { error } = await supabase.from('audit_events').insert({
+    actor_id: input.actorId ?? null,
+    event_type: input.eventType,
+    entity_type: input.entityType,
+    entity_id: input.entityId ?? null,
+    metadata: input.metadata ?? {},
+  });
+  if (error && !/audit_events|schema cache|does not exist/i.test(error.message ?? '')) throw dbError(error);
+}
+
+export async function fetchAuditEvents(limit = 80): Promise<AuditEventRecord[]> {
+  const { data, error } = await supabase
+    .from('audit_events')
+    .select('id, actor_id, event_type, entity_type, entity_id, metadata, created_at, profiles(name)')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    if (/audit_events|schema cache|does not exist/i.test(error.message ?? '')) return [];
+    throw dbError(error);
+  }
+
+  return (data ?? []).map(row => {
+    const profile = row.profiles as { name?: string } | null;
+    return {
+      id: row.id as string,
+      actorId: (row.actor_id as string) ?? null,
+      actorName: profile?.name ?? null,
+      eventType: row.event_type as string,
+      entityType: row.entity_type as string,
+      entityId: (row.entity_id as string) ?? null,
+      metadata: (row.metadata as Record<string, unknown>) ?? {},
+      createdAt: row.created_at as string,
+    };
+  });
 }
 
 // ─── Panelist Reliability ─────────────────────────────────────────────────────

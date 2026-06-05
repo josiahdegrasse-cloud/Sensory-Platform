@@ -13,6 +13,7 @@ const QuestionnaireForm = lazy(() => import("./components/questionnaire-form").t
 const MultiSampleDescription = lazy(() => import("./components/multi-sample-description").then(m => ({ default: m.MultiSampleDescription })));
 const MultiSampleQuestionnaire = lazy(() => import("./components/multi-sample-questionnaire").then(m => ({ default: m.MultiSampleQuestionnaire })));
 const AdminConfig = lazy(() => import("./components/admin-config").then(m => ({ default: m.AdminConfig })));
+const AdminSettings = lazy(() => import("./components/admin-settings").then(m => ({ default: m.AdminSettings })));
 const ConceptTesting = lazy(() => import("./components/concept-testing").then(m => ({ default: m.ConceptTesting })));
 const ConceptSurvey = lazy(() => import("./components/concept-survey").then(m => ({ default: m.ConceptSurvey })));
 const PrivacyPolicy = lazy(() => import("./components/legal-pages").then(m => ({ default: m.PrivacyPolicy })));
@@ -67,6 +68,7 @@ export const router = createBrowserRouter([
           { path: "survey-analysis", Component: SurveyAnalysis },
           { path: "decision", Component: Stage4Enhanced },
           { path: "admin", Component: AdminConfig },
+          { path: "settings", Component: AdminSettings },
           { path: "concept-testing", Component: ConceptTesting },
         ],
       },

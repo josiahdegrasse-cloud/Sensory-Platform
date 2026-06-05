@@ -7,11 +7,13 @@ import {
   fetchConceptTest, fetchConceptGenerationSettings, updateConceptGenerationSettings,
   fetchConceptImageGenerations, fetchConceptProjectSummaries, fetchConceptLabDiagnostics,
   fetchFoodTypes, fetchInstrumentalDataset, fetchImportBatches,
+  fetchWorkspaceSettings, updateWorkspaceSettings, fetchAuditEvents,
   insertProduct, updateProduct, deleteProduct,
-  insertTemplate, deleteTemplate, updatePanelistId, updatePanelistTrainingLevel,
+  insertTemplate, deleteTemplate, updatePanelistId, updatePanelistTrainingLevel, updatePanelistStatus,
   insertConceptTest, insertConceptResponse,
   insertInstrumentalImport, archiveFoodTypeRecord, restoreFoodTypeRecord, deleteFoodTypeRecord, updateImportBatchStatus,
   type Template, type ConceptTest, type InstrumentalImportInput, type ConceptGenerationSettings,
+  type WorkspaceSettings, type PanelistInfo,
 } from './database'
 import type { TrainingLevel } from '../utils/panelist-metrics'
 import type { Product } from '../data/mock-users'
@@ -34,6 +36,8 @@ export const queryKeys = {
   foodTypes: ['foodTypes'] as const,
   instrumentalDataset: ['instrumentalDataset'] as const,
   importBatches: ['importBatches'] as const,
+  workspaceSettings: ['workspaceSettings'] as const,
+  auditEvents: ['auditEvents'] as const,
 }
 
 export function useProducts() {
@@ -207,6 +211,38 @@ export function useUpdatePanelistTrainingLevel() {
       updatePanelistTrainingLevel(userId, level),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.panelists }),
   })
+}
+
+export function useUpdatePanelistStatus() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ userId, status, actorId }: { userId: string; status: PanelistInfo['status']; actorId?: string | null }) =>
+      updatePanelistStatus(userId, status, actorId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.panelists })
+      qc.invalidateQueries({ queryKey: queryKeys.auditEvents })
+    },
+  })
+}
+
+export function useWorkspaceSettings() {
+  return useQuery({ queryKey: queryKeys.workspaceSettings, queryFn: fetchWorkspaceSettings })
+}
+
+export function useUpdateWorkspaceSettings() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ settings, actorId }: { settings: WorkspaceSettings; actorId?: string | null }) =>
+      updateWorkspaceSettings(settings, actorId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.workspaceSettings })
+      qc.invalidateQueries({ queryKey: queryKeys.auditEvents })
+    },
+  })
+}
+
+export function useAuditEvents() {
+  return useQuery({ queryKey: queryKeys.auditEvents, queryFn: () => fetchAuditEvents(80) })
 }
 
 export function useInsertConceptTest() {

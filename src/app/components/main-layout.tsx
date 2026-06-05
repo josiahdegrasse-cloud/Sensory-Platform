@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
-import { FlaskConical, BarChart3, GitMerge, ClipboardList, Settings, LogOut, Lightbulb, Tag, Archive, Trash2, Undo2, Database, ChevronDown, ChevronRight } from "lucide-react";
+import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Tag, Archive, Trash2, Undo2, Database, ChevronDown, ChevronRight, SlidersHorizontal } from "lucide-react";
 import { useAuth } from "../contexts/auth-context";
 import { useEffect, useMemo, useState } from "react";
 import { useFoodType } from "../contexts/food-type-context";
@@ -357,7 +357,8 @@ export function MainLayout() {
     { path: "/survey-analysis", label: "Analyze Results",   icon: BarChart3 },
     { path: "/decision",        label: "Final Decision",    icon: GitMerge },
     { path: "/concept-testing", label: "Concept Testing",   icon: Lightbulb },
-    { path: "/admin",           label: "Configure Products", icon: Settings },
+    { path: "/admin",           label: "Configure Products", icon: ClipboardList },
+    { path: "/settings",        label: "Settings",          icon: SlidersHorizontal },
   ];
 
   const getPanelistNavItems = () => [

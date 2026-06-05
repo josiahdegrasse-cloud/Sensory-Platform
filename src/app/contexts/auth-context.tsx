@@ -9,6 +9,7 @@ export interface User {
   role: 'admin' | 'panelist';
   name: string;
   panelistId?: string;
+  status?: 'active' | 'inactive' | 'archived';
   consentAcceptedAt?: string | null;
   consentVersion?: string | null;
 }
@@ -40,6 +41,7 @@ async function loadProfile(supabaseUser: SupabaseUser): Promise<User | null> {
     role: data.role as 'admin' | 'panelist',
     name: data.name ?? supabaseUser.email ?? '',
     panelistId: data.panelist_id ?? undefined,
+    status: data.status ?? 'active',
     consentAcceptedAt: data.consent_accepted_at ?? null,
     consentVersion: data.consent_version ?? null,
   };

@@ -76,7 +76,10 @@ export function SignupPage({ onBack }: Props) {
       const { error: profileError } = await supabase
         .from('profiles')
         .update({
+          email,
           name,
+          status: 'active',
+          training_level: 'screened',
           consent_accepted_at: consentAcceptedAt,
           consent_version: CURRENT_CONSENT_VERSION,
           consent_user_agent: consentUserAgent,
