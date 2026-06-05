@@ -1,12 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import {
   CheckCircle2, Image as ImageIcon, Layers3, Loader2, Package,
-  Plus, RefreshCw, Sparkles, Target, Trash2, Utensils,
+  Plus, RefreshCw, Sparkles, Trash2, Utensils,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { detectFoodType, getFoodTypeProfile } from '../../lib/food-intelligence';
@@ -122,13 +121,16 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
             Generate OpenAI concept images that match the food type, sensory promise, target consumer, and launch context.
           </p>
         </div>
-        <Badge className="w-fit bg-slate-900 text-white">
-          {CONCEPT_IMAGE_COUNT} visuals · {draft.promptStyle.replace('-', ' ')} · {detection.label}
-        </Badge>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          <span className="font-semibold text-slate-800">{CONCEPT_IMAGE_COUNT} visuals</span>
+          <span className="mx-1.5 text-slate-300">/</span>
+          {draft.promptStyle.replace('-', ' ')}
+          <span className="mx-1.5 text-slate-300">/</span>
+          {detection.label}
+        </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
           <div>
             <Label className="font-medium">Visual direction</Label>
             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
@@ -244,46 +246,11 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
               )}
             </div>
           )}
-        </div>
+      </div>
 
-        <aside className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-4">
-          <div>
-            <p className="text-sm font-semibold text-slate-900">Concept intelligence</p>
-            <p className="text-xs text-slate-500 mt-1">These signals shape the prompt and help keep generated visuals category-credible.</p>
-          </div>
-          <div className="space-y-3 text-xs">
-            <div className="rounded-lg border border-white bg-white p-3">
-              <p className="font-semibold text-slate-600">Visual strategy</p>
-              <p className="mt-1 text-slate-500 leading-relaxed">
-                Lead with appetite appeal, make the product format instantly clear, and avoid visual claims that panelists could read as medical or nutritional proof.
-              </p>
-            </div>
-            {(draft.targetMarket || draft.pricePoint) && (
-              <div className="rounded-lg border border-white bg-white p-3">
-                <p className="font-semibold text-slate-600 flex items-center gap-1.5"><Target className="size-3.5" /> Market signal</p>
-                <p className="mt-1 text-slate-500 leading-relaxed">
-                  {[draft.targetMarket, draft.pricePoint].filter(Boolean).join(' · ')}
-                </p>
-              </div>
-            )}
-            <div>
-              <p className="font-semibold text-slate-600">Success cues</p>
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {profile.successMarkers.slice(0, 6).map(marker => (
-                  <Badge key={marker} variant="outline" className="bg-white text-[11px] capitalize">{marker}</Badge>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p className="font-semibold text-slate-600">Avoid cues</p>
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {profile.riskMarkers.slice(0, 5).map(marker => (
-                  <Badge key={marker} variant="outline" className="bg-white text-[11px] capitalize">{marker}</Badge>
-                ))}
-              </div>
-            </div>
-          </div>
-        </aside>
+      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        Prompt context: {profile.successMarkers.slice(0, 4).join(', ')}
+        {profile.riskMarkers.length > 0 && ` · avoids ${profile.riskMarkers.slice(0, 3).join(', ')}`}
       </div>
 
       <div className="space-y-3">

@@ -3,19 +3,15 @@ import { useNavigate } from 'react-router';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
 import {
   Lightbulb, ChevronRight, ChevronLeft, Send, CheckCircle2, Image as ImageIcon,
-  ListChecks, Users, WandSparkles, AlertTriangle, FolderKanban, DollarSign, Settings2, Clock3,
+  ListChecks, Users, WandSparkles, AlertTriangle,
 } from 'lucide-react';
 import { insertConceptTest } from '../lib/database';
 import { detectFoodType } from '../lib/food-intelligence';
 import {
   useConceptGenerationSettings,
   useConceptImageGenerations,
-  useConceptProjectSummaries,
-  useUpdateConceptGenerationSettings,
 } from '../lib/hooks';
 import type { ConceptDraft, Question, WizardStep } from './concept-testing/types';
 import { ConceptStep } from './concept-testing/ConceptStep';
@@ -46,8 +42,6 @@ export function ConceptTesting() {
   const [launchError, setLaunchError] = useState('');
   const { data: settings } = useConceptGenerationSettings();
   const { data: history = [] } = useConceptImageGenerations();
-  const { data: projects = [] } = useConceptProjectSummaries();
-  const updateSettings = useUpdateConceptGenerationSettings();
 
   const STEPS: WizardStep[] = ['concept', 'images', 'questions', 'panel', 'review'];
   const stepIndex = STEPS.indexOf(step);
@@ -229,7 +223,7 @@ export function ConceptTesting() {
               </div>
               <div className="space-y-2">
                 {readinessItems.map(item => (
-                  <div key={item.label} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                  <div key={item.label} className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-medium text-slate-700">{item.label}</span>
                       <span className={`flex size-5 items-center justify-center rounded-full ${
@@ -242,7 +236,7 @@ export function ConceptTesting() {
                   </div>
                 ))}
               </div>
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="size-4 text-amber-600 mt-0.5" />
                   <div>
@@ -251,136 +245,36 @@ export function ConceptTesting() {
                   </div>
                 </div>
               </div>
-              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
-                <p className="text-xs font-semibold text-slate-500">Detected food type</p>
-                <p className="text-base font-bold text-slate-900">{detection.label}</p>
-                <p className="text-xs text-slate-500 mt-1">
-                  Used for concept visuals and survey language.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border border-slate-200">
-            <CardContent className="p-4 space-y-4">
-              <div className="flex items-center gap-2">
-                <Settings2 className="size-4 text-slate-600" />
-                <div>
-                  <p className="font-semibold text-slate-900 text-sm">Image settings</p>
-                  <p className="text-xs text-slate-500">4 visuals · {settings?.defaultQuality ?? 'medium'} quality</p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs text-slate-600">Prompt style</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['balanced', 'premium', 'natural', 'family', 'foodservice', 'clean-label'] as const).map(style => (
-                    <button
-                      key={style}
-                      type="button"
-                      onClick={() => {
-                        setDraft(prev => ({ ...prev, promptStyle: style }));
-                        updateSettings.mutate({ promptStyle: style });
-                      }}
-                      className={`rounded-md border px-2 py-1.5 text-xs font-medium capitalize transition-colors ${
-                        (settings?.promptStyle ?? draft.promptStyle) === style
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      {style.replace('-', ' ')}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
-                  <p className="text-xs text-slate-500 flex items-center gap-1"><DollarSign className="size-3" /> Next gen</p>
-                  <p className="text-sm font-bold text-slate-900">${estimatedGenerationCost.toFixed(2)}</p>
-                </div>
-                <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
-                  <p className="text-xs text-slate-500">Tracked spend</p>
-                  <p className="text-sm font-bold text-slate-900">${monthSpend.toFixed(2)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border border-slate-200">
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <FolderKanban className="size-4 text-slate-600" />
-                <p className="font-semibold text-slate-900 text-sm">Concept projects</p>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs text-slate-600">Current folder</Label>
-                <Input
-                  value={draft.projectName}
-                  onChange={e => setDraft(prev => ({ ...prev, projectName: e.target.value }))}
-                  className="h-8 text-xs"
-                  placeholder="Project 1"
-                />
-              </div>
-              <div className="space-y-1.5">
-                {projects.slice(0, 4).map(project => (
-                  <button
-                    key={project.key}
-                    type="button"
-                    onClick={() => setDraft(prev => ({ ...prev, projectName: project.label }))}
-                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-left hover:bg-white"
-                  >
-                    <span className="block text-xs font-semibold text-slate-700">{project.label}</span>
-                    <span className="text-[11px] text-slate-500">{project.conceptCount} concepts · ${project.estimatedSpend.toFixed(2)}</span>
-                  </button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border border-slate-200">
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Clock3 className="size-4 text-slate-600" />
-                <div>
-                  <p className="font-semibold text-slate-900 text-sm">Recent image history</p>
-                  <p className="text-xs text-slate-500">Stored generations and panel-read status.</p>
-                </div>
-              </div>
-              {history.length === 0 ? (
-                <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-xs text-slate-500">
-                  Generated concept visuals will appear here after the SQL migration and Edge Function are deployed.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {history.slice(0, 3).map(generation => (
-                    <div key={generation.id} className="rounded-lg border border-slate-200 bg-slate-50 p-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="truncate text-xs font-semibold text-slate-700">
-                          {generation.conceptName || generation.projectName}
-                        </p>
-                        <Badge variant="outline" className="bg-white text-[10px] capitalize">{generation.status}</Badge>
-                      </div>
-                      <div className="mt-2 grid grid-cols-4 gap-1">
-                        {generation.images.slice(0, 4).map(image => (
-                          <img key={image.id} src={image.imageUrl} alt="" className="aspect-square rounded object-cover" />
-                        ))}
-                      </div>
-                      <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
-                        <span>{generation.requestedCount} images · ${generation.estimatedCost.toFixed(2)}</span>
-                        <span>Performance pending</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </CardContent>
           </Card>
 
           <Card className="border border-blue-200 bg-blue-50">
             <CardContent className="p-4">
-              <p className="text-sm font-semibold text-blue-950">Research flow</p>
-              <p className="text-xs text-blue-700 mt-1">
-                Define the food promise, generate test visuals, build a tailored questionnaire, assign panelists, then launch.
-              </p>
+              <p className="text-sm font-semibold text-blue-950">Lab context</p>
+              <dl className="mt-3 space-y-2 text-xs">
+                <div className="flex justify-between gap-3">
+                  <dt className="text-blue-700">Food type</dt>
+                  <dd className="font-semibold text-blue-950">{detection.label}</dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-blue-700">Project</dt>
+                  <dd className="font-semibold text-blue-950 text-right">{draft.projectName || 'Project 1'}</dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-blue-700">Visuals</dt>
+                  <dd className="font-semibold text-blue-950">4 · {settings?.defaultQuality ?? 'medium'}</dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-blue-700">Next estimate</dt>
+                  <dd className="font-semibold text-blue-950">${estimatedGenerationCost.toFixed(2)}</dd>
+                </div>
+                {history.length > 0 && (
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-blue-700">Tracked spend</dt>
+                    <dd className="font-semibold text-blue-950">${monthSpend.toFixed(2)}</dd>
+                  </div>
+                )}
+              </dl>
             </CardContent>
           </Card>
         </aside>

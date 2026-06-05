@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
-import { CheckCircle2, DollarSign, Target, Star, Package, EyeOff, Eye, FolderKanban, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, DollarSign, Target, Star, Package, EyeOff, Eye, FolderKanban } from 'lucide-react';
 import type { ConceptDraft } from './types';
 import { detectFoodType, getFoodTypeProfile } from '../../lib/food-intelligence';
 
@@ -89,12 +89,12 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
           />
         </div>
 
-        <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
-          <div className="flex items-start justify-between gap-3">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-blue-950">Smart brief builder</p>
-              <p className="text-xs text-blue-700 mt-0.5">
-                Detected {detection.label}. Add category-specific sensory cues to strengthen the concept.
+              <p className="text-xs font-semibold text-slate-700">Suggested {detection.label.toLowerCase()} cues</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {profile.successMarkers.slice(0, 4).join(', ')}
               </p>
             </div>
             <button
@@ -106,17 +106,10 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
                   keyBenefits: [draft.keyBenefits, additions].filter(Boolean).join(draft.keyBenefits ? ', ' : ''),
                 });
               }}
-              className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
             >
-              Add cues
+              Add
             </button>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {profile.successMarkers.slice(0, 6).map(marker => (
-              <span key={marker} className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-blue-700 capitalize">
-                {marker}
-              </span>
-            ))}
           </div>
         </div>
 
@@ -132,16 +125,19 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
           <p className="text-xs text-slate-400">Internal only — not shown to panelists.</p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label className="font-medium flex items-center gap-1.5"><Star className="size-3.5" /> Visual positioning</Label>
-            <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-lg border border-slate-200 bg-white p-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-800">Visual positioning</p>
+              <p className="text-xs text-slate-500 mt-0.5">Choose the tone for generated concept images.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
               {(['balanced', 'premium', 'natural', 'family', 'foodservice', 'clean-label'] as const).map(style => (
                 <button
                   key={style}
                   type="button"
                   onClick={() => onChange({ ...draft, promptStyle: style })}
-                  className={`rounded-md border px-2 py-1.5 text-xs font-medium capitalize transition-colors ${
+                  className={`rounded-md border px-2.5 py-1.5 text-xs font-medium capitalize transition-colors ${
                     draft.promptStyle === style
                       ? 'border-blue-500 bg-blue-50 text-blue-700'
                       : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
@@ -151,26 +147,6 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
                 </button>
               ))}
             </div>
-          </div>
-          <div className="space-y-2">
-            <Label className="font-medium flex items-center gap-1.5"><ShieldCheck className="size-3.5" /> Approval state</Label>
-            <div className="grid grid-cols-3 gap-2">
-              {(['draft', 'review', 'approved'] as const).map(status => (
-                <button
-                  key={status}
-                  type="button"
-                  onClick={() => onChange({ ...draft, approvalStatus: status })}
-                  className={`rounded-md border px-2 py-1.5 text-xs font-medium capitalize transition-colors ${
-                    draft.approvalStatus === status
-                      ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  {status}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-slate-400">Launch will mark the concept active for assigned panelists.</p>
           </div>
         </div>
       </div>
