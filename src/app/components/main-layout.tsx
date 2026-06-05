@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useFoodType } from "../contexts/food-type-context";
 import { useImportBatches, useInstrumentalDataset, useProducts, useUpdateImportBatchStatus } from "../lib/hooks";
 import { matchFoodType } from "../contexts/food-type-context";
+import { ConsentGate } from "./consent-gate";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -439,7 +440,7 @@ export function MainLayout() {
       <div className="max-w-[1600px] mx-auto px-6 py-8 flex gap-6 items-start">
         {user?.role === 'admin' && <CategorySidebar />}
         <main className="flex-1 min-w-0">
-          <Outlet />
+          {user?.role === 'panelist' && !user.consentAcceptedAt ? <ConsentGate /> : <Outlet />}
         </main>
       </div>
     </div>

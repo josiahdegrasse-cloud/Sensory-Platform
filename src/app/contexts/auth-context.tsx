@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { acceptPanelistConsent, CURRENT_CONSENT_VERSION } from '../lib/database';
 
 export interface User {
   id: string;
@@ -8,6 +9,8 @@ export interface User {
   role: 'admin' | 'panelist';
   name: string;
   panelistId?: string;
+  consentAcceptedAt?: string | null;
+  consentVersion?: string | null;
 }
 
 interface AuthContextType {
@@ -16,6 +19,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<string | null>;
   updatePassword: (newPassword: string) => Promise<string | null>;
+  acceptConsent: () => Promise<string | null>;
   isAuthenticated: boolean;
   isPasswordRecovery: boolean;
   loading: boolean;
@@ -36,6 +40,8 @@ async function loadProfile(supabaseUser: SupabaseUser): Promise<User | null> {
     role: data.role as 'admin' | 'panelist',
     name: data.name ?? supabaseUser.email ?? '',
     panelistId: data.panelist_id ?? undefined,
+    consentAcceptedAt: data.consent_accepted_at ?? null,
+    consentVersion: data.consent_version ?? null,
   };
 }
 
@@ -125,8 +131,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const acceptConsent = async (): Promise<string | null> => {
+    if (!user) return 'You must be signed in to accept consent.';
+    try {
+      const acceptedAt = await acceptPanelistConsent(user.id);
+      setUser(prev => prev ? {
+        ...prev,
+        consentAcceptedAt: acceptedAt,
+        consentVersion: CURRENT_CONSENT_VERSION,
+      } : prev);
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Unable to save consent.';
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, resetPassword, updatePassword, isAuthenticated: !!user, isPasswordRecovery, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, resetPassword, updatePassword, acceptConsent, isAuthenticated: !!user, isPasswordRecovery, loading }}>
       {children}
     </AuthContext.Provider>
   );

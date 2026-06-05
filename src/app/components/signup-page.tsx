@@ -6,6 +6,7 @@ import { Label } from './ui/label';
 import { supabase } from '../lib/supabase';
 import { AlertCircle, CheckCircle2, FlaskConical } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
+import { CURRENT_CONSENT_VERSION } from '../lib/database';
 
 interface Props {
   onBack: () => void;
@@ -50,7 +51,20 @@ export function SignupPage({ onBack }: Props) {
     if (pwError) { setError(pwError); return; }
     setLoading(true);
 
-    const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
+    const consentAcceptedAt = new Date().toISOString();
+    const consentUserAgent = typeof navigator !== 'undefined' ? navigator.userAgent : null;
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+          consent_accepted_at: consentAcceptedAt,
+          consent_version: CURRENT_CONSENT_VERSION,
+          consent_user_agent: consentUserAgent,
+        },
+      },
+    });
 
     if (signUpError) {
       setError(mapSignupError(signUpError.message));
@@ -58,10 +72,16 @@ export function SignupPage({ onBack }: Props) {
       return;
     }
 
-    if (data.user) {
+    if (data.user && data.session) {
       const { error: profileError } = await supabase
         .from('profiles')
-        .upsert({ id: data.user.id, name, role: 'panelist' });
+        .update({
+          name,
+          consent_accepted_at: consentAcceptedAt,
+          consent_version: CURRENT_CONSENT_VERSION,
+          consent_user_agent: consentUserAgent,
+        })
+        .eq('id', data.user.id);
       if (profileError) {
         setError('Account created but profile setup failed. Please contact the study administrator.');
         setLoading(false);
@@ -145,9 +165,9 @@ export function SignupPage({ onBack }: Props) {
                 <p className="text-xs text-slate-400">Min 8 characters, one uppercase letter, one number.</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
-                <p className="text-xs text-slate-600 font-medium">Data Processing Notice (UK GDPR)</p>
+                <p className="text-xs text-slate-600 font-medium">Panelist data consent</p>
                 <p className="text-xs text-slate-500">
-                  Your name, email, and evaluation responses will be stored securely and used solely for food product research by the study administrator. You may request deletion of your data at any time by contacting the administrator.
+                  Your name, email, and evaluation responses will be stored for sensory research and product development by the study administrator.
                 </p>
                 <label className="flex items-start gap-2 cursor-pointer">
                   <input
@@ -158,7 +178,10 @@ export function SignupPage({ onBack }: Props) {
                     required
                   />
                   <span className="text-xs text-slate-700">
-                    I agree to my data being processed for sensory research purposes as described above.
+                    I agree to the{' '}
+                    <a href="/panelist-consent" className="font-semibold underline underline-offset-2">Panelist Consent</a>,{' '}
+                    <a href="/privacy" className="font-semibold underline underline-offset-2">Privacy Policy</a>, and{' '}
+                    <a href="/terms" className="font-semibold underline underline-offset-2">Terms of Use</a>.
                   </span>
                 </label>
               </div>

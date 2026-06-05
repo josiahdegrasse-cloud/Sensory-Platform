@@ -260,6 +260,13 @@ export function LoginPage({ onSignup }: Props) {
                   New panelist?{' '}
                   <span className="font-semibold underline underline-offset-2">Create account</span>
                 </button>
+                <div className="mt-4 flex items-center justify-center gap-3 text-xs text-slate-400">
+                  <a href="/privacy" className="hover:text-slate-700">Privacy</a>
+                  <span aria-hidden="true">/</span>
+                  <a href="/terms" className="hover:text-slate-700">Terms</a>
+                  <span aria-hidden="true">/</span>
+                  <a href="/panelist-consent" className="hover:text-slate-700">Consent</a>
+                </div>
               </div>
             </>
           )}

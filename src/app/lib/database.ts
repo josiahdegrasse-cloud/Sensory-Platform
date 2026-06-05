@@ -4,6 +4,8 @@ import type { TrainingLevel } from '../utils/panelist-metrics';
 import type { FoodTypeDetection } from './food-intelligence';
 import { formatFoodTypeLabel, getDefaultCataAttributesForFoodType, slugifyFoodType } from './food-intelligence';
 
+export const CURRENT_CONSENT_VERSION = '2026-06-05-v1';
+
 // ─── Mapping helpers ──────────────────────────────────────────────────────────
 
 function toProduct(row: Record<string, unknown>): Product {
@@ -96,6 +98,21 @@ export function isMissingFoodImportSchema(error: unknown): boolean {
     /food_types|instrumental_samples|import_batches|e_tongue_measurements|gcms_compounds|composition_profiles/i.test(message) &&
     /schema cache|could not find|does not exist|PGRST205/i.test(message)
   );
+}
+
+export async function acceptPanelistConsent(userId: string): Promise<string> {
+  const acceptedAt = new Date().toISOString();
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      consent_accepted_at: acceptedAt,
+      consent_version: CURRENT_CONSENT_VERSION,
+      consent_user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+    })
+    .eq('id', userId);
+
+  if (error) throw dbError(error);
+  return acceptedAt;
 }
 
 // ─── Food Intelligence / Instrumental Imports ───────────────────────────────

@@ -10,6 +10,7 @@ import { ResetPasswordPage } from "./components/reset-password-page.tsx";
 function AppContent() {
   const { isAuthenticated, isPasswordRecovery, loading } = useAuth();
   const [showSignup, setShowSignup] = useState(false);
+  const isPublicLegalRoute = ['/privacy', '/terms', '/panelist-consent'].includes(window.location.pathname);
 
   if (loading) {
     return (
@@ -20,6 +21,8 @@ function AppContent() {
   }
 
   if (isPasswordRecovery) return <ResetPasswordPage />;
+
+  if (isPublicLegalRoute) return <RouterProvider router={router} />;
 
   if (!isAuthenticated) {
     if (showSignup) {

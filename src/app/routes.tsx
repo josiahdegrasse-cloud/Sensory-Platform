@@ -15,6 +15,9 @@ const MultiSampleQuestionnaire = lazy(() => import("./components/multi-sample-qu
 const AdminConfig = lazy(() => import("./components/admin-config").then(m => ({ default: m.AdminConfig })));
 const ConceptTesting = lazy(() => import("./components/concept-testing").then(m => ({ default: m.ConceptTesting })));
 const ConceptSurvey = lazy(() => import("./components/concept-survey").then(m => ({ default: m.ConceptSurvey })));
+const PrivacyPolicy = lazy(() => import("./components/legal-pages").then(m => ({ default: m.PrivacyPolicy })));
+const TermsOfUse = lazy(() => import("./components/legal-pages").then(m => ({ default: m.TermsOfUse })));
+const PanelistConsent = lazy(() => import("./components/legal-pages").then(m => ({ default: m.PanelistConsent })));
 const NotFound = lazy(() => import("./components/not-found").then(m => ({ default: m.NotFound })));
 
 const fallback = (
@@ -24,6 +27,30 @@ const fallback = (
 );
 
 export const router = createBrowserRouter([
+  {
+    path: "/privacy",
+    element: (
+      <Suspense fallback={fallback}>
+        <PrivacyPolicy />
+      </Suspense>
+    ),
+  },
+  {
+    path: "/terms",
+    element: (
+      <Suspense fallback={fallback}>
+        <TermsOfUse />
+      </Suspense>
+    ),
+  },
+  {
+    path: "/panelist-consent",
+    element: (
+      <Suspense fallback={fallback}>
+        <PanelistConsent />
+      </Suspense>
+    ),
+  },
   {
     path: "/",
     Component: MainLayout,
