@@ -14,12 +14,16 @@ export interface Question {
 export interface ConceptDraft {
   name: string;
   category: string;
+  projectName: string;
   description: string;
   marketingImages: string[];
+  marketingImageIds: string[];
   targetMarket: string;
   pricePoint: string;
   keyBenefits: string;
   technicalChallenges: string;
+  promptStyle: 'balanced' | 'premium' | 'natural' | 'family' | 'foodservice' | 'clean-label';
+  approvalStatus: 'draft' | 'review' | 'approved';
 }
 
 export type WizardStep = 'concept' | 'images' | 'questions' | 'panel' | 'review' | 'launched';

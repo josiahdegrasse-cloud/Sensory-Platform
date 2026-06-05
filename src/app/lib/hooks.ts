@@ -4,13 +4,14 @@ import {
   fetchPanelists, fetchPanelistReliability,
   fetchAllResponses, fetchUserResponses,
   fetchConceptTestsForPanelist, fetchUserConceptResponses,
-  fetchConceptTest,
+  fetchConceptTest, fetchConceptGenerationSettings, updateConceptGenerationSettings,
+  fetchConceptImageGenerations, fetchConceptProjectSummaries,
   fetchFoodTypes, fetchInstrumentalDataset, fetchImportBatches,
   insertProduct, updateProduct, deleteProduct,
   insertTemplate, deleteTemplate, updatePanelistId, updatePanelistTrainingLevel,
   insertConceptTest, insertConceptResponse,
   insertInstrumentalImport, archiveFoodTypeRecord, restoreFoodTypeRecord, deleteFoodTypeRecord,
-  type Template, type ConceptTest, type InstrumentalImportInput,
+  type Template, type ConceptTest, type InstrumentalImportInput, type ConceptGenerationSettings,
 } from './database'
 import type { TrainingLevel } from '../utils/panelist-metrics'
 import type { Product } from '../data/mock-users'
@@ -26,6 +27,9 @@ export const queryKeys = {
   conceptTests: (userId: string) => ['conceptTests', userId] as const,
   conceptResponses: (userId: string) => ['conceptResponses', userId] as const,
   conceptTest: (id: string) => ['conceptTest', id] as const,
+  conceptGenerationSettings: ['conceptGenerationSettings'] as const,
+  conceptImageGenerations: ['conceptImageGenerations'] as const,
+  conceptProjects: ['conceptProjects'] as const,
   foodTypes: ['foodTypes'] as const,
   instrumentalDataset: ['instrumentalDataset'] as const,
   importBatches: ['importBatches'] as const,
@@ -84,6 +88,30 @@ export function useConceptTest(conceptId: string | undefined) {
     queryKey: queryKeys.conceptTest(conceptId ?? ''),
     queryFn: () => fetchConceptTest(conceptId!),
     enabled: !!conceptId,
+  })
+}
+
+export function useConceptGenerationSettings(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.conceptGenerationSettings,
+    queryFn: fetchConceptGenerationSettings,
+    enabled,
+  })
+}
+
+export function useConceptImageGenerations(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.conceptImageGenerations,
+    queryFn: fetchConceptImageGenerations,
+    enabled,
+  })
+}
+
+export function useConceptProjectSummaries(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.conceptProjects,
+    queryFn: fetchConceptProjectSummaries,
+    enabled,
   })
 }
 
@@ -179,6 +207,17 @@ export function useInsertConceptTest() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['conceptTests'] })
       qc.invalidateQueries({ queryKey: ['conceptTest'] })
+    },
+  })
+}
+
+export function useUpdateConceptGenerationSettings() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (updates: Partial<Omit<ConceptGenerationSettings, 'id'>>) =>
+      updateConceptGenerationSettings(updates),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.conceptGenerationSettings })
     },
   })
 }

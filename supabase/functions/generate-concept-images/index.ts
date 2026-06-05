@@ -4,14 +4,18 @@ import { corsHeaders } from '../_shared/cors.ts'
 type ConceptImageMode = 'packaging' | 'shelf' | 'usage' | 'ingredient' | 'ad';
 
 interface GenerateConceptImagesBody {
+  conceptTestId?: string;
   conceptName?: string;
   category?: string;
+  foodTypeSlug?: string;
+  projectName?: string;
   description?: string;
   targetMarket?: string;
   pricePoint?: string;
   keyBenefits?: string;
   mode?: ConceptImageMode;
   count?: number;
+  promptStyle?: string;
 }
 
 const DEFAULT_IMAGE_COUNT = 4;
@@ -25,12 +29,22 @@ const modeDirections: Record<ConceptImageMode, string> = {
   ad: 'polished social ad concept, product hero image, campaign-ready composition, space for headline and claims',
 };
 
+const styleDirections: Record<string, string> = {
+  balanced: 'balanced mainstream food branding with credible claims and restrained styling',
+  premium: 'premium cues, refined materials, elevated photography, sophisticated retail presence',
+  natural: 'natural ingredient cues, fresh food styling, approachable wellness positioning',
+  family: 'family-friendly clarity, warm approachable packaging, easy everyday usage cues',
+  foodservice: 'foodservice-ready presentation, professional kitchen credibility, practical format cues',
+  'clean-label': 'clean-label positioning, simple ingredient emphasis, minimal trustworthy visual language',
+};
+
 function clean(value: unknown, fallback = '') {
   return typeof value === 'string' ? value.trim() : fallback;
 }
 
 function buildPrompt(body: GenerateConceptImagesBody) {
   const mode = body.mode ?? 'packaging';
+  const style = body.promptStyle ?? 'balanced';
   const benefits = clean(body.keyBenefits);
   const target = clean(body.targetMarket);
   const price = clean(body.pricePoint);
@@ -42,11 +56,20 @@ function buildPrompt(body: GenerateConceptImagesBody) {
     target ? `Target consumer: ${target}.` : '',
     price ? `Expected retail price: ${price}.` : '',
     `Visual direction: ${modeDirections[mode]}.`,
+    `Positioning style: ${styleDirections[style] ?? styleDirections.balanced}.`,
     'Make it realistic, appetizing, commercially credible, and suitable for consumer concept testing.',
     'Avoid fake nutrition labels, celebrity likenesses, real brand logos, medical claims, and unreadable distorted text.',
   ].filter(Boolean);
 
   return details.join(' ').slice(0, 32000);
+}
+
+function decodeBase64Image(dataUrlOrBase64: string) {
+  const base64 = dataUrlOrBase64.includes(',') ? dataUrlOrBase64.split(',').pop() ?? '' : dataUrlOrBase64;
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
 }
 
 Deno.serve(async (req: Request) => {
@@ -74,6 +97,7 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const openAiKey = Deno.env.get('OPENAI_API_KEY');
   const imageModel = Deno.env.get('OPENAI_IMAGE_MODEL') ?? 'gpt-image-1.5';
   const imageQuality = Deno.env.get('OPENAI_IMAGE_QUALITY') ?? 'medium';
@@ -91,7 +115,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: profile, error: profileError } = await callerClient
     .from('profiles')
-    .select('role')
+    .select('id, role')
     .single();
 
   if (profileError || profile?.role !== 'admin') {
@@ -101,10 +125,61 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+
   try {
     const body = await req.json() as GenerateConceptImagesBody;
-    const count = Math.max(1, Math.min(MAX_IMAGE_COUNT, Number(body.count) || DEFAULT_IMAGE_COUNT));
-    const prompt = buildPrompt(body);
+    const { data: settings } = await serviceClient
+      .from('concept_generation_settings')
+      .select('*')
+      .eq('active', true)
+      .maybeSingle();
+
+    const configuredCount = Number(settings?.default_image_count) || DEFAULT_IMAGE_COUNT;
+    const configuredMax = Number(settings?.max_images_per_concept) || MAX_IMAGE_COUNT;
+    const configuredModel = clean(settings?.default_model, imageModel);
+    const configuredQuality = clean(settings?.default_quality, imageQuality);
+    const configuredStyle = clean(body.promptStyle, clean(settings?.prompt_style, 'balanced'));
+    const costPerImage = Number(settings?.estimated_cost_per_image) || 0.034;
+
+    const count = Math.max(1, Math.min(configuredMax, Number(body.count) || configuredCount));
+    const model = configuredModel;
+    const quality = configuredQuality;
+    const projectName = clean(body.projectName, 'Project 1');
+    const foodTypeSlug = clean(body.foodTypeSlug);
+    const prompt = buildPrompt({ ...body, promptStyle: configuredStyle });
+    const estimatedCost = Number((count * costPerImage).toFixed(4));
+
+    const { data: generation, error: generationError } = await serviceClient
+      .from('concept_image_generations')
+      .insert({
+        concept_test_id: body.conceptTestId || null,
+        created_by: profile.id,
+        project_name: projectName,
+        food_type_slug: foodTypeSlug,
+        concept_name: clean(body.conceptName),
+        mode: body.mode ?? 'packaging',
+        prompt,
+        prompt_style: configuredStyle,
+        model,
+        quality,
+        requested_count: count,
+        status: 'generating',
+        estimated_cost: estimatedCost,
+        concept_snapshot: {
+          conceptName: body.conceptName,
+          category: body.category,
+          foodTypeSlug,
+          description: body.description,
+          targetMarket: body.targetMarket,
+          pricePoint: body.pricePoint,
+          keyBenefits: body.keyBenefits,
+        },
+      })
+      .select()
+      .single();
+
+    if (generationError) throw generationError;
 
     const response = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
@@ -113,11 +188,11 @@ Deno.serve(async (req: Request) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: imageModel,
+        model,
         prompt,
         n: count,
         size: '1024x1024',
-        quality: imageQuality,
+        quality,
         background: 'opaque',
       }),
     });
@@ -125,17 +200,79 @@ Deno.serve(async (req: Request) => {
     const result = await response.json();
     if (!response.ok) {
       const message = result?.error?.message ?? `OpenAI image generation failed with status ${response.status}`;
+      await serviceClient
+        .from('concept_image_generations')
+        .update({ status: 'failed', error_message: message, completed_at: new Date().toISOString() })
+        .eq('id', generation.id);
       throw new Error(message);
     }
 
-    const images = ((result.data ?? []) as Array<{ b64_json?: string; url?: string; revised_prompt?: string }>)
-      .map((item) => ({
-        url: item.b64_json ? `data:image/png;base64,${item.b64_json}` : item.url,
-        revisedPrompt: item.revised_prompt,
-      }))
-      .filter((item) => item.url);
+    const imageResults = [] as Array<{ id: string; url: string; storagePath: string; revisedPrompt?: string }>;
+    const rawImages = ((result.data ?? []) as Array<{ b64_json?: string; url?: string; revised_prompt?: string }>);
+    for (let index = 0; index < rawImages.length; index++) {
+      const item = rawImages[index];
+      let publicUrl = item.url ?? '';
+      let storagePath = '';
 
-    return new Response(JSON.stringify({ images, model: imageModel, quality: imageQuality, prompt }), {
+      if (item.b64_json) {
+        const bytes = decodeBase64Image(item.b64_json);
+        storagePath = `${generation.id}/concept-${index + 1}.png`;
+        const { error: uploadError } = await serviceClient.storage
+          .from('concept-images')
+          .upload(storagePath, bytes, {
+            contentType: 'image/png',
+            upsert: true,
+          });
+        if (uploadError) throw uploadError;
+
+        const { data: publicData } = serviceClient.storage
+          .from('concept-images')
+          .getPublicUrl(storagePath);
+        publicUrl = publicData.publicUrl;
+      }
+
+      if (!publicUrl) continue;
+
+      const { data: imageRow, error: imageError } = await serviceClient
+        .from('concept_images')
+        .insert({
+          generation_id: generation.id,
+          concept_test_id: body.conceptTestId || null,
+          image_url: publicUrl,
+          storage_path: storagePath,
+          selected_for_panelists: true,
+          sort_order: index,
+          mode: body.mode ?? 'packaging',
+          prompt,
+          model,
+          quality,
+        })
+        .select()
+        .single();
+
+      if (imageError) throw imageError;
+      imageResults.push({
+        id: imageRow.id,
+        url: publicUrl,
+        storagePath,
+        revisedPrompt: item.revised_prompt,
+      });
+    }
+
+    await serviceClient
+      .from('concept_image_generations')
+      .update({ status: 'completed', completed_at: new Date().toISOString() })
+      .eq('id', generation.id);
+
+    return new Response(JSON.stringify({
+      generationId: generation.id,
+      images: imageResults,
+      model,
+      quality,
+      promptStyle: configuredStyle,
+      estimatedCost,
+      prompt,
+    }), {
       headers: { ...headers, 'Content-Type': 'application/json' },
     });
   } catch (err) {

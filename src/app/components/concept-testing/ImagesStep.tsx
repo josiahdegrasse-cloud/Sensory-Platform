@@ -16,6 +16,7 @@ type ImageMode = 'packaging' | 'shelf' | 'usage' | 'ingredient' | 'ad';
 const CONCEPT_IMAGE_COUNT = 4;
 
 interface CandidateImage {
+  id?: string;
   url: string;
   selected: boolean;
   revisedPrompt?: string;
@@ -61,6 +62,8 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
       body: {
         conceptName: draft.name,
         category: draft.category || detection.label,
+        foodTypeSlug: detection.slug,
+        projectName: draft.projectName,
         description: draft.description,
         targetMarket: draft.targetMarket,
         pricePoint: draft.pricePoint,
@@ -70,6 +73,7 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
           profile.riskMarkers.length ? `Avoid sensory negatives: ${profile.riskMarkers.slice(0, 5).join(', ')}` : '',
         ].filter(Boolean).join('\n'),
         mode,
+        promptStyle: draft.promptStyle,
         count: CONCEPT_IMAGE_COUNT,
       },
     });
@@ -80,7 +84,7 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
       return;
     }
 
-    const images = (data?.images ?? []) as Array<{ url: string; revisedPrompt?: string }>;
+    const images = (data?.images ?? []) as Array<{ id?: string; url: string; revisedPrompt?: string }>;
     setAiCandidates(images.map((image) => ({ ...image, selected: true })));
     if (images.length === 0) {
       setGenerationError('OpenAI returned no images. Try a more specific concept description.');
@@ -90,12 +94,24 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
 
   const addSelected = () => {
     const toAdd = aiCandidates.filter(c => c.selected && c.url).map(c => c.url);
-    onChange({ ...draft, marketingImages: [...draft.marketingImages.filter(u => u.trim()), ...toAdd] });
+    const imageIds = aiCandidates.filter(c => c.selected && c.id).map(c => c.id!);
+    const existingPairs = draft.marketingImages
+      .map((url, index) => ({ url, id: draft.marketingImageIds[index] ?? '' }))
+      .filter(pair => pair.url.trim());
+    onChange({
+      ...draft,
+      marketingImages: [...existingPairs.map(pair => pair.url), ...toAdd],
+      marketingImageIds: [...existingPairs.map(pair => pair.id), ...imageIds],
+    });
     setAiCandidates([]);
   };
 
   const removeImage = (i: number) =>
-    onChange({ ...draft, marketingImages: draft.marketingImages.filter((_, j) => j !== i) });
+    onChange({
+      ...draft,
+      marketingImages: draft.marketingImages.filter((_, j) => j !== i),
+      marketingImageIds: draft.marketingImageIds.filter((_, j) => j !== i),
+    });
 
   return (
     <div className="space-y-6">
@@ -107,7 +123,7 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
           </p>
         </div>
         <Badge className="w-fit bg-slate-900 text-white">
-          {CONCEPT_IMAGE_COUNT} visuals · {detection.label} intelligence
+          {CONCEPT_IMAGE_COUNT} visuals · {draft.promptStyle.replace('-', ' ')} · {detection.label}
         </Badge>
       </div>
 
@@ -146,7 +162,7 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
               <div>
                 <p className="font-semibold text-slate-900">OpenAI image generation</p>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Generates {CONCEPT_IMAGE_COUNT} medium-quality concept options through Supabase, with no provider tokens in the browser.
+                  Generates {CONCEPT_IMAGE_COUNT} medium-quality concept options into the {draft.projectName || 'Project 1'} folder.
                 </p>
               </div>
               <Button
@@ -282,7 +298,11 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => onChange({ ...draft, marketingImages: [...draft.marketingImages, ''] })}
+            onClick={() => onChange({
+              ...draft,
+              marketingImages: [...draft.marketingImages, ''],
+              marketingImageIds: [...draft.marketingImageIds, ''],
+            })}
             className="w-fit text-slate-600 text-xs h-8"
           >
             <Plus className="size-3 mr-1" /> Add URL manually
