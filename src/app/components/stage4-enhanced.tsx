@@ -12,20 +12,9 @@ import { DecisionLog, appendDecision } from "./decision-log";
 import { useAuth } from "../contexts/auth-context";
 import { formatFoodTypeLabel } from "../lib/food-intelligence";
 import { useInstrumentalDataset, useProducts } from "../lib/hooks";
+import { calculateGoStopTweakDecision, type GoStopTweakDecision } from "../utils/go-stop-tweak-engine";
 
-interface SampleDecision {
-  sampleId: string;
-  sampleName: string;
-  issfScore: number;
-  confidenceScore: number;
-  decision: "GO" | "TWEAK" | "STOP";
-  recommendation: string;
-  costSavings: number;
-  timeline: string;
-  riskLevel: "low" | "medium" | "high";
-  details: string[];
-  dimensionScores: { hedonic: number; texture: number; cata: number; emotional: number };
-}
+type SampleDecision = GoStopTweakDecision;
 
 function IssfGauge({ score, confidence }: { score: number; confidence: number }) {
   const pct = Math.max(0, Math.min(100, score));
@@ -35,16 +24,16 @@ function IssfGauge({ score, confidence }: { score: number; confidence: number })
       <div className="text-sm text-slate-600">ISSF Score</div>
       <div className="relative w-36 mt-3 mb-5 ml-auto">
         <div className="flex h-4 rounded-full overflow-hidden shadow-inner">
-          <div className="bg-rose-300" style={{ width: "55%" }} />
-          <div className="bg-amber-300" style={{ width: "20%" }} />
-          <div className="bg-emerald-300" style={{ width: "25%" }} />
+          <div className="bg-rose-300" style={{ width: "52%" }} />
+          <div className="bg-amber-300" style={{ width: "24%" }} />
+          <div className="bg-emerald-300" style={{ width: "24%" }} />
         </div>
         <div
           className="absolute top-0 w-1 h-4 bg-slate-900 rounded shadow-md"
           style={{ left: `${pct}%`, transform: "translateX(-50%)" }}
         />
-        <span className="absolute text-xs text-slate-400" style={{ left: "55%", top: "18px", transform: "translateX(-50%)" }}>55</span>
-        <span className="absolute text-xs text-slate-400" style={{ left: "75%", top: "18px", transform: "translateX(-50%)" }}>75</span>
+        <span className="absolute text-xs text-slate-400" style={{ left: "52%", top: "18px", transform: "translateX(-50%)" }}>52</span>
+        <span className="absolute text-xs text-slate-400" style={{ left: "76%", top: "18px", transform: "translateX(-50%)" }}>76</span>
       </div>
       <div className="text-xs text-slate-500">±{confidence.toFixed(0)}% confidence</div>
     </div>
@@ -60,7 +49,7 @@ function PathToGoPanel({
   selectedSensory: (typeof ENHANCED_SENSORY_DATA)[number];
   weights: { hedonic: number; texture: number; cata: number; emotional: number };
 }) {
-  const gap = Math.max(0, 75 - selected.issfScore);
+  const gap = Math.max(0, 76 - selected.issfScore);
 
   if (selected.decision === "GO") {
     const dims = [
@@ -284,153 +273,9 @@ export function Stage4Enhanced() {
     );
   }
 
-  // Calculate actual correlations and decisions for each sample
   const sampleDecisions: SampleDecision[] = filteredSensoryData.map(sample => {
-    // Calculate composite ISSF score based on:
-    // 1. Instrumental-panel alignment
-    // 2. Hedonic score
-    // 3. Absence of off-notes (GC-Olfactometry)
-    // 4. Texture quality
-    // 5. CATA positive attributes
-    
-    const hedonicNormalized = (sample.hedonic.overall / 9) * 100; // 0-100 scale
-    
-    // Check for critical off-notes using GC-Olfactometry (odour intensity ≥3)
-    const hasOffNotes = sample.gcmsOlfactometry.some(compound => 
-      (compound.odourIntensity >= 3 && (
-        compound.odour.toLowerCase().includes("rancid") || 
-        compound.odour.toLowerCase().includes("cardboard") ||
-        compound.odour.toLowerCase().includes("fermented")
-      )) ||
-      (compound.concentration && compound.threshold && compound.concentration > compound.threshold)
-    );
-    
-    // GC-O penalty factor (5% as per ISSF spec)
-    const gcoPenalty = hasOffNotes ? 5 : 0;
-    
-    // Texture quality (based on creaminess, low graininess/chalkiness)
-    const textureScore = (((sample.intensity.creamy ?? 5) / 10) * 100) -
-                         (((sample.intensity.grainy ?? 0) + (sample.intensity.chalky ?? 0)) / 20 * 50);
-    
-    // CATA positive attributes using actual lexicon
-    const positiveAttributes = (sample.cata["Butter"] || 0) + (sample.cata["Milk"] || 0) + 
-                               (sample.cata["Cheese"] || 0) + (sample.cata["Nutty"] || 0);
-    const cataScore = (positiveAttributes / (14 * 4)) * 100; // normalized
-    
-    // Emotional profile
-    const emotionalScore = ((sample.emotions.positive / 5) - (sample.emotions.negative / 5)) * 50 + 50; // 0-100
-    
-    // Composite ISSF score (weighted average with GC-O penalty)
-    const issfScore = (hedonicNormalized * weights.hedonic / 100) +
-                      (textureScore * weights.texture / 100) +
-                      (cataScore * weights.cata / 100) +
-                      (emotionalScore * weights.emotional / 100) -
-                      gcoPenalty;
-    
-    // Apply penalty cap for critical off-notes (odour intensity ≥4)
-    const hasCriticalDefect = sample.gcmsOlfactometry.some(c => c.odourIntensity >= 4);
-    const finalIssfScore = hasCriticalDefect ? Math.min(issfScore, 55) : issfScore;
-    
-    // Calculate confidence based on various factors
-    const hasTrainedRef = !!sample.trainedPanelReference;
-    const baseConfidence = hasTrainedRef ? 
-      Math.max(0, 100 - Math.abs(finalIssfScore - sample.trainedPanelReference.overallQuality)) :
-      80;
-    
-    // Factor in olfactometry-panel agreement
-    const olfactometryAgreement = 88; // From inter-rater stats
-    const adjustedConfidence = (baseConfidence * 0.7) + (olfactometryAgreement * 0.3);
-    
-    const offNoteConfidence = hasOffNotes ? 95 : adjustedConfidence; // High confidence if clear off-notes detected
-    const confidenceScore = Math.min(offNoteConfidence, 98);
-    
-    // Decision logic (with escalation path)
-    let decision: "GO" | "TWEAK" | "STOP";
-    let recommendation: string;
-    let costSavings: number;
-    let timeline: string;
-    let riskLevel: "low" | "medium" | "high";
-    
-    if (finalIssfScore >= 75 && !hasOffNotes && confidenceScore >= 70) {
-      decision = "GO";
-      recommendation = "Product ready for next development stage. Mixed panel methodology confirms quality.";
-      costSavings = 33000;
-      timeline = "1 week";
-      riskLevel = "low";
-    } else if (finalIssfScore < 55 || hasCriticalDefect) {
-      decision = "STOP";
-      recommendation = hasCriticalDefect ? 
-        "Critical defects detected (GC-O intensity ≥4). Major reformulation required - do not proceed." :
-        "Product does not meet minimum quality threshold. Major reformulation required.";
-      costSavings = 33000;
-      timeline = "1 week";
-      riskLevel = "low";
-    } else {
-      // 55-75 range OR low confidence
-      if (confidenceScore < 70) {
-        decision = "TWEAK";
-        recommendation = "ISSF confidence <70%. Moderate quality - targeted improvements recommended before re-testing.";
-        costSavings = 33000;
-        timeline = "2 weeks";
-        riskLevel = "medium";
-      } else {
-        decision = "TWEAK";
-        recommendation = "Moderate quality. Minor reformulation recommended, then re-test with ISSF.";
-        costSavings = 33000;
-        timeline = "2 weeks";
-        riskLevel = "medium";
-      }
-    }
-    
-    // Generate details
-    const details: string[] = [];
-    details.push(`ISSF Score: ${finalIssfScore.toFixed(1)}/100 (Confidence: ${confidenceScore.toFixed(0)}%)`);
-    details.push(`Hedonic: ${sample.hedonic.overall.toFixed(1)}/9 | Texture: ${textureScore.toFixed(0)}/100`);
-    
-    if (sample.trainedPanelReference) {
-      const delta = Math.abs(finalIssfScore - sample.trainedPanelReference.overallQuality);
-      details.push(`Validated: Trained panel = ${sample.trainedPanelReference.overallQuality} (Δ = ${delta.toFixed(1)})`);
-    }
-    
-    // GC-O off-notes
-    if (hasOffNotes) {
-      sample.gcmsOlfactometry.forEach(compound => {
-        if (compound.odourIntensity >= 3 && (
-          compound.odour.toLowerCase().includes("rancid") || 
-          compound.odour.toLowerCase().includes("cardboard") ||
-          compound.odour.toLowerCase().includes("fermented")
-        )) {
-          details.push(`Off-note — ${compound.compound}: ${compound.concentration?.toFixed(1) || 'detected'} ppm (intensity: ${compound.odourIntensity.toFixed(1)}/5) - ${compound.odour}`);
-        }
-      });
-    }
-    
-    // Key positive attributes
-    if (sample.cata["Butter"] && sample.cata["Butter"] >= 9) {
-      details.push(`High buttery note: ${sample.cata["Butter"]}/14 panelists`);
-    }
-    if ((sample.intensity.smooth ?? 0) >= 7.5) {
-      details.push(`Excellent smoothness: ${(sample.intensity.smooth ?? 0).toFixed(1)}/10`);
-    }
-    
-    return {
-      sampleId: sample.sampleId,
-      sampleName: sample.sampleName,
-      issfScore: finalIssfScore,
-      confidenceScore,
-      decision,
-      recommendation,
-      costSavings,
-      timeline,
-      riskLevel,
-      details,
-      dimensionScores: {
-        hedonic: hedonicNormalized,
-        texture: Math.max(0, Math.min(100, textureScore)),
-        cata: cataScore,
-        emotional: emotionalScore,
-      },
-    };
+    const sampleFoodType = sampleMatchesFoodType(sample.sampleId, sample.sampleName);
+    return calculateGoStopTweakDecision(sample, weights, sampleFoodType);
   });
 
   const selected = sampleDecisions.find(d => d.sampleId === selectedSample);
@@ -537,7 +382,7 @@ export function Stage4Enhanced() {
                     ? 'text-emerald-600 font-bold'
                     : 'text-amber-600 font-bold'
                 }>{weights.hedonic + weights.texture + weights.cata + weights.emotional}%</span>
-                {' '}+ 5% GC-O penalty reserve = 100%
+                {' '}before instrument-signal calibration
               </span>
             </CardTitle>
           </CardHeader>
@@ -572,7 +417,7 @@ export function Stage4Enhanced() {
             </div>
             <div className="mt-4 flex items-center justify-between">
               <p className="text-xs text-slate-500">
-                Default: Hedonic 30%, Texture 25%, CATA 25%, Emotional 15% (sums to 95%; 5% reserved for GC-O penalty cap)
+                Default: Hedonic 30%, Texture 25%, CATA 25%, Emotional 15%. The engine then blends machine signal and applies hard GC-O/QC gates.
               </p>
               <Button
                 size="sm"
@@ -679,11 +524,11 @@ export function Stage4Enhanced() {
               id="issf-hedonic-scatter"
             >
               <CartesianGrid strokeDasharray="3 3" />
-              <ReferenceArea x1={0} x2={55} y1={0} y2={9} fill="#fecaca" fillOpacity={0.25} />
-              <ReferenceArea x1={55} x2={75} y1={0} y2={9} fill="#fde68a" fillOpacity={0.25} />
-              <ReferenceArea x1={75} x2={100} y1={0} y2={9} fill="#a7f3d0" fillOpacity={0.25} />
-              <ReferenceLine x={55} stroke="#ef4444" strokeDasharray="4 4" strokeOpacity={0.5} label={{ value: "STOP", position: "insideTopLeft", fill: "#b91c1c", fontSize: 10 }} />
-              <ReferenceLine x={75} stroke="#10b981" strokeDasharray="4 4" strokeOpacity={0.5} label={{ value: "GO", position: "insideTopRight", fill: "#065f46", fontSize: 10 }} />
+              <ReferenceArea x1={0} x2={52} y1={0} y2={9} fill="#fecaca" fillOpacity={0.25} />
+              <ReferenceArea x1={52} x2={76} y1={0} y2={9} fill="#fde68a" fillOpacity={0.25} />
+              <ReferenceArea x1={76} x2={100} y1={0} y2={9} fill="#a7f3d0" fillOpacity={0.25} />
+              <ReferenceLine x={52} stroke="#ef4444" strokeDasharray="4 4" strokeOpacity={0.5} label={{ value: "STOP", position: "insideTopLeft", fill: "#b91c1c", fontSize: 10 }} />
+              <ReferenceLine x={76} stroke="#10b981" strokeDasharray="4 4" strokeOpacity={0.5} label={{ value: "GO", position: "insideTopRight", fill: "#065f46", fontSize: 10 }} />
               <XAxis
                 type="number" 
                 dataKey="issf" 
@@ -827,7 +672,7 @@ export function Stage4Enhanced() {
                       Recommendation
                     </h3>
                     <p className="text-base text-slate-800 mb-3">{selected.recommendation}</p>
-                    <div className="flex items-center gap-4 text-sm">
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
                       <Badge className="bg-blue-600">Timeline: {selected.timeline}</Badge>
                       <Badge className="bg-emerald-600">Savings: ${(selected.costSavings / 1000).toFixed(0)}k</Badge>
                       <Badge className={
@@ -836,6 +681,47 @@ export function Stage4Enhanced() {
                       }>
                         Risk: {selected.riskLevel.toUpperCase()}
                       </Badge>
+                      <Badge variant="outline" className="font-mono text-slate-700">
+                        {selected.methodVersion} · {selected.decisionFingerprint}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-4 rounded-lg border-2 border-slate-200 mb-4">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                        <GitMerge className="size-5 text-slate-600" />
+                        Decision Gates
+                      </h3>
+                      <span className="text-xs text-slate-500">Hard gates override weighted score</span>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {selected.gates.map(gate => (
+                        <div
+                          key={gate.id}
+                          className={`rounded-lg border p-3 ${
+                            gate.status === 'pass'
+                              ? 'border-emerald-200 bg-emerald-50'
+                              : gate.status === 'watch'
+                                ? 'border-amber-200 bg-amber-50'
+                                : 'border-rose-200 bg-rose-50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-semibold text-slate-900">{gate.label}</p>
+                            <Badge className={
+                              gate.status === 'pass'
+                                ? 'bg-emerald-600'
+                                : gate.status === 'watch'
+                                  ? 'bg-amber-600'
+                                  : 'bg-rose-600'
+                            }>
+                              {gate.status.toUpperCase()}
+                            </Badge>
+                          </div>
+                          <p className="mt-1 text-xs text-slate-600">{gate.detail}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
@@ -850,6 +736,28 @@ export function Stage4Enhanced() {
                       ))}
                     </ul>
                   </div>
+
+                  {selected.prescriptions.length > 0 && (
+                    <div className="bg-white p-4 rounded-lg border-2 border-amber-200 mb-4">
+                      <h3 className="font-bold text-slate-900 mb-3 flex items-center gap-2">
+                        <Zap className="size-4 text-amber-600" />
+                        Tweak Prescription
+                      </h3>
+                      <div className="space-y-3">
+                        {selected.prescriptions.map(prescription => (
+                          <div key={`${prescription.priority}-${prescription.target}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-bold text-slate-900">
+                                {prescription.priority}. {prescription.target}
+                              </p>
+                              <Badge className="bg-amber-600">+{prescription.expectedLift.toFixed(0)} possible pts</Badge>
+                            </div>
+                            <p className="mt-1 text-sm text-slate-700">{prescription.action}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <PathToGoPanel selected={selected} selectedSensory={selectedSensory} weights={weights} />
 
