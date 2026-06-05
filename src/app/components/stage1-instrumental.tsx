@@ -742,7 +742,7 @@ export function Stage1Instrumental() {
       setSelectedSamples(["S3"]);
       setUsingDemoData(true);
       window.localStorage.removeItem(IMPORTED_DATA_STORAGE_KEY);
-      if (foodType === type) setSelection('all', null);
+      if (foodType === type) setSelection('cheese', null);
       return;
     }
     setETongueData(remainingETongueData);
@@ -757,7 +757,7 @@ export function Stage1Instrumental() {
       return next;
     });
     setImportSuccess(`Deleted ${formatFoodTypeLabel(type)} data.`);
-    if (foodType === type) setSelection('all', null);
+    if (foodType === type) setSelection('cheese', null);
   };
 
   // ── derived display data ──────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
-import { FlaskConical, BarChart3, GitMerge, ClipboardList, Settings, LogOut, Lightbulb, Tag, Archive, Trash2, Undo2, Database } from "lucide-react";
+import { FlaskConical, BarChart3, GitMerge, ClipboardList, Settings, LogOut, Lightbulb, Tag, Archive, Trash2, Undo2, Database, ChevronDown, ChevronRight } from "lucide-react";
 import { useAuth } from "../contexts/auth-context";
 import { useEffect, useMemo, useState } from "react";
 import { useFoodType } from "../contexts/food-type-context";
@@ -35,23 +35,16 @@ function capitalize(s: string) {
 }
 
 function CategorySidebar() {
-  const { foodType, setSelection, extraFoodTypes, archivedFoodTypes, archiveFoodType, restoreFoodType, deleteFoodType } = useFoodType();
+  const { foodType, setSelection, extraFoodTypes, archivedFoodTypes, deletedFoodTypes, archiveFoodType, restoreFoodType, deleteFoodType } = useFoodType();
   const { data: products = [] } = useProducts();
   const { data: importBatches = [] } = useImportBatches();
   const { data: instrumentalDataset } = useInstrumentalDataset();
   const [pendingAction, setPendingAction] = useState<{ type: string; action: 'archive' | 'delete' } | null>(null);
-
-  const productCountByType = useMemo(() => {
-    const counts: Record<string, number> = {};
-    products.filter(p => p.status !== 'archived').forEach(p => {
-      const slug = matchFoodType(p.category);
-      counts[slug] = (counts[slug] ?? 0) + 1;
-    });
-    return counts;
-  }, [products]);
+  const [expandedTypes, setExpandedTypes] = useState<Record<string, boolean>>({});
 
   const builtInTypes = ['cheese', 'bread'];
-  const allTypes = [...builtInTypes, ...extraFoodTypes.filter(t => !builtInTypes.includes(t))];
+  const allTypes = [...builtInTypes, ...extraFoodTypes.filter(t => !builtInTypes.includes(t))]
+    .filter(type => !archivedFoodTypes.includes(type) && !deletedFoodTypes.includes(type));
   const importedTypes = allTypes.filter(t => !builtInTypes.includes(t));
   const label = (ft: string) =>
     ft === 'cheese' ? 'Cheese' : ft === 'bread' ? 'Bread' : capitalize(ft);
@@ -62,6 +55,16 @@ function CategorySidebar() {
   }, [foodType, instrumentalDataset]);
   const selectedSampleIds = useMemo(() => new Set(selectedSamples.map(sample => sample.sampleId)), [selectedSamples]);
   const selectedBatch = importBatches.find(batch => batch.foodTypeSlug === foodType);
+  const projectBatchesByType = useMemo(() => {
+    const groups: Record<string, typeof importBatches> = {};
+    importBatches
+      .filter(batch => batch.status === 'active')
+      .forEach(batch => {
+        if (!groups[batch.foodTypeSlug]) groups[batch.foodTypeSlug] = [];
+        groups[batch.foodTypeSlug].push(batch);
+      });
+    return groups;
+  }, [importBatches]);
   const selectedDataTypes = [
     selectedSamples.length > 0 ? 'E-tongue' : null,
     Object.keys(instrumentalDataset?.gcmsData ?? {}).some(sampleId => selectedSampleIds.has(sampleId)) ? 'GC-MS' : null,
@@ -88,24 +91,32 @@ function CategorySidebar() {
           {allTypes.map(ft => {
             const imported = !builtInTypes.includes(ft);
             const active = foodType === ft;
-            const count = productCountByType[ft];
+            const projects = projectBatchesByType[ft] ?? [];
+            const hasProjects = projects.length > 1;
+            const expanded = expandedTypes[ft] ?? active;
             return (
-              <div
-                key={ft}
-                className="group flex items-center rounded-lg transition-colors"
-                style={btnStyle(active)}
-              >
-                <button
-                  onClick={() => setSelection(ft, null)}
-                  className="min-w-0 flex-1 text-left px-2.5 py-1.5 text-sm flex items-center justify-between"
+              <div key={ft}>
+                <div
+                  className="group flex items-center rounded-lg transition-colors"
+                  style={btnStyle(active)}
                 >
-                  <span className="block truncate">{label(ft)}</span>
-                  {count !== undefined && count > 0 && (
-                    <span className="text-[10px] text-slate-400 font-medium tabular-nums ml-1 shrink-0">{count}</span>
+                  {hasProjects && (
+                    <button
+                      type="button"
+                      title={`${expanded ? 'Collapse' : 'Expand'} ${label(ft)} projects`}
+                      onClick={() => setExpandedTypes(prev => ({ ...prev, [ft]: !expanded }))}
+                      className="ml-1 p-1 text-slate-400 hover:text-slate-700 rounded"
+                    >
+                      {expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+                    </button>
                   )}
-                </button>
-                {imported && (
-                  <div className="flex items-center pr-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => setSelection(ft, null)}
+                    className={`min-w-0 flex-1 text-left py-1.5 text-sm ${hasProjects ? 'px-1' : 'px-2.5'}`}
+                  >
+                    <span className="block truncate">{label(ft)}</span>
+                  </button>
+                  <div className="flex items-center pr-1 opacity-100 transition-opacity">
                     <button
                       type="button"
                       title={`Archive ${label(ft)}`}
@@ -122,6 +133,21 @@ function CategorySidebar() {
                     >
                       <Trash2 className="size-3.5" />
                     </button>
+                  </div>
+                </div>
+                {hasProjects && expanded && (
+                  <div className="ml-5 mt-0.5 space-y-0.5 border-l border-slate-100 pl-2">
+                    {projects.map((project, index) => (
+                      <button
+                        key={project.id}
+                        type="button"
+                        onClick={() => setSelection(ft, null)}
+                        title={project.fileName}
+                        className="block w-full truncate rounded-md px-2 py-1 text-left text-xs text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                      >
+                        Project {index + 1}: {project.fileName.replace(/\.csv$/i, '')}
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
@@ -178,7 +204,9 @@ function CategorySidebar() {
             <div className="text-slate-500">machine samples</div>
           </div>
           <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
-            <div className="font-bold text-slate-900">{productCountByType[foodType] ?? 0}</div>
+            <div className="font-bold text-slate-900">
+              {products.filter(product => product.status !== 'archived' && matchFoodType(product.category) === foodType).length}
+            </div>
             <div className="text-slate-500">surveys</div>
           </div>
         </div>

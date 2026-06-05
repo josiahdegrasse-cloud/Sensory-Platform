@@ -4,7 +4,7 @@ import { detectFoodType, slugifyFoodType } from '../lib/food-intelligence';
 import { useArchiveFoodType, useDeleteFoodType, useFoodTypes, useRestoreFoodType } from '../lib/hooks';
 
 export type FoodType = string;
-type FoodTypeStatus = 'active' | 'archived';
+type FoodTypeStatus = 'active' | 'archived' | 'deleted';
 interface LocalFoodTypeRecord {
   type: string;
   status: FoodTypeStatus;
@@ -19,6 +19,7 @@ interface FoodTypeContextValue {
   setSelection: (foodType: FoodType, subCategory?: string | null) => void;
   extraFoodTypes: string[];
   archivedFoodTypes: string[];
+  deletedFoodTypes: string[];
   registerFoodTypes: (types: string[]) => void;
   archiveFoodType: (type: string) => void;
   restoreFoodType: (type: string) => void;
@@ -32,6 +33,7 @@ const FoodTypeContext = createContext<FoodTypeContextValue>({
   setSelection: () => {},
   extraFoodTypes: [],
   archivedFoodTypes: [],
+  deletedFoodTypes: [],
   registerFoodTypes: () => {},
   archiveFoodType: () => {},
   restoreFoodType: () => {},
@@ -47,7 +49,7 @@ function loadFoodTypeRecords(): LocalFoodTypeRecord[] {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     return parsed.filter((item): item is LocalFoodTypeRecord =>
-      typeof item?.type === 'string' && (item.status === 'active' || item.status === 'archived')
+      typeof item?.type === 'string' && (item.status === 'active' || item.status === 'archived' || item.status === 'deleted')
     );
   } catch {
     return [];
@@ -75,6 +77,7 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
 
   const extraFoodTypes = foodTypeRecords.filter(record => record.status === 'active').map(record => record.type);
   const archivedFoodTypes = foodTypeRecords.filter(record => record.status === 'archived').map(record => record.type);
+  const deletedFoodTypes = foodTypeRecords.filter(record => record.status === 'deleted').map(record => record.type);
 
   useEffect(() => {
     window.localStorage.setItem(FOOD_TYPE_STORAGE_KEY, JSON.stringify(localFoodTypeRecords));
@@ -97,7 +100,11 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
 
   const archiveFoodType = useCallback((type: string) => {
     const slug = slugifyFoodType(type);
-    setLocalFoodTypeRecords(prev => prev.map(record => record.type === slug ? { ...record, status: 'archived' } : record));
+    setLocalFoodTypeRecords(prev => {
+      const exists = prev.some(record => record.type === slug);
+      if (!exists) return [...prev, { type: slug, status: 'archived' }].sort((a, b) => a.type.localeCompare(b.type));
+      return prev.map(record => record.type === slug ? { ...record, status: 'archived' } : record);
+    });
     setFoodType(current => current === slug ? 'cheese' : current);
     void archiveFoodTypeMutation.mutateAsync(slug).catch(() => undefined);
   }, [archiveFoodTypeMutation]);
@@ -111,7 +118,11 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
 
   const deleteFoodType = useCallback((type: string) => {
     const slug = slugifyFoodType(type);
-    setLocalFoodTypeRecords(prev => prev.filter(record => record.type !== slug));
+    setLocalFoodTypeRecords(prev => {
+      const exists = prev.some(record => record.type === slug);
+      if (!exists) return [...prev, { type: slug, status: 'deleted' }].sort((a, b) => a.type.localeCompare(b.type));
+      return prev.map(record => record.type === slug ? { ...record, status: 'deleted' } : record);
+    });
     setFoodType(current => current === slug ? 'cheese' : current);
     void deleteFoodTypeMutation.mutateAsync(slug).catch(() => undefined);
     if (typeof window !== 'undefined') {
@@ -147,7 +158,7 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <FoodTypeContext.Provider value={{ foodType, subCategory, setSelection, extraFoodTypes, archivedFoodTypes, registerFoodTypes, archiveFoodType, restoreFoodType, deleteFoodType, clearExtraFoodTypes }}>
+    <FoodTypeContext.Provider value={{ foodType, subCategory, setSelection, extraFoodTypes, archivedFoodTypes, deletedFoodTypes, registerFoodTypes, archiveFoodType, restoreFoodType, deleteFoodType, clearExtraFoodTypes }}>
       {children}
     </FoodTypeContext.Provider>
   );
