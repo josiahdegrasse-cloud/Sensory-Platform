@@ -6,11 +6,14 @@ import { FoodTypeProvider } from "./contexts/food-type-context.tsx";
 import { LoginPage } from "./components/login-page.tsx";
 import { SignupPage } from "./components/signup-page.tsx";
 import { ResetPasswordPage } from "./components/reset-password-page.tsx";
+import { useWorkspaceSettings } from "./lib/hooks.ts";
 
 function AppContent() {
   const { isAuthenticated, isPasswordRecovery, loading } = useAuth();
+  const { data: workspaceSettings } = useWorkspaceSettings();
   const [showSignup, setShowSignup] = useState(false);
   const isPublicLegalRoute = ['/privacy', '/terms', '/panelist-consent'].includes(window.location.pathname);
+  const allowSelfSignup = workspaceSettings?.allowSelfSignup ?? true;
 
   if (loading) {
     return (
@@ -25,10 +28,10 @@ function AppContent() {
   if (isPublicLegalRoute) return <RouterProvider router={router} />;
 
   if (!isAuthenticated) {
-    if (showSignup) {
+    if (showSignup && allowSelfSignup) {
       return <SignupPage onBack={() => setShowSignup(false)} />;
     }
-    return <LoginPage onSignup={() => setShowSignup(true)} />;
+    return <LoginPage onSignup={allowSelfSignup ? () => setShowSignup(true) : undefined} />;
   }
 
   return <RouterProvider router={router} />;

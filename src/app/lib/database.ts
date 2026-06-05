@@ -874,6 +874,32 @@ export interface WorkspaceSettings {
   dataRetentionMonths: number;
   requirePanelistConsent: boolean;
   allowSelfSignup: boolean;
+  defaultPanelSize: number;
+  requireHedonicSection: boolean;
+  requireIntensitySection: boolean;
+  requireEmotionSection: boolean;
+  allowPanelistComments: boolean;
+  requireAllSamplesBeforeSubmit: boolean;
+  autoCreateFoodTypes: boolean;
+  autoCreateSurveysFromImports: boolean;
+  requireImportReview: boolean;
+  duplicateSamplePolicy: 'skip' | 'rename' | 'replace';
+  requirePanelistId: boolean;
+  allowPanelistsViewHistory: boolean;
+  inactivePanelistDays: number;
+  conceptMaxGenerationsPerConcept: number;
+  conceptMonthlyBudgetCents: number;
+  conceptRequireApproval: boolean;
+  decisionGoThreshold: number;
+  decisionStopThreshold: number;
+  decisionMinResponses: number;
+  decisionLockConfirmed: boolean;
+  anonymizePanelistsInReports: boolean;
+  exportFormat: 'xlsx' | 'csv' | 'pdf';
+  reportFooter: string;
+  notifyOnImport: boolean;
+  notifyOnCompletionTarget: boolean;
+  notifyOnGenerationFailure: boolean;
   updatedAt: string | null;
 }
 
@@ -897,6 +923,32 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     dataRetentionMonths: 24,
     requirePanelistConsent: true,
     allowSelfSignup: true,
+    defaultPanelSize: 24,
+    requireHedonicSection: true,
+    requireIntensitySection: true,
+    requireEmotionSection: true,
+    allowPanelistComments: true,
+    requireAllSamplesBeforeSubmit: true,
+    autoCreateFoodTypes: true,
+    autoCreateSurveysFromImports: true,
+    requireImportReview: false,
+    duplicateSamplePolicy: 'skip',
+    requirePanelistId: false,
+    allowPanelistsViewHistory: false,
+    inactivePanelistDays: 90,
+    conceptMaxGenerationsPerConcept: 12,
+    conceptMonthlyBudgetCents: 2500,
+    conceptRequireApproval: false,
+    decisionGoThreshold: 75,
+    decisionStopThreshold: 45,
+    decisionMinResponses: 12,
+    decisionLockConfirmed: true,
+    anonymizePanelistsInReports: true,
+    exportFormat: 'xlsx',
+    reportFooter: '',
+    notifyOnImport: true,
+    notifyOnCompletionTarget: true,
+    notifyOnGenerationFailure: true,
     updatedAt: null,
   };
 }
@@ -910,6 +962,32 @@ function toWorkspaceSettings(row: Record<string, unknown>): WorkspaceSettings {
     dataRetentionMonths: Number(row.data_retention_months ?? 24),
     requirePanelistConsent: Boolean(row.require_panelist_consent ?? true),
     allowSelfSignup: Boolean(row.allow_self_signup ?? true),
+    defaultPanelSize: Number(row.default_panel_size ?? 24),
+    requireHedonicSection: Boolean(row.require_hedonic_section ?? true),
+    requireIntensitySection: Boolean(row.require_intensity_section ?? true),
+    requireEmotionSection: Boolean(row.require_emotion_section ?? true),
+    allowPanelistComments: Boolean(row.allow_panelist_comments ?? true),
+    requireAllSamplesBeforeSubmit: Boolean(row.require_all_samples_before_submit ?? true),
+    autoCreateFoodTypes: Boolean(row.auto_create_food_types ?? true),
+    autoCreateSurveysFromImports: Boolean(row.auto_create_surveys_from_imports ?? true),
+    requireImportReview: Boolean(row.require_import_review ?? false),
+    duplicateSamplePolicy: ((row.duplicate_sample_policy as WorkspaceSettings['duplicateSamplePolicy']) ?? 'skip'),
+    requirePanelistId: Boolean(row.require_panelist_id ?? false),
+    allowPanelistsViewHistory: Boolean(row.allow_panelists_view_history ?? false),
+    inactivePanelistDays: Number(row.inactive_panelist_days ?? 90),
+    conceptMaxGenerationsPerConcept: Number(row.concept_max_generations_per_concept ?? 12),
+    conceptMonthlyBudgetCents: Number(row.concept_monthly_budget_cents ?? 2500),
+    conceptRequireApproval: Boolean(row.concept_require_approval ?? false),
+    decisionGoThreshold: Number(row.decision_go_threshold ?? 75),
+    decisionStopThreshold: Number(row.decision_stop_threshold ?? 45),
+    decisionMinResponses: Number(row.decision_min_responses ?? 12),
+    decisionLockConfirmed: Boolean(row.decision_lock_confirmed ?? true),
+    anonymizePanelistsInReports: Boolean(row.anonymize_panelists_in_reports ?? true),
+    exportFormat: ((row.export_format as WorkspaceSettings['exportFormat']) ?? 'xlsx'),
+    reportFooter: (row.report_footer as string) ?? '',
+    notifyOnImport: Boolean(row.notify_on_import ?? true),
+    notifyOnCompletionTarget: Boolean(row.notify_on_completion_target ?? true),
+    notifyOnGenerationFailure: Boolean(row.notify_on_generation_failure ?? true),
     updatedAt: (row.updated_at as string) ?? null,
   };
 }
@@ -932,6 +1010,8 @@ export async function updateWorkspaceSettings(
   updates: WorkspaceSettings,
   actorId?: string | null,
 ): Promise<WorkspaceSettings> {
+  const decisionStopThreshold = Math.min(99, Math.max(0, Number(updates.decisionStopThreshold) || 45));
+  const decisionGoThreshold = Math.min(100, Math.max(decisionStopThreshold + 1, Number(updates.decisionGoThreshold) || 75));
   const patch = {
     id: true,
     workspace_name: updates.workspaceName.trim() || 'Sensory Analysis Workspace',
@@ -941,6 +1021,32 @@ export async function updateWorkspaceSettings(
     data_retention_months: Math.min(120, Math.max(1, Number(updates.dataRetentionMonths) || 24)),
     require_panelist_consent: updates.requirePanelistConsent,
     allow_self_signup: updates.allowSelfSignup,
+    default_panel_size: Math.min(500, Math.max(1, Number(updates.defaultPanelSize) || 24)),
+    require_hedonic_section: updates.requireHedonicSection,
+    require_intensity_section: updates.requireIntensitySection,
+    require_emotion_section: updates.requireEmotionSection,
+    allow_panelist_comments: updates.allowPanelistComments,
+    require_all_samples_before_submit: updates.requireAllSamplesBeforeSubmit,
+    auto_create_food_types: updates.autoCreateFoodTypes,
+    auto_create_surveys_from_imports: updates.autoCreateSurveysFromImports,
+    require_import_review: updates.requireImportReview,
+    duplicate_sample_policy: updates.duplicateSamplePolicy,
+    require_panelist_id: updates.requirePanelistId,
+    allow_panelists_view_history: updates.allowPanelistsViewHistory,
+    inactive_panelist_days: Math.min(730, Math.max(1, Number(updates.inactivePanelistDays) || 90)),
+    concept_max_generations_per_concept: Math.min(100, Math.max(1, Number(updates.conceptMaxGenerationsPerConcept) || 12)),
+    concept_monthly_budget_cents: Math.min(1000000, Math.max(0, Number(updates.conceptMonthlyBudgetCents) || 0)),
+    concept_require_approval: updates.conceptRequireApproval,
+    decision_go_threshold: decisionGoThreshold,
+    decision_stop_threshold: decisionStopThreshold,
+    decision_min_responses: Math.min(500, Math.max(1, Number(updates.decisionMinResponses) || 12)),
+    decision_lock_confirmed: updates.decisionLockConfirmed,
+    anonymize_panelists_in_reports: updates.anonymizePanelistsInReports,
+    export_format: updates.exportFormat,
+    report_footer: updates.reportFooter.trim(),
+    notify_on_import: updates.notifyOnImport,
+    notify_on_completion_target: updates.notifyOnCompletionTarget,
+    notify_on_generation_failure: updates.notifyOnGenerationFailure,
     updated_at: new Date().toISOString(),
   };
 
@@ -961,6 +1067,13 @@ export async function updateWorkspaceSettings(
       dataRetentionMonths: patch.data_retention_months,
       requirePanelistConsent: patch.require_panelist_consent,
       allowSelfSignup: patch.allow_self_signup,
+      defaultPanelSize: patch.default_panel_size,
+      importAutomation: patch.auto_create_surveys_from_imports,
+      decisionThresholds: `${patch.decision_stop_threshold}/${patch.decision_go_threshold}`,
+      governance: {
+        anonymizeReports: patch.anonymize_panelists_in_reports,
+        exportFormat: patch.export_format,
+      },
     },
   });
 

@@ -7,7 +7,7 @@ import { AlertCircle, CheckCircle2, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 
 interface Props {
-  onSignup: () => void;
+  onSignup?: () => void;
 }
 
 const NFI_BLUE = '#6B7890';
@@ -252,14 +252,18 @@ export function LoginPage({ onSignup }: Props) {
               </form>
 
               <div className="mt-6 pt-6 border-t border-slate-100 text-center">
-                <button
-                  type="button"
-                  onClick={onSignup}
-                  className="text-sm text-slate-500 hover:text-slate-900 transition-colors"
-                >
-                  New panelist?{' '}
-                  <span className="font-semibold underline underline-offset-2">Create account</span>
-                </button>
+                {onSignup ? (
+                  <button
+                    type="button"
+                    onClick={onSignup}
+                    className="text-sm text-slate-500 hover:text-slate-900 transition-colors"
+                  >
+                    New panelist?{' '}
+                    <span className="font-semibold underline underline-offset-2">Create account</span>
+                  </button>
+                ) : (
+                  <p className="text-sm text-slate-500">Panelist accounts are invite-only for this workspace.</p>
+                )}
                 <div className="mt-4 flex items-center justify-center gap-3 text-xs text-slate-400">
                   <a href="/privacy" className="hover:text-slate-700">Privacy</a>
                   <span aria-hidden="true">/</span>

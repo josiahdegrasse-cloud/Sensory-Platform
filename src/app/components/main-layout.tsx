@@ -3,7 +3,7 @@ import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Ta
 import { useAuth } from "../contexts/auth-context";
 import { useEffect, useMemo, useState } from "react";
 import { useFoodType } from "../contexts/food-type-context";
-import { useImportBatches, useInstrumentalDataset, useProducts, useUpdateImportBatchStatus } from "../lib/hooks";
+import { useImportBatches, useInstrumentalDataset, useProducts, useUpdateImportBatchStatus, useWorkspaceSettings } from "../lib/hooks";
 import { matchFoodType } from "../contexts/food-type-context";
 import { ConsentGate } from "./consent-gate";
 import {
@@ -345,6 +345,7 @@ export function MainLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { data: workspaceSettings } = useWorkspaceSettings();
 
   const isActive = (path: string) => {
     if (path === "/" && location.pathname === "/") return true;
@@ -454,7 +455,7 @@ export function MainLayout() {
       <div className="max-w-[1600px] mx-auto px-6 py-8 flex gap-6 items-start">
         {user?.role === 'admin' && <CategorySidebar />}
         <main className="flex-1 min-w-0">
-          {user?.role === 'panelist' && !user.consentAcceptedAt ? <ConsentGate /> : <Outlet />}
+          {user?.role === 'panelist' && (workspaceSettings?.requirePanelistConsent ?? true) && !user.consentAcceptedAt ? <ConsentGate /> : <Outlet />}
         </main>
       </div>
     </div>

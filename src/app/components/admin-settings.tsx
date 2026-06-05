@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Activity, AlertCircle, CheckCircle2, Clock, Database, KeyRound, Save,
-  Settings, ShieldCheck, UserCheck, UserX, Users,
+  Activity, AlertCircle, Bell, Brain, CheckCircle2, ClipboardCheck, Database,
+  FileText, Lock, Save, Settings, ShieldCheck, UserCheck, UserX, Users,
 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Switch } from './ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
@@ -31,6 +32,32 @@ const fallbackSettings: WorkspaceSettings = {
   dataRetentionMonths: 24,
   requirePanelistConsent: true,
   allowSelfSignup: true,
+  defaultPanelSize: 24,
+  requireHedonicSection: true,
+  requireIntensitySection: true,
+  requireEmotionSection: true,
+  allowPanelistComments: true,
+  requireAllSamplesBeforeSubmit: true,
+  autoCreateFoodTypes: true,
+  autoCreateSurveysFromImports: true,
+  requireImportReview: false,
+  duplicateSamplePolicy: 'skip',
+  requirePanelistId: false,
+  allowPanelistsViewHistory: false,
+  inactivePanelistDays: 90,
+  conceptMaxGenerationsPerConcept: 12,
+  conceptMonthlyBudgetCents: 2500,
+  conceptRequireApproval: false,
+  decisionGoThreshold: 75,
+  decisionStopThreshold: 45,
+  decisionMinResponses: 12,
+  decisionLockConfirmed: true,
+  anonymizePanelistsInReports: true,
+  exportFormat: 'xlsx',
+  reportFooter: '',
+  notifyOnImport: true,
+  notifyOnCompletionTarget: true,
+  notifyOnGenerationFailure: true,
   updatedAt: null,
 };
 
@@ -50,10 +77,53 @@ function formatEventType(value: string) {
 function formatMetadata(metadata: Record<string, unknown>) {
   const entries = Object.entries(metadata);
   if (entries.length === 0) return 'No details';
-  return entries
-    .slice(0, 4)
-    .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : String(value)}`)
-    .join(' · ');
+  return entries.slice(0, 4).map(([key, value]) =>
+    `${key}: ${Array.isArray(value) ? value.join(', ') : String(value)}`
+  ).join(' · ');
+}
+
+function ToggleRow({ title, detail, checked, onChange }: {
+  title: string;
+  detail: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 p-4">
+      <span>
+        <span className="block text-sm font-semibold text-slate-900">{title}</span>
+        <span className="text-xs leading-5 text-slate-500">{detail}</span>
+      </span>
+      <Switch checked={checked} onCheckedChange={onChange} />
+    </label>
+  );
+}
+
+function NumberField({ id, label, value, min, max, onChange, suffix }: {
+  id: string;
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  suffix?: string;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="flex items-center gap-2">
+        <Input
+          id={id}
+          type="number"
+          min={min}
+          max={max}
+          value={value}
+          onChange={event => onChange(Number(event.target.value))}
+        />
+        {suffix && <span className="text-xs text-slate-500">{suffix}</span>}
+      </div>
+    </div>
+  );
 }
 
 export function AdminSettings() {
@@ -68,16 +138,17 @@ export function AdminSettings() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    setDraft(settings);
-  }, [settings]);
+  useEffect(() => setDraft(settings), [settings]);
 
   const panelistStats = useMemo(() => {
     const active = panelists.filter(panelist => panelist.status === 'active').length;
-    const inactive = panelists.filter(panelist => panelist.status !== 'active').length;
     const consented = panelists.filter(panelist => !!panelist.consentAcceptedAt).length;
-    return { active, inactive, consented };
+    return { active, consented };
   }, [panelists]);
+
+  const updateDraft = <K extends keyof WorkspaceSettings>(key: K, value: WorkspaceSettings[K]) => {
+    setDraft(prev => ({ ...prev, [key]: value }));
+  };
 
   const saveSettings = async () => {
     setError('');
@@ -98,18 +169,24 @@ export function AdminSettings() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-950">Settings</h1>
-        <p className="mt-1 max-w-2xl text-sm text-slate-500">
-          Manage workspace identity, panelist access, consent controls, and operational history.
-        </p>
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-          <span>{panelistStats.active} active panelists</span>
-          <span className="text-slate-300">/</span>
-          <span>{panelistStats.consented} consent records</span>
-          <span className="text-slate-300">/</span>
-          <span>{auditEvents.length} recent audit events</span>
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-950">Settings</h1>
+          <p className="mt-1 max-w-2xl text-sm text-slate-500">
+            Set the rules that shape imports, studies, panelist access, concept generation, and reports.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <span>{panelistStats.active} active panelists</span>
+            <span className="text-slate-300">/</span>
+            <span>{panelistStats.consented} consent records</span>
+            <span className="text-slate-300">/</span>
+            <span>{auditEvents.length} recent audit events</span>
+          </div>
         </div>
+        <Button onClick={saveSettings} disabled={updateSettings.isPending} className="w-fit bg-slate-900 hover:bg-slate-700">
+          <Save className="size-4" />
+          {updateSettings.isPending ? 'Saving...' : 'Save settings'}
+        </Button>
       </div>
 
       {error && (
@@ -125,268 +202,249 @@ export function AdminSettings() {
         </Alert>
       )}
 
-      <Tabs defaultValue="workspace" className="gap-4">
+      <Tabs defaultValue="study" className="gap-4">
         <TabsList className="rounded-lg">
-          <TabsTrigger value="workspace"><Settings className="size-4" />Workspace</TabsTrigger>
-          <TabsTrigger value="users"><Users className="size-4" />Users</TabsTrigger>
-          <TabsTrigger value="audit"><Activity className="size-4" />Audit log</TabsTrigger>
+          <TabsTrigger value="study"><ClipboardCheck className="size-4" />Study</TabsTrigger>
+          <TabsTrigger value="access"><Users className="size-4" />Access</TabsTrigger>
+          <TabsTrigger value="automation"><Database className="size-4" />Automation</TabsTrigger>
+          <TabsTrigger value="decision"><Brain className="size-4" />Decision</TabsTrigger>
+          <TabsTrigger value="governance"><ShieldCheck className="size-4" />Governance</TabsTrigger>
+          <TabsTrigger value="audit"><Activity className="size-4" />Audit</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="workspace" className="space-y-4">
-          <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
+        <TabsContent value="study">
+          <div className="grid gap-4 xl:grid-cols-[1.1fr_1fr]">
             <Card className="border-slate-200 shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Database className="size-5 text-slate-500" />
-                  Workspace controls
-                </CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle className="text-lg">Study defaults</CardTitle></CardHeader>
               <CardContent className="space-y-5">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="workspace-name">Workspace name</Label>
-                    <Input
-                      id="workspace-name"
-                      value={draft.workspaceName}
-                      onChange={event => setDraft(prev => ({ ...prev, workspaceName: event.target.value }))}
-                      disabled={settingsLoading}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="organization-name">Organization</Label>
-                    <Input
-                      id="organization-name"
-                      value={draft.organizationName}
-                      onChange={event => setDraft(prev => ({ ...prev, organizationName: event.target.value }))}
-                      disabled={settingsLoading}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="contact-email">Admin contact email</Label>
-                    <Input
-                      id="contact-email"
-                      type="email"
-                      value={draft.adminContactEmail}
-                      onChange={event => setDraft(prev => ({ ...prev, adminContactEmail: event.target.value }))}
-                      placeholder="research@company.com"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="timezone">Default timezone</Label>
-                    <Input
-                      id="timezone"
-                      value={draft.defaultTimezone}
-                      onChange={event => setDraft(prev => ({ ...prev, defaultTimezone: event.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="retention">Data retention months</Label>
-                    <Input
-                      id="retention"
-                      type="number"
-                      min={1}
-                      max={120}
-                      value={draft.dataRetentionMonths}
-                      onChange={event => setDraft(prev => ({ ...prev, dataRetentionMonths: Number(event.target.value) }))}
-                    />
-                  </div>
+                  <NumberField id="default-panel-size" label="Default panel size" value={draft.defaultPanelSize} min={1} max={500} onChange={value => updateDraft('defaultPanelSize', value)} />
+                  <NumberField id="retention" label="Data retention" value={draft.dataRetentionMonths} min={1} max={120} suffix="months" onChange={value => updateDraft('dataRetentionMonths', value)} />
                 </div>
-
                 <div className="grid gap-3 md:grid-cols-2">
-                  <label className="flex items-center justify-between rounded-lg border border-slate-200 p-4">
-                    <span>
-                      <span className="block text-sm font-semibold text-slate-900">Require panelist consent</span>
-                      <span className="text-xs text-slate-500">Gate questionnaires until consent is accepted.</span>
-                    </span>
-                    <Switch
-                      checked={draft.requirePanelistConsent}
-                      onCheckedChange={checked => setDraft(prev => ({ ...prev, requirePanelistConsent: checked }))}
-                    />
-                  </label>
-                  <label className="flex items-center justify-between rounded-lg border border-slate-200 p-4">
-                    <span>
-                      <span className="block text-sm font-semibold text-slate-900">Allow self signup</span>
-                      <span className="text-xs text-slate-500">Let new panelists create accounts from sign in.</span>
-                    </span>
-                    <Switch
-                      checked={draft.allowSelfSignup}
-                      onCheckedChange={checked => setDraft(prev => ({ ...prev, allowSelfSignup: checked }))}
-                    />
-                  </label>
+                  <ToggleRow title="Require hedonic scores" detail="Every generated product survey includes liking scores." checked={draft.requireHedonicSection} onChange={checked => updateDraft('requireHedonicSection', checked)} />
+                  <ToggleRow title="Require intensity ratings" detail="Keep aroma, taste, and texture intensity fields in studies." checked={draft.requireIntensitySection} onChange={checked => updateDraft('requireIntensitySection', checked)} />
+                  <ToggleRow title="Require emotion section" detail="Capture EsSense-style emotional response data." checked={draft.requireEmotionSection} onChange={checked => updateDraft('requireEmotionSection', checked)} />
+                  <ToggleRow title="Allow panelist comments" detail="Let panelists add free-text notes to submissions." checked={draft.allowPanelistComments} onChange={checked => updateDraft('allowPanelistComments', checked)} />
+                  <ToggleRow title="Require all samples" detail="Multi-sample questionnaires must be finished before submit." checked={draft.requireAllSamplesBeforeSubmit} onChange={checked => updateDraft('requireAllSamplesBeforeSubmit', checked)} />
                 </div>
-
-                <Button onClick={saveSettings} disabled={updateSettings.isPending} className="bg-slate-900 hover:bg-slate-700">
-                  <Save className="size-4" />
-                  {updateSettings.isPending ? 'Saving...' : 'Save settings'}
-                </Button>
               </CardContent>
             </Card>
-
-            <div className="space-y-4">
-              <Card className="border-slate-200 shadow-sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <KeyRound className="size-5 text-slate-500" />
-                    AI generation
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Image count</span>
-                    <span className="font-semibold text-slate-900">{conceptSettings?.defaultImageCount ?? 4}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Quality</span>
-                    <Badge variant="outline" className="capitalize">{conceptSettings?.defaultQuality ?? 'medium'}</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Prompt style</span>
-                    <span className="font-semibold capitalize text-slate-900">{conceptSettings?.promptStyle ?? 'balanced'}</span>
-                  </div>
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">
-                    OpenAI keys stay in Supabase secrets. This page shows operational defaults, not secret values.
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-slate-200 shadow-sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <ShieldCheck className="size-5 text-slate-500" />
-                    Compliance snapshot
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Consent version</span>
-                    <span className="font-semibold text-slate-900">2026-06-05-v1</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Inactive panelists</span>
-                    <span className="font-semibold text-slate-900">{panelistStats.inactive}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Last settings update</span>
-                    <span className="font-semibold text-slate-900">
-                      {settings.updatedAt ? new Date(settings.updatedAt).toLocaleDateString() : 'Not saved yet'}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader><CardTitle className="text-lg">Workspace identity</CardTitle></CardHeader>
+              <CardContent className="grid gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="workspace-name">Workspace name</Label>
+                  <Input id="workspace-name" value={draft.workspaceName} onChange={event => updateDraft('workspaceName', event.target.value)} disabled={settingsLoading} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="organization-name">Organization</Label>
+                  <Input id="organization-name" value={draft.organizationName} onChange={event => updateDraft('organizationName', event.target.value)} disabled={settingsLoading} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="contact-email">Admin contact email</Label>
+                  <Input id="contact-email" type="email" value={draft.adminContactEmail} onChange={event => updateDraft('adminContactEmail', event.target.value)} placeholder="research@company.com" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="timezone">Default timezone</Label>
+                  <Input id="timezone" value={draft.defaultTimezone} onChange={event => updateDraft('defaultTimezone', event.target.value)} />
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
 
-        <TabsContent value="users">
+        <TabsContent value="access">
+          <div className="grid gap-4 xl:grid-cols-[0.9fr_1.4fr]">
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader><CardTitle className="text-lg">Panelist access rules</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <ToggleRow title="Allow self signup" detail="Show the create-account option on the sign-in page." checked={draft.allowSelfSignup} onChange={checked => updateDraft('allowSelfSignup', checked)} />
+                <ToggleRow title="Require panelist consent" detail="Gate questionnaires until consent is accepted." checked={draft.requirePanelistConsent} onChange={checked => updateDraft('requirePanelistConsent', checked)} />
+                <ToggleRow title="Require panelist ID" detail="Flag panelists without an assigned study ID." checked={draft.requirePanelistId} onChange={checked => updateDraft('requirePanelistId', checked)} />
+                <ToggleRow title="Show past submissions" detail="Let panelists view their completed questionnaire history." checked={draft.allowPanelistsViewHistory} onChange={checked => updateDraft('allowPanelistsViewHistory', checked)} />
+                <NumberField id="inactive-days" label="Inactive panelist review" value={draft.inactivePanelistDays} min={1} max={730} suffix="days" onChange={value => updateDraft('inactivePanelistDays', value)} />
+              </CardContent>
+            </Card>
+            <PanelistTable panelists={panelists} updating={updatePanelistStatus.isPending} onToggleStatus={togglePanelistStatus} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="automation">
+          <div className="grid gap-4 xl:grid-cols-2">
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Database className="size-5 text-slate-500" />Import rules</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <ToggleRow title="Auto-create food types" detail="New CSV food categories become food type folders." checked={draft.autoCreateFoodTypes} onChange={checked => updateDraft('autoCreateFoodTypes', checked)} />
+                <ToggleRow title="Auto-create surveys" detail="Imported machine samples become panelist-ready questionnaires." checked={draft.autoCreateSurveysFromImports} onChange={checked => updateDraft('autoCreateSurveysFromImports', checked)} />
+                <ToggleRow title="Require import review" detail="Hold generated surveys for admin review before launch." checked={draft.requireImportReview} onChange={checked => updateDraft('requireImportReview', checked)} />
+                <div className="space-y-2">
+                  <Label>Duplicate sample policy</Label>
+                  <Select value={draft.duplicateSamplePolicy} onValueChange={value => updateDraft('duplicateSamplePolicy', value as WorkspaceSettings['duplicateSamplePolicy'])}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="skip">Skip duplicate sample</SelectItem>
+                      <SelectItem value="rename">Rename as a new run</SelectItem>
+                      <SelectItem value="replace">Replace existing sample</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><KeyRoundIcon />Concept Lab limits</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <NumberField id="concept-generations" label="Max generations per concept" value={draft.conceptMaxGenerationsPerConcept} min={1} max={100} onChange={value => updateDraft('conceptMaxGenerationsPerConcept', value)} />
+                <NumberField id="concept-budget" label="Monthly image budget" value={Math.round(draft.conceptMonthlyBudgetCents / 100)} min={0} max={10000} suffix="USD" onChange={value => updateDraft('conceptMonthlyBudgetCents', value * 100)} />
+                <ToggleRow title="Require image approval" detail="Generated images need admin approval before being used in a concept survey." checked={draft.conceptRequireApproval} onChange={checked => updateDraft('conceptRequireApproval', checked)} />
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">
+                  Current image default: {conceptSettings?.defaultImageCount ?? 4} images at {conceptSettings?.defaultQuality ?? 'medium'} quality. Secret API keys stay in Supabase.
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="decision">
           <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Users className="size-5 text-slate-500" />
-                  Panelist roster
-                </CardTitle>
-                <p className="mt-1 text-sm text-slate-500">Track consent, survey completions, and account availability.</p>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Panelist</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Consent</TableHead>
-                    <TableHead>Training</TableHead>
-                    <TableHead className="text-right">Completed</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {panelists.map(panelist => (
-                    <TableRow key={panelist.id}>
-                      <TableCell>
-                        <div className="font-semibold text-slate-900">{panelist.name}</div>
-                        <div className="text-xs text-slate-500">{panelist.email ?? panelist.panelistId ?? panelist.id}</div>
-                      </TableCell>
-                      <TableCell><StatusBadge status={panelist.status} /></TableCell>
-                      <TableCell>
-                        {panelist.consentAcceptedAt ? (
-                          <div className="flex items-center gap-2 text-sm text-emerald-700">
-                            <UserCheck className="size-4" />
-                            {new Date(panelist.consentAcceptedAt).toLocaleDateString()}
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 text-sm text-amber-700">
-                            <Clock className="size-4" />
-                            Pending
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="capitalize">{panelist.trainingLevel}</TableCell>
-                      <TableCell className="text-right font-semibold">{panelist.completedCount}</TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => togglePanelistStatus(panelist)}
-                          disabled={updatePanelistStatus.isPending}
-                        >
-                          {panelist.status === 'active' ? <UserX className="size-4" /> : <UserCheck className="size-4" />}
-                          {panelist.status === 'active' ? 'Deactivate' : 'Activate'}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {panelists.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} className="py-10 text-center text-slate-500">
-                        No panelists yet. New accounts will appear here after signup.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+            <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Brain className="size-5 text-slate-500" />Go / Tweak / Stop rules</CardTitle></CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <NumberField id="stop-threshold" label="STOP below" value={draft.decisionStopThreshold} min={0} max={99} suffix="score" onChange={value => updateDraft('decisionStopThreshold', value)} />
+              <NumberField id="go-threshold" label="GO at or above" value={draft.decisionGoThreshold} min={1} max={100} suffix="score" onChange={value => updateDraft('decisionGoThreshold', value)} />
+              <NumberField id="min-responses" label="Minimum responses" value={draft.decisionMinResponses} min={1} max={500} onChange={value => updateDraft('decisionMinResponses', value)} />
+              <ToggleRow title="Lock confirmed decisions" detail="Prevent silent edits after GO/TWEAK/STOP is confirmed." checked={draft.decisionLockConfirmed} onChange={checked => updateDraft('decisionLockConfirmed', checked)} />
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="audit">
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Activity className="size-5 text-slate-500" />
-                Audit trail
-              </CardTitle>
-              <p className="text-sm text-slate-500">Recent operational events captured from imports, settings, and account changes.</p>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {auditEvents.map(event => (
-                  <div key={event.id} className="flex items-start justify-between gap-4 rounded-lg border border-slate-200 bg-white p-4">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold text-slate-900">{formatEventType(event.eventType)}</span>
-                        <Badge variant="outline">{event.entityType}</Badge>
-                      </div>
-                      <p className="mt-1 truncate text-sm text-slate-500">{formatMetadata(event.metadata)}</p>
-                      <p className="mt-2 text-xs text-slate-400">
-                        {event.actorName ? `By ${event.actorName}` : 'System or unknown actor'}
-                      </p>
-                    </div>
-                    <div className="shrink-0 text-right text-xs text-slate-500">
-                      {new Date(event.createdAt).toLocaleString()}
-                    </div>
-                  </div>
-                ))}
-                {auditEvents.length === 0 && (
-                  <div className="rounded-lg border border-dashed border-slate-300 py-12 text-center text-sm text-slate-500">
-                    Audit events will appear after imports, settings updates, and account changes.
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+        <TabsContent value="governance">
+          <div className="grid gap-4 xl:grid-cols-2">
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><FileText className="size-5 text-slate-500" />Reports and data</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <ToggleRow title="Anonymize panelists in reports" detail="Exports show panelist IDs instead of names." checked={draft.anonymizePanelistsInReports} onChange={checked => updateDraft('anonymizePanelistsInReports', checked)} />
+                <div className="space-y-2">
+                  <Label>Default export format</Label>
+                  <Select value={draft.exportFormat} onValueChange={value => updateDraft('exportFormat', value as WorkspaceSettings['exportFormat'])}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="xlsx">Excel workbook</SelectItem>
+                      <SelectItem value="csv">CSV files</SelectItem>
+                      <SelectItem value="pdf">PDF summary</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="report-footer">Report footer</Label>
+                  <Input id="report-footer" value={draft.reportFooter} onChange={event => updateDraft('reportFooter', event.target.value)} placeholder="Prepared by New Food Innovation" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Bell className="size-5 text-slate-500" />Notifications</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <ToggleRow title="Import completed" detail="Notify admins when CSV imports create samples or surveys." checked={draft.notifyOnImport} onChange={checked => updateDraft('notifyOnImport', checked)} />
+                <ToggleRow title="Response target reached" detail="Notify when a survey has enough panelist responses for review." checked={draft.notifyOnCompletionTarget} onChange={checked => updateDraft('notifyOnCompletionTarget', checked)} />
+                <ToggleRow title="Generation failure" detail="Notify when concept image generation fails." checked={draft.notifyOnGenerationFailure} onChange={checked => updateDraft('notifyOnGenerationFailure', checked)} />
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
+
+        <TabsContent value="audit"><AuditLog auditEvents={auditEvents} /></TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function KeyRoundIcon() {
+  return <Lock className="size-5 text-slate-500" />;
+}
+
+function PanelistTable({ panelists, updating, onToggleStatus }: {
+  panelists: PanelistInfo[];
+  updating: boolean;
+  onToggleStatus: (panelist: PanelistInfo) => void;
+}) {
+  return (
+    <Card className="border-slate-200 shadow-sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg"><Users className="size-5 text-slate-500" />Panelist roster</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Panelist</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Consent</TableHead>
+              <TableHead className="text-right">Completed</TableHead>
+              <TableHead className="text-right">Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {panelists.map(panelist => (
+              <TableRow key={panelist.id}>
+                <TableCell>
+                  <div className="font-semibold text-slate-900">{panelist.name}</div>
+                  <div className="text-xs text-slate-500">{panelist.email ?? panelist.panelistId ?? panelist.id}</div>
+                </TableCell>
+                <TableCell><StatusBadge status={panelist.status} /></TableCell>
+                <TableCell>
+                  {panelist.consentAcceptedAt ? (
+                    <div className="flex items-center gap-2 text-sm text-emerald-700"><UserCheck className="size-4" />{new Date(panelist.consentAcceptedAt).toLocaleDateString()}</div>
+                  ) : (
+                    <span className="text-sm text-amber-700">Pending</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-right font-semibold">{panelist.completedCount}</TableCell>
+                <TableCell className="text-right">
+                  <Button variant="outline" size="sm" onClick={() => onToggleStatus(panelist)} disabled={updating}>
+                    {panelist.status === 'active' ? <UserX className="size-4" /> : <UserCheck className="size-4" />}
+                    {panelist.status === 'active' ? 'Deactivate' : 'Activate'}
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+            {panelists.length === 0 && (
+              <TableRow><TableCell colSpan={5} className="py-10 text-center text-slate-500">No panelists yet.</TableCell></TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AuditLog({ auditEvents }: { auditEvents: ReturnType<typeof useAuditEvents>['data'] }) {
+  const events = auditEvents ?? [];
+  return (
+    <Card className="border-slate-200 shadow-sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg"><Activity className="size-5 text-slate-500" />Audit trail</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          {events.map(event => (
+            <div key={event.id} className="flex items-start justify-between gap-4 rounded-lg border border-slate-200 bg-white p-4">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold text-slate-900">{formatEventType(event.eventType)}</span>
+                  <Badge variant="outline">{event.entityType}</Badge>
+                </div>
+                <p className="mt-1 truncate text-sm text-slate-500">{formatMetadata(event.metadata)}</p>
+                <p className="mt-2 text-xs text-slate-400">{event.actorName ? `By ${event.actorName}` : 'System or unknown actor'}</p>
+              </div>
+              <div className="shrink-0 text-right text-xs text-slate-500">{new Date(event.createdAt).toLocaleString()}</div>
+            </div>
+          ))}
+          {events.length === 0 && (
+            <div className="rounded-lg border border-dashed border-slate-300 py-12 text-center text-sm text-slate-500">
+              Audit events will appear after imports, settings updates, and account changes.
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
