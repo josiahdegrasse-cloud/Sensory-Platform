@@ -2,6 +2,8 @@ import { lazy, Suspense } from "react";
 import { createBrowserRouter } from "react-router";
 import { MainLayout } from "./components/main-layout";
 import { ProtectedRoute } from "./components/protected-route";
+import { AdminSettings } from "./components/admin-settings";
+import { RouteErrorBoundary } from "./components/route-error-boundary";
 
 const OverviewDashboard = lazy(() => import("./components/overview-dashboard").then(m => ({ default: m.OverviewDashboard })));
 const Stage1Instrumental = lazy(() => import("./components/stage1-instrumental").then(m => ({ default: m.Stage1Instrumental })));
@@ -13,7 +15,6 @@ const QuestionnaireForm = lazy(() => import("./components/questionnaire-form").t
 const MultiSampleDescription = lazy(() => import("./components/multi-sample-description").then(m => ({ default: m.MultiSampleDescription })));
 const MultiSampleQuestionnaire = lazy(() => import("./components/multi-sample-questionnaire").then(m => ({ default: m.MultiSampleQuestionnaire })));
 const AdminConfig = lazy(() => import("./components/admin-config").then(m => ({ default: m.AdminConfig })));
-const AdminSettings = lazy(() => import("./components/admin-settings").then(m => ({ default: m.AdminSettings })));
 const ConceptTesting = lazy(() => import("./components/concept-testing").then(m => ({ default: m.ConceptTesting })));
 const ConceptSurvey = lazy(() => import("./components/concept-survey").then(m => ({ default: m.ConceptSurvey })));
 const PrivacyPolicy = lazy(() => import("./components/legal-pages").then(m => ({ default: m.PrivacyPolicy })));
@@ -30,6 +31,7 @@ const fallback = (
 export const router = createBrowserRouter([
   {
     path: "/privacy",
+    errorElement: <RouteErrorBoundary />,
     element: (
       <Suspense fallback={fallback}>
         <PrivacyPolicy />
@@ -38,6 +40,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/terms",
+    errorElement: <RouteErrorBoundary />,
     element: (
       <Suspense fallback={fallback}>
         <TermsOfUse />
@@ -46,6 +49,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/panelist-consent",
+    errorElement: <RouteErrorBoundary />,
     element: (
       <Suspense fallback={fallback}>
         <PanelistConsent />
@@ -55,6 +59,7 @@ export const router = createBrowserRouter([
   {
     path: "/",
     Component: MainLayout,
+    errorElement: <RouteErrorBoundary />,
     children: [
       {
         element: (
