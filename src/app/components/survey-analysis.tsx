@@ -276,6 +276,15 @@ export function SurveyAnalysis() {
     : '0.0';
   const activeTopCataCount     = activeCataAttributes.length > 0 ? activeCataAttributes[0].count : 0;
   const activeEmotionalBalance = (activeEmotions.positive - activeEmotions.negative).toFixed(1);
+  const importedSelectedSample = instrumentalDataset?.eTongueData.find(sample => sample.sampleId === selectedData.sampleId);
+  const hasMachineData = !!importedSelectedSample || importedSensoryData.some(sample => sample.sampleId === selectedData.sampleId);
+  const sourceStatus = usingLiveData && hasMachineData
+    ? 'Machine data joined with live panel responses'
+    : usingLiveData
+      ? 'Live panel responses'
+      : hasMachineData
+        ? 'Imported machine data, waiting for panel responses'
+        : 'Reference dataset';
 
   const exportSampleCSV = () => {
     if (!selectedData) return;
@@ -332,6 +341,27 @@ export function SurveyAnalysis() {
           )}
         </div>
       </div>
+
+      {analysisType === 'single' && (
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+            <p className="text-xs font-semibold text-slate-500">Data source</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900">{sourceStatus}</p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+            <p className="text-xs font-semibold text-slate-500">Machine sample</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900">
+              {hasMachineData ? selectedData.sampleId : 'Reference only'}
+            </p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+            <p className="text-xs font-semibold text-slate-500">Panel responses</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900">
+              {usingLiveData ? `${activePanelistN} submitted` : 'Not submitted yet'}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Analysis Type Toggle */}
       <div className="grid grid-cols-2 gap-3 max-w-2xl">

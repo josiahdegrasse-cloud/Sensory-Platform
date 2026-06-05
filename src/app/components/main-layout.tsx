@@ -3,7 +3,7 @@ import { FlaskConical, BarChart3, GitMerge, ClipboardList, Settings, LogOut, Lig
 import { useAuth } from "../contexts/auth-context";
 import { useEffect, useMemo, useState } from "react";
 import { useFoodType } from "../contexts/food-type-context";
-import { useImportBatches, useInstrumentalDataset, useProducts } from "../lib/hooks";
+import { useImportBatches, useInstrumentalDataset, useProducts, useUpdateImportBatchStatus } from "../lib/hooks";
 import { matchFoodType } from "../contexts/food-type-context";
 import {
   AlertDialog,
@@ -39,7 +39,9 @@ function CategorySidebar() {
   const { data: products = [] } = useProducts();
   const { data: importBatches = [] } = useImportBatches();
   const { data: instrumentalDataset } = useInstrumentalDataset();
+  const updateImportBatchStatus = useUpdateImportBatchStatus();
   const [pendingAction, setPendingAction] = useState<{ type: string; action: 'archive' | 'delete' } | null>(null);
+  const [pendingProjectAction, setPendingProjectAction] = useState<{ id: string; label: string; action: 'archive' | 'delete' } | null>(null);
   const [expandedTypes, setExpandedTypes] = useState<Record<string, boolean>>({});
 
   const builtInTypes = ['cheese', 'bread'];
@@ -76,6 +78,11 @@ function CategorySidebar() {
     Object.keys(instrumentalDataset?.gcmsData ?? {}).some(sampleId => selectedSampleIds.has(sampleId)) ? 'GC-MS' : null,
     Object.keys(instrumentalDataset?.compositionData ?? {}).some(sampleId => selectedSampleIds.has(sampleId)) ? 'Composition' : null,
   ].filter(Boolean);
+  const activeSurveyCount = products.filter(product =>
+    product.status !== 'archived' &&
+    matchFoodType(product.category) === foodType &&
+    (!selectedBatchId || product.sourceImportBatchId === selectedBatchId)
+  ).length;
 
   const btnStyle = (active: boolean) => ({
     background: active ? '#f1f5f9' : 'transparent',
@@ -144,15 +151,41 @@ function CategorySidebar() {
                 {hasProjects && expanded && (
                   <div className="ml-5 mt-0.5 space-y-0.5 border-l border-slate-100 pl-2">
                     {projects.map((project, index) => (
-                      <button
+                      <div
                         key={project.id}
-                        type="button"
-                        onClick={() => setSelection(ft, `batch:${project.id}`)}
-                        title={project.fileName}
-                        className={`block w-full truncate rounded-md px-2 py-1 text-left text-xs ${selectedBatchId === project.id ? 'bg-slate-100 font-semibold text-slate-800' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
+                        className={`group/project flex items-center gap-1 rounded-md ${selectedBatchId === project.id ? 'bg-slate-100' : 'hover:bg-slate-50'}`}
                       >
-                        Project {index + 1}: {project.fileName.replace(/\.csv$/i, '')}
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelection(ft, `batch:${project.id}`)}
+                          title={project.fileName}
+                          className={`min-w-0 flex-1 truncate px-2 py-1 text-left text-xs ${selectedBatchId === project.id ? 'font-semibold text-slate-800' : 'text-slate-500 group-hover/project:text-slate-800'}`}
+                        >
+                          Project {index + 1}: {project.fileName.replace(/\.csv$/i, '')}
+                        </button>
+                        <button
+                          type="button"
+                          title={`Archive ${project.fileName}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setPendingProjectAction({ id: project.id, label: project.fileName.replace(/\.csv$/i, ''), action: 'archive' });
+                          }}
+                          className="p-1 text-slate-300 hover:text-amber-700"
+                        >
+                          <Archive className="size-3" />
+                        </button>
+                        <button
+                          type="button"
+                          title={`Delete ${project.fileName}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setPendingProjectAction({ id: project.id, label: project.fileName.replace(/\.csv$/i, ''), action: 'delete' });
+                          }}
+                          className="p-1 pr-1.5 text-slate-300 hover:text-rose-700"
+                        >
+                          <Trash2 className="size-3" />
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -210,9 +243,7 @@ function CategorySidebar() {
             <div className="text-slate-500">machine samples</div>
           </div>
           <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
-            <div className="font-bold text-slate-900">
-              {products.filter(product => product.status !== 'archived' && matchFoodType(product.category) === foodType).length}
-            </div>
+            <div className="font-bold text-slate-900">{activeSurveyCount}</div>
             <div className="text-slate-500">surveys</div>
           </div>
         </div>
@@ -255,6 +286,38 @@ function CategorySidebar() {
               }}
             >
               {pendingAction?.action === 'archive' ? 'Archive type' : 'Delete type'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={!!pendingProjectAction} onOpenChange={open => !open && setPendingProjectAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingProjectAction?.action === 'archive' ? 'Archive project?' : 'Delete project?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingProjectAction?.action === 'archive'
+                ? `${pendingProjectAction.label} will be hidden from the active project list. Linked surveys will be archived.`
+                : `${pendingProjectAction?.label ?? 'This project'} and its linked surveys will be deleted. This cannot be undone.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className={pendingProjectAction?.action === 'delete' ? 'bg-rose-600 hover:bg-rose-700' : ''}
+              disabled={updateImportBatchStatus.isPending}
+              onClick={() => {
+                if (!pendingProjectAction) return;
+                updateImportBatchStatus.mutate({
+                  id: pendingProjectAction.id,
+                  status: pendingProjectAction.action === 'archive' ? 'archived' : 'deleted',
+                });
+                if (selectedBatchId === pendingProjectAction.id) setSelection(foodType, null);
+                setPendingProjectAction(null);
+              }}
+            >
+              {pendingProjectAction?.action === 'archive' ? 'Archive project' : 'Delete project'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

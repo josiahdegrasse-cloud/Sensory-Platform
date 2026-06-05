@@ -175,7 +175,7 @@ const KNOWN_ALIASES = [
   'protein', 'fat', 'moisture', 'ph', 'saltcontent', 'calciummg',
 ];
 
-function recogniseColumns(headers: string[]): ColumnReport {
+export function recogniseColumns(headers: string[]): ColumnReport {
   const recognised: string[] = [];
   const ignored: string[] = [];
   headers.forEach((h) => {
@@ -335,7 +335,7 @@ function getPointColor(type?: string, category?: string) {
   return "#3b82f6";
 }
 
-function buildImportedDataset(previewData: Record<string, string>[], uploadedFile?: string | null) {
+export function buildImportedDataset(previewData: Record<string, string>[], uploadedFile?: string | null) {
   const eTongueMap = new Map<string, ETongueMeasurement>();
   const gcmsMap: Record<string, GCMSCompound[]> = {};
   const compositionMap: Record<string, ChemicalComposition> = {};
@@ -433,7 +433,7 @@ function buildImportedDataset(previewData: Record<string, string>[], uploadedFil
   return { eTongueData, gcmsData: gcmsMap, compositionData: compositionMap, detection };
 }
 
-function validateImportedDataset(
+export function validateImportedDataset(
   rows: Record<string, string>[],
   dataset: StoredImportedData,
   columnReport: ColumnReport | null,
@@ -511,6 +511,15 @@ export function Stage1Instrumental() {
       compositionCount: Object.keys(parsed.compositionData).length,
     };
   }, [previewData, showPreview, uploadedFile]);
+  const existingProjectCount = useMemo(() => {
+    if (!importSummary) return 0;
+    return (instrumentalDatasetQuery.data?.eTongueData ?? [])
+      .filter(sample => sample.type === importSummary.detection.slug)
+      .reduce((ids, sample) => {
+        if (sample.importBatchId) ids.add(sample.importBatchId);
+        return ids;
+      }, new Set<string>()).size;
+  }, [importSummary, instrumentalDatasetQuery.data]);
 
   const validationReport = useMemo(() => {
     if (!showPreview || !importSummary) return null;
@@ -1038,7 +1047,7 @@ export function Stage1Instrumental() {
 
             {/* Column recognition report */}
             {columnReport && (
-              <div className="grid grid-cols-3 gap-3 text-xs">
+              <div className="grid grid-cols-1 gap-3 text-xs lg:grid-cols-4">
                 {importSummary && (
                   <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
                     <p className="font-semibold text-slate-800 mb-1.5">Detected food type</p>
@@ -1053,6 +1062,22 @@ export function Stage1Instrumental() {
                       <span className="rounded bg-white border border-slate-200 px-1.5 py-1">{importSummary.gcmsCount} GC-MS</span>
                       <span className="rounded bg-white border border-slate-200 px-1.5 py-1">{importSummary.compositionCount} comp</span>
                     </div>
+                  </div>
+                )}
+                {importSummary && (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="font-semibold text-blue-900 mb-1.5">Project destination</p>
+                    <p className="text-sm font-bold text-blue-950">
+                      {existingProjectCount > 0 ? `Add under ${importSummary.detection.label}` : `Create ${importSummary.detection.label}`}
+                    </p>
+                    <p className="mt-1 text-[11px] text-blue-700">
+                      {existingProjectCount > 0
+                        ? `${existingProjectCount} existing project${existingProjectCount === 1 ? '' : 's'} found. This upload becomes the next project folder.`
+                        : 'This food type will appear after the import saves.'}
+                    </p>
+                    <p className="mt-2 rounded bg-white px-2 py-1 text-[11px] font-semibold text-blue-800 ring-1 ring-blue-200">
+                      {importSummary.sampleCount} sample survey{importSummary.sampleCount === 1 ? '' : 's'} will be created
+                    </p>
                   </div>
                 )}
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">

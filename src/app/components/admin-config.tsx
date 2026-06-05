@@ -14,11 +14,12 @@ import {
   useInsertProduct, useUpdateProduct, useDeleteProduct, useInsertTemplate, useDeleteTemplate,
   useUpdatePanelistId, useAllResponses, useImportBatches,
   useInstrumentalDataset, useUpdateImportBatchStatus,
+  useConceptLabDiagnostics,
 } from '../lib/hooks';
 import {
   Plus, Settings, Trash2, Save, CheckCircle2, FolderOpen, Layers,
   ClipboardList, Users, AlertCircle, Search, Activity, FlaskConical, Archive, RotateCcw,
-  Upload, FileText,
+  Upload, FileText, Database, ShieldCheck,
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { useAuth } from '../contexts/auth-context';
@@ -37,7 +38,8 @@ export function AdminConfig() {
   const { data: templates = [] } = useTemplates();
   const { data: allResponses = [] } = useAllResponses();
   const { data: importBatches = [] } = useImportBatches(activeTab === 'products' || activeTab === 'imports');
-  const { data: instrumentalDataset } = useInstrumentalDataset(activeTab === 'products');
+  const { data: instrumentalDataset } = useInstrumentalDataset(activeTab === 'products' || activeTab === 'imports');
+  const { data: conceptDiagnostics } = useConceptLabDiagnostics(activeTab === 'imports');
 
   const insertProductMutation = useInsertProduct();
   const updateProductMutation = useUpdateProduct();
@@ -60,6 +62,7 @@ export function AdminConfig() {
 
   const { foodType, subCategory } = useFoodType();
   const currentFoodTypeLabel = formatFoodTypeLabel(foodType);
+  const selectedBatchId = subCategory?.startsWith('batch:') ? subCategory.replace('batch:', '') : null;
 
   // List filters
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'completed' | 'archived'>('all');
@@ -111,9 +114,10 @@ export function AdminConfig() {
   const activeCount = products.filter(p => p.status === 'active').length;
   const completedCount = products.filter(p => p.status === 'completed').length;
   const totalSessions = allResponses.length;
-  const importedSamples = (instrumentalDataset?.eTongueData ?? []).filter(sample => {
-    return sample.type === foodType;
-  });
+  const importedSamples = (instrumentalDataset?.eTongueData ?? []).filter(sample =>
+    sample.type === foodType &&
+    (!selectedBatchId || sample.importBatchId === selectedBatchId)
+  );
   const importedSampleIds = new Set(importedSamples.map(sample => sample.sampleId));
   const importedGcmsCount = Object.keys(instrumentalDataset?.gcmsData ?? {}).filter(id => importedSampleIds.has(id)).length;
   const importedCompositionCount = Object.keys(instrumentalDataset?.compositionData ?? {}).filter(id => importedSampleIds.has(id)).length;
@@ -129,10 +133,11 @@ export function AdminConfig() {
 
   const archivedCount = products.filter(p => p.status === 'archived').length;
   const foodTypeProducts = products.filter(p => matchFoodType(p.category) === foodType);
-  const scopedActiveCount = foodTypeProducts.filter(p => p.status === 'active').length;
-  const scopedCompletedCount = foodTypeProducts.filter(p => p.status === 'completed').length;
-  const scopedArchivedCount = foodTypeProducts.filter(p => p.status === 'archived').length;
-  const scopedSessions = foodTypeProducts.reduce((sum, product) => sum + (sessionsByProduct[product.id] ?? 0), 0);
+  const scopedProducts = foodTypeProducts.filter(p => !selectedBatchId || p.sourceImportBatchId === selectedBatchId);
+  const scopedActiveCount = scopedProducts.filter(p => p.status === 'active').length;
+  const scopedCompletedCount = scopedProducts.filter(p => p.status === 'completed').length;
+  const scopedArchivedCount = scopedProducts.filter(p => p.status === 'archived').length;
+  const scopedSessions = scopedProducts.reduce((sum, product) => sum + (sessionsByProduct[product.id] ?? 0), 0);
   const filteredProducts = products
     .filter(p => filterStatus === 'archived' ? p.status === 'archived' : (filterStatus === 'all' ? p.status !== 'archived' : p.status === filterStatus))
     .filter(p =>
@@ -142,7 +147,7 @@ export function AdminConfig() {
     )
     .filter(p => {
       if (matchFoodType(p.category) !== foodType) return false;
-      if (subCategory?.startsWith('batch:')) return p.sourceImportBatchId === subCategory.replace('batch:', '');
+      if (selectedBatchId) return p.sourceImportBatchId === selectedBatchId;
       if (subCategory && p.category !== subCategory) return false;
       return true;
     });
@@ -171,6 +176,66 @@ export function AdminConfig() {
     }
     return { label: 'Ready to assign', className: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
   };
+  const getSmartAttributesForSample = (sample: NonNullable<typeof instrumentalDataset>['eTongueData'][number]) => {
+    const base = getDefaultCataAttributes(sample.type || sample.category || currentFoodTypeLabel);
+    const suggested: string[] = [];
+    const tasteScores = [
+      { attr: 'Sour', value: sample.sourness },
+      { attr: 'Bitter', value: sample.bitterness },
+      { attr: 'Salty', value: sample.saltiness },
+      { attr: 'Umami', value: sample.umami },
+      { attr: 'Sweet', value: sample.sweetness },
+    ];
+    tasteScores
+      .filter(item => item.value >= 3.5)
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 3)
+      .forEach(item => suggested.push(item.attr));
+
+    (instrumentalDataset?.gcmsData?.[sample.sampleId] ?? [])
+      .filter(compound => compound.aroma && (compound.threshold === 0 || compound.concentration >= compound.threshold))
+      .slice(0, 4)
+      .forEach(compound => {
+        compound.aroma
+          .split(/[\/,]+/)
+          .map(aroma => aroma.trim())
+          .filter(Boolean)
+          .forEach(aroma => suggested.push(formatFoodTypeLabel(aroma)));
+      });
+
+    const composition = instrumentalDataset?.compositionData?.[sample.sampleId];
+    if (composition?.protein && composition.protein >= 15) suggested.push('High Protein');
+    if (composition?.fat && composition.fat >= 10) suggested.push('Rich');
+    if (composition?.saltContent && composition.saltContent >= 1.5) suggested.push('Salty');
+
+    return Array.from(new Set([...base, ...suggested])).slice(0, 32);
+  };
+  const readyForAssignmentProducts = scopedProducts.filter(product =>
+    product.status === 'active' &&
+    (product.assignedPanelistIds?.length ?? 0) === 0
+  );
+  const selectedProject = selectedBatchId ? importBatches.find(batch => batch.id === selectedBatchId) : null;
+  const importHealthItems = [
+    {
+      label: 'Food intelligence SQL',
+      ready: importBatches.length > 0 || (instrumentalDataset?.eTongueData.length ?? 0) > 0,
+      detail: importBatches.length > 0
+        ? `${importBatches.length} import batch${importBatches.length === 1 ? '' : 'es'} available.`
+        : 'No saved imports yet. Upload a CSV to verify the food import tables.',
+    },
+    {
+      label: 'Machine data visibility',
+      ready: (instrumentalDataset?.eTongueData.length ?? 0) > 0,
+      detail: `${instrumentalDataset?.eTongueData.length ?? 0} active machine sample${(instrumentalDataset?.eTongueData.length ?? 0) === 1 ? '' : 's'} visible.`,
+    },
+    {
+      label: 'Concept Lab setup',
+      ready: !!conceptDiagnostics && conceptDiagnostics.messages.length === 0,
+      detail: conceptDiagnostics?.messages.length
+        ? conceptDiagnostics.messages.join(' ')
+        : 'Settings, image history, and storage are ready.',
+    },
+  ];
 
   // ── Sample handlers ───────────────────────────────────────────────────────────
 
@@ -355,6 +420,22 @@ export function AdminConfig() {
     }
   };
 
+  const handleAssignCurrentScopeToAllPanelists = async () => {
+    setMutationError('');
+    try {
+      for (const product of readyForAssignmentProducts) {
+        await updateProductMutation.mutateAsync({
+          id: product.id,
+          updates: { assignedPanelistIds: panelists.map(panelist => panelist.id) },
+        });
+      }
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : 'Failed to assign current surveys.');
+    }
+  };
+
   const handleDeleteProduct = async (productId: string) => {
     setMutationError('');
     try {
@@ -461,7 +542,7 @@ export function AdminConfig() {
           name: name === sample.sampleId ? sample.sampleId : `${name} (${sample.sampleId})`,
           category,
           status: 'active',
-          customAttributes: getDefaultCataAttributes(sample.type || category),
+          customAttributes: getSmartAttributesForSample(sample),
           assignedPanelistIds: [],
           sourceImportBatchId: sample.importBatchId,
           sourceSampleId: sample.sampleId,
@@ -561,26 +642,38 @@ export function AdminConfig() {
             </div>
             <div className="min-w-0">
               <div className="font-semibold text-slate-900">
-                Imported {currentFoodTypeLabel.toLowerCase()} project workspace
+                {selectedProject ? selectedProject.fileName.replace(/\.csv$/i, '') : `Imported ${currentFoodTypeLabel.toLowerCase()} workspace`}
               </div>
               <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
                 <span>{importedSamples.length} sample{importedSamples.length === 1 ? '' : 's'}</span>
                 <span>{importedGcmsCount} GC-MS</span>
                 <span>{importedCompositionCount} comp</span>
                 <span>{importedSamplesWithoutQuestionnaires.length === 0 ? 'surveys created' : `${importedSamplesWithoutQuestionnaires.length} surveys missing`}</span>
+                <span>{readyForAssignmentProducts.length} ready to assign</span>
               </div>
             </div>
           </div>
-          <Button
-            onClick={handleCreateQuestionnairesFromImports}
-            disabled={insertProductMutation.isPending || importedSamplesWithoutQuestionnaires.length === 0}
-            className="shrink-0 bg-blue-600 hover:bg-blue-700"
-          >
-            <Plus className="size-4 mr-1.5" />
-            {importedSamplesWithoutQuestionnaires.length === 0
-                  ? 'Questionnaires created'
-              : `Create ${importedSamplesWithoutQuestionnaires.length} questionnaire${importedSamplesWithoutQuestionnaires.length === 1 ? '' : 's'}`}
-          </Button>
+          <div className="flex shrink-0 flex-wrap justify-end gap-2">
+            <Button
+              onClick={handleCreateQuestionnairesFromImports}
+              disabled={insertProductMutation.isPending || importedSamplesWithoutQuestionnaires.length === 0}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Plus className="size-4 mr-1.5" />
+              {importedSamplesWithoutQuestionnaires.length === 0
+                ? 'Surveys created'
+                : `Create ${importedSamplesWithoutQuestionnaires.length} survey${importedSamplesWithoutQuestionnaires.length === 1 ? '' : 's'}`}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleAssignCurrentScopeToAllPanelists}
+              disabled={updateProductMutation.isPending || panelists.length === 0 || readyForAssignmentProducts.length === 0}
+              className="border-blue-300 text-blue-700 hover:bg-white"
+            >
+              <Users className="size-4 mr-1.5" />
+              Assign project
+            </Button>
+          </div>
         </div>
       )}
 
@@ -604,7 +697,7 @@ export function AdminConfig() {
                     filterStatus === s ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
                   }`}
                 >
-                  {s === 'all' ? `All (${foodTypeProducts.filter(p => p.status !== 'archived').length})`
+                  {s === 'all' ? `All (${scopedProducts.filter(p => p.status !== 'archived').length})`
                     : s === 'active' ? `Active (${scopedActiveCount})`
                     : s === 'completed' ? `Done (${scopedCompletedCount})`
                     : `Archived (${scopedArchivedCount})`}
@@ -1048,10 +1141,28 @@ export function AdminConfig() {
             </CardTitle>
             <p className="text-sm text-slate-500">All CSV instrument data imports with metadata and audit trail.</p>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-3">
+              {importHealthItems.map(item => (
+                <div
+                  key={item.label}
+                  className={`rounded-lg border p-3 ${
+                    item.ready ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className={`flex size-7 items-center justify-center rounded-md ${item.ready ? 'bg-emerald-600' : 'bg-amber-500'}`}>
+                      {item.ready ? <ShieldCheck className="size-4 text-white" /> : <AlertCircle className="size-4 text-white" />}
+                    </div>
+                    <p className={`text-sm font-semibold ${item.ready ? 'text-emerald-950' : 'text-amber-950'}`}>{item.label}</p>
+                  </div>
+                  <p className={`mt-2 text-xs ${item.ready ? 'text-emerald-800' : 'text-amber-800'}`}>{item.detail}</p>
+                </div>
+              ))}
+            </div>
             {importBatches.length === 0 ? (
               <div className="py-12 text-center text-slate-400">
-                <Upload className="size-10 mx-auto mb-2 opacity-30" />
+                <Database className="size-10 mx-auto mb-2 opacity-30" />
                 <p className="text-sm">No imports yet. Upload a CSV in Machine Testing to get started.</p>
               </div>
             ) : (
