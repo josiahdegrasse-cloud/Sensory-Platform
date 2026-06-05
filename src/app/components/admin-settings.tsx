@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Activity, AlertCircle, CheckCircle2, Clock, Database, KeyRound, Mail, Save,
-  Settings, ShieldCheck, SlidersHorizontal, UserCheck, UserX, Users,
+  Activity, AlertCircle, CheckCircle2, Clock, Database, KeyRound, Save,
+  Settings, ShieldCheck, UserCheck, UserX, Users,
 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -98,30 +98,17 @@ export function AdminSettings() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-sm font-medium text-slate-500">
-            <SlidersHorizontal className="size-4" />
-            Platform operations
-          </div>
-          <h1 className="mt-2 text-2xl font-bold text-slate-950">Settings</h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-500">
-            Control the workspace, panelist access, AI generation defaults, and the operational audit trail.
-          </p>
-        </div>
-        <div className="grid grid-cols-3 gap-2 text-sm">
-          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-            <div className="font-bold text-slate-950">{panelistStats.active}</div>
-            <div className="text-xs text-slate-500">active panelists</div>
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-            <div className="font-bold text-slate-950">{panelistStats.consented}</div>
-            <div className="text-xs text-slate-500">consented</div>
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-            <div className="font-bold text-slate-950">{auditEvents.length}</div>
-            <div className="text-xs text-slate-500">audit events</div>
-          </div>
+      <div>
+        <h1 className="text-2xl font-bold text-slate-950">Settings</h1>
+        <p className="mt-1 max-w-2xl text-sm text-slate-500">
+          Manage workspace identity, panelist access, consent controls, and operational history.
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <span>{panelistStats.active} active panelists</span>
+          <span className="text-slate-300">/</span>
+          <span>{panelistStats.consented} consent records</span>
+          <span className="text-slate-300">/</span>
+          <span>{auditEvents.length} recent audit events</span>
         </div>
       </div>
 
@@ -300,10 +287,6 @@ export function AdminSettings() {
                 </CardTitle>
                 <p className="mt-1 text-sm text-slate-500">Track consent, survey completions, and account availability.</p>
               </div>
-              <Button variant="outline">
-                <Mail className="size-4" />
-                Invite flow next
-              </Button>
             </CardHeader>
             <CardContent>
               <Table>

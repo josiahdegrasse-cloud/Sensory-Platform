@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
-import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Tag, Archive, Trash2, Undo2, Database, ChevronDown, ChevronRight, SlidersHorizontal } from "lucide-react";
+import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Tag, Archive, Trash2, Undo2, Database, ChevronDown, ChevronRight, Settings } from "lucide-react";
 import { useAuth } from "../contexts/auth-context";
 import { useEffect, useMemo, useState } from "react";
 import { useFoodType } from "../contexts/food-type-context";
@@ -358,7 +358,6 @@ export function MainLayout() {
     { path: "/decision",        label: "Final Decision",    icon: GitMerge },
     { path: "/concept-testing", label: "Concept Testing",   icon: Lightbulb },
     { path: "/admin",           label: "Configure Products", icon: ClipboardList },
-    { path: "/settings",        label: "Settings",          icon: SlidersHorizontal },
   ];
 
   const getPanelistNavItems = () => [
@@ -400,6 +399,20 @@ export function MainLayout() {
                   {user?.role === 'panelist' ? `Panelist ${user?.panelistId ?? ''}` : 'Administrator'}
                 </div>
               </div>
+              {user?.role === 'admin' && (
+                <Link
+                  to="/settings"
+                  title="Settings"
+                  aria-label="Settings"
+                  className="flex size-8 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                  style={{
+                    background: isActive('/settings') ? '#f1f5f9' : undefined,
+                    color: isActive('/settings') ? NFI_BLUE : undefined,
+                  }}
+                >
+                  <Settings className="size-4" />
+                </Link>
+              )}
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-500 hover:text-slate-900 hover:bg-slate-50 rounded-md transition-colors border border-slate-200"
