@@ -60,7 +60,15 @@ function friendlyGenerationError(message: string) {
   return message || 'Image generation failed. Try again with a clearer concept brief.';
 }
 
-export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: ConceptDraft) => void }) {
+export function ImagesStep({
+  draft,
+  onChange,
+  estimatedCostPerImage,
+}: {
+  draft: ConceptDraft;
+  onChange: (d: ConceptDraft) => void;
+  estimatedCostPerImage: number;
+}) {
   const [mode, setMode] = useState<ImageMode>('packaging');
   const [aiCandidates, setAiCandidates] = useState<CandidateImage[]>([]);
   const [generating, setGenerating] = useState(false);
@@ -73,7 +81,7 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
   const profile = getFoodTypeProfile(detection.slug);
   const validImages = draft.marketingImages.filter(u => u.trim() && isValidImageUrl(u));
   const canGenerate = !!(draft.name.trim() && draft.category.trim() && draft.description.trim());
-  const estimatedCost = 0.034 * CONCEPT_IMAGE_COUNT;
+  const estimatedCost = estimatedCostPerImage * CONCEPT_IMAGE_COUNT;
 
   const handleGenerate = async () => {
     if (!canGenerate) return;
@@ -118,8 +126,10 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
   };
 
   const addSelected = () => {
-    const toAdd = aiCandidates.filter(c => c.selected && c.url).map(c => c.url);
-    const imageIds = aiCandidates.filter(c => c.selected && c.id).map(c => c.id!);
+    const remainingSlots = Math.max(0, CONCEPT_IMAGE_COUNT - validImages.length);
+    const selectedCandidates = aiCandidates.filter(c => c.selected && c.url).slice(0, remainingSlots);
+    const toAdd = selectedCandidates.map(c => c.url);
+    const imageIds = selectedCandidates.map(c => c.id ?? '');
     const existingPairs = draft.marketingImages
       .map((url, index) => ({ url, id: draft.marketingImageIds[index] ?? '' }))
       .filter(pair => pair.url.trim());
@@ -267,10 +277,10 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
                       type="button"
                       size="sm"
                       onClick={addSelected}
-                      disabled={!aiCandidates.some(c => c.selected && c.url)}
+                      disabled={!aiCandidates.some(c => c.selected && c.url) || validImages.length >= CONCEPT_IMAGE_COUNT}
                       className="bg-blue-600 hover:bg-blue-700 text-white"
                     >
-                      Add {aiCandidates.filter(c => c.selected && c.url).length} to concept
+                      Add {Math.min(aiCandidates.filter(c => c.selected && c.url).length, Math.max(0, CONCEPT_IMAGE_COUNT - validImages.length))} to concept
                     </Button>
                   </div>
                 </div>

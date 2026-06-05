@@ -10,7 +10,7 @@ import {
   insertProduct, updateProduct, deleteProduct,
   insertTemplate, deleteTemplate, updatePanelistId, updatePanelistTrainingLevel,
   insertConceptTest, insertConceptResponse,
-  insertInstrumentalImport, archiveFoodTypeRecord, restoreFoodTypeRecord, deleteFoodTypeRecord,
+  insertInstrumentalImport, archiveFoodTypeRecord, restoreFoodTypeRecord, deleteFoodTypeRecord, updateImportBatchStatus,
   type Template, type ConceptTest, type InstrumentalImportInput, type ConceptGenerationSettings,
 } from './database'
 import type { TrainingLevel } from '../utils/panelist-metrics'
@@ -290,6 +290,20 @@ export function useDeleteFoodType() {
       qc.invalidateQueries({ queryKey: queryKeys.foodTypes })
       qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
       qc.invalidateQueries({ queryKey: queryKeys.importBatches })
+    },
+  })
+}
+
+export function useUpdateImportBatchStatus() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: 'active' | 'archived' | 'deleted' }) =>
+      updateImportBatchStatus(id, status),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.importBatches })
+      qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
+      qc.invalidateQueries({ queryKey: queryKeys.products })
+      qc.invalidateQueries({ queryKey: queryKeys.activeProducts })
     },
   })
 }

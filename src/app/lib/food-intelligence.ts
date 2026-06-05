@@ -75,6 +75,26 @@ const PROFILES: FoodTypeProfile[] = [
     successMarkers: ['fresh', 'fruity', 'smooth', 'aromatic', 'balanced'],
     decisionWeights: { instrumentalFit: 25, offNoteRisk: 25, nutrition: 10, panelAcceptance: 40 },
   },
+  {
+    slug: 'snack',
+    label: 'Snack',
+    aliases: ['snack', 'chips', 'crisps', 'cracker', 'pretzel', 'bar', 'granola', 'popcorn', 'puff', 'trail mix'],
+    cataAttributes: ['Crunchy', 'Crispy', 'Salty', 'Savory', 'Toasted', 'Roasted', 'Nutty', 'Sweet', 'Spiced', 'Buttery', 'Light', 'Dense', 'Greasy', 'Dry', 'Stale', 'Bitter', 'Burnt', 'Bland'],
+    intensityAttributes: ['Crunchy', 'Salty', 'Savory', 'Toasted', 'Sweet', 'Spiced', 'Greasy', 'Bitter'],
+    riskMarkers: ['stale', 'greasy', 'burnt', 'bitter', 'bland', 'dry'],
+    successMarkers: ['crunchy', 'crispy', 'savory', 'toasted', 'balanced salt', 'snackable'],
+    decisionWeights: { instrumentalFit: 25, offNoteRisk: 20, nutrition: 15, panelAcceptance: 40 },
+  },
+  {
+    slug: 'sauce',
+    label: 'Sauce',
+    aliases: ['sauce', 'dip', 'dressing', 'condiment', 'salsa', 'marinade', 'spread', 'aioli', 'ketchup', 'mustard'],
+    cataAttributes: ['Savory', 'Tangy', 'Sweet', 'Sour', 'Salty', 'Spicy', 'Umami', 'Herbal', 'Garlic', 'Creamy', 'Smooth', 'Thick', 'Thin', 'Oily', 'Watery', 'Bitter', 'Metallic', 'Artificial'],
+    intensityAttributes: ['Tangy', 'Sweet', 'Salty', 'Spicy', 'Umami', 'Creamy', 'Thick', 'Herbal'],
+    riskMarkers: ['watery', 'oily', 'bitter', 'metallic', 'artificial', 'unbalanced'],
+    successMarkers: ['balanced', 'savory', 'tangy', 'creamy', 'fresh', 'flavorful'],
+    decisionWeights: { instrumentalFit: 25, offNoteRisk: 25, nutrition: 10, panelAcceptance: 40 },
+  },
 ];
 
 export const GENERIC_PROFILE: FoodTypeProfile = {
@@ -110,23 +130,32 @@ export function getFoodTypeProfile(slug: string): FoodTypeProfile {
   };
 }
 
+function aliasMatches(text: string, alias: string) {
+  const escaped = alias.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(text);
+}
+
 export function detectFoodType(...values: Array<string | undefined | null>): FoodTypeDetection {
   const text = values.filter(Boolean).join(' ').toLowerCase();
   const evidence: string[] = [];
   let bestProfile: FoodTypeProfile | null = null;
   let bestScore = 0;
+  let tied = false;
 
   for (const profile of FOOD_TYPE_PROFILES) {
-    const matches = profile.aliases.filter(alias => text.includes(alias.toLowerCase()));
-    const score = matches.length;
+    const matches = profile.aliases.filter(alias => aliasMatches(text, alias));
+    const score = matches.reduce((sum, alias) => sum + (alias.includes(' ') ? 2 : 1), 0);
     if (score > bestScore) {
       bestScore = score;
       bestProfile = profile;
+      tied = false;
       evidence.splice(0, evidence.length, ...matches);
+    } else if (score > 0 && score === bestScore) {
+      tied = true;
     }
   }
 
-  if (bestProfile) {
+  if (bestProfile && !tied) {
     return {
       slug: bestProfile.slug,
       label: bestProfile.label,

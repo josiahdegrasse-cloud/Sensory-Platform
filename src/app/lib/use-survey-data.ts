@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { ESSENSE25_EMOTIONS, type QuestionnaireResponse } from "../data/mock-users";
-import { useAllResponses } from "./hooks";
+import { useAllResponses, useProducts } from "./hooks";
 
 export interface LiveAggregation {
   productId: string;
   productName: string;
+  sourceSampleId?: string | null;
+  category?: string;
   n: number;
   cata: Record<string, number>;
   intensity: Record<string, number>;
@@ -39,6 +41,7 @@ interface UseSurveyDataResult {
 
 export function useSurveyData(): UseSurveyDataResult {
   const { data: allResponsesData, isError: liveDataFetchFailed } = useAllResponses();
+  const { data: products = [] } = useProducts();
 
   const [multiSampleResponses, setMultiSampleResponses] = useState<MultiSampleSession[]>([]);
   const [selectedMultiProduct, setSelectedMultiProduct] = useState<string>('');
@@ -48,6 +51,7 @@ export function useSurveyData(): UseSurveyDataResult {
   useEffect(() => {
     if (!allResponsesData) return;
     const allResponses = allResponsesData;
+    const productsById = new Map(products.map(product => [product.id, product]));
 
     // Multi-sample: group per-sample rows into session-level objects
     const multiRows = allResponses.filter((r: QuestionnaireResponse) =>
@@ -84,7 +88,11 @@ export function useSurveyData(): UseSurveyDataResult {
     const singleResponses = allResponses.filter(
       (r: QuestionnaireResponse) => !r.sessionType
     );
-    if (singleResponses.length === 0) return;
+    if (singleResponses.length === 0) {
+      setLiveAggregations([]);
+      setCommentsByProduct({});
+      return;
+    }
 
     const grouped = new Map<string, QuestionnaireResponse[]>();
     singleResponses.forEach((r: QuestionnaireResponse) => {
@@ -95,6 +103,7 @@ export function useSurveyData(): UseSurveyDataResult {
     const aggregations: LiveAggregation[] = [];
     grouped.forEach((resps, productId) => {
       const n = resps.length;
+      const product = productsById.get(productId);
 
       const cata: Record<string, number> = {};
       resps.forEach(r => {
@@ -131,7 +140,9 @@ export function useSurveyData(): UseSurveyDataResult {
 
       aggregations.push({
         productId,
-        productName: productId,
+        productName: product?.name ?? productId,
+        sourceSampleId: product?.sourceSampleId,
+        category: product?.category,
         n,
         cata,
         intensity: Object.fromEntries(
@@ -156,7 +167,7 @@ export function useSurveyData(): UseSurveyDataResult {
       }
     });
     setCommentsByProduct(commentsMap);
-  }, [allResponsesData]);
+  }, [allResponsesData, products]);
 
   return {
     liveDataFetchFailed: !!liveDataFetchFailed,

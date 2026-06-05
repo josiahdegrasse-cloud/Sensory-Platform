@@ -4,13 +4,20 @@ CREATE TABLE IF NOT EXISTS public.food_types (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   slug text NOT NULL UNIQUE,
   label text NOT NULL,
-  status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
+  status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived', 'deleted')),
   source text NOT NULL DEFAULT 'import' CHECK (source IN ('system', 'import', 'manual')),
   aliases text[] NOT NULL DEFAULT '{}',
   created_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.food_types
+  DROP CONSTRAINT IF EXISTS food_types_status_check;
+
+ALTER TABLE public.food_types
+  ADD CONSTRAINT food_types_status_check
+  CHECK (status IN ('active', 'archived', 'deleted'));
 
 CREATE TABLE IF NOT EXISTS public.import_batches (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -99,24 +106,29 @@ ALTER TABLE public.gcms_compounds ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.composition_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_events ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS food_types_select_authenticated ON public.food_types;
 CREATE POLICY food_types_select_authenticated ON public.food_types
   FOR SELECT TO authenticated
   USING (status = 'active' OR is_admin());
 
+DROP POLICY IF EXISTS food_types_admin_all ON public.food_types;
 CREATE POLICY food_types_admin_all ON public.food_types
   FOR ALL TO authenticated
   USING (is_admin())
   WITH CHECK (is_admin());
 
+DROP POLICY IF EXISTS import_batches_select_authenticated ON public.import_batches;
 CREATE POLICY import_batches_select_authenticated ON public.import_batches
   FOR SELECT TO authenticated
   USING (status = 'active' OR is_admin());
 
+DROP POLICY IF EXISTS import_batches_admin_all ON public.import_batches;
 CREATE POLICY import_batches_admin_all ON public.import_batches
   FOR ALL TO authenticated
   USING (is_admin())
   WITH CHECK (is_admin());
 
+DROP POLICY IF EXISTS instrumental_samples_select_authenticated ON public.instrumental_samples;
 CREATE POLICY instrumental_samples_select_authenticated ON public.instrumental_samples
   FOR SELECT TO authenticated
   USING (
@@ -126,11 +138,13 @@ CREATE POLICY instrumental_samples_select_authenticated ON public.instrumental_s
     )
   );
 
+DROP POLICY IF EXISTS instrumental_samples_admin_all ON public.instrumental_samples;
 CREATE POLICY instrumental_samples_admin_all ON public.instrumental_samples
   FOR ALL TO authenticated
   USING (is_admin())
   WITH CHECK (is_admin());
 
+DROP POLICY IF EXISTS e_tongue_select_authenticated ON public.e_tongue_measurements;
 CREATE POLICY e_tongue_select_authenticated ON public.e_tongue_measurements
   FOR SELECT TO authenticated
   USING (
@@ -142,11 +156,13 @@ CREATE POLICY e_tongue_select_authenticated ON public.e_tongue_measurements
     )
   );
 
+DROP POLICY IF EXISTS e_tongue_admin_all ON public.e_tongue_measurements;
 CREATE POLICY e_tongue_admin_all ON public.e_tongue_measurements
   FOR ALL TO authenticated
   USING (is_admin())
   WITH CHECK (is_admin());
 
+DROP POLICY IF EXISTS gcms_select_authenticated ON public.gcms_compounds;
 CREATE POLICY gcms_select_authenticated ON public.gcms_compounds
   FOR SELECT TO authenticated
   USING (
@@ -158,11 +174,13 @@ CREATE POLICY gcms_select_authenticated ON public.gcms_compounds
     )
   );
 
+DROP POLICY IF EXISTS gcms_admin_all ON public.gcms_compounds;
 CREATE POLICY gcms_admin_all ON public.gcms_compounds
   FOR ALL TO authenticated
   USING (is_admin())
   WITH CHECK (is_admin());
 
+DROP POLICY IF EXISTS composition_select_authenticated ON public.composition_profiles;
 CREATE POLICY composition_select_authenticated ON public.composition_profiles
   FOR SELECT TO authenticated
   USING (
@@ -174,15 +192,18 @@ CREATE POLICY composition_select_authenticated ON public.composition_profiles
     )
   );
 
+DROP POLICY IF EXISTS composition_admin_all ON public.composition_profiles;
 CREATE POLICY composition_admin_all ON public.composition_profiles
   FOR ALL TO authenticated
   USING (is_admin())
   WITH CHECK (is_admin());
 
+DROP POLICY IF EXISTS audit_events_select_admin ON public.audit_events;
 CREATE POLICY audit_events_select_admin ON public.audit_events
   FOR SELECT TO authenticated
   USING (is_admin());
 
+DROP POLICY IF EXISTS audit_events_insert_admin ON public.audit_events;
 CREATE POLICY audit_events_insert_admin ON public.audit_events
   FOR INSERT TO authenticated
   WITH CHECK (is_admin());

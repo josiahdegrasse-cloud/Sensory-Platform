@@ -13,7 +13,7 @@ import {
   useProducts, useTemplates, usePanelists,
   useInsertProduct, useUpdateProduct, useDeleteProduct, useInsertTemplate, useDeleteTemplate,
   useUpdatePanelistId, useAllResponses, useImportBatches,
-  useInstrumentalDataset,
+  useInstrumentalDataset, useUpdateImportBatchStatus,
 } from '../lib/hooks';
 import {
   Plus, Settings, Trash2, Save, CheckCircle2, FolderOpen, Layers,
@@ -45,7 +45,9 @@ export function AdminConfig() {
   const insertTemplateMutation = useInsertTemplate();
   const deleteTemplateMutation = useDeleteTemplate();
   const updatePanelistIdMutation = useUpdatePanelistId();
+  const updateImportBatchStatusMutation = useUpdateImportBatchStatus();
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmImportDeleteId, setConfirmImportDeleteId] = useState<string | null>(null);
 
   const [editingPanelistId, setEditingPanelistId] = useState<string | null>(null);
   const [panelistIdInput, setPanelistIdInput] = useState('');
@@ -140,6 +142,7 @@ export function AdminConfig() {
     )
     .filter(p => {
       if (matchFoodType(p.category) !== foodType) return false;
+      if (subCategory?.startsWith('batch:')) return p.sourceImportBatchId === subCategory.replace('batch:', '');
       if (subCategory && p.category !== subCategory) return false;
       return true;
     });
@@ -363,6 +366,16 @@ export function AdminConfig() {
     }
   };
 
+  const handleUpdateImportBatchStatus = async (id: string, status: 'active' | 'archived' | 'deleted') => {
+    setMutationError('');
+    try {
+      await updateImportBatchStatusMutation.mutateAsync({ id, status });
+      if (status === 'deleted') setConfirmImportDeleteId(null);
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : `Failed to ${status} import.`);
+    }
+  };
+
   const handleSaveTemplate = async () => {
     if (!templateName || customAttributes.length === 0) return;
     setMutationError('');
@@ -450,6 +463,8 @@ export function AdminConfig() {
           status: 'active',
           customAttributes: getDefaultCataAttributes(sample.type || category),
           assignedPanelistIds: [],
+          sourceImportBatchId: sample.importBatchId,
+          sourceSampleId: sample.sampleId,
         });
         firstCreatedId = firstCreatedId ?? created.id;
       }
@@ -1050,6 +1065,7 @@ export function AdminConfig() {
                       <th className="py-2.5 px-3 font-semibold text-slate-700">Imported by</th>
                       <th className="py-2.5 px-3 font-semibold text-slate-700">Date</th>
                       <th className="py-2.5 px-3 font-semibold text-slate-700">Status</th>
+                      <th className="py-2.5 px-3 font-semibold text-slate-700 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1068,6 +1084,56 @@ export function AdminConfig() {
                           <Badge className={batch.status === 'active' ? 'bg-emerald-600 text-xs' : 'bg-slate-400 text-xs'}>
                             {batch.status}
                           </Badge>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="flex justify-end gap-1.5">
+                            {batch.status === 'archived' ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs border-emerald-300 text-emerald-700"
+                                disabled={updateImportBatchStatusMutation.isPending}
+                                onClick={() => handleUpdateImportBatchStatus(batch.id, 'active')}
+                              >
+                                <RotateCcw className="size-3 mr-1" />Restore
+                              </Button>
+                            ) : batch.status === 'active' ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+                                disabled={updateImportBatchStatusMutation.isPending}
+                                onClick={() => handleUpdateImportBatchStatus(batch.id, 'archived')}
+                              >
+                                <Archive className="size-3 mr-1" />Archive
+                              </Button>
+                            ) : null}
+                            {confirmImportDeleteId === batch.id ? (
+                              <>
+                                <Button
+                                  size="sm"
+                                  className="h-7 text-xs bg-rose-600 hover:bg-rose-700"
+                                  disabled={updateImportBatchStatusMutation.isPending}
+                                  onClick={() => handleUpdateImportBatchStatus(batch.id, 'deleted')}
+                                >
+                                  Confirm
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setConfirmImportDeleteId(null)}>
+                                  Cancel
+                                </Button>
+                              </>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs border-rose-300 text-rose-600 hover:bg-rose-50"
+                                disabled={batch.status === 'deleted'}
+                                onClick={() => setConfirmImportDeleteId(batch.id)}
+                              >
+                                <Trash2 className="size-3" />
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}

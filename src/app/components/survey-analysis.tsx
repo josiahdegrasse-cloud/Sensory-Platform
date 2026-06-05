@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router";
 import { useAuth } from '../contexts/auth-context';
 import { useFoodType, sampleMatchesFoodType, matchFoodType } from '../contexts/food-type-context';
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
-import { ENHANCED_SENSORY_DATA } from "../data/enhanced-sensory";
+import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from "../data/enhanced-sensory";
 import { getSampleColor } from "../utils/sample-colors";
 import { useInstrumentalDataset, useProducts } from "../lib/hooks";
 import { formatFoodTypeLabel } from "../lib/food-intelligence";
@@ -38,26 +38,83 @@ export function SurveyAnalysis() {
   const [selectedSample, setSelectedSample] = useState<string>("S1");
   const [showAllSamples, setShowAllSamples] = useState(false);
   const [analysisType, setAnalysisType] = useState<'single' | 'multi'>('single');
+  const importedSensoryData: EnhancedSensoryProfile[] = useMemo(() => (instrumentalDataset?.eTongueData ?? [])
+    .filter(sample => !ENHANCED_SENSORY_DATA.some(staticSample => staticSample.sampleId === sample.sampleId))
+    .map(sample => {
+      const composition = instrumentalDataset?.compositionData?.[sample.sampleId];
+      const compounds = instrumentalDataset?.gcmsData?.[sample.sampleId] ?? [];
+      return {
+        sampleId: sample.sampleId,
+        sampleName: sample.sampleName || sample.sampleId,
+        taste: {
+          sourness: sample.sourness,
+          bitterness: sample.bitterness,
+          astringency: 0,
+          umami: sample.umami,
+          saltiness: sample.saltiness,
+          sweetness: sample.sweetness,
+          astringencyAftertaste: 0,
+          umamiAftertaste: sample.umami,
+          bitternessAftertaste: sample.bitterness,
+          richness: sample.umami,
+        },
+        composition: {
+          salt: composition?.saltContent ?? 0,
+          fat: composition?.fat ?? 0,
+          protein: composition?.protein ?? 0,
+          starchDryMatter: Math.max(0, 100 - ((composition?.moisture ?? 0) + (composition?.fat ?? 0) + (composition?.protein ?? 0))),
+        },
+        gcmsOlfactometry: compounds.map((compound, index) => ({
+          retentionTime: index + 1,
+          compound: compound.name,
+          nistProbability: 0,
+          peakArea: compound.concentration,
+          odour: compound.aroma,
+          odourIntensity: compound.threshold > 0 && compound.concentration > compound.threshold ? 5 : Math.min(5, Math.max(1, compound.concentration)),
+          concentration: compound.concentration,
+          threshold: compound.threshold,
+        })),
+        istdRecovery: 0,
+        olfactometryFlowSplit: 'Imported CSV',
+        cata: {},
+        intensity: {
+          Sourness: sample.sourness,
+          Bitterness: sample.bitterness,
+          Saltiness: sample.saltiness,
+          Umami: sample.umami,
+          Sweetness: sample.sweetness,
+        },
+        hedonic: { appearance: 0, flavour: 0, texture: 0, overall: 0 },
+        emotions: { positive: 0, negative: 0 },
+      };
+    }), [instrumentalDataset?.compositionData, instrumentalDataset?.eTongueData, instrumentalDataset?.gcmsData]);
+  const allSensoryData = useMemo(() => [...ENHANCED_SENSORY_DATA, ...importedSensoryData], [importedSensoryData]);
 
   // Auto-select first sample in filtered set when food type changes
   useEffect(() => {
-    const filtered = ENHANCED_SENSORY_DATA.filter(s => {
-      const ft = sampleMatchesFoodType(s.sampleId, s.sampleName);
+    const filtered = allSensoryData.filter(s => {
+      const importedSample = instrumentalDataset?.eTongueData.find(sample => sample.sampleId === s.sampleId);
+      const importedType = importedSample?.type;
+      const ft = importedType ?? sampleMatchesFoodType(s.sampleId, s.sampleName);
       if (foodType !== 'all' && ft !== foodType) return false;
+      if (subCategory?.startsWith('batch:')) return importedSample?.importBatchId === subCategory.replace('batch:', '');
       if (subCategory && !s.sampleName.toLowerCase().includes(subCategory.toLowerCase())) return false;
       return true;
     });
     if (filtered.length > 0 && !filtered.find(s => s.sampleId === selectedSample)) {
       setSelectedSample(filtered[0].sampleId);
     }
-  }, [foodType, subCategory]);
+  }, [allSensoryData, foodType, instrumentalDataset?.eTongueData, selectedSample, subCategory]);
 
   // All hooks called — safe to guard here
   if (user?.role !== 'admin') return null;
 
-  const filteredSamples = ENHANCED_SENSORY_DATA.filter(s => {
-    const ft = sampleMatchesFoodType(s.sampleId, s.sampleName);
+  const filteredSamples = allSensoryData.filter(s => {
+    const importedSample = instrumentalDataset?.eTongueData.find(sample => sample.sampleId === s.sampleId);
+    const importedType = importedSample?.type;
+    const ft = importedType ?? sampleMatchesFoodType(s.sampleId, s.sampleName);
     if (foodType !== 'all' && ft !== foodType) return false;
+    if (subCategory?.startsWith('batch:')) return importedSample?.importBatchId === subCategory.replace('batch:', '');
     if (subCategory && !s.sampleName.toLowerCase().includes(subCategory.toLowerCase())) return false;
     return true;
   });
@@ -67,11 +124,13 @@ export function SurveyAnalysis() {
   if (!selectedData) {
     const activeLabel = foodType === 'all' ? 'selected food types' : formatFoodTypeLabel(foodType);
     const importedSamples = (instrumentalDataset?.eTongueData ?? []).filter(sample =>
-      foodType === 'all' ? true : sample.type === foodType
+      (foodType === 'all' ? true : sample.type === foodType) &&
+      (subCategory?.startsWith('batch:') ? sample.importBatchId === subCategory.replace('batch:', '') : true)
     );
     const activeProducts = allProducts.filter(product => {
       if (product.status === 'archived') return false;
       if (foodType === 'all') return true;
+      if (subCategory?.startsWith('batch:')) return product.sourceImportBatchId === subCategory.replace('batch:', '');
       return matchFoodType(product.category) === foodType;
     });
 
@@ -159,7 +218,7 @@ export function SurveyAnalysis() {
   ];
 
   // All samples comparison for hedonic overall
-  const allSamplesHedonic = ENHANCED_SENSORY_DATA.map(s => ({
+  const allSamplesHedonic = allSensoryData.map(s => ({
     id: `all-hedonic-${s.sampleId}`,
     name: s.sampleName,
     overall: s.hedonic.overall,
@@ -170,7 +229,9 @@ export function SurveyAnalysis() {
 
   // Auto-match: if panelists have submitted responses for this exact product name, use that data
   const matchingLiveData = liveAggregations.find(
-    a => a.productName.toLowerCase() === selectedData.sampleName.toLowerCase()
+    a => a.sourceSampleId === selectedData.sampleId ||
+      a.productName.toLowerCase() === selectedData.sampleName.toLowerCase() ||
+      a.productName.toLowerCase().includes(`(${selectedData.sampleId.toLowerCase()})`)
   );
   const usingLiveData = !!matchingLiveData;
 
@@ -231,6 +292,7 @@ export function SurveyAnalysis() {
     if (!p.isMultiSample) return false;
     if (foodType === 'all') return true;
     if (matchFoodType(p.category) !== foodType) return false;
+    if (subCategory?.startsWith('batch:')) return p.sourceImportBatchId === subCategory.replace('batch:', '');
     if (subCategory && p.category !== subCategory) return false;
     return true;
   });

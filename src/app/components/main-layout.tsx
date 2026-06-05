@@ -35,7 +35,7 @@ function capitalize(s: string) {
 }
 
 function CategorySidebar() {
-  const { foodType, setSelection, extraFoodTypes, archivedFoodTypes, deletedFoodTypes, archiveFoodType, restoreFoodType, deleteFoodType } = useFoodType();
+  const { foodType, subCategory, setSelection, extraFoodTypes, archivedFoodTypes, deletedFoodTypes, archiveFoodType, restoreFoodType, deleteFoodType } = useFoodType();
   const { data: products = [] } = useProducts();
   const { data: importBatches = [] } = useImportBatches();
   const { data: instrumentalDataset } = useInstrumentalDataset();
@@ -49,12 +49,18 @@ function CategorySidebar() {
   const label = (ft: string) =>
     ft === 'cheese' ? 'Cheese' : ft === 'bread' ? 'Bread' : capitalize(ft);
   const activeTypeLabel = label(foodType);
+  const selectedBatchId = subCategory?.startsWith('batch:') ? subCategory.replace('batch:', '') : null;
   const selectedSamples = useMemo(() => {
     const samples = instrumentalDataset?.eTongueData ?? [];
-    return samples.filter(sample => sample.type === foodType);
-  }, [foodType, instrumentalDataset]);
+    return samples.filter(sample =>
+      sample.type === foodType &&
+      (!selectedBatchId || sample.importBatchId === selectedBatchId)
+    );
+  }, [foodType, instrumentalDataset, selectedBatchId]);
   const selectedSampleIds = useMemo(() => new Set(selectedSamples.map(sample => sample.sampleId)), [selectedSamples]);
-  const selectedBatch = importBatches.find(batch => batch.foodTypeSlug === foodType);
+  const selectedBatch = selectedBatchId
+    ? importBatches.find(batch => batch.id === selectedBatchId)
+    : importBatches.find(batch => batch.foodTypeSlug === foodType);
   const projectBatchesByType = useMemo(() => {
     const groups: Record<string, typeof importBatches> = {};
     importBatches
@@ -141,9 +147,9 @@ function CategorySidebar() {
                       <button
                         key={project.id}
                         type="button"
-                        onClick={() => setSelection(ft, null)}
+                        onClick={() => setSelection(ft, `batch:${project.id}`)}
                         title={project.fileName}
-                        className="block w-full truncate rounded-md px-2 py-1 text-left text-xs text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                        className={`block w-full truncate rounded-md px-2 py-1 text-left text-xs ${selectedBatchId === project.id ? 'bg-slate-100 font-semibold text-slate-800' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
                       >
                         Project {index + 1}: {project.fileName.replace(/\.csv$/i, '')}
                       </button>
@@ -259,8 +265,11 @@ function CategorySidebar() {
 
 function FoodTypeBadge() {
   const { foodType, subCategory } = useFoodType();
+  const { data: importBatches = [] } = useImportBatches();
   const typeLabel = foodType === 'cheese' ? 'Cheese' : foodType === 'bread' ? 'Bread' : capitalize(foodType);
-  const label = subCategory ?? typeLabel;
+  const batchId = subCategory?.startsWith('batch:') ? subCategory.replace('batch:', '') : null;
+  const batch = batchId ? importBatches.find(item => item.id === batchId) : null;
+  const label = batch ? batch.fileName.replace(/\.csv$/i, '') : (subCategory ?? typeLabel);
   return (
     <span className="px-2.5 py-1 rounded-full text-xs font-semibold border" style={{ background: '#f1f5f9', color: NFI_BLUE, borderColor: '#cbd5e1' }}>
       {label}

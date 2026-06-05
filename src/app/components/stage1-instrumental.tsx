@@ -36,6 +36,7 @@ interface ETongueMeasurement {
   sweetness: number;
   type?: string;
   category?: string;
+  importBatchId?: string;
 }
 
 interface GCMSCompound {
@@ -436,10 +437,13 @@ function validateImportedDataset(
   rows: Record<string, string>[],
   dataset: StoredImportedData,
   columnReport: ColumnReport | null,
+  detection?: { confidence: number; label: string },
 ): ImportValidationReport {
   const errors: string[] = [];
   const warnings: string[] = [];
-  const sampleIds = dataset.eTongueData.map(sample => sample.sampleId);
+  const sampleIds = rows.map((row, index) =>
+    getRowValue(row, ["sampleId", "sample", "id", "sampleCode", "code"]) || `Imported-${index + 1}`
+  );
   const duplicates = sampleIds.filter((id, index) => sampleIds.indexOf(id) !== index);
 
   if (rows.length === 0) errors.push('No data rows found.');
@@ -447,6 +451,7 @@ function validateImportedDataset(
   if (!columnReport || columnReport.recognised.length === 0) errors.push('No recognized columns found.');
   if (duplicates.length > 0) warnings.push(`Duplicate sample IDs detected: ${Array.from(new Set(duplicates)).join(', ')}.`);
   if ((columnReport?.ignored.length ?? 0) > 0) warnings.push(`${columnReport?.ignored.length} column${columnReport?.ignored.length === 1 ? '' : 's'} will be ignored.`);
+  if (detection && detection.confidence < 0.75) warnings.push(`Food type detection is low confidence (${Math.round(detection.confidence * 100)}%). Confirm ${detection.label} before importing.`);
   if (Object.keys(dataset.gcmsData).length === 0) warnings.push('No GC-MS compounds found. Aroma/off-note panels will be empty for this batch.');
   if (Object.keys(dataset.compositionData).length === 0) warnings.push('No composition profiles found. Nutrition/composition cards will be empty for this batch.');
 
@@ -494,7 +499,7 @@ export function Stage1Instrumental() {
   const [usingDemoData, setUsingDemoData] = useState(!storedImportedData);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { foodType, setSelection, registerFoodTypes, archivedFoodTypes, clearExtraFoodTypes } = useFoodType();
+  const { foodType, subCategory, setSelection, registerFoodTypes, archivedFoodTypes, clearExtraFoodTypes } = useFoodType();
 
   const importSummary = useMemo(() => {
     if (!showPreview || previewData.length === 0) return null;
@@ -509,7 +514,7 @@ export function Stage1Instrumental() {
 
   const validationReport = useMemo(() => {
     if (!showPreview || !importSummary) return null;
-    return validateImportedDataset(previewData, importSummary, columnReport);
+    return validateImportedDataset(previewData, importSummary, columnReport, importSummary.detection);
   }, [columnReport, importSummary, previewData, showPreview]);
 
   useEffect(() => {
@@ -557,6 +562,7 @@ export function Stage1Instrumental() {
   const filteredETongueData = eTongueData.filter(s => {
     const t = (s.type || inferType(s.sampleId)).toLowerCase();
     if (archivedFoodTypes.includes(t)) return false;
+    if (subCategory?.startsWith('batch:')) return s.importBatchId === subCategory.replace('batch:', '');
     if (foodType === 'all') return true;
     if (foodType === 'bread')  return t === 'bread'  || s.sampleId.toUpperCase().startsWith('B');
     if (foodType === 'cheese') return t === 'dairy'  || t === 'pbca' || s.sampleId.toUpperCase().startsWith('S') || s.sampleId.toUpperCase().startsWith('D');

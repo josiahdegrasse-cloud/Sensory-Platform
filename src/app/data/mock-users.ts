@@ -60,6 +60,8 @@ export const CATEGORY_CATA_ATTRIBUTES: Record<string, string[]> = {
   meat: getDefaultCataAttributesForFoodType('meat'),
   yogurt: getDefaultCataAttributesForFoodType('yogurt'),
   beverage: getDefaultCataAttributesForFoodType('beverage'),
+  snack: getDefaultCataAttributesForFoodType('snack'),
+  sauce: getDefaultCataAttributesForFoodType('sauce'),
   generic: getDefaultCataAttributesForFoodType('generic'),
 };
 
@@ -70,6 +72,8 @@ const CATEGORY_INTENSITY_ATTRIBUTES: Record<string, string[]> = {
   meat: getDefaultIntensityAttributesForFoodType('meat'),
   yogurt: getDefaultIntensityAttributesForFoodType('yogurt'),
   beverage: getDefaultIntensityAttributesForFoodType('beverage'),
+  snack: getDefaultIntensityAttributesForFoodType('snack'),
+  sauce: getDefaultIntensityAttributesForFoodType('sauce'),
   generic: getDefaultIntensityAttributesForFoodType('generic'),
 };
 

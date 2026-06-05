@@ -8,14 +8,17 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
+DROP POLICY IF EXISTS "admins_upload_concept_images" ON storage.objects;
 CREATE POLICY "admins_upload_concept_images" ON storage.objects
   FOR INSERT TO authenticated
   WITH CHECK (bucket_id = 'concept-images' AND is_admin());
 
+DROP POLICY IF EXISTS "admins_delete_concept_images" ON storage.objects;
 CREATE POLICY "admins_delete_concept_images" ON storage.objects
   FOR DELETE TO authenticated
   USING (bucket_id = 'concept-images' AND is_admin());
 
+DROP POLICY IF EXISTS "authenticated_view_concept_images" ON storage.objects;
 CREATE POLICY "authenticated_view_concept_images" ON storage.objects
   FOR SELECT TO authenticated
   USING (bucket_id = 'concept-images');

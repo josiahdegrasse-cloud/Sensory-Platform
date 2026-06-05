@@ -70,7 +70,7 @@ export function PanelStep({
       </Card>
 
       <div>
-        <Label className="font-medium text-sm mb-3 block">Consumer segments to target</Label>
+        <Label className="font-medium text-sm mb-3 block">Consumer segments to note</Label>
         <div className="flex flex-wrap gap-2">
           {segments.map(seg => (
             <button
@@ -93,7 +93,7 @@ export function PanelStep({
           <UserCheck className="size-3.5" /> Assign to registered panelists
         </Label>
         <p className="text-xs text-slate-500 -mt-1">
-          Select specific panelists — they will see this concept test in their dashboard.
+          Select specific panelists. If nobody is selected, every active panelist can see this concept test.
         </p>
         {registeredPanelists.length === 0 ? (
           <p className="text-sm text-slate-400 italic">No registered panelists found.</p>
@@ -137,7 +137,7 @@ export function PanelStep({
             <div>
               <p className="text-sm font-semibold text-amber-800">How assignment works</p>
               <p className="text-xs text-amber-700 mt-0.5">
-                Selected panelists will see this concept test in their dashboard alongside food evaluations. If no panelists are selected, the test targets panelists matching the consumer segments above.
+                Selected panelists will see this concept test in their dashboard alongside food evaluations. Segment tags are saved as planning notes; named assignments control access today.
               </p>
             </div>
           </div>

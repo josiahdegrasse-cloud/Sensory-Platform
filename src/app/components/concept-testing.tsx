@@ -301,7 +301,7 @@ export function ConceptTesting() {
         <Card className="border border-slate-200 shadow-sm">
           <CardContent className="pt-6 pb-6">
             {step === 'concept'    && <ConceptStep draft={draft} onChange={setDraft} />}
-            {step === 'images'     && <ImagesStep draft={draft} onChange={setDraft} />}
+            {step === 'images'     && <ImagesStep draft={draft} onChange={setDraft} estimatedCostPerImage={settings?.estimatedCostPerImage ?? 0.034} />}
             {step === 'questions'  && <QuestionsStep draft={draft} questions={questions} onChange={setQuestions} />}
             {step === 'panel'      && <PanelStep panelSize={panelSize} setPanelSize={setPanelSize} targetSegments={segments} setTargetSegments={setSegments} assignedPanelistIds={assignedPanelistIds} setAssignedPanelistIds={setAssignedPanelistIds} />}
             {step === 'review'     && <ReviewStep draft={draft} questions={questions} panelSize={panelSize} segments={segments} assignedPanelistIds={assignedPanelistIds} />}

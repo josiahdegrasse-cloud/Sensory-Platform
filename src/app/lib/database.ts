@@ -104,7 +104,7 @@ export interface FoodTypeRecord {
   id: string;
   slug: string;
   label: string;
-  status: 'active' | 'archived';
+  status: 'active' | 'archived' | 'deleted';
   source: 'system' | 'import' | 'manual';
   aliases: string[];
   createdBy: string | null;
@@ -161,7 +161,7 @@ function toFoodType(row: Record<string, unknown>): FoodTypeRecord {
     id: row.id as string,
     slug: row.slug as string,
     label: row.label as string,
-    status: row.status as 'active' | 'archived',
+    status: row.status as 'active' | 'archived' | 'deleted',
     source: row.source as 'system' | 'import' | 'manual',
     aliases: (row.aliases as string[]) ?? [],
     createdBy: (row.created_by as string) ?? null,
@@ -248,10 +248,41 @@ export async function restoreFoodTypeRecord(slug: string): Promise<void> {
 export async function deleteFoodTypeRecord(slug: string): Promise<void> {
   const { error } = await supabase
     .from('food_types')
-    .delete()
+    .update({ status: 'deleted', updated_at: new Date().toISOString() })
     .eq('slug', slug)
     .neq('source', 'system');
   if (error) throw dbError(error);
+}
+
+export async function updateImportBatchStatus(
+  id: string,
+  status: 'active' | 'archived' | 'deleted',
+): Promise<void> {
+  const timestampPatch = status === 'archived'
+    ? { archived_at: new Date().toISOString(), deleted_at: null }
+    : status === 'deleted'
+      ? { deleted_at: new Date().toISOString() }
+      : { archived_at: null, deleted_at: null };
+  const { error } = await supabase
+    .from('import_batches')
+    .update({ status, ...timestampPatch })
+    .eq('id', id);
+  if (error) throw dbError(error);
+
+  if (status === 'deleted') {
+    const { error: productError } = await supabase
+      .from('products')
+      .delete()
+      .eq('source_import_batch_id', id);
+    if (productError) throw dbError(productError);
+    return;
+  }
+
+  const { error: productStatusError } = await supabase
+    .from('products')
+    .update({ status: status === 'archived' ? 'archived' : 'active' })
+    .eq('source_import_batch_id', id);
+  if (productStatusError) throw dbError(productStatusError);
 }
 
 export interface ImportBatchRecord {

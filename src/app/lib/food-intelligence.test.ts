@@ -24,4 +24,15 @@ describe('food intelligence', () => {
     expect(slugifyFoodType('Frozen Dessert Base')).toBe('frozen-dessert-base');
     expect(detectFoodType('Frozen Dessert Base').slug).toBe('frozen-dessert-base');
   });
+
+  it('does not match aliases hidden inside unrelated words', () => {
+    expect(detectFoodType('champagne style beverage').slug).toBe('beverage');
+    expect(detectFoodType('theater snack concept').slug).toBe('snack');
+  });
+
+  it('keeps tied signals as an expandable custom type', () => {
+    const detection = detectFoodType('meat yogurt hybrid concept');
+    expect(detection.slug).toBe('meat-yogurt-hybrid-concept');
+    expect(detection.confidence).toBeLessThan(0.5);
+  });
 });

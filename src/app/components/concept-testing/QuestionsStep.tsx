@@ -141,7 +141,7 @@ export function QuestionsStep({
           </Button>
           <Button size="sm" onClick={handleGenerate} disabled={generating} className="bg-blue-600 hover:bg-blue-700 text-white">
             <Sparkles className="size-3.5 mr-1.5" />
-            {generating ? 'Generating…' : generated ? 'Regenerate with AI' : 'Generate with AI'}
+            {generating ? 'Building...' : generated ? 'Rebuild smart survey' : 'Build smart survey'}
           </Button>
         </div>
       </div>
@@ -188,7 +188,7 @@ export function QuestionsStep({
             <Sparkles className="size-10 text-blue-300 mx-auto mb-3" />
             <p className="text-blue-700 font-semibold">No questions yet</p>
             <p className="text-blue-500 text-sm mt-1">
-              Click <strong>Generate with AI</strong> to create a tailored 20-question survey, or add questions manually.
+              Click <strong>Build smart survey</strong> to create a tailored questionnaire, or add questions manually.
             </p>
           </CardContent>
         </Card>
