@@ -21,7 +21,7 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
   ].reduce((a, b) => a + b, 0);
 
   return (
-    <div className={showPreview ? "grid grid-cols-2 gap-6" : "space-y-5"}>
+    <div className={showPreview ? "grid gap-6 lg:grid-cols-2" : "space-y-5"}>
       {/* Left: form inputs */}
       <div className="space-y-5">
         <div className="flex items-start justify-between">
@@ -38,7 +38,7 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label className="font-medium">Product name <span className="text-rose-500">*</span></Label>
             <Input value={draft.name} onChange={set('name')} placeholder="e.g. Vitacheeze Original Cheddar" />
@@ -60,7 +60,7 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label className="font-medium flex items-center gap-1.5"><Target className="size-3.5" /> Target market</Label>
             <Input value={draft.targetMarket} onChange={set('targetMarket')} placeholder="e.g. Health-conscious adults 25–45" />

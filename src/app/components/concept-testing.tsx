@@ -4,9 +4,11 @@ import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import {
-  Lightbulb, ChevronRight, ChevronLeft, Send, CheckCircle2,
+  Lightbulb, ChevronRight, ChevronLeft, Send, CheckCircle2, Image as ImageIcon,
+  ListChecks, Users, WandSparkles,
 } from 'lucide-react';
 import { insertConceptTest } from '../lib/database';
+import { detectFoodType } from '../lib/food-intelligence';
 import type { ConceptDraft, Question, WizardStep } from './concept-testing/types';
 import { ConceptStep } from './concept-testing/ConceptStep';
 import { ImagesStep } from './concept-testing/ImagesStep';
@@ -39,6 +41,14 @@ export function ConceptTesting() {
   const stepIndex = STEPS.indexOf(step);
 
   const conceptValid = draft.name.trim() && draft.category.trim() && draft.description.trim();
+  const detection = detectFoodType(draft.category, draft.name, draft.description);
+  const readinessItems = [
+    { label: 'Concept brief', ready: !!conceptValid },
+    { label: 'Concept visuals', ready: draft.marketingImages.filter(u => u.trim()).length > 0 },
+    { label: 'Survey questions', ready: questions.length >= 12 },
+    { label: 'Panel target', ready: assignedPanelistIds.length > 0 || panelSize > 0 || segments.length > 0 },
+  ];
+  const readyCount = readinessItems.filter(item => item.ready).length;
 
   const resetForm = () => {
     setStep('concept');
@@ -104,17 +114,40 @@ export function ConceptTesting() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6">
       {/* Page header */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
-          <Lightbulb className="size-5 text-white" />
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-blue-600 flex items-center justify-center">
+              <Lightbulb className="size-5 text-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-semibold text-slate-900">Concept Lab</h1>
+                <Badge className="bg-slate-900 text-white text-xs font-bold">Pro</Badge>
+              </div>
+              <p className="text-slate-500 text-sm">
+                Build food concepts, generate visuals, create panel surveys, and launch consumer validation.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 lg:w-[420px]">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="flex items-center gap-1.5 text-xs text-slate-500"><ImageIcon className="size-3.5" /> Visuals</div>
+              <p className="text-lg font-bold text-slate-900">{draft.marketingImages.filter(u => u.trim()).length}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="flex items-center gap-1.5 text-xs text-slate-500"><ListChecks className="size-3.5" /> Questions</div>
+              <p className="text-lg font-bold text-slate-900">{questions.length}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="flex items-center gap-1.5 text-xs text-slate-500"><Users className="size-3.5" /> Panel</div>
+              <p className="text-lg font-bold text-slate-900">{assignedPanelistIds.length || panelSize}</p>
+            </div>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Concept Testing</h1>
-          <p className="text-slate-500 text-sm">Design consumer surveys to validate product concepts before launch.</p>
-        </div>
-        <Badge className="ml-auto bg-slate-900 text-white text-xs font-bold">Pro</Badge>
       </div>
 
       {/* Step progress */}
@@ -141,16 +174,60 @@ export function ConceptTesting() {
         })}
       </div>
 
-      {/* Step content */}
-      <Card className="border-2 border-slate-200">
-        <CardContent className="pt-6 pb-6">
-          {step === 'concept'    && <ConceptStep draft={draft} onChange={setDraft} />}
-          {step === 'images'     && <ImagesStep draft={draft} onChange={setDraft} />}
-          {step === 'questions'  && <QuestionsStep questions={questions} onChange={setQuestions} />}
-          {step === 'panel'      && <PanelStep panelSize={panelSize} setPanelSize={setPanelSize} targetSegments={segments} setTargetSegments={setSegments} assignedPanelistIds={assignedPanelistIds} setAssignedPanelistIds={setAssignedPanelistIds} />}
-          {step === 'review'     && <ReviewStep draft={draft} questions={questions} panelSize={panelSize} segments={segments} assignedPanelistIds={assignedPanelistIds} />}
-        </CardContent>
-      </Card>
+      <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+        {/* Step content */}
+        <Card className="border border-slate-200 shadow-sm">
+          <CardContent className="pt-6 pb-6">
+            {step === 'concept'    && <ConceptStep draft={draft} onChange={setDraft} />}
+            {step === 'images'     && <ImagesStep draft={draft} onChange={setDraft} />}
+            {step === 'questions'  && <QuestionsStep draft={draft} questions={questions} onChange={setQuestions} />}
+            {step === 'panel'      && <PanelStep panelSize={panelSize} setPanelSize={setPanelSize} targetSegments={segments} setTargetSegments={setSegments} assignedPanelistIds={assignedPanelistIds} setAssignedPanelistIds={setAssignedPanelistIds} />}
+            {step === 'review'     && <ReviewStep draft={draft} questions={questions} panelSize={panelSize} segments={segments} assignedPanelistIds={assignedPanelistIds} />}
+          </CardContent>
+        </Card>
+
+        <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
+          <Card className="border border-slate-200">
+            <CardContent className="p-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <WandSparkles className="size-4 text-blue-600" />
+                <div>
+                  <p className="font-semibold text-slate-900 text-sm">Launch readiness</p>
+                  <p className="text-xs text-slate-500">{readyCount} of {readinessItems.length} signals ready</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {readinessItems.map(item => (
+                  <div key={item.label} className="flex items-center justify-between text-sm">
+                    <span className="text-slate-600">{item.label}</span>
+                    <span className={`flex size-5 items-center justify-center rounded-full ${
+                      item.ready ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-300'
+                    }`}>
+                      <CheckCircle2 className="size-3.5" />
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+                <p className="text-xs font-semibold text-slate-500">Detected food type</p>
+                <p className="text-base font-bold text-slate-900">{detection.label}</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Used for concept visuals and survey language.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-blue-200 bg-blue-50">
+            <CardContent className="p-4">
+              <p className="text-sm font-semibold text-blue-950">Research flow</p>
+              <p className="text-xs text-blue-700 mt-1">
+                Define the food promise, generate test visuals, build a tailored questionnaire, assign panelists, then launch.
+              </p>
+            </CardContent>
+          </Card>
+        </aside>
+      </div>
 
       {launchError && (
         <p className="text-sm text-rose-600 font-medium text-center">{launchError}</p>
