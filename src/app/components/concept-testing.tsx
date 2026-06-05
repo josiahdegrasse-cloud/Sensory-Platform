@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
@@ -12,6 +12,7 @@ import { detectFoodType } from '../lib/food-intelligence';
 import {
   useConceptGenerationSettings,
   useConceptImageGenerations,
+  useConceptLabDiagnostics,
 } from '../lib/hooks';
 import type { ConceptDraft, Question, WizardStep } from './concept-testing/types';
 import { ConceptStep } from './concept-testing/ConceptStep';
@@ -25,23 +26,48 @@ import { ReviewStep } from './concept-testing/ReviewStep';
 const isValidImageUrlLaunch = (u: string) =>
   u.startsWith('data:image/') || ((): boolean => { try { return new URL(u).protocol === 'https:'; } catch { return false; } })();
 
+const DRAFT_STORAGE_KEY = 'concept_lab_draft_v1';
+
+const makeEmptyDraft = (promptStyle: ConceptDraft['promptStyle'] = 'balanced'): ConceptDraft => ({
+  name: '',
+  category: '',
+  projectName: 'Project 1',
+  description: '',
+  marketingImages: [],
+  marketingImageIds: [],
+  targetMarket: '',
+  pricePoint: '',
+  keyBenefits: '',
+  technicalChallenges: '',
+  promptStyle,
+  approvalStatus: 'draft',
+});
+
+interface StoredConceptDraft {
+  draft: ConceptDraft;
+  questions: Question[];
+  panelSize: number;
+  segments: string[];
+  assignedPanelistIds: string[];
+  savedAt: string;
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function ConceptTesting() {
   const navigate = useNavigate();
   const [step, setStep] = useState<WizardStep>('concept');
-  const [draft, setDraft] = useState<ConceptDraft>({
-    name: '', category: '', projectName: 'Project 1', description: '', marketingImages: [], marketingImageIds: [],
-    targetMarket: '', pricePoint: '', keyBenefits: '', technicalChallenges: '', promptStyle: 'balanced', approvalStatus: 'draft',
-  });
+  const [draft, setDraft] = useState<ConceptDraft>(() => makeEmptyDraft());
   const [questions, setQuestions] = useState<Question[]>([]);
   const [panelSize, setPanelSize] = useState(50);
   const [segments, setSegments] = useState<string[]>([]);
   const [assignedPanelistIds, setAssignedPanelistIds] = useState<string[]>([]);
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState('');
+  const [draftNotice, setDraftNotice] = useState('');
   const { data: settings } = useConceptGenerationSettings();
   const { data: history = [] } = useConceptImageGenerations();
+  const { data: diagnostics } = useConceptLabDiagnostics();
 
   const STEPS: WizardStep[] = ['concept', 'images', 'questions', 'panel', 'review'];
   const stepIndex = STEPS.indexOf(step);
@@ -51,15 +77,25 @@ export function ConceptTesting() {
   const validImageCount = draft.marketingImages.filter(u => u.trim()).length;
   const visualReady = validImageCount >= 2 && validImageCount <= 4;
   const questionReady = questions.length >= 18 && questions.length <= 30;
+  const panelReady = assignedPanelistIds.length > 0 || panelSize > 0 || segments.length > 0;
   const estimatedGenerationCost = (settings?.estimatedCostPerImage ?? 0.034) * (settings?.defaultImageCount ?? 4);
   const monthSpend = history.reduce((total, generation) => total + generation.estimatedCost, 0);
   const readinessItems = [
     { label: 'Concept brief', ready: !!conceptValid, detail: conceptValid ? 'Name, category, and description are ready.' : 'Add name, category, and consumer-facing description.' },
     { label: 'Concept visuals', ready: visualReady, detail: validImageCount === 0 ? 'Generate 4 visuals and select 2-4.' : `${validImageCount} visual${validImageCount !== 1 ? 's' : ''} selected.` },
     { label: 'Survey questions', ready: questionReady, detail: questions.length === 0 ? 'Generate a tailored questionnaire.' : `${questions.length} question${questions.length !== 1 ? 's' : ''} in the survey.` },
-    { label: 'Panel target', ready: assignedPanelistIds.length > 0 || panelSize > 0 || segments.length > 0, detail: assignedPanelistIds.length > 0 ? `${assignedPanelistIds.length} named panelist${assignedPanelistIds.length !== 1 ? 's' : ''}.` : `${panelSize} target responses.` },
+    { label: 'Panel target', ready: panelReady, detail: assignedPanelistIds.length > 0 ? `${assignedPanelistIds.length} named panelist${assignedPanelistIds.length !== 1 ? 's' : ''}.` : `${panelSize} target responses.` },
   ];
   const readyCount = readinessItems.filter(item => item.ready).length;
+  const launchReady = readinessItems.every(item => item.ready);
+  const setupWarnings = diagnostics?.messages ?? [];
+  const draftHasWork = useMemo(() => (
+    draft.name.trim()
+    || draft.category.trim()
+    || draft.description.trim()
+    || draft.marketingImages.some(Boolean)
+    || questions.length > 0
+  ), [draft.category, draft.description, draft.marketingImages, draft.name, questions.length]);
   const nextBestAction = !conceptValid
     ? 'Finish the concept brief first.'
     : !visualReady
@@ -68,19 +104,58 @@ export function ConceptTesting() {
         ? 'Generate a tailored 18-30 question survey.'
         : 'Assign panelists and launch when ready.';
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as StoredConceptDraft;
+      if (!saved?.draft) return;
+      setDraft({ ...makeEmptyDraft(saved.draft.promptStyle), ...saved.draft });
+      setQuestions(saved.questions ?? []);
+      setSegments(saved.segments ?? []);
+      setAssignedPanelistIds(saved.assignedPanelistIds ?? []);
+      setPanelSize(saved.panelSize ?? 50);
+      setDraftNotice(`Draft restored from ${new Date(saved.savedAt).toLocaleString()}.`);
+    } catch {
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!draftHasWork || step === 'launched') return;
+    const timeout = window.setTimeout(() => {
+      const payload: StoredConceptDraft = {
+        draft,
+        questions,
+        panelSize,
+        segments,
+        assignedPanelistIds,
+        savedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
+    }, 400);
+    return () => window.clearTimeout(timeout);
+  }, [assignedPanelistIds, draft, draftHasWork, panelSize, questions, segments, step]);
+
   const resetForm = () => {
     setStep('concept');
-    setDraft({
-      name: '', category: '', projectName: 'Project 1', description: '', marketingImages: [], marketingImageIds: [],
-      targetMarket: '', pricePoint: '', keyBenefits: '', technicalChallenges: '', promptStyle: settings?.promptStyle ?? 'balanced', approvalStatus: 'draft',
-    });
+    setDraft(makeEmptyDraft(settings?.promptStyle ?? 'balanced'));
     setQuestions([]);
     setSegments([]);
     setAssignedPanelistIds([]);
     setPanelSize(50);
+    setLaunchError('');
+    setDraftNotice('');
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
   };
 
   const handleLaunch = async () => {
+    if (launching) return;
+    if (!launchReady) {
+      const missing = readinessItems.filter(item => !item.ready).map(item => item.label.toLowerCase()).join(', ');
+      setLaunchError(`Not ready to launch yet. Finish: ${missing}.`);
+      return;
+    }
     setLaunching(true);
     setLaunchError('');
     try {
@@ -101,6 +176,7 @@ export function ConceptTesting() {
         approvalNotes: draft.approvalStatus === 'approved' ? 'Approved in Concept Lab before launch.' : '',
         status: 'active',
       });
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
       setStep('launched');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -174,6 +250,27 @@ export function ConceptTesting() {
           </div>
         </div>
       </div>
+
+      {setupWarnings.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="size-4 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-semibold">Concept Lab setup needs attention</p>
+              <p className="mt-0.5 text-xs text-amber-800">{setupWarnings.join(' ')}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {draftNotice && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900">
+          <span>{draftNotice}</span>
+          <button type="button" onClick={() => setDraftNotice('')} className="text-xs font-semibold text-blue-700 hover:text-blue-900">
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Step progress */}
       <div className="flex items-center gap-0">
@@ -298,7 +395,7 @@ export function ConceptTesting() {
         {step === 'review' ? (
           <Button
             onClick={handleLaunch}
-            disabled={launching || questions.length === 0 || !conceptValid}
+            disabled={launching || !launchReady}
             className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 px-8"
           >
             <Send className="size-4" />

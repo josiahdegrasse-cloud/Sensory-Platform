@@ -37,6 +37,29 @@ const IMAGE_MODES: Array<{
 const isValidImageUrl = (u: string) =>
   u.startsWith('data:image/') || ((): boolean => { try { return new URL(u).protocol === 'https:'; } catch { return false; } })();
 
+function friendlyGenerationError(message: string) {
+  const lower = message.toLowerCase();
+  if (lower.includes('function') && lower.includes('not found')) {
+    return 'Image generator is not deployed yet. Deploy the generate-concept-images Supabase function.';
+  }
+  if (lower.includes('openai_api_key') || lower.includes('api key') || lower.includes('unauthorized') || lower.includes('401')) {
+    return 'OpenAI key is missing or invalid in Supabase secrets.';
+  }
+  if (lower.includes('billing') || lower.includes('quota') || lower.includes('insufficient') || lower.includes('credits')) {
+    return 'OpenAI billing or credits are not available for image generation.';
+  }
+  if (lower.includes('rate') || lower.includes('429')) {
+    return 'OpenAI rate limit hit. Wait a minute and try again.';
+  }
+  if (lower.includes('concept_images') || lower.includes('concept_image_generations') || lower.includes('concept_generation_settings')) {
+    return 'Concept Lab SQL migration has not been applied yet.';
+  }
+  if (lower.includes('concept-images') || lower.includes('bucket') || lower.includes('storage')) {
+    return 'Concept image storage bucket is not ready in Supabase.';
+  }
+  return message || 'Image generation failed. Try again with a clearer concept brief.';
+}
+
 export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: ConceptDraft) => void }) {
   const [mode, setMode] = useState<ImageMode>('packaging');
   const [aiCandidates, setAiCandidates] = useState<CandidateImage[]>([]);
@@ -50,9 +73,12 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
   const profile = getFoodTypeProfile(detection.slug);
   const validImages = draft.marketingImages.filter(u => u.trim() && isValidImageUrl(u));
   const canGenerate = !!(draft.name.trim() && draft.category.trim() && draft.description.trim());
+  const estimatedCost = 0.034 * CONCEPT_IMAGE_COUNT;
 
   const handleGenerate = async () => {
     if (!canGenerate) return;
+    const confirmed = window.confirm(`Generate ${CONCEPT_IMAGE_COUNT} medium-quality visuals? Estimated OpenAI cost is about $${estimatedCost.toFixed(2)}.`);
+    if (!confirmed) return;
     setGenerating(true);
     setGenerationError('');
     setAiCandidates([]);
@@ -78,7 +104,7 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
     });
 
     if (error) {
-      setGenerationError(error.message);
+      setGenerationError(friendlyGenerationError(error.message));
       setGenerating(false);
       return;
     }
@@ -189,6 +215,11 @@ export function ImagesStep({ draft, onChange }: { draft: ConceptDraft; onChange:
             {generationError && (
               <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-md px-3 py-2 mt-3">
                 {generationError}
+              </p>
+            )}
+            {canGenerate && !generating && (
+              <p className="text-[11px] text-slate-500 mt-3">
+                Estimated cost per generation: about ${estimatedCost.toFixed(2)}.
               </p>
             )}
           </div>

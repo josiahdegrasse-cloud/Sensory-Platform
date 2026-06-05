@@ -938,6 +938,13 @@ export interface ConceptProjectSummary {
   estimatedSpend: number;
 }
 
+export interface ConceptLabDiagnostics {
+  settingsTableReady: boolean;
+  imageHistoryReady: boolean;
+  storageBucketReady: boolean;
+  messages: string[];
+}
+
 function toConceptTest(row: Record<string, unknown>): ConceptTest {
   return {
     id: row.id as string,
@@ -1140,6 +1147,44 @@ export async function fetchConceptGenerationSettings(): Promise<ConceptGeneratio
     throw dbError(error);
   }
   return data ? toConceptSettings(data) : defaultConceptSettings();
+}
+
+export async function fetchConceptLabDiagnostics(): Promise<ConceptLabDiagnostics> {
+  const messages: string[] = [];
+
+  const settingsResult = await supabase
+    .from('concept_generation_settings')
+    .select('id')
+    .eq('active', true)
+    .limit(1);
+  const settingsTableReady = !settingsResult.error;
+  if (!settingsTableReady) {
+    messages.push('Concept Lab SQL settings are not installed yet.');
+  }
+
+  const imagesResult = await supabase
+    .from('concept_images')
+    .select('id')
+    .limit(1);
+  const imageHistoryReady = !imagesResult.error;
+  if (!imageHistoryReady) {
+    messages.push('Generated image history tables are not installed yet.');
+  }
+
+  const storageResult = await supabase.storage
+    .from('concept-images')
+    .list('', { limit: 1 });
+  const storageBucketReady = !storageResult.error;
+  if (!storageBucketReady) {
+    messages.push('Concept image storage bucket is not available yet.');
+  }
+
+  return {
+    settingsTableReady,
+    imageHistoryReady,
+    storageBucketReady,
+    messages,
+  };
 }
 
 export async function updateConceptGenerationSettings(

@@ -5,7 +5,7 @@ import {
   fetchAllResponses, fetchUserResponses,
   fetchConceptTestsForPanelist, fetchUserConceptResponses,
   fetchConceptTest, fetchConceptGenerationSettings, updateConceptGenerationSettings,
-  fetchConceptImageGenerations, fetchConceptProjectSummaries,
+  fetchConceptImageGenerations, fetchConceptProjectSummaries, fetchConceptLabDiagnostics,
   fetchFoodTypes, fetchInstrumentalDataset, fetchImportBatches,
   insertProduct, updateProduct, deleteProduct,
   insertTemplate, deleteTemplate, updatePanelistId, updatePanelistTrainingLevel,
@@ -30,6 +30,7 @@ export const queryKeys = {
   conceptGenerationSettings: ['conceptGenerationSettings'] as const,
   conceptImageGenerations: ['conceptImageGenerations'] as const,
   conceptProjects: ['conceptProjects'] as const,
+  conceptLabDiagnostics: ['conceptLabDiagnostics'] as const,
   foodTypes: ['foodTypes'] as const,
   instrumentalDataset: ['instrumentalDataset'] as const,
   importBatches: ['importBatches'] as const,
@@ -111,6 +112,14 @@ export function useConceptProjectSummaries(enabled = true) {
   return useQuery({
     queryKey: queryKeys.conceptProjects,
     queryFn: fetchConceptProjectSummaries,
+    enabled,
+  })
+}
+
+export function useConceptLabDiagnostics(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.conceptLabDiagnostics,
+    queryFn: fetchConceptLabDiagnostics,
     enabled,
   })
 }
