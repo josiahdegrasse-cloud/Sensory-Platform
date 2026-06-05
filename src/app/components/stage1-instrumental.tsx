@@ -684,7 +684,7 @@ export function Stage1Instrumental() {
 
     setImportSuccess(
       savedPermanently
-        ? `Imported ${parts.join(", ")} into ${parsed.detection.label}.`
+        ? `Imported ${parts.join(", ")} into ${parsed.detection.label} and created panel surveys for the samples.`
         : `${parsed.detection.label} imported locally. Apply the Supabase food intelligence migration to make it permanent for everyone.`
     );
     setShowPreview(false);

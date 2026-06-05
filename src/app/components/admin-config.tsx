@@ -36,7 +36,7 @@ export function AdminConfig() {
   const { data: panelists = [] } = usePanelists();
   const { data: templates = [] } = useTemplates();
   const { data: allResponses = [] } = useAllResponses();
-  const { data: importBatches = [] } = useImportBatches(activeTab === 'imports');
+  const { data: importBatches = [] } = useImportBatches(activeTab === 'products' || activeTab === 'imports');
   const { data: instrumentalDataset } = useInstrumentalDataset(activeTab === 'products');
 
   const insertProductMutation = useInsertProduct();
@@ -143,6 +143,18 @@ export function AdminConfig() {
       if (subCategory && p.category !== subCategory) return false;
       return true;
     });
+  const importBatchById = new Map(importBatches.map(batch => [batch.id, batch]));
+  const productProjectGroups = filteredProducts.reduce<Array<{ key: string; label: string; products: Product[] }>>((groups, product) => {
+    const key = product.sourceImportBatchId ?? 'manual';
+    const existing = groups.find(group => group.key === key);
+    const batch = product.sourceImportBatchId ? importBatchById.get(product.sourceImportBatchId) : null;
+    const label = batch
+      ? `${batch.fileName.replace(/\.csv$/i, '')}`
+      : `${currentFoodTypeLabel} manual surveys`;
+    if (existing) existing.products.push(product);
+    else groups.push({ key, label, products: [product] });
+    return groups;
+  }, []);
 
   // ── Sample handlers ───────────────────────────────────────────────────────────
 
@@ -596,9 +608,9 @@ export function AdminConfig() {
           </div>
         </div>
 
-        <div className="flex h-[calc(100%-53px)]">
-          {/* Product list */}
-          <div className="w-[300px] flex-shrink-0 border-r border-slate-100 overflow-y-auto p-3 space-y-2">
+        <div className="h-[calc(100%-53px)] overflow-y-auto">
+          {/* Survey / sample list */}
+          <div className="p-4 space-y-5">
               {filteredProducts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-slate-400">
                   <ClipboardList className="size-10 mb-2 opacity-40" />
@@ -606,125 +618,104 @@ export function AdminConfig() {
                     {foodTypeProducts.length === 0 ? `No ${currentFoodTypeLabel.toLowerCase()} surveys yet` : 'No surveys match filter'}
                   </p>
                 </div>
-              ) : filteredProducts.map(product => {
-                const sessions = sessionsByProduct[product.id] ?? 0;
-                const lastActive = lastActivityByProduct[product.id];
-                const attrs = product.customAttributes ?? DEFAULT_CATA_ATTRIBUTES;
-                const previewAttrs = attrs.slice(0, 4);
-                const extraCount = attrs.length - 4;
-                return (
-                  <div
-                    key={product.id}
-                    className={`rounded-lg border-2 transition-all relative overflow-hidden ${
-                      product.isMultiSample
-                        ? selectedProduct === product.id
-                          ? 'border-purple-600 bg-gradient-to-br from-purple-50 to-pink-50'
-                          : 'border-purple-200 bg-purple-50/30 hover:border-purple-400'
-                        : selectedProduct === product.id
-                          ? 'border-blue-600 bg-blue-50'
-                          : 'border-slate-200 hover:border-blue-300 bg-white'
-                    }`}
-                  >
-                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${product.status === 'active' ? 'bg-emerald-500' : product.status === 'archived' ? 'bg-amber-400' : 'bg-slate-300'}`} />
-                    <div className="p-4 pl-5">
-                      <div className="flex items-start justify-between gap-2 mb-1.5">
-                        <button onClick={() => setSelectedProduct(product.id)} className="text-left flex-1 min-w-0">
-                          <div className="font-bold text-slate-900 truncate flex items-center gap-2 flex-wrap">
-                            {product.name}
-                            {product.isMultiSample && (
-                              <Badge className="bg-purple-600 text-[10px] px-1.5 py-0">
-                                <Layers className="size-2.5 mr-0.5" />Multi
-                              </Badge>
-                            )}
-                            {product.blinded && (
-                              <Badge className="bg-slate-800 text-[10px] px-1.5 py-0">Blinded</Badge>
-                            )}
-                          </div>
-                          <div className="text-xs text-slate-500 mt-0.5">{product.category}</div>
-                          <div className="text-[11px] text-slate-400 mt-0.5">
-                            {(product.assignedPanelistIds?.length ?? 0) > 0
-                              ? `${product.assignedPanelistIds?.length} assigned`
-                              : 'Open to all panelists'}
-                          </div>
-                        </button>
-                        <Badge className={`text-[10px] px-1.5 py-0.5 flex-shrink-0 ${product.status === 'active' ? 'bg-emerald-600' : product.status === 'archived' ? 'bg-amber-500' : 'bg-slate-400'}`}>
-                          {product.status === 'active' ? 'Active' : product.status === 'archived' ? 'Archived' : 'Done'}
-                        </Badge>
+              ) : productProjectGroups.map((group, groupIndex) => (
+                <div key={group.key} className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <div>
+                      <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                        Project {groupIndex + 1}
                       </div>
-
-                      <div className="flex items-center gap-3 mb-2 text-xs text-slate-500">
-                        <span className="flex items-center gap-1">
-                          <Activity className="size-3 text-slate-400" />
-                          {sessions} session{sessions !== 1 ? 's' : ''}
-                        </span>
-                        <span>·</span>
-                        {lastActive
-                          ? <span>Last: {new Date(lastActive).toLocaleDateString()}</span>
-                          : <span className="italic">No activity yet</span>
-                        }
-                      </div>
-
-                      <div className="flex flex-wrap gap-1 mb-3">
-                        {previewAttrs.map(attr => (
-                          <span key={attr} className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded-full">{attr}</span>
-                        ))}
-                        {extraCount > 0 && (
-                          <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded-full">+{extraCount} more</span>
-                        )}
-                      </div>
-
-                      {product.status === 'archived' ? (
-                        <div className="flex items-center gap-1.5">
-                          <Button size="sm" variant="outline" onClick={() => handleUnarchiveProduct(product.id)} className="h-7 text-xs flex-1 border-emerald-600 text-emerald-700">
-                            <RotateCcw className="size-3 mr-1" />Restore
-                          </Button>
-                          {confirmDeleteId === product.id ? (
-                            <div className="flex gap-1">
-                              <Button size="sm" onClick={() => handleDeleteProduct(product.id)} className="h-7 text-xs bg-rose-600 hover:bg-rose-700 px-2">Confirm</Button>
-                              <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteId(null)} className="h-7 text-xs px-2">Cancel</Button>
-                            </div>
-                          ) : (
-                            <Button size="sm" variant="outline" onClick={() => setConfirmDeleteId(product.id)} className="h-7 text-xs border-rose-300 text-rose-600 hover:bg-rose-50">
-                              <Trash2 className="size-3 mr-1" />Delete
-                            </Button>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleToggleProductStatus(product.id)}
-                            className={`h-7 text-xs flex-1 ${product.status !== 'active' ? 'border-emerald-600 text-emerald-700' : ''}`}
-                          >
-                            {product.status === 'active' ? 'Mark Complete' : 'Reopen'}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleArchiveProduct(product.id)}
-                            className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 px-2"
-                            title="Archive product"
-                          >
-                            <Archive className="size-3" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => setSelectedProduct(product.id)}
-                            className={`h-7 text-xs flex-shrink-0 ${product.isMultiSample ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-                          >
-                            <Settings className="size-3 mr-1" />Configure
-                          </Button>
-                        </div>
-                      )}
+                      <h2 className="text-base font-semibold text-slate-900">{group.label}</h2>
                     </div>
+                    <Badge variant="outline" className="text-xs">{group.products.length} sample{group.products.length === 1 ? '' : 's'}</Badge>
                   </div>
-                );
-              })}
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {group.products.map(product => {
+                      const sessions = sessionsByProduct[product.id] ?? 0;
+                      const lastActive = lastActivityByProduct[product.id];
+                      const attrs = product.customAttributes ?? DEFAULT_CATA_ATTRIBUTES;
+                      const previewAttrs = attrs.slice(0, 4);
+                      const extraCount = attrs.length - 4;
+                      return (
+                        <div
+                          key={product.id}
+                          className={`rounded-lg border-2 transition-all relative overflow-hidden ${
+                            selectedProduct === product.id
+                              ? 'border-blue-600 bg-blue-50'
+                              : 'border-slate-200 hover:border-blue-300 bg-white'
+                          }`}
+                        >
+                          <div className={`absolute left-0 top-0 bottom-0 w-1 ${product.status === 'active' ? 'bg-emerald-500' : product.status === 'archived' ? 'bg-amber-400' : 'bg-slate-300'}`} />
+                          <div className="p-4 pl-5">
+                            <div className="flex items-start justify-between gap-2 mb-1.5">
+                              <button onClick={() => setSelectedProduct(product.id)} className="text-left flex-1 min-w-0">
+                                <div className="font-bold text-slate-900 truncate flex items-center gap-2 flex-wrap">
+                                  {product.name}
+                                  {product.sourceSampleId && <Badge variant="outline" className="text-[10px] px-1.5 py-0">{product.sourceSampleId}</Badge>}
+                                  {product.blinded && <Badge className="bg-slate-800 text-[10px] px-1.5 py-0">Blinded</Badge>}
+                                </div>
+                                <div className="text-xs text-slate-500 mt-0.5">{product.category}</div>
+                                <div className="text-[11px] text-slate-400 mt-0.5">
+                                  {(product.assignedPanelistIds?.length ?? 0) > 0
+                                    ? `${product.assignedPanelistIds?.length} assigned`
+                                    : 'Open to all panelists'}
+                                </div>
+                              </button>
+                              <Badge className={`text-[10px] px-1.5 py-0.5 flex-shrink-0 ${product.status === 'active' ? 'bg-emerald-600' : product.status === 'archived' ? 'bg-amber-500' : 'bg-slate-400'}`}>
+                                {product.status === 'active' ? 'Active' : product.status === 'archived' ? 'Archived' : 'Done'}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-3 mb-2 text-xs text-slate-500">
+                              <span className="flex items-center gap-1"><Activity className="size-3 text-slate-400" />{sessions} session{sessions !== 1 ? 's' : ''}</span>
+                              <span>·</span>
+                              {lastActive ? <span>Last: {new Date(lastActive).toLocaleDateString()}</span> : <span className="italic">No activity yet</span>}
+                            </div>
+                            <div className="flex flex-wrap gap-1 mb-3">
+                              {previewAttrs.map(attr => (
+                                <span key={attr} className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded-full">{attr}</span>
+                              ))}
+                              {extraCount > 0 && <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded-full">+{extraCount} more</span>}
+                            </div>
+                            {product.status === 'archived' ? (
+                              <div className="flex items-center gap-1.5">
+                                <Button size="sm" variant="outline" onClick={() => handleUnarchiveProduct(product.id)} className="h-7 text-xs flex-1 border-emerald-600 text-emerald-700">
+                                  <RotateCcw className="size-3 mr-1" />Restore
+                                </Button>
+                                {confirmDeleteId === product.id ? (
+                                  <div className="flex gap-1">
+                                    <Button size="sm" onClick={() => handleDeleteProduct(product.id)} className="h-7 text-xs bg-rose-600 hover:bg-rose-700 px-2">Confirm</Button>
+                                    <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteId(null)} className="h-7 text-xs px-2">Cancel</Button>
+                                  </div>
+                                ) : (
+                                  <Button size="sm" variant="outline" onClick={() => setConfirmDeleteId(product.id)} className="h-7 text-xs border-rose-300 text-rose-600 hover:bg-rose-50">
+                                    <Trash2 className="size-3 mr-1" />Delete
+                                  </Button>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <Button size="sm" variant="outline" onClick={() => handleToggleProductStatus(product.id)} className={`h-7 text-xs flex-1 ${product.status !== 'active' ? 'border-emerald-600 text-emerald-700' : ''}`}>
+                                  {product.status === 'active' ? 'Mark Complete' : 'Reopen'}
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => handleArchiveProduct(product.id)} className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 px-2" title="Archive product">
+                                  <Archive className="size-3" />
+                                </Button>
+                                <Button size="sm" onClick={() => setSelectedProduct(product.id)} className="h-7 text-xs flex-shrink-0 bg-blue-600 hover:bg-blue-700">
+                                  <Settings className="size-3 mr-1" />Configure
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
 
           {/* Attribute config panel */}
-          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          <div className="border-t border-slate-100 p-5 space-y-4">
               {!selectedProduct ? (
                 <div className="flex flex-col items-center justify-center h-full py-20 text-slate-400 text-center">
                   <Settings className="size-10 mb-3 opacity-30" />

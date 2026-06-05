@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import type { Product, QuestionnaireResponse, HedonicReferenceScores } from '../data/mock-users';
 import type { TrainingLevel } from '../utils/panelist-metrics';
 import type { FoodTypeDetection } from './food-intelligence';
-import { formatFoodTypeLabel, slugifyFoodType } from './food-intelligence';
+import { formatFoodTypeLabel, getDefaultCataAttributesForFoodType, slugifyFoodType } from './food-intelligence';
 
 // ─── Mapping helpers ──────────────────────────────────────────────────────────
 
@@ -19,6 +19,8 @@ function toProduct(row: Record<string, unknown>): Product {
     isCalibration: (row.is_calibration as boolean) ?? false,
     referenceScores: (row.reference_scores as HedonicReferenceScores) ?? null,
     assignedPanelistIds: (row.assigned_panelist_ids as string[]) ?? [],
+    sourceImportBatchId: (row.source_import_batch_id as string) ?? null,
+    sourceSampleId: (row.source_sample_id as string) ?? null,
   };
 }
 
@@ -33,6 +35,8 @@ function fromProduct(p: Omit<Product, 'id' | 'createdDate'>) {
     is_calibration: p.isCalibration ?? false,
     reference_scores: p.referenceScores ?? null,
     assigned_panelist_ids: p.assignedPanelistIds ?? [],
+    source_import_batch_id: p.sourceImportBatchId ?? null,
+    source_sample_id: p.sourceSampleId ?? null,
   };
 }
 
@@ -118,6 +122,7 @@ export interface ETongueMeasurementRecord {
   sweetness: number;
   type?: string;
   category?: string;
+  importBatchId?: string;
 }
 
 export interface GCMSCompoundRecord {
@@ -311,7 +316,7 @@ export async function fetchInstrumentalDataset(): Promise<InstrumentalDataset> {
       sample_name,
       category,
       food_types!inner(slug, status),
-      import_batches!inner(status),
+      import_batches!inner(id, status),
       e_tongue_measurements(sourness, bitterness, saltiness, umami, sweetness),
       gcms_compounds(name, concentration, aroma, threshold),
       composition_profiles(protein, fat, moisture, ph, salt_content, calcium_mg)
@@ -332,12 +337,14 @@ export async function fetchInstrumentalDataset(): Promise<InstrumentalDataset> {
   ((data ?? []) as Record<string, unknown>[]).forEach(row => {
     const sampleId = row.sample_id as string;
     const foodType = row.food_types as { slug?: string } | null;
+    const importBatch = row.import_batches as { id?: string } | null;
     const eTongue = ((row.e_tongue_measurements as Record<string, unknown>[] | null) ?? [])[0];
     if (eTongue) {
       eTongueData.push({
         sampleId,
         sampleName: (row.sample_name as string) ?? undefined,
         category: (row.category as string) ?? undefined,
+        importBatchId: importBatch?.id,
         type: foodType?.slug,
         sourness: Number(eTongue.sourness ?? 0),
         bitterness: Number(eTongue.bitterness ?? 0),
@@ -456,6 +463,41 @@ export async function insertInstrumentalImport(input: InstrumentalImportInput): 
     if (error) throw dbError(error);
   }
 
+  const existingNames = new Set<string>();
+  const existingSampleIds = new Set<string>();
+  const { data: existingProducts, error: existingProductsError } = await supabase
+    .from('products')
+    .select('name, source_sample_id')
+    .eq('category', foodType.label);
+  if (!existingProductsError) {
+    (existingProducts ?? []).forEach(product => {
+      existingNames.add(String(product.name).trim().toLowerCase());
+      if (product.source_sample_id) existingSampleIds.add(String(product.source_sample_id));
+    });
+  }
+
+  const productRows = sampleRows
+    .filter(sample => !existingSampleIds.has(sample.sample_id))
+    .map(sample => {
+      const sampleName = sample.sample_name || sample.sample_id;
+      const surveyName = sampleName === sample.sample_id ? sample.sample_id : `${sampleName} (${sample.sample_id})`;
+      if (existingNames.has(surveyName.trim().toLowerCase())) return null;
+      return {
+        name: surveyName,
+        category: foodType.label,
+        status: 'active',
+        custom_attributes: getDefaultCataAttributesForFoodType(foodType.slug),
+        assigned_panelist_ids: [],
+        source_import_batch_id: batch.id,
+        source_sample_id: sample.sample_id,
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => row !== null);
+  if (productRows.length > 0) {
+    const { error } = await supabase.from('products').insert(productRows);
+    if (error) throw dbError(error);
+  }
+
   await supabase.from('audit_events').insert({
     actor_id: input.importedBy ?? null,
     event_type: 'instrumental_import_created',
@@ -525,6 +567,8 @@ export async function updateProduct(
   if (updates.isCalibration !== undefined) patch.is_calibration = updates.isCalibration;
   if (updates.referenceScores !== undefined) patch.reference_scores = updates.referenceScores;
   if (updates.assignedPanelistIds !== undefined) patch.assigned_panelist_ids = updates.assignedPanelistIds;
+  if (updates.sourceImportBatchId !== undefined) patch.source_import_batch_id = updates.sourceImportBatchId;
+  if (updates.sourceSampleId !== undefined) patch.source_sample_id = updates.sourceSampleId;
 
   const { data, error } = await supabase
     .from('products')

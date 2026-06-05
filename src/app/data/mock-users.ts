@@ -26,6 +26,8 @@ export interface Product {
   referenceScores?: HedonicReferenceScores | null;
   blinded?: boolean;
   assignedPanelistIds?: string[];
+  sourceImportBatchId?: string | null;
+  sourceSampleId?: string | null;
 }
 
 export interface QuestionnaireResponse {
