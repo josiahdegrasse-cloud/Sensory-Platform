@@ -10,6 +10,16 @@ interface LocalFoodTypeRecord {
   status: FoodTypeStatus;
 }
 
+export function mergeFoodTypeRecords(
+  databaseRecords: LocalFoodTypeRecord[],
+  localRecords: LocalFoodTypeRecord[],
+): LocalFoodTypeRecord[] {
+  const recordsByType = new Map<string, LocalFoodTypeRecord>();
+  databaseRecords.forEach(record => recordsByType.set(record.type, record));
+  localRecords.forEach(record => recordsByType.set(record.type, record));
+  return [...recordsByType.values()].sort((a, b) => a.type.localeCompare(b.type));
+}
+
 const FOOD_TYPE_STORAGE_KEY = 'sensory-dashboard-food-types';
 const IMPORTED_DATA_STORAGE_KEY = 'sensory-dashboard-imported-machine-data';
 
@@ -67,12 +77,10 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
   const deleteFoodTypeMutation = useDeleteFoodType();
 
   const foodTypeRecords = useMemo(() => {
-    const recordsByType = new Map<string, LocalFoodTypeRecord>();
-    localFoodTypeRecords.forEach(record => recordsByType.set(record.type, record));
-    (foodTypesQuery.data ?? [])
+    const databaseRecords = (foodTypesQuery.data ?? [])
       .filter(record => record.source !== 'system')
-      .forEach(record => recordsByType.set(record.slug, { type: record.slug, status: record.status }));
-    return [...recordsByType.values()].sort((a, b) => a.type.localeCompare(b.type));
+      .map(record => ({ type: record.slug, status: record.status }));
+    return mergeFoodTypeRecords(databaseRecords, localFoodTypeRecords);
   }, [foodTypesQuery.data, localFoodTypeRecords]);
 
   const extraFoodTypes = foodTypeRecords.filter(record => record.status === 'active').map(record => record.type);
@@ -82,6 +90,18 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     window.localStorage.setItem(FOOD_TYPE_STORAGE_KEY, JSON.stringify(localFoodTypeRecords));
   }, [localFoodTypeRecords]);
+
+  useEffect(() => {
+    if (!foodTypesQuery.data) return;
+    const databaseRecords = foodTypesQuery.data
+      .filter(record => record.source !== 'system')
+      .map(record => ({ type: record.slug, status: record.status }));
+    const databaseTypes = new Set(databaseRecords.map(record => record.type));
+    setLocalFoodTypeRecords(previous => mergeFoodTypeRecords(
+      databaseRecords,
+      previous.filter(record => !databaseTypes.has(record.type)),
+    ));
+  }, [foodTypesQuery.data]);
 
   const setSelection = (ft: FoodType, sub: string | null = null) => {
     setFoodType(ft);
@@ -100,58 +120,77 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
 
   const archiveFoodType = useCallback((type: string) => {
     const slug = slugifyFoodType(type);
+    const previousStatus = foodTypeRecords.find(record => record.type === slug)?.status ?? 'active';
     setLocalFoodTypeRecords(prev => {
       const exists = prev.some(record => record.type === slug);
       if (!exists) return [...prev, { type: slug, status: 'archived' }].sort((a, b) => a.type.localeCompare(b.type));
       return prev.map(record => record.type === slug ? { ...record, status: 'archived' } : record);
     });
     setFoodType(current => current === slug ? 'cheese' : current);
-    void archiveFoodTypeMutation.mutateAsync(slug).catch(() => undefined);
-  }, [archiveFoodTypeMutation]);
+    void archiveFoodTypeMutation.mutateAsync(slug).catch(() => {
+      setLocalFoodTypeRecords(prev => prev.map(record =>
+        record.type === slug ? { ...record, status: previousStatus } : record
+      ));
+    });
+  }, [archiveFoodTypeMutation, foodTypeRecords]);
 
   const restoreFoodType = useCallback((type: string) => {
     const slug = slugifyFoodType(type);
+    const previousStatus = foodTypeRecords.find(record => record.type === slug)?.status ?? 'archived';
     setLocalFoodTypeRecords(prev => prev.map(record => record.type === slug ? { ...record, status: 'active' } : record));
     setSelection(slug, null);
-    void restoreFoodTypeMutation.mutateAsync(slug).catch(() => undefined);
-  }, [restoreFoodTypeMutation]);
+    void restoreFoodTypeMutation.mutateAsync(slug).catch(() => {
+      setLocalFoodTypeRecords(prev => prev.map(record =>
+        record.type === slug ? { ...record, status: previousStatus } : record
+      ));
+      setFoodType(current => current === slug ? 'cheese' : current);
+    });
+  }, [foodTypeRecords, restoreFoodTypeMutation]);
 
   const deleteFoodType = useCallback((type: string) => {
     const slug = slugifyFoodType(type);
+    const previousStatus = foodTypeRecords.find(record => record.type === slug)?.status ?? 'active';
     setLocalFoodTypeRecords(prev => {
       const exists = prev.some(record => record.type === slug);
       if (!exists) return [...prev, { type: slug, status: 'deleted' }].sort((a, b) => a.type.localeCompare(b.type));
       return prev.map(record => record.type === slug ? { ...record, status: 'deleted' } : record);
     });
     setFoodType(current => current === slug ? 'cheese' : current);
-    void deleteFoodTypeMutation.mutateAsync(slug).catch(() => undefined);
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = window.localStorage.getItem(IMPORTED_DATA_STORAGE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          const sampleIds = Array.isArray(parsed?.eTongueData)
-            ? parsed.eTongueData.filter((sample: { type?: string }) => sample.type === slug).map((sample: { sampleId: string }) => sample.sampleId)
-            : [];
-          const gcmsData = { ...(parsed?.gcmsData ?? {}) };
-          const compositionData = { ...(parsed?.compositionData ?? {}) };
-          sampleIds.forEach((sampleId: string) => {
-            delete gcmsData[sampleId];
-            delete compositionData[sampleId];
-          });
-          const eTongueData = (parsed?.eTongueData ?? []).filter((sample: { type?: string }) => sample.type !== slug);
-          if (eTongueData.length === 0) {
+    void deleteFoodTypeMutation.mutateAsync(slug)
+      .then(() => {
+        if (typeof window !== 'undefined') {
+          try {
+            const raw = window.localStorage.getItem(IMPORTED_DATA_STORAGE_KEY);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              const sampleIds = Array.isArray(parsed?.eTongueData)
+                ? parsed.eTongueData.filter((sample: { type?: string }) => sample.type === slug).map((sample: { sampleId: string }) => sample.sampleId)
+                : [];
+              const gcmsData = { ...(parsed?.gcmsData ?? {}) };
+              const compositionData = { ...(parsed?.compositionData ?? {}) };
+              sampleIds.forEach((sampleId: string) => {
+                delete gcmsData[sampleId];
+                delete compositionData[sampleId];
+              });
+              const eTongueData = (parsed?.eTongueData ?? []).filter((sample: { type?: string }) => sample.type !== slug);
+              if (eTongueData.length === 0) {
+                window.localStorage.removeItem(IMPORTED_DATA_STORAGE_KEY);
+              } else {
+                window.localStorage.setItem(IMPORTED_DATA_STORAGE_KEY, JSON.stringify({ eTongueData, gcmsData, compositionData }));
+              }
+            }
+          } catch {
             window.localStorage.removeItem(IMPORTED_DATA_STORAGE_KEY);
-          } else {
-            window.localStorage.setItem(IMPORTED_DATA_STORAGE_KEY, JSON.stringify({ eTongueData, gcmsData, compositionData }));
           }
+          window.dispatchEvent(new CustomEvent('sensory-food-type-delete', { detail: { type: slug } }));
         }
-      } catch {
-        window.localStorage.removeItem(IMPORTED_DATA_STORAGE_KEY);
-      }
-      window.dispatchEvent(new CustomEvent('sensory-food-type-delete', { detail: { type: slug } }));
-    }
-  }, [deleteFoodTypeMutation]);
+      })
+      .catch(() => {
+        setLocalFoodTypeRecords(prev => prev.map(record =>
+          record.type === slug ? { ...record, status: previousStatus } : record
+        ));
+      });
+  }, [deleteFoodTypeMutation, foodTypeRecords]);
 
   const clearExtraFoodTypes = useCallback(() => {
     setLocalFoodTypeRecords([]);

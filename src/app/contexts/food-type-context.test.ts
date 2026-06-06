@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchFoodType, sampleMatchesFoodType } from './food-type-context';
+import { matchFoodType, mergeFoodTypeRecords, sampleMatchesFoodType } from './food-type-context';
 
 describe('food type matching', () => {
   it('classifies meat categories and M-prefixed samples as meat', () => {
@@ -18,5 +18,12 @@ describe('food type matching', () => {
     expect(matchFoodType('Sourdough loaf')).toBe('bread');
     expect(matchFoodType('Coconut-based cheese')).toBe('cheese');
     expect(sampleMatchesFoodType('B4', 'Rye Sourdough')).toBe('bread');
+  });
+
+  it('lets an optimistic delete override stale active database data', () => {
+    expect(mergeFoodTypeRecords(
+      [{ type: 'meat', status: 'active' }],
+      [{ type: 'meat', status: 'deleted' }],
+    )).toEqual([{ type: 'meat', status: 'deleted' }]);
   });
 });

@@ -130,24 +130,26 @@ function CategorySidebar() {
                   >
                     <span className="block truncate">{label(ft)}</span>
                   </button>
-                  <div className="flex items-center pr-1 opacity-100 transition-opacity">
-                    <button
-                      type="button"
-                      title={`Archive ${label(ft)}`}
-                      onClick={() => setPendingAction({ type: ft, action: 'archive' })}
-                      className="p-1 text-slate-400 hover:text-slate-700 rounded"
-                    >
-                      <Archive className="size-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      title={`Delete ${label(ft)}`}
-                      onClick={() => setPendingAction({ type: ft, action: 'delete' })}
-                      className="p-1 text-slate-400 hover:text-rose-700 rounded"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </button>
-                  </div>
+                  {imported && (
+                    <div className="flex items-center pr-1 opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        title={`Archive ${label(ft)}`}
+                        onClick={() => setPendingAction({ type: ft, action: 'archive' })}
+                        className="p-1 text-slate-400 hover:text-slate-700 rounded"
+                      >
+                        <Archive className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        title={`Delete ${label(ft)}`}
+                        onClick={() => setPendingAction({ type: ft, action: 'delete' })}
+                        className="p-1 text-slate-400 hover:text-rose-700 rounded"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
                 {hasProjects && expanded && (
                   <div className="ml-5 mt-0.5 space-y-0.5 border-l border-slate-100 pl-2">

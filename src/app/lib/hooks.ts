@@ -305,10 +305,14 @@ export function useArchiveFoodType() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (slug: string) => archiveFoodTypeRecord(slug),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.foodTypes })
-      qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
-      qc.invalidateQueries({ queryKey: queryKeys.importBatches })
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: queryKeys.foodTypes }),
+        qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset }),
+        qc.invalidateQueries({ queryKey: queryKeys.importBatches }),
+        qc.invalidateQueries({ queryKey: queryKeys.products }),
+        qc.invalidateQueries({ queryKey: queryKeys.activeProducts }),
+      ])
     },
   })
 }
@@ -317,10 +321,14 @@ export function useRestoreFoodType() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (slug: string) => restoreFoodTypeRecord(slug),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.foodTypes })
-      qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
-      qc.invalidateQueries({ queryKey: queryKeys.importBatches })
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: queryKeys.foodTypes }),
+        qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset }),
+        qc.invalidateQueries({ queryKey: queryKeys.importBatches }),
+        qc.invalidateQueries({ queryKey: queryKeys.products }),
+        qc.invalidateQueries({ queryKey: queryKeys.activeProducts }),
+      ])
     },
   })
 }
@@ -329,10 +337,14 @@ export function useDeleteFoodType() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (slug: string) => deleteFoodTypeRecord(slug),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.foodTypes })
-      qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
-      qc.invalidateQueries({ queryKey: queryKeys.importBatches })
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: queryKeys.foodTypes }),
+        qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset }),
+        qc.invalidateQueries({ queryKey: queryKeys.importBatches }),
+        qc.invalidateQueries({ queryKey: queryKeys.products }),
+        qc.invalidateQueries({ queryKey: queryKeys.activeProducts }),
+      ])
     },
   })
 }
