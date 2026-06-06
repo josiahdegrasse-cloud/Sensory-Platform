@@ -297,6 +297,52 @@ export interface ImportBatchRecord {
   sampleCount: number;
 }
 
+export interface ImportMappingPreset {
+  id: string;
+  name: string;
+  mappings: Array<{ source: string; target: string; conversion: string }>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchImportMappingPresets(): Promise<ImportMappingPreset[]> {
+  const { data, error } = await supabase
+    .from('import_mapping_presets')
+    .select('id, name, mappings, created_at, updated_at')
+    .order('name');
+  if (error && /import_mapping_presets|schema cache|does not exist/i.test(error.message ?? '')) return [];
+  if (error) throw dbError(error);
+  return (data ?? []).map(row => ({
+    id: row.id as string,
+    name: row.name as string,
+    mappings: (row.mappings as ImportMappingPreset['mappings']) ?? [],
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  }));
+}
+
+export async function upsertImportMappingPreset(input: {
+  id?: string;
+  name: string;
+  mappings: ImportMappingPreset['mappings'];
+  createdBy: string;
+}): Promise<void> {
+  const payload = {
+    ...(input.id ? { id: input.id } : {}),
+    name: input.name.trim(),
+    mappings: input.mappings,
+    created_by: input.createdBy,
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await supabase.from('import_mapping_presets').upsert(payload, { onConflict: 'name' });
+  if (error) throw dbError(error);
+}
+
+export async function deleteImportMappingPreset(id: string): Promise<void> {
+  const { error } = await supabase.from('import_mapping_presets').delete().eq('id', id);
+  if (error) throw dbError(error);
+}
+
 export async function fetchImportBatches(): Promise<ImportBatchRecord[]> {
   const { data, error } = await supabase
     .from('import_batches')

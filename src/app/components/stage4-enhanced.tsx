@@ -4,7 +4,7 @@ import { useFoodType, sampleMatchesFoodType, matchFoodType } from "../contexts/f
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, Eye, EyeOff, Activity, Award, Zap, ClipboardCheck, GitMerge, Download } from "lucide-react";
+import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, Eye, EyeOff, Activity, Award, Zap, ClipboardCheck, GitMerge, Download, FileSpreadsheet, FileText } from "lucide-react";
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, BarChart, Bar, LineChart, Line, Legend, ReferenceArea, ReferenceLine } from "recharts";
 import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from "../data/enhanced-sensory";
 import { METHOD_COMPARISON } from "../data/validation-data";
@@ -16,7 +16,13 @@ import { useInstrumentalDataset, useProducts, useWorkspaceSettings } from "../li
 import { useSurveyData } from "../lib/use-survey-data";
 import { calculateGoStopTweakDecision, type GoStopTweakDecision } from "../utils/go-stop-tweak-engine";
 import { assessSampleWorkflow } from "../lib/workflow-readiness";
-import { buildDecisionReportHtml, downloadDecisionReport } from "../utils/decision-report";
+import { downloadDecisionReportExcel, downloadDecisionReportPdf } from "../utils/decision-report";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 
 type SampleDecision = GoStopTweakDecision;
 
@@ -212,9 +218,32 @@ export function Stage4Enhanced() {
   const [confirmPending, setConfirmPending] = useState(false);
   const [decisionSaving, setDecisionSaving] = useState(false);
   const [decisionError, setDecisionError] = useState("");
+  const [reportError, setReportError] = useState("");
+  const [reportExporting, setReportExporting] = useState(false);
   const stopThreshold = workspaceSettings?.decisionStopThreshold ?? 52;
   const goThreshold = workspaceSettings?.decisionGoThreshold ?? 76;
   const minimumResponses = workspaceSettings?.decisionMinResponses ?? 12;
+  const reportOptions = (decisions: SampleDecision[]) => ({
+    foodType: formatFoodTypeLabel(foodType),
+    decisions,
+    organizationName: workspaceSettings?.organizationName ?? 'New Food Innovation',
+    workspaceName: workspaceSettings?.workspaceName ?? 'Sensory Analysis Workspace',
+    reportFooter: workspaceSettings?.reportFooter,
+    goThreshold,
+    stopThreshold,
+  });
+  const exportReport = async (format: 'pdf' | 'xlsx', decisions: SampleDecision[]) => {
+    setReportError('');
+    setReportExporting(true);
+    try {
+      if (format === 'pdf') await downloadDecisionReportPdf(reportOptions(decisions));
+      else await downloadDecisionReportExcel(reportOptions(decisions));
+    } catch (error) {
+      setReportError(error instanceof Error ? error.message : 'Unable to create the report.');
+    } finally {
+      setReportExporting(false);
+    }
+  };
   const importedReadiness = useMemo(() => (
     (instrumentalDataset?.eTongueData ?? [])
       .filter(sample => sample.type === foodType)
@@ -487,14 +516,14 @@ export function Stage4Enhanced() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Final Decision</h1>
           <p className="text-sm text-slate-500 mt-1">
             Validated against {METHOD_COMPARISON.pearsonR.toFixed(2)} correlation with trained panel (n=127)
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button onClick={() => setShowWeightConfig(!showWeightConfig)} variant="outline" size="sm">
             {showWeightConfig ? <EyeOff className="size-4 mr-2" /> : <Eye className="size-4 mr-2" />}
             Score Weights
@@ -519,19 +548,29 @@ export function Stage4Enhanced() {
             <ClipboardCheck className="size-4 mr-2" />
             Audit Trail
           </Button>
-          <Button
-            onClick={() => downloadDecisionReport(
-              buildDecisionReportHtml({ foodType: formatFoodTypeLabel(foodType), decisions: sampleDecisions }),
-              `${foodType || 'sensory'}-decision-report.html`,
-            )}
-            variant="outline"
-            size="sm"
-          >
-            <Download className="size-4 mr-2" />
-            Download report
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" disabled={reportExporting}>
+                <Download className="size-4 mr-2" />
+                {reportExporting ? 'Preparing report...' : 'Export report'}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem onClick={() => exportReport('pdf', sampleDecisions)}>
+                <FileText className="size-4" />
+                Download PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportReport('xlsx', sampleDecisions)}>
+                <FileSpreadsheet className="size-4" />
+                Download Excel
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
+      {reportError && (
+        <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{reportError}</p>
+      )}
 
       {/* Weight Configuration */}
       {showWeightConfig && (

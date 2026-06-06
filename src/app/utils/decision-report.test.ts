@@ -1,14 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { buildDecisionReportHtml } from './decision-report';
+import { buildDecisionReportRows } from './decision-report';
 
 describe('decision report', () => {
-  it('escapes buyer-facing content', () => {
-    const html = buildDecisionReportHtml({
-      foodType: 'Meat & alternatives',
-      generatedAt: new Date('2026-06-06T12:00:00Z'),
-      decisions: [{
+  it('builds complete buyer-facing formulation rows', () => {
+    const rows = buildDecisionReportRows([{
         sampleId: 'M1',
-        sampleName: '<Burger>',
+        sampleName: 'Burger',
         decision: 'TWEAK',
         issfScore: 68,
         confidenceScore: 82,
@@ -19,14 +16,18 @@ describe('decision report', () => {
         details: [],
         dimensionScores: { hedonic: 60, texture: 60, cata: 60, emotional: 60 },
         gates: [],
-        prescriptions: [],
+        prescriptions: [{ priority: 1, target: 'Salt balance', action: 'Reduce salt', expectedLift: 4 }],
         decisionFingerprint: '12345678',
         methodVersion: 'test',
-      }],
-    });
+      }]);
 
-    expect(html).toContain('Meat &amp; alternatives');
-    expect(html).toContain('&lt;Burger&gt;');
-    expect(html).not.toContain('<Burger>');
+    expect(rows[0]).toMatchObject({
+      sample: 'Burger',
+      decision: 'TWEAK',
+      issf: 68,
+      confidence: 82,
+      nextActions: 'Reduce salt',
+      fingerprint: '12345678',
+    });
   });
 });

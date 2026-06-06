@@ -26,6 +26,12 @@ import {
   Radar,
 } from "recharts";
 import { JargonTooltip } from "./jargon-tooltip";
+import { ImportMappingStudio } from "./import-mapping-studio";
+import {
+  applyImportMappings,
+  inferImportMappings,
+  type ImportColumnMapping,
+} from "../lib/csv-import-mapping";
 
 interface ETongueMeasurement {
   sampleId: string;
@@ -469,6 +475,9 @@ export function Stage1Instrumental() {
   const [compositionData, setCompositionData] = useState<Record<string, ChemicalComposition>>(initialDataset.compositionData);
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<Record<string, string>[]>([]);
+  const [sourcePreviewData, setSourcePreviewData] = useState<Record<string, string>[]>([]);
+  const [columnMappings, setColumnMappings] = useState<ImportColumnMapping[]>([]);
+  const [mappingDirty, setMappingDirty] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [importStep, setImportStep] = useState<1 | 2 | 3 | 4>(1);
   const [batchName, setBatchName] = useState('');
@@ -656,8 +665,16 @@ export function Stage1Instrumental() {
       data.push(row);
     }
 
-    setColumnReport(recogniseColumns(headers));
-    setPreviewData(data);
+    const inferredMappings = inferImportMappings(headers);
+    const mappedData = applyImportMappings(data, inferredMappings);
+    setSourcePreviewData(data);
+    setColumnMappings(inferredMappings);
+    setMappingDirty(false);
+    setColumnReport({
+      recognised: inferredMappings.filter(item => item.target !== 'ignore').map(item => item.source),
+      ignored: inferredMappings.filter(item => item.target === 'ignore').map(item => item.source),
+    });
+    setPreviewData(mappedData);
     setUploadedFile(fileName);
     setBatchName(fileName.replace(/\.csv$/i, ''));
     setShowPreview(true);
@@ -740,6 +757,9 @@ export function Stage1Instrumental() {
     setShowPreview(false);
     setUploadedFile(null);
     setColumnReport(null);
+    setSourcePreviewData([]);
+    setColumnMappings([]);
+    setMappingDirty(false);
     setFoodTypeOverride('');
     setBatchName('');
     setImportStep(1);
@@ -754,6 +774,9 @@ export function Stage1Instrumental() {
     setShowPreview(false);
     setUploadedFile(null);
     setColumnReport(null);
+    setSourcePreviewData([]);
+    setColumnMappings([]);
+    setMappingDirty(false);
     setFoodTypeOverride('');
     setBatchName('');
     setImportStep(1);
@@ -1033,6 +1056,24 @@ export function Stage1Instrumental() {
             </div>
           </CardHeader>
           <CardContent className="pt-4 space-y-4">
+            <ImportMappingStudio
+              mappings={columnMappings}
+              sourceRows={sourcePreviewData}
+              userId={user?.id}
+              onMappingsChange={nextMappings => {
+                setColumnMappings(nextMappings);
+                setMappingDirty(true);
+              }}
+              onApply={() => {
+                setPreviewData(applyImportMappings(sourcePreviewData, columnMappings));
+                setColumnReport({
+                  recognised: columnMappings.filter(item => item.target !== 'ignore').map(item => item.source),
+                  ignored: columnMappings.filter(item => item.target === 'ignore').map(item => item.source),
+                });
+                setMappingDirty(false);
+                setImportStep(3);
+              }}
+            />
 
             {/* Column recognition report */}
             {columnReport && (
@@ -1174,13 +1215,14 @@ export function Stage1Instrumental() {
             <div className="flex gap-3">
               <Button
                 onClick={importCSVData}
-                disabled={insertInstrumentalImport.isPending || !!validationReport?.errors.length}
+                disabled={insertInstrumentalImport.isPending || mappingDirty || !!validationReport?.errors.length}
                 className="bg-slate-900 hover:bg-slate-700 disabled:opacity-60"
               >
                 {insertInstrumentalImport.isPending ? "Importing…" : (
                   <span className="flex items-center gap-1.5">Create project <ArrowRight className="size-4" /></span>
                 )}
               </Button>
+              {mappingDirty && <p className="self-center text-xs font-medium text-amber-700">Apply the updated column mapping before import.</p>}
               <Button variant="outline" onClick={cancelPreview}>
                 Cancel
               </Button>

@@ -7,6 +7,7 @@ import {
   fetchConceptTest, fetchConceptGenerationSettings, updateConceptGenerationSettings,
   fetchConceptImageGenerations, fetchConceptProjectSummaries, fetchConceptLabDiagnostics,
   fetchFoodTypes, fetchInstrumentalDataset, fetchImportBatches,
+  fetchImportMappingPresets, upsertImportMappingPreset, deleteImportMappingPreset,
   fetchWorkspaceSettings, updateWorkspaceSettings, fetchAuditEvents,
   fetchPublicWorkspaceConfig,
   insertProduct, updateProduct, deleteProduct,
@@ -15,6 +16,7 @@ import {
   insertInstrumentalImport, archiveFoodTypeRecord, restoreFoodTypeRecord, deleteFoodTypeRecord, updateImportBatchStatus,
   type Template, type ConceptTest, type InstrumentalImportInput, type ConceptGenerationSettings,
   type WorkspaceSettings, type PanelistInfo,
+  type ImportMappingPreset,
 } from './database'
 import type { TrainingLevel } from '../utils/panelist-metrics'
 import type { Product } from '../data/mock-users'
@@ -37,6 +39,7 @@ export const queryKeys = {
   foodTypes: ['foodTypes'] as const,
   instrumentalDataset: ['instrumentalDataset'] as const,
   importBatches: ['importBatches'] as const,
+  importMappingPresets: ['importMappingPresets'] as const,
   workspaceSettings: ['workspaceSettings'] as const,
   publicWorkspaceConfig: ['publicWorkspaceConfig'] as const,
   auditEvents: ['auditEvents'] as const,
@@ -368,5 +371,30 @@ export function useImportBatches(enabled = true) {
     queryKey: queryKeys.importBatches,
     queryFn: fetchImportBatches,
     enabled,
+  })
+}
+
+export function useImportMappingPresets(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.importMappingPresets,
+    queryFn: fetchImportMappingPresets,
+    enabled,
+  })
+}
+
+export function useSaveImportMappingPreset() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { id?: string; name: string; mappings: ImportMappingPreset['mappings']; createdBy: string }) =>
+      upsertImportMappingPreset(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.importMappingPresets }),
+  })
+}
+
+export function useDeleteImportMappingPreset() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: deleteImportMappingPreset,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.importMappingPresets }),
   })
 }
