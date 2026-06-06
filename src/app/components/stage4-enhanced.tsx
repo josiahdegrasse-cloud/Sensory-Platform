@@ -23,6 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import { CommercializationReportBuilder } from "./commercialization-report-builder";
 
 type SampleDecision = GoStopTweakDecision;
 
@@ -548,6 +549,14 @@ export function Stage4Enhanced() {
             <ClipboardCheck className="size-4 mr-2" />
             Audit Trail
           </Button>
+          {selected && (
+            <CommercializationReportBuilder
+              decision={selected}
+              foodType={foodType}
+              userId={user?.id}
+              settings={workspaceSettings}
+            />
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" disabled={reportExporting}>

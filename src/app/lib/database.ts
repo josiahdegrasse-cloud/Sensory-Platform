@@ -1231,6 +1231,22 @@ export interface ConceptResponse {
   createdAt: string;
 }
 
+export interface CommercializationReportRecord {
+  id: string;
+  decisionRecordId: string;
+  conceptTestId: string;
+  packagingImageId: string | null;
+  status: 'draft' | 'review' | 'approved' | 'archived';
+  version: number;
+  title: string;
+  reportSnapshot: Record<string, unknown>;
+  createdBy: string;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ConceptGenerationSettings {
   id: string;
   defaultImageCount: number;
@@ -1417,6 +1433,16 @@ export async function fetchConceptTestsForPanelist(userId: string): Promise<Conc
   return Promise.all(tests.map(hydrateConceptTestImages));
 }
 
+export async function fetchConceptTestsForAdmin(): Promise<ConceptTest[]> {
+  const { data, error } = await supabase
+    .from('concept_tests')
+    .select('*')
+    .in('status', ['active', 'completed', 'approved'])
+    .order('created_at', { ascending: false });
+  if (error) throw dbError(error);
+  return Promise.all((data ?? []).map(row => hydrateConceptTestImages(toConceptTest(row))));
+}
+
 export async function insertConceptResponse(
   userId: string,
   conceptTestId: string,
@@ -1441,6 +1467,83 @@ export async function fetchUserConceptResponses(userId: string): Promise<Concept
     answers: (r.answers as Record<string, string | number | string[]>) ?? {},
     createdAt: r.created_at as string,
   }));
+}
+
+export async function fetchConceptResponsesForTest(conceptTestId: string): Promise<ConceptResponse[]> {
+  const { data, error } = await supabase
+    .from('concept_responses')
+    .select('*')
+    .eq('concept_test_id', conceptTestId)
+    .order('created_at', { ascending: true });
+  if (error) throw dbError(error);
+  return (data ?? []).map(row => ({
+    id: row.id as string,
+    userId: row.user_id as string,
+    conceptTestId: row.concept_test_id as string,
+    answers: (row.answers as Record<string, string | number | string[]>) ?? {},
+    createdAt: row.created_at as string,
+  }));
+}
+
+function toCommercializationReport(row: Record<string, unknown>): CommercializationReportRecord {
+  return {
+    id: row.id as string,
+    decisionRecordId: row.decision_record_id as string,
+    conceptTestId: row.concept_test_id as string,
+    packagingImageId: (row.packaging_image_id as string) ?? null,
+    status: row.status as CommercializationReportRecord['status'],
+    version: Number(row.version),
+    title: row.title as string,
+    reportSnapshot: (row.report_snapshot as Record<string, unknown>) ?? {},
+    createdBy: row.created_by as string,
+    approvedBy: (row.approved_by as string) ?? null,
+    approvedAt: (row.approved_at as string) ?? null,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  };
+}
+
+export async function fetchCommercializationReports(): Promise<CommercializationReportRecord[]> {
+  const { data, error } = await supabase
+    .from('commercialization_reports')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error && /commercialization_reports|schema cache|does not exist/i.test(error.message ?? '')) return [];
+  if (error) throw dbError(error);
+  return (data ?? []).map(toCommercializationReport);
+}
+
+export async function createCommercializationReport(input: {
+  decisionRecordId: string;
+  conceptTestId: string;
+  packagingImageId: string | null;
+  title: string;
+  reportSnapshot: Record<string, unknown>;
+}): Promise<CommercializationReportRecord> {
+  const { data, error } = await supabase.rpc('create_commercialization_report', {
+    target_decision_record_id: input.decisionRecordId,
+    target_concept_test_id: input.conceptTestId,
+    target_packaging_image_id: input.packagingImageId,
+    target_title: input.title,
+    target_report_snapshot: input.reportSnapshot,
+  });
+  if (error) throw dbError(error);
+  return toCommercializationReport(data as Record<string, unknown>);
+}
+
+export async function updateCommercializationReportStatus(input: {
+  id: string;
+  status: CommercializationReportRecord['status'];
+  actorId: string;
+}): Promise<void> {
+  const approval = input.status === 'approved'
+    ? { approved_by: input.actorId, approved_at: new Date().toISOString() }
+    : { approved_by: null, approved_at: null };
+  const { error } = await supabase
+    .from('commercialization_reports')
+    .update({ status: input.status, ...approval, updated_at: new Date().toISOString() })
+    .eq('id', input.id);
+  if (error) throw dbError(error);
 }
 
 function toConceptSettings(row: Record<string, unknown>): ConceptGenerationSettings {

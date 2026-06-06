@@ -4,11 +4,14 @@ import {
   fetchPanelists, fetchPanelistReliability,
   fetchAllResponses, fetchUserResponses,
   fetchConceptTestsForPanelist, fetchUserConceptResponses,
+  fetchConceptTestsForAdmin, fetchConceptResponsesForTest,
+  fetchCommercializationReports, createCommercializationReport, updateCommercializationReportStatus,
   fetchConceptTest, fetchConceptGenerationSettings, updateConceptGenerationSettings,
   fetchConceptImageGenerations, fetchConceptProjectSummaries, fetchConceptLabDiagnostics,
   fetchFoodTypes, fetchInstrumentalDataset, fetchImportBatches,
   fetchImportMappingPresets, upsertImportMappingPreset, deleteImportMappingPreset,
   fetchWorkspaceSettings, updateWorkspaceSettings, fetchAuditEvents,
+  fetchDecisionRecords,
   fetchPublicWorkspaceConfig,
   insertProduct, updateProduct, deleteProduct,
   insertTemplate, deleteTemplate, updatePanelistId, updatePanelistTrainingLevel, updatePanelistStatus,
@@ -17,6 +20,7 @@ import {
   type Template, type ConceptTest, type InstrumentalImportInput, type ConceptGenerationSettings,
   type WorkspaceSettings, type PanelistInfo,
   type ImportMappingPreset,
+  type CommercializationReportRecord,
 } from './database'
 import type { TrainingLevel } from '../utils/panelist-metrics'
 import type { Product } from '../data/mock-users'
@@ -32,6 +36,9 @@ export const queryKeys = {
   conceptTests: (userId: string) => ['conceptTests', userId] as const,
   conceptResponses: (userId: string) => ['conceptResponses', userId] as const,
   conceptTest: (id: string) => ['conceptTest', id] as const,
+  adminConceptTests: ['adminConceptTests'] as const,
+  conceptTestResponses: (id: string) => ['conceptTestResponses', id] as const,
+  commercializationReports: ['commercializationReports'] as const,
   conceptGenerationSettings: ['conceptGenerationSettings'] as const,
   conceptImageGenerations: ['conceptImageGenerations'] as const,
   conceptProjects: ['conceptProjects'] as const,
@@ -43,6 +50,7 @@ export const queryKeys = {
   workspaceSettings: ['workspaceSettings'] as const,
   publicWorkspaceConfig: ['publicWorkspaceConfig'] as const,
   auditEvents: ['auditEvents'] as const,
+  decisionRecords: ['decisionRecords'] as const,
 }
 
 export function useProducts() {
@@ -67,6 +75,10 @@ export function usePanelistReliability() {
 
 export function useAllResponses() {
   return useQuery({ queryKey: queryKeys.allResponses, queryFn: fetchAllResponses })
+}
+
+export function useDecisionRecords() {
+  return useQuery({ queryKey: queryKeys.decisionRecords, queryFn: () => fetchDecisionRecords(500) })
 }
 
 export function useUserResponses(userId: string) {
@@ -98,6 +110,39 @@ export function useConceptTest(conceptId: string | undefined) {
     queryKey: queryKeys.conceptTest(conceptId ?? ''),
     queryFn: () => fetchConceptTest(conceptId!),
     enabled: !!conceptId,
+  })
+}
+
+export function useAdminConceptTests() {
+  return useQuery({ queryKey: queryKeys.adminConceptTests, queryFn: fetchConceptTestsForAdmin })
+}
+
+export function useConceptTestResponses(conceptId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.conceptTestResponses(conceptId ?? ''),
+    queryFn: () => fetchConceptResponsesForTest(conceptId!),
+    enabled: !!conceptId,
+  })
+}
+
+export function useCommercializationReports() {
+  return useQuery({ queryKey: queryKeys.commercializationReports, queryFn: fetchCommercializationReports })
+}
+
+export function useCreateCommercializationReport() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: createCommercializationReport,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.commercializationReports }),
+  })
+}
+
+export function useUpdateCommercializationReportStatus() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { id: string; status: CommercializationReportRecord['status']; actorId: string }) =>
+      updateCommercializationReportStatus(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.commercializationReports }),
   })
 }
 

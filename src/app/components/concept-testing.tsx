@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import {
   Lightbulb, ChevronRight, ChevronLeft, Send, CheckCircle2, Image as ImageIcon,
-  ListChecks, Users, WandSparkles, AlertTriangle,
+  ListChecks, Users, WandSparkles, AlertTriangle, FileCheck2,
 } from 'lucide-react';
 import { insertConceptTest } from '../lib/database';
 import { detectFoodType } from '../lib/food-intelligence';
@@ -13,6 +13,7 @@ import {
   useConceptGenerationSettings,
   useConceptImageGenerations,
   useConceptLabDiagnostics,
+  useCommercializationReports,
   useWorkspaceSettings,
 } from '../lib/hooks';
 import type { ConceptDraft, Question, WizardStep } from './concept-testing/types';
@@ -70,6 +71,7 @@ export function ConceptTesting() {
   const { data: workspaceSettings } = useWorkspaceSettings();
   const { data: history = [] } = useConceptImageGenerations();
   const { data: diagnostics } = useConceptLabDiagnostics();
+  const { data: commercializationReports = [] } = useCommercializationReports();
 
   const STEPS: WizardStep[] = ['concept', 'images', 'questions', 'panel', 'review'];
   const stepIndex = STEPS.indexOf(step);
@@ -242,7 +244,7 @@ export function ConceptTesting() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 lg:w-[420px]">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:w-[560px]">
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
               <div className="flex items-center gap-1.5 text-xs text-slate-500"><ImageIcon className="size-3.5" /> Visuals</div>
               <p className="text-lg font-bold text-slate-900">{validImageCount}/4</p>
@@ -255,9 +257,38 @@ export function ConceptTesting() {
               <div className="flex items-center gap-1.5 text-xs text-slate-500"><Users className="size-3.5" /> Panel</div>
               <p className="text-lg font-bold text-slate-900">{assignedPanelistIds.length || panelSize}</p>
             </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="flex items-center gap-1.5 text-xs text-slate-500"><FileCheck2 className="size-3.5" /> Reports</div>
+              <p className="text-lg font-bold text-slate-900">{commercializationReports.length}</p>
+            </div>
           </div>
         </div>
       </div>
+
+      {commercializationReports.length > 0 && (
+        <section className="rounded-lg border border-slate-200 bg-white">
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">Commercialization reports</h2>
+              <p className="text-xs text-slate-500">GO-approved formulation and packaging handoffs.</p>
+            </div>
+            <Badge variant="outline">{commercializationReports.filter(report => report.status === 'approved').length} approved</Badge>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {commercializationReports.slice(0, 5).map(report => (
+              <div key={report.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-900">{report.title}</p>
+                  <p className="text-xs text-slate-500">Version {report.version} · {new Date(report.updatedAt).toLocaleDateString()}</p>
+                </div>
+                <Badge className={report.status === 'approved' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}>
+                  {report.status}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {setupWarnings.length > 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">

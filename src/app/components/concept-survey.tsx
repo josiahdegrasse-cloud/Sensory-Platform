@@ -196,7 +196,7 @@ export function ConceptSurvey() {
           {submitting ? 'Submitting…' : 'Submit my feedback'}
         </Button>
         <p className="text-xs text-slate-400 text-center mt-2">
-          Your feedback is anonymous and helps guide product development.
+          Your feedback is stored securely and is visible only to authorized research administrators.
         </p>
       </div>
     </div>
