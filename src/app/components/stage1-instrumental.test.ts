@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { buildImportedDataset, recogniseColumns, validateImportedDataset } from './stage1-instrumental';
+import { buildImportedDataset, mergeInstrumentalData, recogniseColumns, validateImportedDataset } from './stage1-instrumental';
 
 describe('CSV import workflow intelligence', () => {
+  it('preserves the built-in cheese and bread machine datasets', () => {
+    const dataset = mergeInstrumentalData(null);
+
+    expect(dataset.eTongueData.some(sample => sample.sampleId === 'S1')).toBe(true);
+    expect(dataset.eTongueData.some(sample => sample.sampleId === 'B1')).toBe(true);
+    expect(dataset.gcmsData.S1.length).toBeGreaterThan(0);
+    expect(dataset.compositionData.B1).toBeTruthy();
+  });
+
   it('turns meat CSV rows into a complete meat project dataset', () => {
     const rows = [
       {

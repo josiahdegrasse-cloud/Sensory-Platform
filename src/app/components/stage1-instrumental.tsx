@@ -223,7 +223,7 @@ function getRowValue(row: Record<string, string>, aliases: string[]) {
   return "";
 }
 
-const DEMO_TYPES = new Set<string>();
+const DEMO_TYPES = new Set(['bread', 'dairy', 'pbca']);
 const IMPORTED_DATA_STORAGE_KEY = 'sensory-dashboard-imported-machine-data';
 
 interface StoredImportedData {
@@ -232,8 +232,24 @@ interface StoredImportedData {
   compositionData: Record<string, ChemicalComposition>;
 }
 
-function mergeInstrumentalData(imported: StoredImportedData | null | undefined): StoredImportedData {
-  return imported ?? { eTongueData: [], gcmsData: {}, compositionData: {} };
+export function mergeInstrumentalData(imported: StoredImportedData | null | undefined): StoredImportedData {
+  if (!imported) {
+    return {
+      eTongueData: MOCK_ETONGUE_DATA,
+      gcmsData: MOCK_GCMS_DATA,
+      compositionData: MOCK_COMPOSITION_DATA,
+    };
+  }
+
+  const samplesById = new Map<string, ETongueMeasurement>();
+  MOCK_ETONGUE_DATA.forEach(sample => samplesById.set(sample.sampleId, sample));
+  imported.eTongueData.forEach(sample => samplesById.set(sample.sampleId, sample));
+
+  return {
+    eTongueData: [...samplesById.values()],
+    gcmsData: { ...MOCK_GCMS_DATA, ...imported.gcmsData },
+    compositionData: { ...MOCK_COMPOSITION_DATA, ...imported.compositionData },
+  };
 }
 
 function loadImportedData(): StoredImportedData | null {
@@ -459,7 +475,7 @@ function applyImportedDataset(
 }
 
 export function Stage1Instrumental() {
-  const storedImportedData = useMemo(() => null, []);
+  const storedImportedData = useMemo(loadImportedData, []);
   const initialDataset = useMemo(() => mergeInstrumentalData(storedImportedData), [storedImportedData]);
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -480,10 +496,10 @@ export function Stage1Instrumental() {
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [lastImportSummary, setLastImportSummary] = useState<ImportCompletionSummary | null>(null);
   const [columnReport, setColumnReport] = useState<ColumnReport | null>(null);
-  const [usingDemoData, setUsingDemoData] = useState(false);
+  const [usingDemoData, setUsingDemoData] = useState(!storedImportedData);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { foodType, subCategory, setSelection, registerFoodTypes, archivedFoodTypes, clearExtraFoodTypes } = useFoodType();
+  const { foodType, subCategory, setSelection, registerFoodTypes, archivedFoodTypes, deletedFoodTypes } = useFoodType();
 
   const importSummary = useMemo(() => {
     if (!showPreview || previewData.length === 0) return null;
@@ -529,12 +545,8 @@ export function Stage1Instrumental() {
 
   // Reactively register any novel food types whenever imported data changes
   useEffect(() => {
-    if (usingDemoData) {
-      clearExtraFoodTypes();
-      return;
-    }
     registerFoodTypes(importedFoodTypes);
-  }, [clearExtraFoodTypes, importedFoodTypes, registerFoodTypes, usingDemoData]);
+  }, [importedFoodTypes, registerFoodTypes]);
 
   useEffect(() => {
     if (usingDemoData) return;
@@ -555,6 +567,8 @@ export function Stage1Instrumental() {
   const filteredETongueData = eTongueData.filter(s => {
     const t = (s.type || inferType(s.sampleId)).toLowerCase();
     if (archivedFoodTypes.includes(t)) return false;
+    const canonicalType = t === 'dairy' || t === 'pbca' ? 'cheese' : t;
+    if (deletedFoodTypes.includes(canonicalType)) return false;
     if (subCategory?.startsWith('batch:')) return s.importBatchId === subCategory.replace('batch:', '');
     if (foodType === 'all') return true;
     if (foodType === 'bread')  return t === 'bread'  || s.sampleId.toUpperCase().startsWith('B');

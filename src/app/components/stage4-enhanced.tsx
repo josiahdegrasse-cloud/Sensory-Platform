@@ -6,7 +6,7 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, Eye, EyeOff, Activity, Award, Zap, ClipboardCheck, GitMerge } from "lucide-react";
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, BarChart, Bar, LineChart, Line, Legend, ReferenceArea, ReferenceLine } from "recharts";
-import type { EnhancedSensoryProfile } from "../data/enhanced-sensory";
+import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from "../data/enhanced-sensory";
 import { METHOD_COMPARISON } from "../data/validation-data";
 import { DecisionLog } from "./decision-log";
 import { useAuth } from "../contexts/auth-context";
@@ -194,7 +194,7 @@ function PathToGoPanel({
 
 export function Stage4Enhanced() {
   const { user } = useAuth();
-  const { foodType, subCategory } = useFoodType();
+  const { foodType, subCategory, extraFoodTypes } = useFoodType();
   const { data: instrumentalDataset } = useInstrumentalDataset(user?.role === 'admin');
   const { data: products = [] } = useProducts();
   const { data: workspaceSettings } = useWorkspaceSettings();
@@ -214,8 +214,14 @@ export function Stage4Enhanced() {
   const goThreshold = workspaceSettings?.decisionGoThreshold ?? 76;
   const minimumResponses = workspaceSettings?.decisionMinResponses ?? 12;
 
-  const liveSensoryData = useMemo<EnhancedSensoryProfile[]>(() => (
-    (instrumentalDataset?.eTongueData ?? []).flatMap(sample => {
+  const liveSensoryData = useMemo<EnhancedSensoryProfile[]>(() => {
+    const activeTypes = new Set(extraFoodTypes);
+    const referenceProfiles = ENHANCED_SENSORY_DATA.filter(profile =>
+      activeTypes.has(sampleMatchesFoodType(profile.sampleId, profile.sampleName))
+    );
+    const referenceIds = new Set(referenceProfiles.map(profile => profile.sampleId));
+    const importedProfiles = (instrumentalDataset?.eTongueData ?? []).flatMap(sample => {
+      if (referenceIds.has(sample.sampleId)) return [];
       const aggregation = liveAggregations.find(item => item.sourceSampleId === sample.sampleId);
       if (!aggregation || aggregation.n < minimumResponses) return [];
       const composition = instrumentalDataset?.compositionData[sample.sampleId];
@@ -269,8 +275,10 @@ export function Stage4Enhanced() {
         },
         emotions: aggregation.emotions,
       }];
-    })
-  ), [
+    });
+    return [...referenceProfiles, ...importedProfiles];
+  }, [
+    extraFoodTypes,
     instrumentalDataset?.compositionData,
     instrumentalDataset?.eTongueData,
     instrumentalDataset?.gcmsData,
@@ -290,7 +298,7 @@ export function Stage4Enhanced() {
     if (filteredSensoryData.length > 0 && !filteredSensoryData.find(s => s.sampleId === selectedSample)) {
       setSelectedSample(filteredSensoryData[0].sampleId);
     }
-  }, [foodType, subCategory]);
+  }, [filteredSensoryData, selectedSample]);
 
   if (filteredSensoryData.length === 0) {
     const activeLabel = foodType === 'all' ? 'selected food types' : formatFoodTypeLabel(foodType);
@@ -357,7 +365,8 @@ export function Stage4Enhanced() {
   }
 
   const sampleDecisions: SampleDecision[] = filteredSensoryData.map(sample => {
-    const sampleFoodType = sampleMatchesFoodType(sample.sampleId, sample.sampleName);
+    const sampleFoodType = instrumentalDataset?.eTongueData.find(item => item.sampleId === sample.sampleId)?.type
+      ?? sampleMatchesFoodType(sample.sampleId, sample.sampleName);
     return calculateGoStopTweakDecision(sample, weights, sampleFoodType, {
       go: goThreshold,
       stop: stopThreshold,

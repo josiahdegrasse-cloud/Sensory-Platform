@@ -56,4 +56,15 @@ describe('GO / STOP / TWEAK engine', () => {
     expect(conservative.decision).toBe('TWEAK');
     expect(standard.decision).toBe('GO');
   });
+
+  it('scores bread profiles with the bread decision model', () => {
+    const sample = ENHANCED_SENSORY_DATA.find(item => item.sampleId === 'B1');
+    expect(sample).toBeTruthy();
+
+    const decision = calculateGoStopTweakDecision(sample!, weights, 'bread');
+
+    expect(['GO', 'TWEAK', 'STOP']).toContain(decision.decision);
+    expect(decision.issfScore).toBeGreaterThan(0);
+    expect(decision.details.some(detail => detail.includes('Instrument signal'))).toBe(true);
+  });
 });
