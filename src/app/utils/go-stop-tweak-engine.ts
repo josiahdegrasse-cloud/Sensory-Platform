@@ -262,7 +262,10 @@ export function calculateGoStopTweakDecision(
   sample: EnhancedSensoryProfile,
   weights: DecisionWeights,
   foodTypeSlug: string,
+  thresholds: { go: number; stop: number } = { go: 76, stop: 52 },
 ): GoStopTweakDecision {
+  const stopThreshold = clamp(thresholds.stop, 0, 99);
+  const goThreshold = clamp(Math.max(stopThreshold + 1, thresholds.go), 1, 100);
   const normalizedWeights = {
     hedonic: weights.hedonic || 30,
     texture: weights.texture || 25,
@@ -295,9 +298,9 @@ export function calculateGoStopTweakDecision(
   const prescriptions = buildPrescriptions(sample, dimensionScores, gates);
 
   let decision: DecisionOutcome = 'TWEAK';
-  if (hardStop || finalScore < 52) {
+  if (hardStop || finalScore < stopThreshold) {
     decision = 'STOP';
-  } else if (finalScore >= 76 && confidenceScore >= 72 && gates.every(gate => gate.status === 'pass')) {
+  } else if (finalScore >= goThreshold && confidenceScore >= 72 && gates.every(gate => gate.status === 'pass')) {
     decision = 'GO';
   }
 

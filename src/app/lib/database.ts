@@ -247,27 +247,26 @@ export async function upsertFoodType(
 }
 
 export async function archiveFoodTypeRecord(slug: string): Promise<void> {
-  const { error } = await supabase
-    .from('food_types')
-    .update({ status: 'archived', updated_at: new Date().toISOString() })
-    .eq('slug', slug);
+  const { error } = await supabase.rpc('set_food_type_status', {
+    target_slug: slug,
+    next_status: 'archived',
+  });
   if (error) throw dbError(error);
 }
 
 export async function restoreFoodTypeRecord(slug: string): Promise<void> {
-  const { error } = await supabase
-    .from('food_types')
-    .update({ status: 'active', updated_at: new Date().toISOString() })
-    .eq('slug', slug);
+  const { error } = await supabase.rpc('set_food_type_status', {
+    target_slug: slug,
+    next_status: 'active',
+  });
   if (error) throw dbError(error);
 }
 
 export async function deleteFoodTypeRecord(slug: string): Promise<void> {
-  const { error } = await supabase
-    .from('food_types')
-    .update({ status: 'deleted', updated_at: new Date().toISOString() })
-    .eq('slug', slug)
-    .neq('source', 'system');
+  const { error } = await supabase.rpc('set_food_type_status', {
+    target_slug: slug,
+    next_status: 'deleted',
+  });
   if (error) throw dbError(error);
 }
 
@@ -275,31 +274,11 @@ export async function updateImportBatchStatus(
   id: string,
   status: 'active' | 'archived' | 'deleted',
 ): Promise<void> {
-  const timestampPatch = status === 'archived'
-    ? { archived_at: new Date().toISOString(), deleted_at: null }
-    : status === 'deleted'
-      ? { deleted_at: new Date().toISOString() }
-      : { archived_at: null, deleted_at: null };
-  const { error } = await supabase
-    .from('import_batches')
-    .update({ status, ...timestampPatch })
-    .eq('id', id);
+  const { error } = await supabase.rpc('set_import_batch_status', {
+    target_batch_id: id,
+    next_status: status,
+  });
   if (error) throw dbError(error);
-
-  if (status === 'deleted') {
-    const { error: productError } = await supabase
-      .from('products')
-      .delete()
-      .eq('source_import_batch_id', id);
-    if (productError) throw dbError(productError);
-    return;
-  }
-
-  const { error: productStatusError } = await supabase
-    .from('products')
-    .update({ status: status === 'archived' ? 'archived' : 'active' })
-    .eq('source_import_batch_id', id);
-  if (productStatusError) throw dbError(productStatusError);
 }
 
 export interface ImportBatchRecord {
@@ -429,135 +408,32 @@ export async function fetchInstrumentalDataset(): Promise<InstrumentalDataset> {
 }
 
 export async function insertInstrumentalImport(input: InstrumentalImportInput): Promise<InstrumentalDataset> {
-  const foodType = await upsertFoodType(input.detection, 'import', input.importedBy);
-
-  const { data: batch, error: batchError } = await supabase
-    .from('import_batches')
-    .insert({
-      food_type_id: foodType.id,
-      file_name: input.fileName,
-      row_count: input.rowCount,
-      recognized_columns: input.recognizedColumns,
-      ignored_columns: input.ignoredColumns,
-      detection_confidence: input.detection.confidence,
-      imported_by: input.importedBy ?? null,
-    })
-    .select()
-    .single();
-  if (batchError) throw dbError(batchError);
-
-  const samplesById = new Map<string, ETongueMeasurementRecord>();
-  input.eTongueData.forEach(sample => samplesById.set(sample.sampleId, sample));
-  Object.keys(input.gcmsData).forEach(sampleId => {
-    if (!samplesById.has(sampleId)) samplesById.set(sampleId, { sampleId, type: foodType.slug, sourness: 0, bitterness: 0, saltiness: 0, umami: 0, sweetness: 0 });
+  const fingerprintSource = JSON.stringify({
+    fileName: input.fileName,
+    detection: input.detection.slug,
+    eTongueData: input.eTongueData,
+    gcmsData: input.gcmsData,
+    compositionData: input.compositionData,
   });
-  Object.keys(input.compositionData).forEach(sampleId => {
-    if (!samplesById.has(sampleId)) samplesById.set(sampleId, { sampleId, type: foodType.slug, sourness: 0, bitterness: 0, saltiness: 0, umami: 0, sweetness: 0 });
-  });
-
-  const sampleRows = [...samplesById.values()].map(sample => ({
-    import_batch_id: batch.id,
-    food_type_id: foodType.id,
-    sample_id: sample.sampleId,
-    sample_name: sample.sampleName ?? null,
-    category: sample.category ?? foodType.label,
-  }));
-
-  const { data: insertedSamples, error: sampleError } = await supabase
-    .from('instrumental_samples')
-    .insert(sampleRows)
-    .select('id, sample_id');
-  if (sampleError) throw dbError(sampleError);
-
-  const sampleRowIds = new Map((insertedSamples ?? []).map(row => [row.sample_id as string, row.id as string]));
-  const eTongueRows = input.eTongueData.map(sample => ({
-    sample_id: sampleRowIds.get(sample.sampleId),
-    sourness: sample.sourness,
-    bitterness: sample.bitterness,
-    saltiness: sample.saltiness,
-    umami: sample.umami,
-    sweetness: sample.sweetness,
-  })).filter(row => row.sample_id);
-  if (eTongueRows.length > 0) {
-    const { error } = await supabase.from('e_tongue_measurements').insert(eTongueRows);
-    if (error) throw dbError(error);
-  }
-
-  const gcmsRows = Object.entries(input.gcmsData).flatMap(([sampleId, compounds]) =>
-    compounds.map(compound => ({
-      sample_id: sampleRowIds.get(sampleId),
-      name: compound.name,
-      concentration: compound.concentration,
-      aroma: compound.aroma,
-      threshold: compound.threshold,
-    }))
-  ).filter(row => row.sample_id);
-  if (gcmsRows.length > 0) {
-    const { error } = await supabase.from('gcms_compounds').insert(gcmsRows);
-    if (error) throw dbError(error);
-  }
-
-  const compositionRows = Object.entries(input.compositionData).map(([sampleId, composition]) => ({
-    sample_id: sampleRowIds.get(sampleId),
-    protein: composition.protein,
-    fat: composition.fat,
-    moisture: composition.moisture,
-    ph: composition.pH,
-    salt_content: composition.saltContent,
-    calcium_mg: composition.calciumMg,
-  })).filter(row => row.sample_id);
-  if (compositionRows.length > 0) {
-    const { error } = await supabase.from('composition_profiles').insert(compositionRows);
-    if (error) throw dbError(error);
-  }
-
-  const existingNames = new Set<string>();
-  const existingSampleIds = new Set<string>();
-  const { data: existingProducts, error: existingProductsError } = await supabase
-    .from('products')
-    .select('name, source_sample_id')
-    .eq('category', foodType.label);
-  if (!existingProductsError) {
-    (existingProducts ?? []).forEach(product => {
-      existingNames.add(String(product.name).trim().toLowerCase());
-      if (product.source_sample_id) existingSampleIds.add(String(product.source_sample_id));
-    });
-  }
-
-  const productRows = sampleRows
-    .filter(sample => !existingSampleIds.has(sample.sample_id))
-    .map(sample => {
-      const sampleName = sample.sample_name || sample.sample_id;
-      const surveyName = sampleName === sample.sample_id ? sample.sample_id : `${sampleName} (${sample.sample_id})`;
-      if (existingNames.has(surveyName.trim().toLowerCase())) return null;
-      return {
-        name: surveyName,
-        category: foodType.label,
-        status: 'active',
-        custom_attributes: getDefaultCataAttributesForFoodType(foodType.slug),
-        assigned_panelist_ids: [],
-        source_import_batch_id: batch.id,
-        source_sample_id: sample.sample_id,
-      };
-    })
-    .filter((row): row is NonNullable<typeof row> => row !== null);
-  if (productRows.length > 0) {
-    const { error } = await supabase.from('products').insert(productRows);
-    if (error) throw dbError(error);
-  }
-
-  await supabase.from('audit_events').insert({
-    actor_id: input.importedBy ?? null,
-    event_type: 'instrumental_import_created',
-    entity_type: 'import_batches',
-    entity_id: batch.id,
-    metadata: {
-      foodType: foodType.slug,
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(fingerprintSource));
+  const idempotencyKey = Array.from(new Uint8Array(digest))
+    .map(byte => byte.toString(16).padStart(2, '0'))
+    .join('');
+  const { error } = await supabase.rpc('create_instrumental_import', {
+    payload: {
+      idempotencyKey,
       fileName: input.fileName,
       rowCount: input.rowCount,
-      sampleCount: sampleRows.length,
+      recognizedColumns: input.recognizedColumns,
+      ignoredColumns: input.ignoredColumns,
+      detection: input.detection,
+      eTongueData: input.eTongueData,
+      gcmsData: input.gcmsData,
+      compositionData: input.compositionData,
+      customAttributes: getDefaultCataAttributesForFoodType(input.detection.slug),
     },
   });
+  if (error) throw dbError(error);
 
   return fetchInstrumentalDataset();
 }
@@ -903,6 +779,11 @@ export interface WorkspaceSettings {
   updatedAt: string | null;
 }
 
+export interface PublicWorkspaceConfig {
+  workspaceName: string;
+  allowSelfSignup: boolean;
+}
+
 export interface AuditEventRecord {
   id: string;
   actorId: string | null;
@@ -912,6 +793,20 @@ export interface AuditEventRecord {
   entityId: string | null;
   metadata: Record<string, unknown>;
   createdAt: string;
+}
+
+export interface DecisionRecord {
+  id: string;
+  timestamp: string;
+  sampleId: string;
+  sampleName: string;
+  decision: 'GO' | 'TWEAK' | 'STOP';
+  issfScore: number;
+  confidence: number;
+  user: string;
+  note: string;
+  methodVersion: string;
+  decisionFingerprint: string;
 }
 
 function defaultWorkspaceSettings(): WorkspaceSettings {
@@ -1004,6 +899,21 @@ export async function fetchWorkspaceSettings(): Promise<WorkspaceSettings> {
     throw dbError(error);
   }
   return data ? toWorkspaceSettings(data) : defaultWorkspaceSettings();
+}
+
+export async function fetchPublicWorkspaceConfig(): Promise<PublicWorkspaceConfig> {
+  const { data, error } = await supabase.rpc('get_public_workspace_config');
+  if (error) {
+    if (/get_public_workspace_config|schema cache|does not exist/i.test(error.message ?? '')) {
+      return { workspaceName: 'Sensory Analysis Workspace', allowSelfSignup: true };
+    }
+    throw dbError(error);
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    workspaceName: (row?.workspace_name as string) ?? 'Sensory Analysis Workspace',
+    allowSelfSignup: Boolean(row?.allow_self_signup ?? true),
+  };
 }
 
 export async function updateWorkspaceSettings(
@@ -1122,6 +1032,56 @@ export async function fetchAuditEvents(limit = 80): Promise<AuditEventRecord[]> 
       createdAt: row.created_at as string,
     };
   });
+}
+
+export async function fetchDecisionRecords(limit = 200): Promise<DecisionRecord[]> {
+  const { data, error } = await supabase
+    .from('decision_records')
+    .select('*, profiles(name)')
+    .order('created_at', { ascending: false })
+    .limit(Math.min(500, Math.max(1, limit)));
+  if (error) {
+    if (/decision_records|schema cache|does not exist/i.test(error.message ?? '')) return [];
+    throw dbError(error);
+  }
+  return (data ?? []).map(row => ({
+    id: row.id as string,
+    timestamp: row.created_at as string,
+    sampleId: row.sample_id as string,
+    sampleName: row.sample_name as string,
+    decision: row.decision as DecisionRecord['decision'],
+    issfScore: Number(row.issf_score),
+    confidence: Number(row.confidence),
+    user: ((row.profiles as { name?: string } | null)?.name) ?? 'Administrator',
+    note: (row.note as string) ?? '',
+    methodVersion: row.method_version as string,
+    decisionFingerprint: row.decision_fingerprint as string,
+  }));
+}
+
+export async function insertDecisionRecord(input: {
+  sampleId: string;
+  sampleName: string;
+  decision: DecisionRecord['decision'];
+  issfScore: number;
+  confidence: number;
+  note: string;
+  methodVersion: string;
+  decisionFingerprint: string;
+  createdBy: string;
+}): Promise<void> {
+  const { error } = await supabase.from('decision_records').insert({
+    sample_id: input.sampleId,
+    sample_name: input.sampleName,
+    decision: input.decision,
+    issf_score: input.issfScore,
+    confidence: input.confidence,
+    note: input.note,
+    method_version: input.methodVersion,
+    decision_fingerprint: input.decisionFingerprint,
+    created_by: input.createdBy,
+  });
+  if (error) throw dbError(error);
 }
 
 // ─── Panelist Reliability ─────────────────────────────────────────────────────
@@ -1309,6 +1269,32 @@ function toConceptTest(row: Record<string, unknown>): ConceptTest {
   };
 }
 
+async function createConceptImageSignedUrl(storagePath: string | null, fallback: string): Promise<string> {
+  if (!storagePath) return fallback;
+  const { data, error } = await supabase.storage
+    .from('concept-images')
+    .createSignedUrl(storagePath, 60 * 60);
+  if (error) return fallback.startsWith('https://') ? fallback : '';
+  return data.signedUrl;
+}
+
+async function hydrateConceptTestImages(test: ConceptTest): Promise<ConceptTest> {
+  if (!test.imageIds?.length) return test;
+  const { data, error } = await supabase
+    .from('concept_images')
+    .select('id, image_url, storage_path, sort_order')
+    .in('id', test.imageIds)
+    .order('sort_order', { ascending: true });
+  if (error) throw dbError(error);
+  const imageUrls = (await Promise.all((data ?? []).map(row =>
+    createConceptImageSignedUrl(
+      (row.storage_path as string) ?? null,
+      (row.image_url as string) ?? '',
+    )
+  ))).filter(Boolean);
+  return { ...test, imageUrls };
+}
+
 export async function insertConceptTest(
   test: Omit<ConceptTest, 'id' | 'createdAt'>,
 ): Promise<ConceptTest> {
@@ -1318,7 +1304,7 @@ export async function insertConceptTest(
       name: test.name,
       category: test.category,
       description: test.description,
-      image_urls: test.imageUrls,
+      image_urls: test.imageIds?.length ? [] : test.imageUrls,
       generated_image_ids: test.imageIds ?? [],
       target_market: test.targetMarket,
       price_point: test.pricePoint,
@@ -1339,7 +1325,7 @@ export async function insertConceptTest(
   if (test.imageIds?.length) {
     await linkConceptImagesToConcept(concept.id, test.imageIds);
   }
-  return concept;
+  return hydrateConceptTestImages(concept);
 }
 
 export async function fetchConceptTest(id: string): Promise<ConceptTest | null> {
@@ -1349,7 +1335,7 @@ export async function fetchConceptTest(id: string): Promise<ConceptTest | null> 
     .eq('id', id)
     .maybeSingle();
   if (error) throw dbError(error);
-  return data ? toConceptTest(data) : null;
+  return data ? hydrateConceptTestImages(toConceptTest(data)) : null;
 }
 
 export async function fetchConceptTestsForPanelist(userId: string): Promise<ConceptTest[]> {
@@ -1374,7 +1360,7 @@ export async function fetchConceptTestsForPanelist(userId: string): Promise<Conc
   if (assignedResult.error) throw dbError(assignedResult.error);
 
   const seen = new Set<string>();
-  return [...(globalResult.data ?? []), ...(assignedResult.data ?? [])]
+  const tests = [...(globalResult.data ?? []), ...(assignedResult.data ?? [])]
     .filter(row => {
       const id = row.id as string;
       if (seen.has(id)) return false;
@@ -1382,6 +1368,7 @@ export async function fetchConceptTestsForPanelist(userId: string): Promise<Conc
       return true;
     })
     .map(toConceptTest);
+  return Promise.all(tests.map(hydrateConceptTestImages));
 }
 
 export async function insertConceptResponse(
@@ -1581,7 +1568,14 @@ export async function fetchConceptImageGenerations(): Promise<ConceptImageGenera
     if (error.message?.includes('concept_image_generations')) return [];
     throw dbError(error);
   }
-  return (data ?? []).map(toConceptImageGeneration);
+  const generations = (data ?? []).map(toConceptImageGeneration);
+  return Promise.all(generations.map(async generation => ({
+    ...generation,
+    images: await Promise.all(generation.images.map(async image => ({
+      ...image,
+      imageUrl: await createConceptImageSignedUrl(image.storagePath, image.imageUrl),
+    }))),
+  })));
 }
 
 export async function fetchConceptProjectSummaries(): Promise<ConceptProjectSummary[]> {

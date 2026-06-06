@@ -208,7 +208,6 @@ export function AdminSettings() {
           <TabsTrigger value="access"><Users className="size-4" />Access</TabsTrigger>
           <TabsTrigger value="automation"><Database className="size-4" />Automation</TabsTrigger>
           <TabsTrigger value="decision"><Brain className="size-4" />Decision</TabsTrigger>
-          <TabsTrigger value="governance"><ShieldCheck className="size-4" />Governance</TabsTrigger>
           <TabsTrigger value="audit"><Activity className="size-4" />Audit</TabsTrigger>
         </TabsList>
 
@@ -217,17 +216,10 @@ export function AdminSettings() {
             <Card className="border-slate-200 shadow-sm">
               <CardHeader><CardTitle className="text-lg">Study defaults</CardTitle></CardHeader>
               <CardContent className="space-y-5">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <NumberField id="default-panel-size" label="Default panel size" value={draft.defaultPanelSize} min={1} max={500} onChange={value => updateDraft('defaultPanelSize', value)} />
-                  <NumberField id="retention" label="Data retention" value={draft.dataRetentionMonths} min={1} max={120} suffix="months" onChange={value => updateDraft('dataRetentionMonths', value)} />
-                </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <ToggleRow title="Require hedonic scores" detail="Every generated product survey includes liking scores." checked={draft.requireHedonicSection} onChange={checked => updateDraft('requireHedonicSection', checked)} />
-                  <ToggleRow title="Require intensity ratings" detail="Keep aroma, taste, and texture intensity fields in studies." checked={draft.requireIntensitySection} onChange={checked => updateDraft('requireIntensitySection', checked)} />
-                  <ToggleRow title="Require emotion section" detail="Capture EsSense-style emotional response data." checked={draft.requireEmotionSection} onChange={checked => updateDraft('requireEmotionSection', checked)} />
-                  <ToggleRow title="Allow panelist comments" detail="Let panelists add free-text notes to submissions." checked={draft.allowPanelistComments} onChange={checked => updateDraft('allowPanelistComments', checked)} />
-                  <ToggleRow title="Require all samples" detail="Multi-sample questionnaires must be finished before submit." checked={draft.requireAllSamplesBeforeSubmit} onChange={checked => updateDraft('requireAllSamplesBeforeSubmit', checked)} />
-                </div>
+                <NumberField id="default-panel-size" label="Default panel size" value={draft.defaultPanelSize} min={1} max={500} onChange={value => updateDraft('defaultPanelSize', value)} />
+                <p className="text-sm text-slate-600">
+                  New concept studies start with this response target. Panelists must still be assigned before launch.
+                </p>
               </CardContent>
             </Card>
             <Card className="border-slate-200 shadow-sm">
@@ -261,9 +253,6 @@ export function AdminSettings() {
               <CardContent className="space-y-3">
                 <ToggleRow title="Allow self signup" detail="Show the create-account option on the sign-in page." checked={draft.allowSelfSignup} onChange={checked => updateDraft('allowSelfSignup', checked)} />
                 <ToggleRow title="Require panelist consent" detail="Gate questionnaires until consent is accepted." checked={draft.requirePanelistConsent} onChange={checked => updateDraft('requirePanelistConsent', checked)} />
-                <ToggleRow title="Require panelist ID" detail="Flag panelists without an assigned study ID." checked={draft.requirePanelistId} onChange={checked => updateDraft('requirePanelistId', checked)} />
-                <ToggleRow title="Show past submissions" detail="Let panelists view their completed questionnaire history." checked={draft.allowPanelistsViewHistory} onChange={checked => updateDraft('allowPanelistsViewHistory', checked)} />
-                <NumberField id="inactive-days" label="Inactive panelist review" value={draft.inactivePanelistDays} min={1} max={730} suffix="days" onChange={value => updateDraft('inactivePanelistDays', value)} />
               </CardContent>
             </Card>
             <PanelistTable panelists={panelists} updating={updatePanelistStatus.isPending} onToggleStatus={togglePanelistStatus} />
@@ -308,47 +297,12 @@ export function AdminSettings() {
         <TabsContent value="decision">
           <Card className="border-slate-200 shadow-sm">
             <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Brain className="size-5 text-slate-500" />Go / Tweak / Stop rules</CardTitle></CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <CardContent className="grid gap-4 md:grid-cols-3">
               <NumberField id="stop-threshold" label="STOP below" value={draft.decisionStopThreshold} min={0} max={99} suffix="score" onChange={value => updateDraft('decisionStopThreshold', value)} />
               <NumberField id="go-threshold" label="GO at or above" value={draft.decisionGoThreshold} min={1} max={100} suffix="score" onChange={value => updateDraft('decisionGoThreshold', value)} />
               <NumberField id="min-responses" label="Minimum responses" value={draft.decisionMinResponses} min={1} max={500} onChange={value => updateDraft('decisionMinResponses', value)} />
-              <ToggleRow title="Lock confirmed decisions" detail="Prevent silent edits after GO/TWEAK/STOP is confirmed." checked={draft.decisionLockConfirmed} onChange={checked => updateDraft('decisionLockConfirmed', checked)} />
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="governance">
-          <div className="grid gap-4 xl:grid-cols-2">
-            <Card className="border-slate-200 shadow-sm">
-              <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><FileText className="size-5 text-slate-500" />Reports and data</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                <ToggleRow title="Anonymize panelists in reports" detail="Exports show panelist IDs instead of names." checked={draft.anonymizePanelistsInReports} onChange={checked => updateDraft('anonymizePanelistsInReports', checked)} />
-                <div className="space-y-2">
-                  <Label>Default export format</Label>
-                  <Select value={draft.exportFormat} onValueChange={value => updateDraft('exportFormat', value as WorkspaceSettings['exportFormat'])}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="xlsx">Excel workbook</SelectItem>
-                      <SelectItem value="csv">CSV files</SelectItem>
-                      <SelectItem value="pdf">PDF summary</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="report-footer">Report footer</Label>
-                  <Input id="report-footer" value={draft.reportFooter} onChange={event => updateDraft('reportFooter', event.target.value)} placeholder="Prepared by New Food Innovation" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="border-slate-200 shadow-sm">
-              <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Bell className="size-5 text-slate-500" />Notifications</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                <ToggleRow title="Import completed" detail="Notify admins when CSV imports create samples or surveys." checked={draft.notifyOnImport} onChange={checked => updateDraft('notifyOnImport', checked)} />
-                <ToggleRow title="Response target reached" detail="Notify when a survey has enough panelist responses for review." checked={draft.notifyOnCompletionTarget} onChange={checked => updateDraft('notifyOnCompletionTarget', checked)} />
-                <ToggleRow title="Generation failure" detail="Notify when concept image generation fails." checked={draft.notifyOnGenerationFailure} onChange={checked => updateDraft('notifyOnGenerationFailure', checked)} />
-              </CardContent>
-            </Card>
-          </div>
         </TabsContent>
 
         <TabsContent value="audit"><AuditLog auditEvents={auditEvents} /></TabsContent>

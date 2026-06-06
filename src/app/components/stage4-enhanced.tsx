@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router";
 import { useFoodType, sampleMatchesFoodType, matchFoodType } from "../contexts/food-type-context";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -6,34 +6,43 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, Eye, EyeOff, Activity, Award, Zap, ClipboardCheck, GitMerge } from "lucide-react";
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, BarChart, Bar, LineChart, Line, Legend, ReferenceArea, ReferenceLine } from "recharts";
-import { ENHANCED_SENSORY_DATA } from "../data/enhanced-sensory";
+import type { EnhancedSensoryProfile } from "../data/enhanced-sensory";
 import { METHOD_COMPARISON } from "../data/validation-data";
-import { DecisionLog, appendDecision } from "./decision-log";
+import { DecisionLog } from "./decision-log";
 import { useAuth } from "../contexts/auth-context";
+import { insertDecisionRecord } from "../lib/database";
 import { formatFoodTypeLabel } from "../lib/food-intelligence";
-import { useInstrumentalDataset, useProducts } from "../lib/hooks";
+import { useInstrumentalDataset, useProducts, useWorkspaceSettings } from "../lib/hooks";
+import { useSurveyData } from "../lib/use-survey-data";
 import { calculateGoStopTweakDecision, type GoStopTweakDecision } from "../utils/go-stop-tweak-engine";
 
 type SampleDecision = GoStopTweakDecision;
 
-function IssfGauge({ score, confidence }: { score: number; confidence: number }) {
+function IssfGauge({ score, confidence, stopThreshold, goThreshold }: {
+  score: number;
+  confidence: number;
+  stopThreshold: number;
+  goThreshold: number;
+}) {
   const pct = Math.max(0, Math.min(100, score));
+  const tweakWidth = Math.max(0, goThreshold - stopThreshold);
+  const goWidth = Math.max(0, 100 - goThreshold);
   return (
     <div className="text-right">
       <div className="text-5xl font-bold text-slate-900">{score.toFixed(0)}</div>
       <div className="text-sm text-slate-600">ISSF Score</div>
       <div className="relative w-36 mt-3 mb-5 ml-auto">
         <div className="flex h-4 rounded-full overflow-hidden shadow-inner">
-          <div className="bg-rose-300" style={{ width: "52%" }} />
-          <div className="bg-amber-300" style={{ width: "24%" }} />
-          <div className="bg-emerald-300" style={{ width: "24%" }} />
+          <div className="bg-rose-300" style={{ width: `${stopThreshold}%` }} />
+          <div className="bg-amber-300" style={{ width: `${tweakWidth}%` }} />
+          <div className="bg-emerald-300" style={{ width: `${goWidth}%` }} />
         </div>
         <div
           className="absolute top-0 w-1 h-4 bg-slate-900 rounded shadow-md"
           style={{ left: `${pct}%`, transform: "translateX(-50%)" }}
         />
-        <span className="absolute text-xs text-slate-400" style={{ left: "52%", top: "18px", transform: "translateX(-50%)" }}>52</span>
-        <span className="absolute text-xs text-slate-400" style={{ left: "76%", top: "18px", transform: "translateX(-50%)" }}>76</span>
+        <span className="absolute text-xs text-slate-400" style={{ left: `${stopThreshold}%`, top: "18px", transform: "translateX(-50%)" }}>{stopThreshold}</span>
+        <span className="absolute text-xs text-slate-400" style={{ left: `${goThreshold}%`, top: "18px", transform: "translateX(-50%)" }}>{goThreshold}</span>
       </div>
       <div className="text-xs text-slate-500">±{confidence.toFixed(0)}% confidence</div>
     </div>
@@ -44,12 +53,14 @@ function PathToGoPanel({
   selected,
   selectedSensory,
   weights,
+  goThreshold,
 }: {
   selected: SampleDecision;
-  selectedSensory: (typeof ENHANCED_SENSORY_DATA)[number];
+  selectedSensory: EnhancedSensoryProfile;
   weights: { hedonic: number; texture: number; cata: number; emotional: number };
+  goThreshold: number;
 }) {
-  const gap = Math.max(0, 76 - selected.issfScore);
+  const gap = Math.max(0, goThreshold - selected.issfScore);
 
   if (selected.decision === "GO") {
     const dims = [
@@ -186,7 +197,9 @@ export function Stage4Enhanced() {
   const { foodType, subCategory } = useFoodType();
   const { data: instrumentalDataset } = useInstrumentalDataset(user?.role === 'admin');
   const { data: products = [] } = useProducts();
-  const [selectedSample, setSelectedSample] = useState<string>(ENHANCED_SENSORY_DATA[0]?.sampleId ?? "S1");
+  const { data: workspaceSettings } = useWorkspaceSettings();
+  const { liveAggregations } = useSurveyData();
+  const [selectedSample, setSelectedSample] = useState<string>("");
   const [showRawData, setShowRawData] = useState(false);
   const [showQualitative, setShowQualitative] = useState(true);
   const [showWeightConfig, setShowWeightConfig] = useState(false);
@@ -195,9 +208,79 @@ export function Stage4Enhanced() {
   const [auditNote, setAuditNote] = useState("");
   const [logRefreshKey, setLogRefreshKey] = useState(0);
   const [confirmPending, setConfirmPending] = useState(false);
+  const [decisionSaving, setDecisionSaving] = useState(false);
+  const [decisionError, setDecisionError] = useState("");
+  const stopThreshold = workspaceSettings?.decisionStopThreshold ?? 52;
+  const goThreshold = workspaceSettings?.decisionGoThreshold ?? 76;
+  const minimumResponses = workspaceSettings?.decisionMinResponses ?? 12;
 
-  const filteredSensoryData = ENHANCED_SENSORY_DATA.filter(s => {
-    const ft = sampleMatchesFoodType(s.sampleId, s.sampleName);
+  const liveSensoryData = useMemo<EnhancedSensoryProfile[]>(() => (
+    (instrumentalDataset?.eTongueData ?? []).flatMap(sample => {
+      const aggregation = liveAggregations.find(item => item.sourceSampleId === sample.sampleId);
+      if (!aggregation || aggregation.n < minimumResponses) return [];
+      const composition = instrumentalDataset?.compositionData[sample.sampleId];
+      const compounds = instrumentalDataset?.gcmsData[sample.sampleId] ?? [];
+      return [{
+        sampleId: sample.sampleId,
+        sampleName: sample.sampleName || sample.sampleId,
+        taste: {
+          sourness: sample.sourness,
+          bitterness: sample.bitterness,
+          astringency: 0,
+          umami: sample.umami,
+          saltiness: sample.saltiness,
+          sweetness: sample.sweetness,
+          astringencyAftertaste: 0,
+          umamiAftertaste: sample.umami,
+          bitternessAftertaste: sample.bitterness,
+          richness: sample.umami,
+        },
+        composition: {
+          salt: composition?.saltContent ?? 0,
+          fat: composition?.fat ?? 0,
+          protein: composition?.protein ?? 0,
+          starchDryMatter: Math.max(0, 100 - (
+            (composition?.moisture ?? 0) +
+            (composition?.fat ?? 0) +
+            (composition?.protein ?? 0)
+          )),
+        },
+        gcmsOlfactometry: compounds.map((compound, index) => ({
+          retentionTime: index + 1,
+          compound: compound.name,
+          nistProbability: 0,
+          peakArea: compound.concentration,
+          odour: compound.aroma,
+          odourIntensity: compound.threshold > 0 && compound.concentration > compound.threshold
+            ? 5
+            : Math.min(5, Math.max(1, compound.concentration)),
+          concentration: compound.concentration,
+          threshold: compound.threshold,
+        })),
+        istdRecovery: 90,
+        olfactometryFlowSplit: 'Imported CSV',
+        cata: aggregation.cata,
+        intensity: aggregation.intensity,
+        hedonic: {
+          appearance: aggregation.hedonic.appearance ?? 0,
+          flavour: aggregation.hedonic.flavor ?? 0,
+          texture: aggregation.hedonic.texture ?? 0,
+          overall: aggregation.hedonic.overall ?? 0,
+        },
+        emotions: aggregation.emotions,
+      }];
+    })
+  ), [
+    instrumentalDataset?.compositionData,
+    instrumentalDataset?.eTongueData,
+    instrumentalDataset?.gcmsData,
+    liveAggregations,
+    minimumResponses,
+  ]);
+
+  const filteredSensoryData = liveSensoryData.filter(s => {
+    const importedType = instrumentalDataset?.eTongueData.find(sample => sample.sampleId === s.sampleId)?.type;
+    const ft = importedType ?? sampleMatchesFoodType(s.sampleId, s.sampleName);
     if (foodType !== 'all' && ft !== foodType) return false;
     if (subCategory && !s.sampleName.toLowerCase().includes(subCategory.toLowerCase())) return false;
     return true;
@@ -275,11 +358,14 @@ export function Stage4Enhanced() {
 
   const sampleDecisions: SampleDecision[] = filteredSensoryData.map(sample => {
     const sampleFoodType = sampleMatchesFoodType(sample.sampleId, sample.sampleName);
-    return calculateGoStopTweakDecision(sample, weights, sampleFoodType);
+    return calculateGoStopTweakDecision(sample, weights, sampleFoodType, {
+      go: goThreshold,
+      stop: stopThreshold,
+    });
   });
 
   const selected = sampleDecisions.find(d => d.sampleId === selectedSample);
-  const selectedSensory = ENHANCED_SENSORY_DATA.find(s => s.sampleId === selectedSample);
+  const selectedSensory = liveSensoryData.find(s => s.sampleId === selectedSample);
 
   // Stats
   const stats = {
@@ -320,7 +406,7 @@ export function Stage4Enhanced() {
 
   // Scatter data: ISSF Score vs Hedonic
   const scatterData = sampleDecisions.map((d, index) => {
-    const sensory = ENHANCED_SENSORY_DATA.find(s => s.sampleId === d.sampleId);
+    const sensory = liveSensoryData.find(s => s.sampleId === d.sampleId);
     return {
       id: `scatter-${d.sampleId}-${index}`,
       sampleId: d.sampleId,
@@ -662,7 +748,12 @@ export function Stage4Enhanced() {
                       <h2 className="text-2xl font-bold text-slate-900">{selected.sampleName}</h2>
                       <div className="mt-2">{getDecisionBadge(selected.decision)}</div>
                     </div>
-                    <IssfGauge score={selected.issfScore} confidence={selected.confidenceScore} />
+                    <IssfGauge
+                      score={selected.issfScore}
+                      confidence={selected.confidenceScore}
+                      stopThreshold={stopThreshold}
+                      goThreshold={goThreshold}
+                    />
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -759,7 +850,12 @@ export function Stage4Enhanced() {
                     </div>
                   )}
 
-                  <PathToGoPanel selected={selected} selectedSensory={selectedSensory} weights={weights} />
+                  <PathToGoPanel
+                    selected={selected}
+                    selectedSensory={selectedSensory}
+                    weights={weights}
+                    goThreshold={goThreshold}
+                  />
 
                   {/* Multi-dimensional profile */}
                   <div className="bg-white p-4 rounded-lg border-2 border-slate-200">
@@ -876,6 +972,11 @@ export function Stage4Enhanced() {
               You are logging a <strong>{selected.decision}</strong> decision for <strong>{selected.sampleName}</strong>{" "}
               (ISSF {selected.issfScore.toFixed(1)}, confidence {selected.confidenceScore.toFixed(0)}%) to the audit trail.
             </p>
+            {decisionError && (
+              <p className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+                {decisionError}
+              </p>
+            )}
             <div>
               <label className="text-xs font-semibold text-slate-700 block mb-1">
                 Optional note (rationale, batch ID, etc.)
@@ -894,23 +995,35 @@ export function Stage4Enhanced() {
               </Button>
               <Button
                 className="bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={() => {
-                  appendDecision({
-                    sampleId: selected.sampleId,
-                    sampleName: selected.sampleName,
-                    decision: selected.decision,
-                    issfScore: selected.issfScore,
-                    confidence: selected.confidenceScore,
-                    user: user?.name ?? "Admin",
-                    note: auditNote.trim(),
-                  });
-                  setLogRefreshKey(k => k + 1);
-                  setShowAuditTrail(true);
-                  setConfirmPending(false);
-                  setAuditNote("");
+                disabled={decisionSaving || !user?.id}
+                onClick={async () => {
+                  if (!user?.id || decisionSaving) return;
+                  setDecisionSaving(true);
+                  setDecisionError("");
+                  try {
+                    await insertDecisionRecord({
+                      sampleId: selected.sampleId,
+                      sampleName: selected.sampleName,
+                      decision: selected.decision,
+                      issfScore: selected.issfScore,
+                      confidence: selected.confidenceScore,
+                      note: auditNote.trim(),
+                      methodVersion: selected.methodVersion,
+                      decisionFingerprint: selected.decisionFingerprint,
+                      createdBy: user.id,
+                    });
+                    setLogRefreshKey(k => k + 1);
+                    setShowAuditTrail(true);
+                    setConfirmPending(false);
+                    setAuditNote("");
+                  } catch (error) {
+                    setDecisionError(error instanceof Error ? error.message : "Unable to save this decision.");
+                  } finally {
+                    setDecisionSaving(false);
+                  }
                 }}
               >
-                Log Decision
+                {decisionSaving ? "Saving..." : "Log Decision"}
               </Button>
             </div>
           </div>

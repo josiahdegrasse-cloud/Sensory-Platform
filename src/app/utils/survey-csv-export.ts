@@ -1,4 +1,3 @@
-import { ENHANCED_SENSORY_DATA } from "../data/enhanced-sensory";
 import type { LiveAggregation } from "../lib/use-survey-data";
 
 export function sanitizeCsvCell(value: string | number): string {
@@ -59,21 +58,6 @@ export function buildAllDataCSVRows(liveAggregations: LiveAggregation[]): string
     );
     rows.push([agg.productId, name, 'panel', 'latest', 'Emotion', 'positive', agg.emotions.positive.toFixed(2)].join(','));
     rows.push([agg.productId, name, 'panel', 'latest', 'Emotion', 'negative', agg.emotions.negative.toFixed(2)].join(','));
-  });
-
-  ENHANCED_SENSORY_DATA.forEach(sample => {
-    const name = `"${sanitizeCsvCell(sample.sampleName)}"`;
-    Object.entries(sample.cata).forEach(([attr, count]) =>
-      rows.push([sample.sampleId, name, 'mock', 0, 'CATA', sanitizeCsvCell(attr), count].join(','))
-    );
-    Object.entries(sample.intensity).forEach(([attr, val]) =>
-      rows.push([sample.sampleId, name, 'mock', 0, 'Intensity', sanitizeCsvCell(attr), val].join(','))
-    );
-    Object.entries(sample.hedonic).forEach(([dim, val]) =>
-      rows.push([sample.sampleId, name, 'mock', 0, 'Hedonic', sanitizeCsvCell(dim), val].join(','))
-    );
-    rows.push([sample.sampleId, name, 'mock', 0, 'Emotion', 'positive', sample.emotions.positive].join(','));
-    rows.push([sample.sampleId, name, 'mock', 0, 'Emotion', 'negative', sample.emotions.negative].join(','));
   });
 
   return rows.join('\n');

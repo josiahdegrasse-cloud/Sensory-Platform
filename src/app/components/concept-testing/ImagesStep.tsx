@@ -48,6 +48,9 @@ function friendlyGenerationError(message: string) {
   if (lower.includes('billing') || lower.includes('quota') || lower.includes('insufficient') || lower.includes('credits')) {
     return 'OpenAI billing or credits are not available for image generation.';
   }
+  if (lower.includes('monthly image budget') || lower.includes('generation limit') || lower.includes('reached its limit')) {
+    return message;
+  }
   if (lower.includes('rate') || lower.includes('429')) {
     return 'OpenAI rate limit hit. Wait a minute and try again.';
   }

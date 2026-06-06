@@ -115,10 +115,10 @@ Deno.serve(async (req: Request) => {
 
   const { data: profile, error: profileError } = await callerClient
     .from('profiles')
-    .select('id, role')
+    .select('id, role, status')
     .single();
 
-  if (profileError || profile?.role !== 'admin') {
+  if (profileError || profile?.role !== 'admin' || profile?.status !== 'active') {
     return new Response(JSON.stringify({ error: 'Forbidden' }), {
       status: 403,
       headers: { ...headers, 'Content-Type': 'application/json' },
@@ -133,6 +133,11 @@ Deno.serve(async (req: Request) => {
       .from('concept_generation_settings')
       .select('*')
       .eq('active', true)
+      .maybeSingle();
+    const { data: workspaceSettings } = await serviceClient
+      .from('workspace_settings')
+      .select('concept_max_generations_per_concept, concept_monthly_budget_cents, concept_require_approval')
+      .eq('id', true)
       .maybeSingle();
 
     const configuredCount = Number(settings?.default_image_count) || DEFAULT_IMAGE_COUNT;
@@ -149,6 +154,55 @@ Deno.serve(async (req: Request) => {
     const foodTypeSlug = clean(body.foodTypeSlug);
     const prompt = buildPrompt({ ...body, promptStyle: configuredStyle });
     const estimatedCost = Number((count * costPerImage).toFixed(4));
+    const maxGenerations = Math.max(1, Number(workspaceSettings?.concept_max_generations_per_concept) || 12);
+    const settingsBudget = Math.max(0, Number(settings?.monthly_budget) || 0);
+    const workspaceBudget = Math.max(0, Number(workspaceSettings?.concept_monthly_budget_cents) || 0) / 100;
+    const monthlyBudget = settingsBudget > 0 && workspaceBudget > 0
+      ? Math.min(settingsBudget, workspaceBudget)
+      : Math.max(settingsBudget, workspaceBudget);
+    const monthStart = new Date();
+    monthStart.setUTCDate(1);
+    monthStart.setUTCHours(0, 0, 0, 0);
+
+    const { data: monthlyRows, error: monthlyError } = await serviceClient
+      .from('concept_image_generations')
+      .select('estimated_cost')
+      .gte('created_at', monthStart.toISOString())
+      .in('status', ['generating', 'completed']);
+    if (monthlyError) throw monthlyError;
+    const monthSpend = (monthlyRows ?? []).reduce(
+      (total, row) => total + Number(row.estimated_cost ?? 0),
+      0,
+    );
+    if (monthlyBudget > 0 && monthSpend + estimatedCost > monthlyBudget) {
+      return new Response(JSON.stringify({
+        error: `Monthly image budget reached. This request would bring estimated spend to $${(monthSpend + estimatedCost).toFixed(2)} of the $${monthlyBudget.toFixed(2)} limit.`,
+      }), {
+        status: 429,
+        headers: { ...headers, 'Content-Type': 'application/json' },
+      });
+    }
+
+    let generationCountQuery = serviceClient
+      .from('concept_image_generations')
+      .select('id', { count: 'exact', head: true })
+      .eq('created_by', profile.id)
+      .eq('concept_name', clean(body.conceptName))
+      .eq('project_name', projectName)
+      .in('status', ['generating', 'completed']);
+    if (body.conceptTestId) {
+      generationCountQuery = generationCountQuery.eq('concept_test_id', body.conceptTestId);
+    }
+    const { count: generationCount, error: generationCountError } = await generationCountQuery;
+    if (generationCountError) throw generationCountError;
+    if ((generationCount ?? 0) >= maxGenerations) {
+      return new Response(JSON.stringify({
+        error: `This concept has reached its limit of ${maxGenerations} image generations.`,
+      }), {
+        status: 429,
+        headers: { ...headers, 'Content-Type': 'application/json' },
+      });
+    }
 
     const { data: generation, error: generationError } = await serviceClient
       .from('concept_image_generations')
@@ -211,36 +265,34 @@ Deno.serve(async (req: Request) => {
     const rawImages = ((result.data ?? []) as Array<{ b64_json?: string; url?: string; revised_prompt?: string }>);
     for (let index = 0; index < rawImages.length; index++) {
       const item = rawImages[index];
-      let publicUrl = item.url ?? '';
+      let signedUrl = '';
       let storagePath = '';
-
-      if (item.b64_json) {
-        const bytes = decodeBase64Image(item.b64_json);
-        storagePath = `${generation.id}/concept-${index + 1}.png`;
-        const { error: uploadError } = await serviceClient.storage
-          .from('concept-images')
-          .upload(storagePath, bytes, {
-            contentType: 'image/png',
-            upsert: true,
-          });
-        if (uploadError) throw uploadError;
-
-        const { data: publicData } = serviceClient.storage
-          .from('concept-images')
-          .getPublicUrl(storagePath);
-        publicUrl = publicData.publicUrl;
+      let bytes: Uint8Array | null = null;
+      if (item.b64_json) bytes = decodeBase64Image(item.b64_json);
+      if (!bytes && item.url) {
+        const remoteImage = await fetch(item.url);
+        if (!remoteImage.ok) throw new Error(`Unable to secure generated image ${index + 1}`);
+        bytes = new Uint8Array(await remoteImage.arrayBuffer());
       }
+      if (!bytes) continue;
 
-      if (!publicUrl) continue;
+      storagePath = `${generation.id}/concept-${index + 1}.png`;
+      const { error: uploadError } = await serviceClient.storage
+        .from('concept-images')
+        .upload(storagePath, bytes, {
+          contentType: 'image/png',
+          upsert: true,
+        });
+      if (uploadError) throw uploadError;
 
       const { data: imageRow, error: imageError } = await serviceClient
         .from('concept_images')
         .insert({
           generation_id: generation.id,
           concept_test_id: body.conceptTestId || null,
-          image_url: publicUrl,
+          image_url: storagePath,
           storage_path: storagePath,
-          selected_for_panelists: true,
+          selected_for_panelists: !Boolean(workspaceSettings?.concept_require_approval),
           sort_order: index,
           mode: body.mode ?? 'packaging',
           prompt,
@@ -251,9 +303,14 @@ Deno.serve(async (req: Request) => {
         .single();
 
       if (imageError) throw imageError;
+      const { data: signedData, error: signedError } = await serviceClient.storage
+        .from('concept-images')
+        .createSignedUrl(storagePath, 60 * 60);
+      if (signedError) throw signedError;
+      signedUrl = signedData.signedUrl;
       imageResults.push({
         id: imageRow.id,
-        url: publicUrl,
+        url: signedUrl,
         storagePath,
         revisedPrompt: item.revised_prompt,
       });

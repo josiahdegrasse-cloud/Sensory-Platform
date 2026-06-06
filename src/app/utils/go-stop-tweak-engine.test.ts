@@ -39,4 +39,21 @@ describe('GO / STOP / TWEAK engine', () => {
     expect(decision.prescriptions.length).toBeGreaterThan(0);
     expect(decision.recommendation).toContain('Tweak before advancing');
   });
+
+  it('honors workspace decision thresholds without bypassing hard safety gates', () => {
+    const sample = ENHANCED_SENSORY_DATA.find(item => item.sampleId === 'S4');
+    expect(sample).toBeTruthy();
+
+    const conservative = calculateGoStopTweakDecision(sample!, weights, 'cheese', {
+      stop: 45,
+      go: 99,
+    });
+    const standard = calculateGoStopTweakDecision(sample!, weights, 'cheese', {
+      stop: 45,
+      go: 75,
+    });
+
+    expect(conservative.decision).toBe('TWEAK');
+    expect(standard.decision).toBe('GO');
+  });
 });

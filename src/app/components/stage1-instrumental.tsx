@@ -223,7 +223,7 @@ function getRowValue(row: Record<string, string>, aliases: string[]) {
   return "";
 }
 
-const DEMO_TYPES = new Set(['bread', 'dairy', 'pbca']);
+const DEMO_TYPES = new Set<string>();
 const IMPORTED_DATA_STORAGE_KEY = 'sensory-dashboard-imported-machine-data';
 
 interface StoredImportedData {
@@ -233,23 +233,7 @@ interface StoredImportedData {
 }
 
 function mergeInstrumentalData(imported: StoredImportedData | null | undefined): StoredImportedData {
-  if (!imported) {
-    return {
-      eTongueData: MOCK_ETONGUE_DATA,
-      gcmsData: MOCK_GCMS_DATA,
-      compositionData: MOCK_COMPOSITION_DATA,
-    };
-  }
-
-  const samplesById = new Map<string, ETongueMeasurement>();
-  MOCK_ETONGUE_DATA.forEach(sample => samplesById.set(sample.sampleId, sample));
-  imported.eTongueData.forEach(sample => samplesById.set(sample.sampleId, sample));
-
-  return {
-    eTongueData: Array.from(samplesById.values()),
-    gcmsData: { ...MOCK_GCMS_DATA, ...imported.gcmsData },
-    compositionData: { ...MOCK_COMPOSITION_DATA, ...imported.compositionData },
-  };
+  return imported ?? { eTongueData: [], gcmsData: {}, compositionData: {} };
 }
 
 function loadImportedData(): StoredImportedData | null {
@@ -475,13 +459,13 @@ function applyImportedDataset(
 }
 
 export function Stage1Instrumental() {
-  const storedImportedData = useMemo(loadImportedData, []);
+  const storedImportedData = useMemo(() => null, []);
   const initialDataset = useMemo(() => mergeInstrumentalData(storedImportedData), [storedImportedData]);
   const navigate = useNavigate();
   const { user } = useAuth();
   const instrumentalDatasetQuery = useInstrumentalDataset(user?.role === 'admin');
   const insertInstrumentalImport = useInsertInstrumentalImport();
-  const [selectedSamples, setSelectedSamples] = useState<string[]>(["S3"]);
+  const [selectedSamples, setSelectedSamples] = useState<string[]>([]);
   const [eTongueData, setETongueData] = useState<ETongueMeasurement[]>(initialDataset.eTongueData);
   const [gcmsData, setGcmsData] = useState<Record<string, GCMSCompound[]>>(initialDataset.gcmsData);
   const [compositionData, setCompositionData] = useState<Record<string, ChemicalComposition>>(initialDataset.compositionData);
@@ -496,7 +480,7 @@ export function Stage1Instrumental() {
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [lastImportSummary, setLastImportSummary] = useState<ImportCompletionSummary | null>(null);
   const [columnReport, setColumnReport] = useState<ColumnReport | null>(null);
-  const [usingDemoData, setUsingDemoData] = useState(!storedImportedData);
+  const [usingDemoData, setUsingDemoData] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { foodType, subCategory, setSelection, registerFoodTypes, archivedFoodTypes, clearExtraFoodTypes } = useFoodType();
@@ -775,13 +759,13 @@ export function Stage1Instrumental() {
     const sampleIds = eTongueData.filter(sample => sample.type === type).map(sample => sample.sampleId);
     const remainingETongueData = eTongueData.filter(sample => sample.type !== type);
     if (remainingETongueData.length === 0) {
-      setETongueData(MOCK_ETONGUE_DATA);
-      setGcmsData(MOCK_GCMS_DATA);
-      setCompositionData(MOCK_COMPOSITION_DATA);
-      setSelectedSamples(["S3"]);
-      setUsingDemoData(true);
+      setETongueData([]);
+      setGcmsData({});
+      setCompositionData({});
+      setSelectedSamples([]);
+      setUsingDemoData(false);
       window.localStorage.removeItem(IMPORTED_DATA_STORAGE_KEY);
-      if (foodType === type) setSelection('cheese', null);
+      if (foodType === type) setSelection('', null);
       return;
     }
     setETongueData(remainingETongueData);
@@ -796,7 +780,7 @@ export function Stage1Instrumental() {
       return next;
     });
     setImportSuccess(`Deleted ${formatFoodTypeLabel(type)} data.`);
-    if (foodType === type) setSelection('cheese', null);
+    if (foodType === type) setSelection('', null);
   };
 
   // ── derived display data ──────────────────────────────────────────────────

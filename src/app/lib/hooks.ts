@@ -8,6 +8,7 @@ import {
   fetchConceptImageGenerations, fetchConceptProjectSummaries, fetchConceptLabDiagnostics,
   fetchFoodTypes, fetchInstrumentalDataset, fetchImportBatches,
   fetchWorkspaceSettings, updateWorkspaceSettings, fetchAuditEvents,
+  fetchPublicWorkspaceConfig,
   insertProduct, updateProduct, deleteProduct,
   insertTemplate, deleteTemplate, updatePanelistId, updatePanelistTrainingLevel, updatePanelistStatus,
   insertConceptTest, insertConceptResponse,
@@ -37,6 +38,7 @@ export const queryKeys = {
   instrumentalDataset: ['instrumentalDataset'] as const,
   importBatches: ['importBatches'] as const,
   workspaceSettings: ['workspaceSettings'] as const,
+  publicWorkspaceConfig: ['publicWorkspaceConfig'] as const,
   auditEvents: ['auditEvents'] as const,
 }
 
@@ -229,6 +231,10 @@ export function useWorkspaceSettings() {
   return useQuery({ queryKey: queryKeys.workspaceSettings, queryFn: fetchWorkspaceSettings })
 }
 
+export function usePublicWorkspaceConfig() {
+  return useQuery({ queryKey: queryKeys.publicWorkspaceConfig, queryFn: fetchPublicWorkspaceConfig })
+}
+
 export function useUpdateWorkspaceSettings() {
   const qc = useQueryClient()
   return useMutation({
@@ -236,6 +242,7 @@ export function useUpdateWorkspaceSettings() {
       updateWorkspaceSettings(settings, actorId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.workspaceSettings })
+      qc.invalidateQueries({ queryKey: queryKeys.publicWorkspaceConfig })
       qc.invalidateQueries({ queryKey: queryKeys.auditEvents })
     },
   })

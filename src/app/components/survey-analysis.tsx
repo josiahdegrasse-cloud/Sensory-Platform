@@ -5,7 +5,7 @@ import { useFoodType, sampleMatchesFoodType, matchFoodType } from '../contexts/f
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
-import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from "../data/enhanced-sensory";
+import type { EnhancedSensoryProfile } from "../data/enhanced-sensory";
 import { getSampleColor } from "../utils/sample-colors";
 import { useInstrumentalDataset, useProducts } from "../lib/hooks";
 import { formatFoodTypeLabel } from "../lib/food-intelligence";
@@ -39,7 +39,6 @@ export function SurveyAnalysis() {
   const [showAllSamples, setShowAllSamples] = useState(false);
   const [analysisType, setAnalysisType] = useState<'single' | 'multi'>('single');
   const importedSensoryData: EnhancedSensoryProfile[] = useMemo(() => (instrumentalDataset?.eTongueData ?? [])
-    .filter(sample => !ENHANCED_SENSORY_DATA.some(staticSample => staticSample.sampleId === sample.sampleId))
     .map(sample => {
       const composition = instrumentalDataset?.compositionData?.[sample.sampleId];
       const compounds = instrumentalDataset?.gcmsData?.[sample.sampleId] ?? [];
@@ -88,7 +87,7 @@ export function SurveyAnalysis() {
         emotions: { positive: 0, negative: 0 },
       };
     }), [instrumentalDataset?.compositionData, instrumentalDataset?.eTongueData, instrumentalDataset?.gcmsData]);
-  const allSensoryData = useMemo(() => [...ENHANCED_SENSORY_DATA, ...importedSensoryData], [importedSensoryData]);
+  const allSensoryData = importedSensoryData;
 
   // Auto-select first sample in filtered set when food type changes
   useEffect(() => {
@@ -575,7 +574,7 @@ export function SurveyAnalysis() {
       ) : (
         <AllSamplesComparisonView
           allSamplesHedonic={allSamplesHedonic}
-          enhancedSensoryData={ENHANCED_SENSORY_DATA}
+          enhancedSensoryData={allSensoryData}
         />
       )}
         </>

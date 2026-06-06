@@ -13,6 +13,7 @@ import {
   useConceptGenerationSettings,
   useConceptImageGenerations,
   useConceptLabDiagnostics,
+  useWorkspaceSettings,
 } from '../lib/hooks';
 import type { ConceptDraft, Question, WizardStep } from './concept-testing/types';
 import { ConceptStep } from './concept-testing/ConceptStep';
@@ -66,6 +67,7 @@ export function ConceptTesting() {
   const [launchError, setLaunchError] = useState('');
   const [draftNotice, setDraftNotice] = useState('');
   const { data: settings } = useConceptGenerationSettings();
+  const { data: workspaceSettings } = useWorkspaceSettings();
   const { data: history = [] } = useConceptImageGenerations();
   const { data: diagnostics } = useConceptLabDiagnostics();
 
@@ -77,7 +79,7 @@ export function ConceptTesting() {
   const validImageCount = draft.marketingImages.filter(u => u.trim()).length;
   const visualReady = validImageCount >= 2 && validImageCount <= 4;
   const questionReady = questions.length >= 18 && questions.length <= 30;
-  const panelReady = assignedPanelistIds.length > 0 || panelSize > 0 || segments.length > 0;
+  const panelReady = assignedPanelistIds.length > 0;
   const estimatedGenerationCost = (settings?.estimatedCostPerImage ?? 0.034) * (settings?.defaultImageCount ?? 4);
   const monthSpend = history.reduce((total, generation) => total + generation.estimatedCost, 0);
   const readinessItems = [
@@ -122,6 +124,12 @@ export function ConceptTesting() {
   }, []);
 
   useEffect(() => {
+    if (!draftHasWork && workspaceSettings?.defaultPanelSize) {
+      setPanelSize(workspaceSettings.defaultPanelSize);
+    }
+  }, [draftHasWork, workspaceSettings?.defaultPanelSize]);
+
+  useEffect(() => {
     if (!draftHasWork || step === 'launched') return;
     const timeout = window.setTimeout(() => {
       const payload: StoredConceptDraft = {
@@ -143,7 +151,7 @@ export function ConceptTesting() {
     setQuestions([]);
     setSegments([]);
     setAssignedPanelistIds([]);
-    setPanelSize(50);
+    setPanelSize(workspaceSettings?.defaultPanelSize ?? 50);
     setLaunchError('');
     setDraftNotice('');
     localStorage.removeItem(DRAFT_STORAGE_KEY);

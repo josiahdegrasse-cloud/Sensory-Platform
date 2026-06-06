@@ -1,42 +1,8 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { ClipboardCheck, Trash2 } from "lucide-react";
-
-const STORAGE_KEY = "issf_decision_log";
-
-export interface DecisionEntry {
-  id: string;
-  timestamp: string;
-  sampleId: string;
-  sampleName: string;
-  decision: "GO" | "TWEAK" | "STOP";
-  issfScore: number;
-  confidence: number;
-  user: string;
-  note: string;
-}
-
-export function loadDecisionLog(): DecisionEntry[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-export function appendDecision(entry: Omit<DecisionEntry, "id" | "timestamp">): DecisionEntry {
-  const log = loadDecisionLog();
-  const newEntry: DecisionEntry = {
-    ...entry,
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    timestamp: new Date().toISOString(),
-  };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([newEntry, ...log].slice(0, 200)));
-  return newEntry;
-}
+import { ClipboardCheck } from "lucide-react";
+import { fetchDecisionRecords, type DecisionRecord } from "../lib/database";
 
 const DECISION_COLORS: Record<string, string> = {
   GO: "bg-emerald-600",
@@ -51,16 +17,21 @@ const DECISION_LABEL: Record<string, string> = {
 };
 
 export function DecisionLog({ refreshKey }: { refreshKey: number }) {
-  const [log, setLog] = useState<DecisionEntry[]>([]);
+  const [log, setLog] = useState<DecisionRecord[]>([]);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    setLog(loadDecisionLog());
+    let cancelled = false;
+    setError("");
+    fetchDecisionRecords()
+      .then(records => {
+        if (!cancelled) setLog(records);
+      })
+      .catch(err => {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Unable to load decision history.");
+      });
+    return () => { cancelled = true; };
   }, [refreshKey]);
-
-  const clearLog = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    setLog([]);
-  };
 
   if (log.length === 0) {
     return (
@@ -73,7 +44,7 @@ export function DecisionLog({ refreshKey }: { refreshKey: number }) {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-slate-400 text-center py-4">
-            No decisions logged yet. Use "Confirm Decision" to record a GO / TWEAK / STOP to the audit trail.
+            {error || 'No decisions logged yet. Confirm a GO, TWEAK, or STOP decision to create an immutable audit record.'}
           </p>
         </CardContent>
       </Card>
@@ -83,17 +54,11 @@ export function DecisionLog({ refreshKey }: { refreshKey: number }) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <ClipboardCheck className="size-5 text-blue-600" />
-            Decision Audit Trail
-            <span className="text-sm font-normal text-slate-500">({log.length} entries)</span>
-          </CardTitle>
-          <Button variant="outline" size="sm" onClick={clearLog} className="text-rose-600 border-rose-200 hover:bg-rose-50">
-            <Trash2 className="size-3.5 mr-1" />
-            Clear log
-          </Button>
-        </div>
+        <CardTitle className="text-lg flex items-center gap-2">
+          <ClipboardCheck className="size-5 text-blue-600" />
+          Decision Audit Trail
+          <span className="text-sm font-normal text-slate-500">({log.length} entries)</span>
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">

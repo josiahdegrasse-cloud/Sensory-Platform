@@ -6,14 +6,14 @@ import { FoodTypeProvider } from "./contexts/food-type-context.tsx";
 import { LoginPage } from "./components/login-page.tsx";
 import { SignupPage } from "./components/signup-page.tsx";
 import { ResetPasswordPage } from "./components/reset-password-page.tsx";
-import { useWorkspaceSettings } from "./lib/hooks.ts";
+import { usePublicWorkspaceConfig } from "./lib/hooks.ts";
 
 function AppContent() {
   const { isAuthenticated, isPasswordRecovery, loading } = useAuth();
-  const { data: workspaceSettings } = useWorkspaceSettings();
+  const { data: workspaceConfig } = usePublicWorkspaceConfig();
   const [showSignup, setShowSignup] = useState(false);
   const isPublicLegalRoute = ['/privacy', '/terms', '/panelist-consent'].includes(window.location.pathname);
-  const allowSelfSignup = workspaceSettings?.allowSelfSignup ?? true;
+  const allowSelfSignup = workspaceConfig?.allowSelfSignup ?? false;
 
   if (loading) {
     return (

@@ -35,6 +35,7 @@ async function loadProfile(supabaseUser: SupabaseUser): Promise<User | null> {
     .eq('id', supabaseUser.id)
     .single();
   if (error || !data) return null;
+  if (data.status && data.status !== 'active') return null;
   return {
     id: supabaseUser.id,
     email: supabaseUser.email ?? '',
@@ -87,7 +88,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     loadProfile(sessionUser).then(profile => {
-      setUser(profile);
+      if (!profile) {
+        setUser(null);
+        void supabase.auth.signOut();
+      } else {
+        setUser(profile);
+      }
       setLoading(false);
     }).catch(() => {
       setLoading(false);

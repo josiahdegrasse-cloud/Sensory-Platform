@@ -25,5 +25,17 @@ jobs:
       - name: Install dependencies
         run: npx pnpm@10 install --frozen-lockfile
 
+      - name: Test
+        run: npx pnpm@10 test
+
+      - name: Install browser
+        run: npx pnpm@10 exec playwright install --with-deps chromium
+
+      - name: Browser smoke tests
+        run: npx pnpm@10 run test:e2e
+
+      - name: Audit production dependencies
+        run: npx pnpm@10 audit --prod --audit-level=moderate
+
       - name: Build
         run: npx pnpm@10 run build
