@@ -25,6 +25,7 @@ import { Alert, AlertDescription } from './ui/alert';
 import { useAuth } from '../contexts/auth-context';
 import { PanelistPerformancePanel } from './panelist-performance';
 import { formatFoodTypeLabel } from '../lib/food-intelligence';
+import { findDataIntegrityIssues } from '../lib/workflow-readiness';
 
 type AdminTab = 'products' | 'panelists' | 'templates' | 'imports';
 
@@ -236,6 +237,11 @@ export function AdminConfig() {
         : 'Settings, image history, and storage are ready.',
     },
   ];
+  const integrityIssues = findDataIntegrityIssues({
+    dataset: instrumentalDataset,
+    products,
+    importBatches,
+  });
 
   // ── Sample handlers ───────────────────────────────────────────────────────────
 
@@ -1160,6 +1166,19 @@ export function AdminConfig() {
                 </div>
               ))}
             </div>
+            {integrityIssues.length > 0 && (
+              <Alert variant="destructive">
+                <AlertCircle className="size-4" />
+                <AlertDescription>
+                  <div className="font-semibold">Data integrity needs attention</div>
+                  <ul className="mt-1 space-y-1 text-sm">
+                    {integrityIssues.slice(0, 5).map(issue => (
+                      <li key={issue.id}>{issue.message}</li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
             {importBatches.length === 0 ? (
               <div className="py-12 text-center text-slate-400">
                 <Database className="size-10 mx-auto mb-2 opacity-30" />

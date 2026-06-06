@@ -15,6 +15,7 @@ import { formatFoodTypeLabel } from "../lib/food-intelligence";
 import { useInstrumentalDataset, useProducts, useWorkspaceSettings } from "../lib/hooks";
 import { useSurveyData } from "../lib/use-survey-data";
 import { calculateGoStopTweakDecision, type GoStopTweakDecision } from "../utils/go-stop-tweak-engine";
+import { assessSampleWorkflow } from "../lib/workflow-readiness";
 
 type SampleDecision = GoStopTweakDecision;
 
@@ -213,6 +214,22 @@ export function Stage4Enhanced() {
   const stopThreshold = workspaceSettings?.decisionStopThreshold ?? 52;
   const goThreshold = workspaceSettings?.decisionGoThreshold ?? 76;
   const minimumResponses = workspaceSettings?.decisionMinResponses ?? 12;
+  const importedReadiness = useMemo(() => (
+    (instrumentalDataset?.eTongueData ?? [])
+      .filter(sample => sample.type === foodType)
+      .map(sample => {
+        const product = products.find(item => item.sourceSampleId === sample.sampleId);
+        const aggregation = liveAggregations.find(item => item.sourceSampleId === sample.sampleId);
+        return assessSampleWorkflow({
+          sample,
+          product,
+          responseCount: aggregation?.n ?? 0,
+          minimumResponses,
+          hasGcms: (instrumentalDataset?.gcmsData[sample.sampleId]?.length ?? 0) > 0,
+          hasComposition: Boolean(instrumentalDataset?.compositionData[sample.sampleId]),
+        });
+      })
+  ), [foodType, instrumentalDataset, liveAggregations, minimumResponses, products]);
 
   const liveSensoryData = useMemo<EnhancedSensoryProfile[]>(() => {
     const activeTypes = new Set(extraFoodTypes);
@@ -334,7 +351,7 @@ export function Stage4Enhanced() {
                 </div>
               </div>
 
-              <div className="mt-6 grid grid-cols-3 gap-3">
+              <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                   <div className="text-2xl font-bold text-slate-900">{importedSamples.length}</div>
                   <div className="text-sm text-slate-500">machine samples ready</div>
@@ -348,6 +365,46 @@ export function Stage4Enhanced() {
                   <div className="text-sm text-slate-500">completed questionnaires</div>
                 </div>
               </div>
+
+              {importedReadiness.length > 0 && (
+                <div className="mt-6 overflow-hidden rounded-lg border border-slate-200">
+                  {importedReadiness.map(item => (
+                    <div key={item.sampleId} className="border-b border-slate-100 p-4 last:border-b-0">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <div className="font-semibold text-slate-900">{item.sampleName}</div>
+                          <div className="text-xs text-slate-500">{item.sampleId}</div>
+                        </div>
+                        <Badge variant="outline" className={item.decisionReady
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                          : 'border-amber-200 bg-amber-50 text-amber-700'}>
+                          {item.decisionReady ? 'Decision ready' : `${item.responseCount}/${minimumResponses} responses`}
+                        </Badge>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {item.stages.map(stage => (
+                          <span
+                            key={stage.id}
+                            title={stage.detail}
+                            className={`rounded-md px-2 py-1 text-xs font-medium ${
+                              stage.state === 'complete'
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : stage.state === 'current'
+                                  ? 'bg-blue-50 text-blue-700'
+                                  : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {stage.label}
+                          </span>
+                        ))}
+                      </div>
+                      {item.blockers.length > 0 && (
+                        <p className="mt-3 text-sm text-slate-600">{item.blockers[0]}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="mt-6 flex flex-wrap gap-2">
                 <Button asChild>

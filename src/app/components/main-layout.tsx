@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
-import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Tag, Archive, Trash2, Undo2, Database, ChevronDown, ChevronRight, Settings } from "lucide-react";
+import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Tag, Archive, Trash2, Undo2, Database, ChevronDown, ChevronRight, Settings, AlertCircle, X } from "lucide-react";
 import { useAuth } from "../contexts/auth-context";
 import { useEffect, useMemo, useState } from "react";
 import { useFoodType } from "../contexts/food-type-context";
@@ -36,7 +36,7 @@ function capitalize(s: string) {
 }
 
 function CategorySidebar() {
-  const { foodType, subCategory, setSelection, extraFoodTypes, archivedFoodTypes, deletedFoodTypes, archiveFoodType, restoreFoodType, deleteFoodType } = useFoodType();
+  const { foodType, subCategory, setSelection, extraFoodTypes, archivedFoodTypes, deletedFoodTypes, archiveFoodType, restoreFoodType, deleteFoodType, actionError, clearActionError } = useFoodType();
   const { data: products = [] } = useProducts();
   const { data: importBatches = [] } = useImportBatches();
   const { data: instrumentalDataset } = useInstrumentalDataset();
@@ -94,6 +94,15 @@ function CategorySidebar() {
       className="w-48 shrink-0 self-start sticky top-[89px]"
       style={{ minHeight: 'calc(100vh - 89px)' }}
     >
+      {actionError && (
+        <div className="mb-3 flex gap-2 rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800" role="alert">
+          <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+          <span className="min-w-0 flex-1">{actionError}</span>
+          <button type="button" onClick={clearActionError} title="Dismiss error" className="shrink-0 text-rose-600 hover:text-rose-900">
+            <X className="size-3.5" />
+          </button>
+        </div>
+      )}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         <div className="flex items-center gap-1.5 px-3 py-2.5 border-b border-slate-100">
           <Tag className="size-3.5 text-slate-400" />
@@ -269,7 +278,7 @@ function CategorySidebar() {
             <AlertDialogDescription>
               {pendingAction?.action === 'archive'
                 ? `${label(pendingAction.type)} will be hidden from the active food type list. You can restore it from the archived section.`
-                : `${label(pendingAction?.type ?? '')} and its imported machine data will be permanently removed. This cannot be undone.`}
+                : `${label(pendingAction?.type ?? '')} will be removed from active food lists and charts. Linked surveys are deleted; machine records remain soft-deleted for audit recovery.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

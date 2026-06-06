@@ -1,0 +1,70 @@
+import { describe, expect, it } from 'vitest';
+import { assessSampleWorkflow, findDataIntegrityIssues } from './workflow-readiness';
+
+const sample = {
+  sampleId: 'M1',
+  sampleName: 'Burger V1',
+  type: 'meat',
+  sourness: 1,
+  bitterness: 2,
+  saltiness: 3,
+  umami: 4,
+  sweetness: 1,
+};
+
+describe('workflow readiness', () => {
+  it('explains every prerequisite blocking a decision', () => {
+    const readiness = assessSampleWorkflow({
+      sample,
+      responseCount: 0,
+      minimumResponses: 12,
+      hasGcms: false,
+      hasComposition: false,
+    });
+
+    expect(readiness.decisionReady).toBe(false);
+    expect(readiness.blockers).toContain('Create a questionnaire for this sample.');
+    expect(readiness.stages.find(stage => stage.id === 'questionnaire')?.state).toBe('current');
+  });
+
+  it('marks a fully assigned and completed sample ready', () => {
+    const readiness = assessSampleWorkflow({
+      sample,
+      product: {
+        id: 'product-1',
+        name: 'Burger V1',
+        category: 'Meat',
+        status: 'active',
+        customAttributes: [],
+        assignedPanelistIds: ['panelist-1'],
+        createdDate: '2026-06-06',
+      },
+      responseCount: 12,
+      minimumResponses: 12,
+      hasGcms: true,
+      hasComposition: true,
+    });
+
+    expect(readiness.decisionReady).toBe(true);
+    expect(readiness.stages.every(stage => stage.state === 'complete')).toBe(true);
+  });
+
+  it('detects duplicate samples and orphaned surveys', () => {
+    const issues = findDataIntegrityIssues({
+      dataset: { eTongueData: [sample, sample], gcmsData: {}, compositionData: {} },
+      products: [{
+        id: 'product-2',
+        name: 'Missing sample',
+        category: 'Meat',
+        status: 'active',
+        customAttributes: [],
+        sourceSampleId: 'M9',
+        createdDate: '2026-06-06',
+      }],
+      importBatches: [],
+    });
+
+    expect(issues.some(issue => issue.id === 'duplicate:M1')).toBe(true);
+    expect(issues.some(issue => issue.id === 'orphan-survey:product-2')).toBe(true);
+  });
+});

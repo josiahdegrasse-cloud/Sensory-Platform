@@ -20,9 +20,6 @@ export function mergeFoodTypeRecords(
   return [...recordsByType.values()].sort((a, b) => a.type.localeCompare(b.type));
 }
 
-const FOOD_TYPE_STORAGE_KEY = 'sensory-dashboard-food-types';
-const IMPORTED_DATA_STORAGE_KEY = 'sensory-dashboard-imported-machine-data';
-
 interface FoodTypeContextValue {
   foodType: FoodType;
   subCategory: string | null;
@@ -35,6 +32,8 @@ interface FoodTypeContextValue {
   restoreFoodType: (type: string) => void;
   deleteFoodType: (type: string) => void;
   clearExtraFoodTypes: () => void;
+  actionError: string;
+  clearActionError: () => void;
 }
 
 const FoodTypeContext = createContext<FoodTypeContextValue>({
@@ -49,27 +48,15 @@ const FoodTypeContext = createContext<FoodTypeContextValue>({
   restoreFoodType: () => {},
   deleteFoodType: () => {},
   clearExtraFoodTypes: () => {},
+  actionError: '',
+  clearActionError: () => {},
 });
-
-function loadFoodTypeRecords(): LocalFoodTypeRecord[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = window.localStorage.getItem(FOOD_TYPE_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((item): item is LocalFoodTypeRecord =>
-      typeof item?.type === 'string' && (item.status === 'active' || item.status === 'archived' || item.status === 'deleted')
-    );
-  } catch {
-    return [];
-  }
-}
 
 export function FoodTypeProvider({ children }: { children: ReactNode }) {
   const [foodType, setFoodType] = useState<FoodType>('cheese');
   const [subCategory, setSubCategory] = useState<string | null>(null);
-  const [localFoodTypeRecords, setLocalFoodTypeRecords] = useState<LocalFoodTypeRecord[]>(loadFoodTypeRecords);
+  const [localFoodTypeRecords, setLocalFoodTypeRecords] = useState<LocalFoodTypeRecord[]>([]);
+  const [actionError, setActionError] = useState('');
   const { isAuthenticated, user } = useAuth();
   const foodTypesQuery = useFoodTypes(isAuthenticated && user?.role === 'admin');
   const archiveFoodTypeMutation = useArchiveFoodType();
@@ -92,10 +79,6 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
     setFoodType(foodTypeRecords.find(record => record.status === 'active')?.type ?? '');
     setSubCategory(null);
   }, [foodType, foodTypeRecords, foodTypesQuery.data]);
-
-  useEffect(() => {
-    window.localStorage.setItem(FOOD_TYPE_STORAGE_KEY, JSON.stringify(localFoodTypeRecords));
-  }, [localFoodTypeRecords]);
 
   useEffect(() => {
     if (!foodTypesQuery.data) return;
@@ -133,10 +116,12 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
       return prev.map(record => record.type === slug ? { ...record, status: 'archived' } : record);
     });
     setFoodType(current => current === slug ? fallbackType : current);
-    void archiveFoodTypeMutation.mutateAsync(slug).catch(() => {
+    setActionError('');
+    void archiveFoodTypeMutation.mutateAsync(slug).catch(error => {
       setLocalFoodTypeRecords(prev => prev.map(record =>
         record.type === slug ? { ...record, status: previousStatus } : record
       ));
+      setActionError(error instanceof Error ? error.message : `Could not archive ${slug}.`);
     });
   }, [archiveFoodTypeMutation, foodTypeRecords]);
 
@@ -145,11 +130,13 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
     const previousStatus = foodTypeRecords.find(record => record.type === slug)?.status ?? 'archived';
     setLocalFoodTypeRecords(prev => prev.map(record => record.type === slug ? { ...record, status: 'active' } : record));
     setSelection(slug, null);
-    void restoreFoodTypeMutation.mutateAsync(slug).catch(() => {
+    setActionError('');
+    void restoreFoodTypeMutation.mutateAsync(slug).catch(error => {
       setLocalFoodTypeRecords(prev => prev.map(record =>
         record.type === slug ? { ...record, status: previousStatus } : record
       ));
       setFoodType(current => current === slug ? '' : current);
+      setActionError(error instanceof Error ? error.message : `Could not restore ${slug}.`);
     });
   }, [foodTypeRecords, restoreFoodTypeMutation]);
 
@@ -163,48 +150,28 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
       return prev.map(record => record.type === slug ? { ...record, status: 'deleted' } : record);
     });
     setFoodType(current => current === slug ? fallbackType : current);
+    setActionError('');
     void deleteFoodTypeMutation.mutateAsync(slug)
       .then(() => {
         if (typeof window !== 'undefined') {
-          try {
-            const raw = window.localStorage.getItem(IMPORTED_DATA_STORAGE_KEY);
-            if (raw) {
-              const parsed = JSON.parse(raw);
-              const sampleIds = Array.isArray(parsed?.eTongueData)
-                ? parsed.eTongueData.filter((sample: { type?: string }) => sample.type === slug).map((sample: { sampleId: string }) => sample.sampleId)
-                : [];
-              const gcmsData = { ...(parsed?.gcmsData ?? {}) };
-              const compositionData = { ...(parsed?.compositionData ?? {}) };
-              sampleIds.forEach((sampleId: string) => {
-                delete gcmsData[sampleId];
-                delete compositionData[sampleId];
-              });
-              const eTongueData = (parsed?.eTongueData ?? []).filter((sample: { type?: string }) => sample.type !== slug);
-              if (eTongueData.length === 0) {
-                window.localStorage.removeItem(IMPORTED_DATA_STORAGE_KEY);
-              } else {
-                window.localStorage.setItem(IMPORTED_DATA_STORAGE_KEY, JSON.stringify({ eTongueData, gcmsData, compositionData }));
-              }
-            }
-          } catch {
-            window.localStorage.removeItem(IMPORTED_DATA_STORAGE_KEY);
-          }
           window.dispatchEvent(new CustomEvent('sensory-food-type-delete', { detail: { type: slug } }));
         }
       })
-      .catch(() => {
+      .catch(error => {
         setLocalFoodTypeRecords(prev => prev.map(record =>
           record.type === slug ? { ...record, status: previousStatus } : record
         ));
+        setActionError(error instanceof Error ? error.message : `Could not delete ${slug}.`);
       });
   }, [deleteFoodTypeMutation, foodTypeRecords]);
 
   const clearExtraFoodTypes = useCallback(() => {
     setLocalFoodTypeRecords([]);
   }, []);
+  const clearActionError = useCallback(() => setActionError(''), []);
 
   return (
-    <FoodTypeContext.Provider value={{ foodType, subCategory, setSelection, extraFoodTypes, archivedFoodTypes, deletedFoodTypes, registerFoodTypes, archiveFoodType, restoreFoodType, deleteFoodType, clearExtraFoodTypes }}>
+    <FoodTypeContext.Provider value={{ foodType, subCategory, setSelection, extraFoodTypes, archivedFoodTypes, deletedFoodTypes, registerFoodTypes, archiveFoodType, restoreFoodType, deleteFoodType, clearExtraFoodTypes, actionError, clearActionError }}>
       {children}
     </FoodTypeContext.Provider>
   );

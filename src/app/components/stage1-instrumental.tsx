@@ -224,8 +224,6 @@ function getRowValue(row: Record<string, string>, aliases: string[]) {
 }
 
 const DEMO_TYPES = new Set(['bread', 'dairy', 'pbca']);
-const IMPORTED_DATA_STORAGE_KEY = 'sensory-dashboard-imported-machine-data';
-
 interface StoredImportedData {
   eTongueData: ETongueMeasurement[];
   gcmsData: Record<string, GCMSCompound[]>;
@@ -250,23 +248,6 @@ export function mergeInstrumentalData(imported: StoredImportedData | null | unde
     gcmsData: { ...MOCK_GCMS_DATA, ...imported.gcmsData },
     compositionData: { ...MOCK_COMPOSITION_DATA, ...imported.compositionData },
   };
-}
-
-function loadImportedData(): StoredImportedData | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = window.localStorage.getItem(IMPORTED_DATA_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed?.eTongueData)) return null;
-    return {
-      eTongueData: parsed.eTongueData,
-      gcmsData: parsed.gcmsData ?? {},
-      compositionData: parsed.compositionData ?? {},
-    };
-  } catch {
-    return null;
-  }
 }
 
 function normalizeTypeLabel(value?: string, allowUnknown = false) {
@@ -475,7 +456,7 @@ function applyImportedDataset(
 }
 
 export function Stage1Instrumental() {
-  const storedImportedData = useMemo(loadImportedData, []);
+  const storedImportedData = useMemo(() => null, []);
   const initialDataset = useMemo(() => mergeInstrumentalData(storedImportedData), [storedImportedData]);
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -549,11 +530,6 @@ export function Stage1Instrumental() {
   }, [importedFoodTypes, registerFoodTypes]);
 
   useEffect(() => {
-    if (usingDemoData) return;
-    window.localStorage.setItem(IMPORTED_DATA_STORAGE_KEY, JSON.stringify({ eTongueData, gcmsData, compositionData }));
-  }, [compositionData, eTongueData, gcmsData, usingDemoData]);
-
-  useEffect(() => {
     const handleDelete = (event: Event) => {
       const type = (event as CustomEvent<{ type?: string }>).detail?.type;
       if (!type) return;
@@ -566,8 +542,8 @@ export function Stage1Instrumental() {
 
   const filteredETongueData = eTongueData.filter(s => {
     const t = (s.type || inferType(s.sampleId)).toLowerCase();
-    if (archivedFoodTypes.includes(t)) return false;
     const canonicalType = t === 'dairy' || t === 'pbca' ? 'cheese' : t;
+    if (archivedFoodTypes.includes(canonicalType)) return false;
     if (deletedFoodTypes.includes(canonicalType)) return false;
     if (subCategory?.startsWith('batch:')) return s.importBatchId === subCategory.replace('batch:', '');
     if (foodType === 'all') return true;
@@ -778,7 +754,6 @@ export function Stage1Instrumental() {
       setCompositionData({});
       setSelectedSamples([]);
       setUsingDemoData(false);
-      window.localStorage.removeItem(IMPORTED_DATA_STORAGE_KEY);
       if (foodType === type) setSelection('', null);
       return;
     }
