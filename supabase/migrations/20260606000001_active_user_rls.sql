@@ -189,7 +189,6 @@ SET search_path = ''
 AS $$
 DECLARE
   target_food_type_id uuid;
-  target_source text;
 BEGIN
   IF NOT public.is_admin() THEN
     RAISE EXCEPTION 'Only active administrators can manage food types';
@@ -198,8 +197,8 @@ BEGIN
     RAISE EXCEPTION 'Invalid food type status';
   END IF;
 
-  SELECT id, source
-  INTO target_food_type_id, target_source
+  SELECT id
+  INTO target_food_type_id
   FROM public.food_types
   WHERE slug = target_slug
   FOR UPDATE;
@@ -207,10 +206,6 @@ BEGIN
   IF target_food_type_id IS NULL THEN
     RAISE EXCEPTION 'Food type not found';
   END IF;
-  IF next_status = 'deleted' AND target_source = 'system' THEN
-    RAISE EXCEPTION 'System food types cannot be deleted';
-  END IF;
-
   UPDATE public.food_types
   SET status = next_status, updated_at = now()
   WHERE id = target_food_type_id;

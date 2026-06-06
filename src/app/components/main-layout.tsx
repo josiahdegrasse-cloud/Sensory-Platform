@@ -45,10 +45,8 @@ function CategorySidebar() {
   const [pendingProjectAction, setPendingProjectAction] = useState<{ id: string; label: string; action: 'archive' | 'delete' } | null>(null);
   const [expandedTypes, setExpandedTypes] = useState<Record<string, boolean>>({});
 
-  const builtInTypes = ['cheese', 'bread'];
-  const allTypes = [...builtInTypes, ...extraFoodTypes.filter(t => !builtInTypes.includes(t))]
+  const allTypes = extraFoodTypes
     .filter(type => !archivedFoodTypes.includes(type) && !deletedFoodTypes.includes(type));
-  const importedTypes = allTypes.filter(t => !builtInTypes.includes(t));
   const label = (ft: string) =>
     ft === 'cheese' ? 'Cheese' : ft === 'bread' ? 'Bread' : capitalize(ft);
   const activeTypeLabel = label(foodType);
@@ -103,7 +101,6 @@ function CategorySidebar() {
         </div>
         <div className="p-1.5 flex flex-col gap-0.5">
           {allTypes.map(ft => {
-            const imported = !builtInTypes.includes(ft);
             const active = foodType === ft;
             const projects = projectBatchesByType[ft] ?? [];
             const hasProjects = projects.length > 1;
@@ -130,26 +127,24 @@ function CategorySidebar() {
                   >
                     <span className="block truncate">{label(ft)}</span>
                   </button>
-                  {imported && (
-                    <div className="flex items-center pr-1 opacity-100 transition-opacity">
-                      <button
-                        type="button"
-                        title={`Archive ${label(ft)}`}
-                        onClick={() => setPendingAction({ type: ft, action: 'archive' })}
-                        className="p-1 text-slate-400 hover:text-slate-700 rounded"
-                      >
-                        <Archive className="size-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        title={`Delete ${label(ft)}`}
-                        onClick={() => setPendingAction({ type: ft, action: 'delete' })}
-                        className="p-1 text-slate-400 hover:text-rose-700 rounded"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex items-center pr-1 opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      title={`Archive ${label(ft)}`}
+                      onClick={() => setPendingAction({ type: ft, action: 'archive' })}
+                      className="p-1 text-slate-400 hover:text-slate-700 rounded"
+                    >
+                      <Archive className="size-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      title={`Delete ${label(ft)}`}
+                      onClick={() => setPendingAction({ type: ft, action: 'delete' })}
+                      className="p-1 text-slate-400 hover:text-rose-700 rounded"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
                 </div>
                 {hasProjects && expanded && (
                   <div className="ml-5 mt-0.5 space-y-0.5 border-l border-slate-100 pl-2">
@@ -228,9 +223,9 @@ function CategorySidebar() {
               ))}
             </div>
           )}
-          {importedTypes.length === 0 && archivedFoodTypes.length === 0 && (
+          {allTypes.length === 0 && archivedFoodTypes.length === 0 && (
             <div className="px-2.5 py-2 text-xs text-slate-400">
-              Imported CSV types will appear here.
+              Upload a CSV to create a food type.
             </div>
           )}
         </div>

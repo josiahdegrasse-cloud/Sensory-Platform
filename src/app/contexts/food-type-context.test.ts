@@ -26,4 +26,17 @@ describe('food type matching', () => {
       [{ type: 'meat', status: 'deleted' }],
     )).toEqual([{ type: 'meat', status: 'deleted' }]);
   });
+
+  it('tracks deletion status for built-in food types', () => {
+    expect(mergeFoodTypeRecords(
+      [
+        { type: 'bread', status: 'active' },
+        { type: 'cheese', status: 'deleted' },
+      ],
+      [],
+    )).toEqual([
+      { type: 'bread', status: 'active' },
+      { type: 'cheese', status: 'deleted' },
+    ]);
+  });
 });

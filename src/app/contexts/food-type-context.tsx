@@ -78,7 +78,6 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
 
   const foodTypeRecords = useMemo(() => {
     const databaseRecords = (foodTypesQuery.data ?? [])
-      .filter(record => record.source !== 'system')
       .map(record => ({ type: record.slug, status: record.status }));
     return mergeFoodTypeRecords(databaseRecords, localFoodTypeRecords);
   }, [foodTypesQuery.data, localFoodTypeRecords]);
@@ -88,13 +87,19 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
   const deletedFoodTypes = foodTypeRecords.filter(record => record.status === 'deleted').map(record => record.type);
 
   useEffect(() => {
+    if (!foodTypesQuery.data) return;
+    if (foodTypeRecords.some(record => record.type === foodType && record.status === 'active')) return;
+    setFoodType(foodTypeRecords.find(record => record.status === 'active')?.type ?? '');
+    setSubCategory(null);
+  }, [foodType, foodTypeRecords, foodTypesQuery.data]);
+
+  useEffect(() => {
     window.localStorage.setItem(FOOD_TYPE_STORAGE_KEY, JSON.stringify(localFoodTypeRecords));
   }, [localFoodTypeRecords]);
 
   useEffect(() => {
     if (!foodTypesQuery.data) return;
     const databaseRecords = foodTypesQuery.data
-      .filter(record => record.source !== 'system')
       .map(record => ({ type: record.slug, status: record.status }));
     const databaseTypes = new Set(databaseRecords.map(record => record.type));
     setLocalFoodTypeRecords(previous => mergeFoodTypeRecords(
@@ -121,12 +126,13 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
   const archiveFoodType = useCallback((type: string) => {
     const slug = slugifyFoodType(type);
     const previousStatus = foodTypeRecords.find(record => record.type === slug)?.status ?? 'active';
+    const fallbackType = foodTypeRecords.find(record => record.type !== slug && record.status === 'active')?.type ?? '';
     setLocalFoodTypeRecords(prev => {
       const exists = prev.some(record => record.type === slug);
       if (!exists) return [...prev, { type: slug, status: 'archived' }].sort((a, b) => a.type.localeCompare(b.type));
       return prev.map(record => record.type === slug ? { ...record, status: 'archived' } : record);
     });
-    setFoodType(current => current === slug ? 'cheese' : current);
+    setFoodType(current => current === slug ? fallbackType : current);
     void archiveFoodTypeMutation.mutateAsync(slug).catch(() => {
       setLocalFoodTypeRecords(prev => prev.map(record =>
         record.type === slug ? { ...record, status: previousStatus } : record
@@ -143,19 +149,20 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
       setLocalFoodTypeRecords(prev => prev.map(record =>
         record.type === slug ? { ...record, status: previousStatus } : record
       ));
-      setFoodType(current => current === slug ? 'cheese' : current);
+      setFoodType(current => current === slug ? '' : current);
     });
   }, [foodTypeRecords, restoreFoodTypeMutation]);
 
   const deleteFoodType = useCallback((type: string) => {
     const slug = slugifyFoodType(type);
     const previousStatus = foodTypeRecords.find(record => record.type === slug)?.status ?? 'active';
+    const fallbackType = foodTypeRecords.find(record => record.type !== slug && record.status === 'active')?.type ?? '';
     setLocalFoodTypeRecords(prev => {
       const exists = prev.some(record => record.type === slug);
       if (!exists) return [...prev, { type: slug, status: 'deleted' }].sort((a, b) => a.type.localeCompare(b.type));
       return prev.map(record => record.type === slug ? { ...record, status: 'deleted' } : record);
     });
-    setFoodType(current => current === slug ? 'cheese' : current);
+    setFoodType(current => current === slug ? fallbackType : current);
     void deleteFoodTypeMutation.mutateAsync(slug)
       .then(() => {
         if (typeof window !== 'undefined') {
