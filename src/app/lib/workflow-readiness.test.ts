@@ -67,4 +67,18 @@ describe('workflow readiness', () => {
     expect(issues.some(issue => issue.id === 'duplicate:M1')).toBe(true);
     expect(issues.some(issue => issue.id === 'orphan-survey:product-2')).toBe(true);
   });
+
+  it('checks a large import without producing false integrity errors', () => {
+    const largeDataset = Array.from({ length: 5_000 }, (_, index) => ({
+      ...sample,
+      sampleId: `M${index + 1}`,
+      sampleName: `Burger ${index + 1}`,
+    }));
+
+    expect(findDataIntegrityIssues({
+      dataset: { eTongueData: largeDataset, gcmsData: {}, compositionData: {} },
+      products: [],
+      importBatches: [],
+    })).toEqual([]);
+  });
 });

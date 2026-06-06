@@ -242,6 +242,7 @@ export function AdminConfig() {
     products,
     importBatches,
   });
+  const recoverableImportCount = importBatches.filter(batch => batch.status !== 'active').length;
 
   // ── Sample handlers ───────────────────────────────────────────────────────────
 
@@ -1148,6 +1149,17 @@ export function AdminConfig() {
             <p className="text-sm text-slate-500">All CSV instrument data imports with metadata and audit trail.</p>
           </CardHeader>
           <CardContent className="space-y-4">
+            {recoverableImportCount > 0 && (
+              <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Recovery available</p>
+                  <p className="text-xs text-slate-600">
+                    {recoverableImportCount} archived or deleted project{recoverableImportCount === 1 ? '' : 's'} can be restored below.
+                  </p>
+                </div>
+                <RotateCcw className="size-5 shrink-0 text-slate-500" />
+              </div>
+            )}
             <div className="grid gap-3 md:grid-cols-3">
               {importHealthItems.map(item => (
                 <div
@@ -1217,7 +1229,7 @@ export function AdminConfig() {
                         </td>
                         <td className="py-2.5 px-3">
                           <div className="flex justify-end gap-1.5">
-                            {batch.status === 'archived' ? (
+                            {batch.status !== 'active' ? (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -1227,7 +1239,7 @@ export function AdminConfig() {
                               >
                                 <RotateCcw className="size-3 mr-1" />Restore
                               </Button>
-                            ) : batch.status === 'active' ? (
+                            ) : (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -1237,7 +1249,7 @@ export function AdminConfig() {
                               >
                                 <Archive className="size-3 mr-1" />Archive
                               </Button>
-                            ) : null}
+                            )}
                             {confirmImportDeleteId === batch.id ? (
                               <>
                                 <Button

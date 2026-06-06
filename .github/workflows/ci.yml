@@ -28,11 +28,19 @@ jobs:
       - name: Test
         run: npx pnpm@10 test
 
+      - name: Validate migrations
+        run: |
+          test -n "$(find supabase/migrations -name '*.sql' -type f)"
+          ! grep -RInE 'DROP (TABLE|SCHEMA).*CASCADE|TRUNCATE ' supabase/migrations
+
       - name: Install browser
         run: npx pnpm@10 exec playwright install --with-deps chromium
 
       - name: Browser smoke tests
         run: npx pnpm@10 run test:e2e
+        env:
+          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
 
       - name: Audit production dependencies
         run: npx pnpm@10 audit --prod --audit-level=moderate

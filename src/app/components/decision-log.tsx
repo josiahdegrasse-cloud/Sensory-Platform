@@ -76,6 +76,11 @@ export function DecisionLog({ refreshKey }: { refreshKey: number }) {
             </thead>
             <tbody>
               {log.map(entry => {
+                const previous = log.find(candidate =>
+                  candidate.sampleId === entry.sampleId &&
+                  new Date(candidate.timestamp).getTime() < new Date(entry.timestamp).getTime()
+                );
+                const scoreDelta = previous ? entry.issfScore - previous.issfScore : null;
                 const dt = new Date(entry.timestamp);
                 const dateStr = dt.toLocaleDateString();
                 const timeStr = dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -91,7 +96,14 @@ export function DecisionLog({ refreshKey }: { refreshKey: number }) {
                         {DECISION_LABEL[entry.decision]}
                       </Badge>
                     </td>
-                    <td className="py-2 pr-4 font-mono text-slate-700">{entry.issfScore.toFixed(1)}</td>
+                    <td className="py-2 pr-4 font-mono text-slate-700">
+                      {entry.issfScore.toFixed(1)}
+                      {scoreDelta !== null && (
+                        <span className={`ml-1 text-[10px] ${scoreDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {scoreDelta >= 0 ? '+' : ''}{scoreDelta.toFixed(1)}
+                        </span>
+                      )}
+                    </td>
                     <td className="py-2 pr-4 text-slate-600">{entry.confidence.toFixed(0)}%</td>
                     <td className="py-2 pr-4 text-slate-600 text-xs">{entry.user}</td>
                     <td className="py-2 text-slate-500 text-xs italic max-w-[180px] truncate" title={entry.note}>{entry.note || "—"}</td>

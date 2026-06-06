@@ -4,7 +4,7 @@ import { useFoodType, sampleMatchesFoodType, matchFoodType } from "../contexts/f
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, Eye, EyeOff, Activity, Award, Zap, ClipboardCheck, GitMerge } from "lucide-react";
+import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, Eye, EyeOff, Activity, Award, Zap, ClipboardCheck, GitMerge, Download } from "lucide-react";
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, BarChart, Bar, LineChart, Line, Legend, ReferenceArea, ReferenceLine } from "recharts";
 import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from "../data/enhanced-sensory";
 import { METHOD_COMPARISON } from "../data/validation-data";
@@ -16,6 +16,7 @@ import { useInstrumentalDataset, useProducts, useWorkspaceSettings } from "../li
 import { useSurveyData } from "../lib/use-survey-data";
 import { calculateGoStopTweakDecision, type GoStopTweakDecision } from "../utils/go-stop-tweak-engine";
 import { assessSampleWorkflow } from "../lib/workflow-readiness";
+import { buildDecisionReportHtml, downloadDecisionReport } from "../utils/decision-report";
 
 type SampleDecision = GoStopTweakDecision;
 
@@ -517,6 +518,17 @@ export function Stage4Enhanced() {
           <Button onClick={() => setShowAuditTrail(v => !v)} variant="outline" size="sm">
             <ClipboardCheck className="size-4 mr-2" />
             Audit Trail
+          </Button>
+          <Button
+            onClick={() => downloadDecisionReport(
+              buildDecisionReportHtml({ foodType: formatFoodTypeLabel(foodType), decisions: sampleDecisions }),
+              `${foodType || 'sensory'}-decision-report.html`,
+            )}
+            variant="outline"
+            size="sm"
+          >
+            <Download className="size-4 mr-2" />
+            Download report
           </Button>
         </div>
       </div>

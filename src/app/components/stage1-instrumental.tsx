@@ -4,6 +4,7 @@ import { matchFoodType, useFoodType } from "../contexts/food-type-context";
 import { useAuth } from "../contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 import { FlaskConical, AlertCircle, Upload, X, Check, Download, BarChart3, ClipboardList, Lightbulb, ArrowRight } from "lucide-react";
 import { SAMPLES } from "../data/samples";
 import { detectFoodType, formatFoodTypeLabel, slugifyFoodType } from "../lib/food-intelligence";
@@ -477,6 +478,7 @@ export function Stage1Instrumental() {
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [lastImportSummary, setLastImportSummary] = useState<ImportCompletionSummary | null>(null);
   const [columnReport, setColumnReport] = useState<ColumnReport | null>(null);
+  const [foodTypeOverride, setFoodTypeOverride] = useState('');
   const [usingDemoData, setUsingDemoData] = useState(!storedImportedData);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -485,13 +487,24 @@ export function Stage1Instrumental() {
   const importSummary = useMemo(() => {
     if (!showPreview || previewData.length === 0) return null;
     const parsed = buildImportedDataset(previewData, uploadedFile);
+    const overrideSlug = slugifyFoodType(foodTypeOverride);
+    if (foodTypeOverride.trim()) {
+      parsed.detection = {
+        ...parsed.detection,
+        slug: overrideSlug,
+        label: formatFoodTypeLabel(overrideSlug),
+        confidence: 1,
+        evidence: [...parsed.detection.evidence, 'Confirmed by administrator'],
+      };
+      parsed.eTongueData = parsed.eTongueData.map(sample => ({ ...sample, type: overrideSlug }));
+    }
     return {
       ...parsed,
       sampleCount: parsed.eTongueData.length,
       gcmsCount: Object.keys(parsed.gcmsData).length,
       compositionCount: Object.keys(parsed.compositionData).length,
     };
-  }, [previewData, showPreview, uploadedFile]);
+  }, [foodTypeOverride, previewData, showPreview, uploadedFile]);
   const existingProjectCount = useMemo(() => {
     if (!importSummary) return 0;
     return (instrumentalDatasetQuery.data?.eTongueData ?? [])
@@ -598,6 +611,7 @@ export function Stage1Instrumental() {
 
   const handleFile = (file: File) => {
     setImportError(null);
+    setFoodTypeOverride('');
     setImportSuccess(null);
     setLastImportSummary(null);
 
@@ -726,6 +740,7 @@ export function Stage1Instrumental() {
     setShowPreview(false);
     setUploadedFile(null);
     setColumnReport(null);
+    setFoodTypeOverride('');
     setBatchName('');
     setImportStep(1);
     setUsingDemoData(false);
@@ -739,6 +754,7 @@ export function Stage1Instrumental() {
     setShowPreview(false);
     setUploadedFile(null);
     setColumnReport(null);
+    setFoodTypeOverride('');
     setBatchName('');
     setImportStep(1);
     setImportError(null);
@@ -1035,6 +1051,16 @@ export function Stage1Instrumental() {
                       <span className="rounded bg-white border border-slate-200 px-1.5 py-1">{importSummary.gcmsCount} GC-MS</span>
                       <span className="rounded bg-white border border-slate-200 px-1.5 py-1">{importSummary.compositionCount} comp</span>
                     </div>
+                    <label className="mt-3 block text-[11px] font-semibold text-slate-600" htmlFor="food-type-override">
+                      Correct classification
+                    </label>
+                    <Input
+                      id="food-type-override"
+                      value={foodTypeOverride}
+                      onChange={event => setFoodTypeOverride(event.target.value)}
+                      placeholder={importSummary.detection.slug}
+                      className="mt-1 h-8 bg-white text-xs"
+                    />
                   </div>
                 )}
                 {importSummary && (
