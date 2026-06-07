@@ -14,11 +14,12 @@ import { useSurveyData } from "../lib/use-survey-data";
 import { buildSampleCSVRows, buildAllDataCSVRows, downloadCsv } from "../utils/survey-csv-export";
 import {
   Users, Heart, Smile, Frown, CheckSquare,
-  TrendingUp, AlertCircle, Eye, EyeOff, Download, Layers, FlaskConical, ClipboardList
+  TrendingUp, AlertCircle, Eye, EyeOff, Download, Layers, FlaskConical, ClipboardList, Megaphone
 } from "lucide-react";
 import { MultiSampleAnalysis } from "./multi-sample-analysis";
 import { CATATab, IntensityTab, HedonicTab, CommentsTab, EmotionalTab } from "./survey-analysis-tabs";
 import { AllSamplesComparisonView } from "./all-samples-comparison";
+import { ConceptTestAnalysis } from "./concept-test-analysis";
 
 const RESEARCH_PANEL_N = 14;
 
@@ -38,7 +39,7 @@ export function SurveyAnalysis() {
   const { foodType, subCategory } = useFoodType();
   const [selectedSample, setSelectedSample] = useState<string>("S1");
   const [showAllSamples, setShowAllSamples] = useState(false);
-  const [analysisType, setAnalysisType] = useState<'single' | 'multi'>('single');
+  const [analysisType, setAnalysisType] = useState<'single' | 'multi' | 'concept'>('single');
   const importedSensoryData: EnhancedSensoryProfile[] = useMemo(() => (instrumentalDataset?.eTongueData ?? [])
     .map(sample => {
       const composition = instrumentalDataset?.compositionData?.[sample.sampleId];
@@ -317,7 +318,9 @@ export function SurveyAnalysis() {
           <p className="text-sm text-slate-500 mt-1">
             {analysisType === 'single'
               ? `${usingLiveData ? 'Live panel responses' : 'E-Tongue + GC-MS + Semi-trained Panel'} (n=${activePanelistN}) — CATA, Intensity, Hedonic, Emotional`
-              : 'Multi-sample comparative evaluations - Discrimination, Ranking, Preferences'}
+              : analysisType === 'multi'
+                ? 'Multi-sample comparative evaluations - Discrimination, Ranking, Preferences'
+                : 'Concept test panelist feedback - Appeal, Visual preference, Purchase intent'}
           </p>
         </div>
         <div className="flex gap-2">
@@ -367,7 +370,7 @@ export function SurveyAnalysis() {
       )}
 
       {/* Analysis Type Toggle */}
-      <div className="grid grid-cols-2 gap-3 max-w-2xl">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-4xl">
         <button
           onClick={() => setAnalysisType('single')}
           className={`p-4 rounded-lg border-2 transition-all text-left ${
@@ -406,6 +409,27 @@ export function SurveyAnalysis() {
             <div>
               <div className="font-bold text-slate-900">Multi-Sample Analysis</div>
               <p className="text-xs text-slate-600">Discrimination, Ranking, Comparison</p>
+            </div>
+          </div>
+        </button>
+
+        <button
+          onClick={() => setAnalysisType('concept')}
+          className={`p-4 rounded-lg border-2 transition-all text-left ${
+            analysisType === 'concept'
+              ? 'border-orange-500 bg-gradient-to-br from-orange-50 to-amber-50'
+              : 'border-slate-200 hover:border-orange-300 bg-white'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+              analysisType === 'concept' ? 'bg-orange-500' : 'bg-slate-200'
+            }`}>
+              <Megaphone className={`size-5 ${analysisType === 'concept' ? 'text-white' : 'text-slate-500'}`} />
+            </div>
+            <div>
+              <div className="font-bold text-slate-900">Concept Tests</div>
+              <p className="text-xs text-slate-600">Appeal, Visual preference, Purchase intent</p>
             </div>
           </div>
         </button>
@@ -582,7 +606,7 @@ export function SurveyAnalysis() {
         />
       )}
         </>
-      ) : (
+      ) : analysisType === 'multi' ? (
         /* Multi-Sample Analysis Section */
         <MultiSampleAnalysis
           multiSampleResponses={multiSampleResponses}
@@ -590,6 +614,9 @@ export function SurveyAnalysis() {
           selectedMultiProduct={selectedMultiProduct}
           setSelectedMultiProduct={setSelectedMultiProduct}
         />
+      ) : (
+        /* Concept Test Analysis Section */
+        <ConceptTestAnalysis />
       )}
     </div>
   );

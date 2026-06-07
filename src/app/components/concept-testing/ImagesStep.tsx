@@ -181,7 +181,10 @@ export function ImagesStep({
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
           <div>
-            <Label className="font-medium">Visual direction</Label>
+            <Label className="font-medium">Lead visual direction</Label>
+            <p className="text-xs text-slate-500 mt-1">
+              We generate {CONCEPT_IMAGE_COUNT} genuinely different concepts per batch — packaging hero, lifestyle usage, shelf context, and ad concept — so panelists can compare distinct directions. Pick which one leads the set.
+            </p>
             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
               {IMAGE_MODES.map((option) => {
                 const Icon = option.icon;
@@ -213,7 +216,7 @@ export function ImagesStep({
               <div>
                 <p className="font-semibold text-slate-900">OpenAI image generation</p>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Generates {CONCEPT_IMAGE_COUNT} medium-quality concept options into the {draft.projectName || 'Project 1'} folder.
+                  Generates {CONCEPT_IMAGE_COUNT} distinct, campaign-quality concepts — each its own angle and prompt — into the {draft.projectName || 'Project 1'} folder.
                 </p>
               </div>
               <Button
@@ -281,7 +284,7 @@ export function ImagesStep({
 
               {!generating && aiCandidates.length > 0 && (
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-xs text-slate-500">Select 2-4 visuals for panelists. More variety helps, but too many images can dilute the read.</p>
+                  <p className="text-xs text-slate-500">Select the visuals panelists should compare — keep them genuinely distinct so the "best image" question has a real choice to make.</p>
                   <div className="flex gap-2">
                     <Button type="button" variant="outline" size="sm" onClick={() => setAiCandidates([])}>
                       Discard

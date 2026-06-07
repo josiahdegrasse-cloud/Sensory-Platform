@@ -5,13 +5,12 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import {
   Lightbulb, ChevronRight, ChevronLeft, Send, CheckCircle2, Image as ImageIcon,
-  ListChecks, Users, WandSparkles, AlertTriangle, FileCheck2,
+  ListChecks, Users, AlertTriangle, FileCheck2, ChevronDown,
 } from 'lucide-react';
 import { insertConceptTest } from '../lib/database';
 import { detectFoodType } from '../lib/food-intelligence';
 import {
   useConceptGenerationSettings,
-  useConceptImageGenerations,
   useConceptLabDiagnostics,
   useCommercializationReports,
   useWorkspaceSettings,
@@ -67,28 +66,24 @@ export function ConceptTesting() {
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState('');
   const [draftNotice, setDraftNotice] = useState('');
+  const [reportsExpanded, setReportsExpanded] = useState(false);
   const { data: settings } = useConceptGenerationSettings();
   const { data: workspaceSettings } = useWorkspaceSettings();
-  const { data: history = [] } = useConceptImageGenerations();
   const { data: diagnostics } = useConceptLabDiagnostics();
   const { data: commercializationReports = [] } = useCommercializationReports();
 
-  const STEPS: WizardStep[] = ['concept', 'images', 'questions', 'panel', 'review'];
+  const STEPS: WizardStep[] = ['concept', 'survey', 'review'];
   const stepIndex = STEPS.indexOf(step);
 
   const conceptValid = draft.name.trim() && draft.category.trim() && draft.description.trim();
   const detection = detectFoodType(draft.category, draft.name, draft.description);
   const validImageCount = draft.marketingImages.filter(u => u.trim()).length;
-  const visualReady = validImageCount >= 2 && validImageCount <= 4;
-  const questionReady = questions.length >= 18 && questions.length <= 30;
-  const panelReady = assignedPanelistIds.length > 0;
-  const estimatedGenerationCost = (settings?.estimatedCostPerImage ?? 0.034) * (settings?.defaultImageCount ?? 4);
-  const monthSpend = history.reduce((total, generation) => total + generation.estimatedCost, 0);
+  const visualReady = validImageCount >= 1;
+  const questionReady = questions.length >= 5;
   const readinessItems = [
     { label: 'Concept brief', ready: !!conceptValid, detail: conceptValid ? 'Name, category, and description are ready.' : 'Add name, category, and consumer-facing description.' },
-    { label: 'Concept visuals', ready: visualReady, detail: validImageCount === 0 ? 'Generate 4 visuals and select 2-4.' : `${validImageCount} visual${validImageCount !== 1 ? 's' : ''} selected.` },
+    { label: 'Concept visuals', ready: visualReady, detail: validImageCount === 0 ? 'Add at least one concept visual.' : `${validImageCount} visual${validImageCount !== 1 ? 's' : ''} added.` },
     { label: 'Survey questions', ready: questionReady, detail: questions.length === 0 ? 'Generate a tailored questionnaire.' : `${questions.length} question${questions.length !== 1 ? 's' : ''} in the survey.` },
-    { label: 'Panel target', ready: panelReady, detail: assignedPanelistIds.length > 0 ? `${assignedPanelistIds.length} named panelist${assignedPanelistIds.length !== 1 ? 's' : ''}.` : `${panelSize} target responses.` },
   ];
   const readyCount = readinessItems.filter(item => item.ready).length;
   const launchReady = readinessItems.every(item => item.ready);
@@ -100,13 +95,6 @@ export function ConceptTesting() {
     || draft.marketingImages.some(Boolean)
     || questions.length > 0
   ), [draft.category, draft.description, draft.marketingImages, draft.name, questions.length]);
-  const nextBestAction = !conceptValid
-    ? 'Finish the concept brief first.'
-    : !visualReady
-      ? 'Generate 4 visuals and select the strongest 2-4.'
-      : !questionReady
-        ? 'Generate a tailored 18-30 question survey.'
-        : 'Assign panelists and launch when ready.';
 
   useEffect(() => {
     try {
@@ -267,26 +255,35 @@ export function ConceptTesting() {
 
       {commercializationReports.length > 0 && (
         <section className="rounded-lg border border-slate-200 bg-white">
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-            <div>
+          <button
+            type="button"
+            onClick={() => setReportsExpanded(prev => !prev)}
+            className="flex w-full items-center justify-between gap-3 px-4 py-3"
+          >
+            <div className="text-left">
               <h2 className="text-sm font-semibold text-slate-900">Commercialization reports</h2>
               <p className="text-xs text-slate-500">GO-approved formulation and packaging handoffs.</p>
             </div>
-            <Badge variant="outline">{commercializationReports.filter(report => report.status === 'approved').length} approved</Badge>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {commercializationReports.slice(0, 5).map(report => (
-              <div key={report.id} className="flex items-center justify-between gap-4 px-4 py-3">
-                <div>
-                  <p className="text-sm font-medium text-slate-900">{report.title}</p>
-                  <p className="text-xs text-slate-500">Version {report.version} · {new Date(report.updatedAt).toLocaleDateString()}</p>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline">{commercializationReports.filter(report => report.status === 'approved').length} approved</Badge>
+              <ChevronDown className={`size-4 text-slate-400 transition-transform ${reportsExpanded ? 'rotate-180' : ''}`} />
+            </div>
+          </button>
+          {reportsExpanded && (
+            <div className="divide-y divide-slate-100 border-t border-slate-100">
+              {commercializationReports.slice(0, 5).map(report => (
+                <div key={report.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">{report.title}</p>
+                    <p className="text-xs text-slate-500">Version {report.version} · {new Date(report.updatedAt).toLocaleDateString()}</p>
+                  </div>
+                  <Badge className={report.status === 'approved' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}>
+                    {report.status}
+                  </Badge>
                 </div>
-                <Badge className={report.status === 'approved' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}>
-                  {report.status}
-                </Badge>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
@@ -317,7 +314,7 @@ export function ConceptTesting() {
           const done = i < stepIndex;
           const active = s === step;
           const labels: Record<WizardStep, string> = {
-            concept: '1. Concept', images: '2. Images', questions: '3. Questions', panel: '4. Panel', review: '5. Review', launched: '',
+            concept: '1. Concept & visuals', survey: '2. Survey & panel', review: '3. Review', launched: '',
           };
           return (
             <div key={s} className="flex items-center flex-1">
@@ -335,86 +332,47 @@ export function ConceptTesting() {
         })}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
-        {/* Step content */}
-        <Card className="border border-slate-200 shadow-sm">
-          <CardContent className="pt-6 pb-6">
-            {step === 'concept'    && <ConceptStep draft={draft} onChange={setDraft} />}
-            {step === 'images'     && <ImagesStep draft={draft} onChange={setDraft} estimatedCostPerImage={settings?.estimatedCostPerImage ?? 0.034} />}
-            {step === 'questions'  && <QuestionsStep draft={draft} questions={questions} onChange={setQuestions} />}
-            {step === 'panel'      && <PanelStep panelSize={panelSize} setPanelSize={setPanelSize} targetSegments={segments} setTargetSegments={setSegments} assignedPanelistIds={assignedPanelistIds} setAssignedPanelistIds={setAssignedPanelistIds} />}
-            {step === 'review'     && <ReviewStep draft={draft} questions={questions} panelSize={panelSize} segments={segments} assignedPanelistIds={assignedPanelistIds} />}
-          </CardContent>
-        </Card>
-
-        <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
-          <Card className="border border-slate-200">
-            <CardContent className="p-4 space-y-4">
-              <div className="flex items-center gap-2">
-                <WandSparkles className="size-4 text-blue-600" />
-                <div>
-                  <p className="font-semibold text-slate-900 text-sm">Launch readiness</p>
-                  <p className="text-xs text-slate-500">{readyCount} of {readinessItems.length} signals ready</p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                {readinessItems.map(item => (
-                  <div key={item.label} className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium text-slate-700">{item.label}</span>
-                      <span className={`flex size-5 items-center justify-center rounded-full ${
-                        item.ready ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-300'
-                      }`}>
-                        <CheckCircle2 className="size-3.5" />
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-0.5">{item.detail}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="size-4 text-amber-600 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-semibold text-amber-900">Next best action</p>
-                    <p className="text-xs text-amber-800 mt-0.5">{nextBestAction}</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border border-blue-200 bg-blue-50">
-            <CardContent className="p-4">
-              <p className="text-sm font-semibold text-blue-950">Lab context</p>
-              <dl className="mt-3 space-y-2 text-xs">
-                <div className="flex justify-between gap-3">
-                  <dt className="text-blue-700">Food type</dt>
-                  <dd className="font-semibold text-blue-950">{detection.label}</dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="text-blue-700">Project</dt>
-                  <dd className="font-semibold text-blue-950 text-right">{draft.projectName || 'Project 1'}</dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="text-blue-700">Visuals</dt>
-                  <dd className="font-semibold text-blue-950">4 · {settings?.defaultQuality ?? 'medium'}</dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="text-blue-700">Next estimate</dt>
-                  <dd className="font-semibold text-blue-950">${estimatedGenerationCost.toFixed(2)}</dd>
-                </div>
-                {history.length > 0 && (
-                  <div className="flex justify-between gap-3">
-                    <dt className="text-blue-700">Tracked spend</dt>
-                    <dd className="font-semibold text-blue-950">${monthSpend.toFixed(2)}</dd>
-                  </div>
-                )}
-              </dl>
-            </CardContent>
-          </Card>
-        </aside>
+      {/* Launch readiness strip */}
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3">
+        <span className="text-xs font-semibold text-slate-500 mr-1">Launch readiness ({readyCount}/{readinessItems.length})</span>
+        {readinessItems.map(item => (
+          <span
+            key={item.label}
+            title={item.detail}
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
+              item.ready ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-50 text-slate-500 border border-slate-200'
+            }`}
+          >
+            <CheckCircle2 className="size-3.5" />
+            {item.label}
+          </span>
+        ))}
       </div>
+
+      {/* Step content */}
+      <Card className="border border-slate-200 shadow-sm">
+        <CardContent className="pt-6 pb-6 space-y-8">
+          {step === 'concept' && (
+            <>
+              <ConceptStep draft={draft} onChange={setDraft} />
+              <div className="border-t border-slate-100 pt-8">
+                <ImagesStep draft={draft} onChange={setDraft} estimatedCostPerImage={settings?.estimatedCostPerImage ?? 0.034} />
+              </div>
+            </>
+          )}
+          {step === 'survey' && (
+            <>
+              <QuestionsStep draft={draft} questions={questions} onChange={setQuestions} />
+              <div className="border-t border-slate-100 pt-8">
+                <PanelStep panelSize={panelSize} setPanelSize={setPanelSize} targetSegments={segments} setTargetSegments={setSegments} assignedPanelistIds={assignedPanelistIds} setAssignedPanelistIds={setAssignedPanelistIds} />
+              </div>
+            </>
+          )}
+          {step === 'review' && (
+            <ReviewStep draft={draft} questions={questions} panelSize={panelSize} segments={segments} assignedPanelistIds={assignedPanelistIds} />
+          )}
+        </CardContent>
+      </Card>
 
       {launchError && (
         <p className="text-sm text-rose-600 font-medium text-center">{launchError}</p>

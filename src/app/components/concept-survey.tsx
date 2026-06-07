@@ -181,6 +181,7 @@ export function ConceptSurvey() {
               index={i}
               answer={answers[q.id]}
               onAnswer={val => setAnswer(q.id, val)}
+              images={validImages}
             />
           ))}
         </div>
@@ -206,12 +207,13 @@ export function ConceptSurvey() {
 // ─── Question renderers ───────────────────────────────────────────────────────
 
 function QuestionCard({
-  question, index, answer, onAnswer,
+  question, index, answer, onAnswer, images,
 }: {
   question: ConceptQuestion;
   index: number;
   answer: string | number | string[] | undefined;
   onAnswer: (val: string | number | string[]) => void;
+  images: string[];
 }) {
   return (
     <Card className="border border-slate-200 hover:border-orange-200 transition-colors">
@@ -249,6 +251,13 @@ function QuestionCard({
               <RankingInput
                 options={question.options}
                 value={answer as string[] | undefined}
+                onChange={onAnswer}
+              />
+            )}
+            {question.type === 'image_choice' && (
+              <ImageChoiceInput
+                images={images}
+                value={answer as string | undefined}
                 onChange={onAnswer}
               />
             )}
@@ -322,6 +331,42 @@ function MultipleChoiceInput({
           />
           <span className="text-sm text-slate-700">{opt}</span>
         </label>
+      ))}
+    </div>
+  );
+}
+
+function ImageChoiceInput({
+  images, value, onChange,
+}: {
+  images: string[];
+  value: string | undefined;
+  onChange: (v: string) => void;
+}) {
+  if (images.length === 0) {
+    return <p className="text-xs text-slate-400 italic">No concept visuals to compare.</p>;
+  }
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {images.map((url, i) => (
+        <button
+          key={`${url}-${i}`}
+          type="button"
+          onClick={() => onChange(url)}
+          className={`relative rounded-lg overflow-hidden border-2 transition-all ${
+            value === url ? 'border-orange-500 shadow-md' : 'border-slate-200 hover:border-orange-300'
+          }`}
+        >
+          <img src={url} alt={`Concept visual ${i + 1}`} className="w-full aspect-square object-cover" />
+          <span className={`absolute top-1.5 right-1.5 flex size-5 items-center justify-center rounded-full border-2 shadow-sm ${
+            value === url ? 'bg-orange-500 border-orange-500 text-white' : 'bg-white/90 border-slate-300 text-transparent'
+          }`}>
+            <CheckCircle2 className="size-3" />
+          </span>
+          <span className="absolute bottom-1.5 left-1.5 rounded-md bg-slate-950/75 px-1.5 py-0.5 text-[11px] font-semibold text-white">
+            Option {i + 1}
+          </span>
+        </button>
       ))}
     </div>
   );

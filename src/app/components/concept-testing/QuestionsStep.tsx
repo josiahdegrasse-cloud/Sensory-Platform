@@ -46,8 +46,8 @@ export function QuestionsStep({
       { id: 'q_tailored_price_2', text: 'What would make the product feel worth paying more for?', type: 'open_text', required: false, category: 'price' },
       { id: 'q_tailored_usage_1', text: 'How often could you imagine using or eating this product?', type: 'scale', required: true, category: 'usage' },
       { id: 'q_tailored_usage_2', text: 'Which occasion best fits this product?', type: 'multiple_choice', options: ['Everyday meals', 'Snacking', 'Entertaining', 'Fitness or nutrition', 'Family meals', 'Special treat'], required: false, category: 'usage' },
-      { id: 'q_tailored_image_1', text: 'How well do the concept visuals communicate what the product is?', type: 'scale', required: draft.marketingImages.length > 0, category: 'appeal' },
-      { id: 'q_tailored_image_2', text: 'How appetizing do the concept visuals look?', type: 'scale', required: draft.marketingImages.length > 0, category: 'appeal' },
+      { id: 'q_tailored_image_best', text: 'Which of these concept visuals is most appealing to you?', type: 'image_choice', required: draft.marketingImages.filter(u => u.trim()).length > 1, category: 'appeal' },
+      { id: 'q_tailored_image_why', text: 'What made that visual stand out to you?', type: 'open_text', required: false, category: 'appeal' },
       { id: 'q_tailored_fit_1', text: `How well does this concept fit the ${detection.label.toLowerCase()} category?`, type: 'scale', required: true, category: 'attributes' },
       ...successMarkers.map((marker, index) => ({
         id: `q_tailored_success_${index}`,
@@ -132,7 +132,7 @@ export function QuestionsStep({
         <div>
           <h2 className="text-xl font-bold text-slate-900">Design your survey</h2>
           <p className="text-slate-500 text-sm mt-1">
-            {questions.length} question{questions.length !== 1 ? 's' : ''} — aim for 20–30 for reliable insights.
+            {questions.length} question{questions.length !== 1 ? 's' : ''} — at least 5 recommended.
           </p>
         </div>
         <div className="flex items-center gap-2">

@@ -1195,7 +1195,7 @@ export async function fetchPanelistReliability(): Promise<PanelistReliability[]>
 export interface ConceptQuestion {
   id: string;
   text: string;
-  type: 'scale' | 'multiple_choice' | 'open_text' | 'ranking';
+  type: 'scale' | 'multiple_choice' | 'open_text' | 'ranking' | 'image_choice';
   options?: string[];
   required: boolean;
   category: string;

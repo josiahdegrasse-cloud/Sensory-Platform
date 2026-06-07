@@ -1,6 +1,6 @@
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type QuestionType = 'scale' | 'multiple_choice' | 'open_text' | 'ranking';
+export type QuestionType = 'scale' | 'multiple_choice' | 'open_text' | 'ranking' | 'image_choice';
 
 export interface Question {
   id: string;
@@ -26,7 +26,7 @@ export interface ConceptDraft {
   approvalStatus: 'draft' | 'review' | 'approved';
 }
 
-export type WizardStep = 'concept' | 'images' | 'questions' | 'panel' | 'review' | 'launched';
+export type WizardStep = 'concept' | 'survey' | 'review' | 'launched';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -44,6 +44,7 @@ export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   multiple_choice: 'Multiple Choice',
   open_text: 'Open Text',
   ranking: 'Ranking',
+  image_choice: 'Pick best visual',
 };
 
 export const CATEGORY_BAR_COLORS: Record<Question['category'], string> = {
@@ -56,5 +57,5 @@ export const CATEGORY_BAR_COLORS: Record<Question['category'], string> = {
 };
 
 export const QUESTION_SECONDS: Record<QuestionType, number> = {
-  scale: 25, multiple_choice: 35, open_text: 90, ranking: 45,
+  scale: 25, multiple_choice: 35, open_text: 90, ranking: 45, image_choice: 30,
 };
