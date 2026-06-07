@@ -1,181 +1,102 @@
-# ISSF Platform Demo Instructions
+# NFI Platform Demo Instructions
 
 ## Quick Start
 
-The ISSF (Integrated Sensory Screening Framework) platform is a functional multi-user system for evaluating plant-based cheese using a hybrid approach combining instrumental measurements, semi-trained panels, and human-centered design.
+The NFI Platform is a sensory evaluation, consumer research, and concept-testing system that
+takes a product from R&D to market. It combines instrumental (machine) measurements, semi-trained
+sensory panels, and consumer concept testing into one workflow, organized by **food type**
+(e.g., cheese, bread, and any custom types an admin adds).
+
+This is a real **Supabase-backed** application — authentication, roles, and data are all live, not
+mocked or stored in localStorage.
 
 ## Demo Accounts
 
-### Panelist Accounts
-**Access:** Questionnaires only
+There are two roles: **admin** and **panelist**. Use the credentials in
+`DEMO_CREDENTIALS.local.md` (not committed to git — ask Josiah for the current login).
 
-| Email | Password | Name | ID |
-|-------|----------|------|-----|
-| panelist1@example.com | demo123 | Sarah Johnson | P001 |
-| panelist2@example.com | demo123 | Michael Chen | P002 |
-| panelist3@example.com | demo123 | Emily Rodriguez | P003 |
-| panelist4@example.com | demo123 | James Wilson | P004 |
-| panelist5@example.com | demo123 | Maria Garcia | P005 |
+| Role | Access |
+|------|--------|
+| Admin | Full platform: machine testing, survey analysis, final decision, concept testing, configuration |
+| Panelist | Only their own questionnaires at `/panelist` — cannot see other panelists' data or admin features |
 
-**Panelist Features:**
-- Fill out product questionnaires
-- CATA (Check-All-That-Apply) attribute selection
-- Intensity ratings (0-10 scale)
-- Hedonic liking scores (9-point scale)
-- Emotional profile (EsSense25)
-- Cannot submit duplicate evaluations for same product
-- Cannot see other panelists' data or admin features
-
-### Administrator Account
-**Access:** Full system access + configuration
-
-| Email | Password | Name |
-|-------|----------|------|
-| admin@example.com | demo123 | Admin User |
-
-**Administrator Features:**
-- Full access to all 4-step evaluation process
-- Machine testing data (E-Tongue + GC-O)
-- Survey analysis (CATA, hedonic, emotions)
-- GO/TWEAK/STOP decision dashboard
-- **Dairy Comparison Tool** - Compare plant-based samples to dairy benchmarks
-- AI-powered formulation suggestions
-- **Product & Questionnaire Configuration** - Create products and customize attributes
-- **User management** - View all panelist responses
+> Note: there is no separate "developer" role in this version — admins have full access.
 
 ---
 
-## Key Features Demonstrated
+## Navigation (Admin)
 
-### 1. **Role-Based Access Control**
-- Panelists only see questionnaires
-- Developers see all data AND can configure products/questionnaires
-- Admins have full access (same as developers in this version)
+The left sidebar lists food-type "projects" (e.g., Cheese, Bread, plus any custom or imported
+types), each showing its most recent import date. The top nav has:
 
-### 2. **Dynamic Questionnaire Configuration**
-- Admin can customize which attributes appear
-- Different products can have different attribute sets
-- Add custom attributes (e.g., "Smoky" for smoked varieties)
+| Page | Route | What it does |
+|------|-------|--------------|
+| **Overview** | `/` | Landing dashboard — module grid, panel capacity summary |
+| **Machine Testing** | `/stage1` | Objective sensory data via E-Tongue and GC-O instrumentation |
+| **Analyze Results** | `/survey-analysis` | CATA + hedonic scoring analysis across the panelist pool |
+| **Final Decision** | `/decision` | Integrated GO / TWEAK / STOP recommendation engine (this is where "ISSF" — Integrated Sensory Screening Framework, the platform's branded scoring methodology — appears; be ready to explain it if asked) |
+| **Concept Testing** | `/concept-testing` | Build AI-assisted 20–30 question consumer surveys and send them to panelists |
+| **Configure** | `/admin` | Create/manage surveys, panelists, templates, and CSV imports — has four tabs: **Surveys**, **Panelists**, **Templates**, **Imports** |
+| **Settings** | `/settings` | Admin account/workspace settings |
 
-### 3. **Duplicate Submission Prevention**
-- Each panelist can only submit ONE response per product
-- Tracks completion status per user
-- Shows "Already Completed" message if attempting duplicate
+## Navigation (Panelist)
 
-### 4. **Multi-User Data Collection**
-- Each response linked to panelist ID
-- Timestamps recorded
-- Data stored locally (simulating database)
-
-### 5. **Dairy Comparison & Formulation Suggestions**
-- Compare plant-based samples to dairy controls
-- Visualize gaps in taste, composition, and hedonic scores
-- AI-generated suggestions for closing gaps
-- Priority-ranked recommendations (critical/high/medium)
+Panelists land on `/panelist` ("Welcome, [Name]") with four sections:
+- **Available Questionnaires** — sensory evaluations waiting to be filled out
+- **Marketing Evaluations** — concept-test surveys assigned to them
+- **Completed Questionnaires** — their submitted sensory evaluations
+- **Completed Marketing Evaluations** — their submitted concept tests
 
 ---
 
 ## Testing Workflow
 
-### As a Panelist:
-1. Login with `panelist1@example.com` / `demo123`
-2. See available questionnaires
-3. Click "Start Questionnaire" on any product
-4. Fill out all 4 sections (CATA, Intensity, Hedonic, Emotions)
-5. Submit
-6. See confirmation and redirect to dashboard
-7. Try to submit again → blocked with "Already Completed" message
+### As an Admin
+1. Log in with the admin account.
+2. From **Overview**, note the two tracks — **R&D** (objective scoring → GO/TWEAK/STOP) and
+   **Marketing** (concept testing → consumer validation).
+3. Open **Configure** → **Surveys** tab to create or assign a questionnaire for a food type.
+4. Check the **Imports** tab — recent CSV import batches now show up here with their import
+   dates (this was the bug fixed in commit `51a9b4d`).
+5. Visit **Machine Testing** to view instrumental (E-Tongue/GC-O) data for the active food type.
+6. Visit **Analyze Results** to see aggregated CATA, hedonic, and emotional-profile data.
+7. Visit **Final Decision** to see the GO/TWEAK/STOP recommendation, generated by the
+   `go-stop-tweak-engine`.
+8. Optionally walk through **Concept Testing** to show how a consumer survey is built and sent
+   to panelists.
 
-### As a Developer:
-1. Login with `developer@example.com` / `demo123`
-2. Navigate through 4-step evaluation process
-3. View instrumental data (Step 1: Machine Testing)
-4. See panelist form templates (Step 2)
-5. Analyze aggregated results (Step 3)
-6. Review GO/TWEAK/STOP decision (Step 4)
-7. Use **Dairy Comparison** to compare samples and get formulation suggestions
-
-### As an Admin:
-1. Login with `admin@example.com` / `demo123`
-2. Navigate to "Admin Config"
-3. Create a new product (e.g., "Almond Feta v1.0")
-4. Configure custom attributes for that product
-5. Mark products as active/completed
-6. Customize which CATA attributes appear in questionnaires
+### As a Panelist
+1. Log in with a panelist account.
+2. From `/panelist`, click into an **Available Questionnaire**.
+3. Fill out the sensory evaluation:
+   - **CATA** (Check-All-That-Apply attribute selection)
+   - **Intensity ratings** (1–5 scale, only for attributes selected in CATA)
+   - **Hedonic / liking scores** (1–9 scale)
+   - **Emotional profile** (EsSense25 — 25 emotions)
+4. Submit and confirm it now appears under **Completed Questionnaires**.
+5. Try to reopen the same questionnaire — it should show as already completed (no duplicate
+   submissions allowed).
+6. If a concept test is assigned, repeat the flow under **Marketing Evaluations**.
 
 ---
 
-## Data Storage
-Currently using **localStorage** to simulate a database:
-- User sessions persist across page refreshes
-- Questionnaire responses saved locally
-- Product configurations saved locally
-- Completion tracking saved locally
+## Things to Know Before Presenting
 
-**For production:** Replace localStorage with Supabase database for:
-- Real authentication with password hashing
-- Persistent multi-user data storage
-- Access control with Row Level Security
-- Real-time data synchronization
+- **"ISSF"** appears on the Final Decision page without inline explanation — it stands for
+  *Integrated Sensory Screening Framework*, this platform's branded scoring methodology. There's
+  a glossary entry for it, but no on-page tooltip yet.
+- **Data is live**, not mocked — anything created or submitted during the demo will persist.
+  Avoid submitting throwaway responses against real food-type projects unless you intend to
+  clean them up afterward.
+- **Panel capacity** is up to 100 panelists per workspace; panelists only ever see `/panelist`.
 
 ---
 
 ## Technical Notes
 
-### Mock Data
-- Pre-populated with 14 plant-based samples + 2 dairy controls
-- Some panelists have pre-existing responses (mock data)
-- All instrumental data is realistic (based on research)
-
-### Questionnaire Structure
-1. **CATA (Check-All-That-Apply):** 28+ attributes
-2. **Intensity Ratings:** 8 key attributes (0-10 scale)
-3. **Hedonic Scores:** 5 aspects (1-9 scale)
-4. **Emotional Profile:** EsSense25 (25 emotions, 0-5 scale)
-
-### Quality Standards
-Built-in benchmarks for GO/TWEAK/STOP:
-- Hedonic ≥7.0 = GO
-- Emotional balance ≥+2.0 = GO
-- Off-notes with intensity ≥3 = STOP
-- Panel agreement ≥60% = Strong consensus
-
----
-
-## What's Next (Production Implementation)
-
-To make this production-ready with Supabase:
-
-1. **Database Schema:**
-   - `users` table (id, email, role, panelist_id)
-   - `products` table (id, name, category, status, custom_attributes)
-   - `responses` table (id, user_id, product_id, cata_data, hedonic_data, etc.)
-   - `completion_tracking` table (user_id, product_id, completed_at)
-
-2. **Row Level Security:**
-   - Panelists can only read their own responses
-   - Developers can read all responses (no write)
-   - Admins have full access
-
-3. **Real Authentication:**
-   - Supabase Auth with email/password
-   - JWT tokens
-   - Password reset flows
-
-4. **Real-time Features:**
-   - Live response tracking
-   - Notification when panelists complete evaluations
-   - Dashboard updates in real-time
-
----
-
-## Questions?
-This prototype demonstrates all requested features:
-✅ Login system with role-based access
-✅ Customizable questionnaire attributes per product
-✅ Panelist-only view of questionnaires
-✅ Developer-only view of data
-✅ Admin configuration panel
-✅ Duplicate submission prevention
-✅ Response tracking per user
-✅ Dairy comparison with formulation suggestions
+- **Auth & data:** Supabase (real authentication + Postgres with Row Level Security), not
+  localStorage.
+- **Decision engine:** `/decision` is powered by `go-stop-tweak-engine.ts`, which scores
+  responses and produces GO / TWEAK / STOP recommendations per food type.
+- **Imports:** CSV import batches are tracked in the `import_batches` table (`imported_at`
+  column) and surfaced in **Configure → Imports** and the sidebar's "Last import" dates.
