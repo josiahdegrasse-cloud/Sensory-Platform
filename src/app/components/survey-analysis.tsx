@@ -5,9 +5,10 @@ import { useFoodType, sampleMatchesFoodType, matchFoodType } from '../contexts/f
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
-import type { EnhancedSensoryProfile } from "../data/enhanced-sensory";
+import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from "../data/enhanced-sensory";
 import { getSampleColor } from "../utils/sample-colors";
 import { useInstrumentalDataset, useProducts } from "../lib/hooks";
+import { mergeAnalysisProfiles } from "../lib/analysis-dataset";
 import { formatFoodTypeLabel } from "../lib/food-intelligence";
 import { useSurveyData } from "../lib/use-survey-data";
 import { buildSampleCSVRows, buildAllDataCSVRows, downloadCsv } from "../utils/survey-csv-export";
@@ -87,7 +88,10 @@ export function SurveyAnalysis() {
         emotions: { positive: 0, negative: 0 },
       };
     }), [instrumentalDataset?.compositionData, instrumentalDataset?.eTongueData, instrumentalDataset?.gcmsData]);
-  const allSensoryData = importedSensoryData;
+  const allSensoryData = useMemo(
+    () => mergeAnalysisProfiles(ENHANCED_SENSORY_DATA, importedSensoryData),
+    [importedSensoryData],
+  );
 
   // Auto-select first sample in filtered set when food type changes
   useEffect(() => {

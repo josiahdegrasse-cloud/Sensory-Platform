@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useFoodType, sampleMatchesFoodType, matchFoodType } from "../contexts/food-type-context";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, Eye, EyeOff, Activity, Award, Zap, ClipboardCheck, GitMerge, Download, FileSpreadsheet, FileText } from "lucide-react";
+import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, Eye, EyeOff, Activity, Award, Zap, ClipboardCheck, GitMerge, Download, FileSpreadsheet, FileText, Megaphone } from "lucide-react";
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, BarChart, Bar, LineChart, Line, Legend, ReferenceArea, ReferenceLine } from "recharts";
 import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from "../data/enhanced-sensory";
 import { METHOD_COMPARISON } from "../data/validation-data";
@@ -12,7 +13,7 @@ import { DecisionLog } from "./decision-log";
 import { useAuth } from "../contexts/auth-context";
 import { insertDecisionRecord } from "../lib/database";
 import { formatFoodTypeLabel } from "../lib/food-intelligence";
-import { useInstrumentalDataset, useProducts, useWorkspaceSettings } from "../lib/hooks";
+import { queryKeys, useInstrumentalDataset, useProducts, useWorkspaceSettings } from "../lib/hooks";
 import { useSurveyData } from "../lib/use-survey-data";
 import { calculateGoStopTweakDecision, type GoStopTweakDecision } from "../utils/go-stop-tweak-engine";
 import { assessSampleWorkflow } from "../lib/workflow-readiness";
@@ -202,6 +203,7 @@ function PathToGoPanel({
 }
 
 export function Stage4Enhanced() {
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const { foodType, subCategory, extraFoodTypes } = useFoodType();
   const { data: instrumentalDataset } = useInstrumentalDataset(user?.role === 'admin');
@@ -219,6 +221,7 @@ export function Stage4Enhanced() {
   const [confirmPending, setConfirmPending] = useState(false);
   const [decisionSaving, setDecisionSaving] = useState(false);
   const [decisionError, setDecisionError] = useState("");
+  const [confirmedGoDecision, setConfirmedGoDecision] = useState<SampleDecision | null>(null);
   const [reportError, setReportError] = useState("");
   const [reportExporting, setReportExporting] = useState(false);
   const stopThreshold = workspaceSettings?.decisionStopThreshold ?? 52;
@@ -549,14 +552,6 @@ export function Stage4Enhanced() {
             <ClipboardCheck className="size-4 mr-2" />
             Audit Trail
           </Button>
-          {selected && (
-            <CommercializationReportBuilder
-              decision={selected}
-              foodType={foodType}
-              userId={user?.id}
-              settings={workspaceSettings}
-            />
-          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" disabled={reportExporting}>
@@ -579,6 +574,35 @@ export function Stage4Enhanced() {
       </div>
       {reportError && (
         <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{reportError}</p>
+      )}
+      {confirmedGoDecision && (
+        <div className="flex flex-col gap-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-700" />
+            <div>
+              <p className="font-semibold text-emerald-950">
+                {confirmedGoDecision.sampleName} is confirmed for commercialization.
+              </p>
+              <p className="mt-1 text-sm text-emerald-800">
+                Build the branded launch report now, or continue into packaging and marketing concept development.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <CommercializationReportBuilder
+              decision={confirmedGoDecision}
+              foodType={foodType}
+              userId={user?.id}
+              settings={workspaceSettings}
+            />
+            <Button asChild size="sm" className="bg-emerald-700 text-white hover:bg-emerald-800">
+              <Link to="/concept-testing">
+                <Megaphone className="size-4" />
+                Open Concept Lab
+              </Link>
+            </Button>
+          </div>
+        </div>
       )}
 
       {/* Weight Configuration */}
@@ -1138,8 +1162,10 @@ export function Stage4Enhanced() {
                       decisionFingerprint: selected.decisionFingerprint,
                       createdBy: user.id,
                     });
+                    await queryClient.invalidateQueries({ queryKey: queryKeys.decisionRecords });
                     setLogRefreshKey(k => k + 1);
                     setShowAuditTrail(true);
+                    setConfirmedGoDecision(selected.decision === "GO" ? selected : null);
                     setConfirmPending(false);
                     setAuditNote("");
                   } catch (error) {
