@@ -26,9 +26,18 @@ Deno.serve(async (req: Request) => {
   const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { authorization: authHeader } },
   })
+  const { data: { user: callerUser }, error: callerUserError } = await callerClient.auth.getUser()
+  if (callerUserError || !callerUser) {
+    return new Response(JSON.stringify({ error: 'Forbidden' }), {
+      status: 403,
+      headers: { ...headers, 'Content-Type': 'application/json' },
+    })
+  }
+
   const { data: profile, error: profileError } = await callerClient
     .from('profiles')
     .select('role')
+    .eq('id', callerUser.id)
     .single()
 
   if (profileError || profile?.role !== 'admin') {
