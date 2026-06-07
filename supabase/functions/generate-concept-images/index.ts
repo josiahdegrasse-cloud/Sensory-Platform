@@ -109,18 +109,24 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  const callerClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { authorization: authHeader } },
-  });
-
   const callerToken = authHeader.replace(/^Bearer\s+/i, '');
-  const { data: { user: callerUser }, error: callerUserError } = await callerClient.auth.getUser(callerToken);
+
+  // A plain client (no global authorization header) avoids sending both a
+  // lowercase "authorization" header and the capitalized "Authorization"
+  // header that getUser(jwt) sets internally — the gateway rejects requests
+  // with both present, returning an HTML error page instead of JSON.
+  const authClient = createClient(supabaseUrl, anonKey);
+  const { data: { user: callerUser }, error: callerUserError } = await authClient.auth.getUser(callerToken);
   if (callerUserError || !callerUser) {
     return new Response(JSON.stringify({ error: 'Forbidden' }), {
       status: 403,
       headers: { ...headers, 'Content-Type': 'application/json' },
     });
   }
+
+  const callerClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { authorization: authHeader } },
+  });
 
   const { data: profile, error: profileError } = await callerClient
     .from('profiles')
