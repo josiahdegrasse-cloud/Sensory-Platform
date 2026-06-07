@@ -115,7 +115,17 @@ export function ImagesStep({
     });
 
     if (error) {
-      setGenerationError(friendlyGenerationError(error.message));
+      let message = error.message;
+      const response = (error as { context?: Response }).context;
+      if (response instanceof Response) {
+        try {
+          const body = await response.clone().json();
+          message = body?.error ?? message;
+        } catch {
+          // response body wasn't JSON; fall back to error.message
+        }
+      }
+      setGenerationError(friendlyGenerationError(message));
       setGenerating(false);
       return;
     }
