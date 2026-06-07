@@ -26,7 +26,8 @@ Deno.serve(async (req: Request) => {
   const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { authorization: authHeader } },
   })
-  const { data: { user: callerUser }, error: callerUserError } = await callerClient.auth.getUser()
+  const callerToken = authHeader.replace(/^Bearer\s+/i, '')
+  const { data: { user: callerUser }, error: callerUserError } = await callerClient.auth.getUser(callerToken)
   if (callerUserError || !callerUser) {
     return new Response(JSON.stringify({ error: 'Forbidden' }), {
       status: 403,
