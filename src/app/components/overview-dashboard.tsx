@@ -47,7 +47,7 @@ const MODULES: Module[] = [
   },
   {
     path: "/admin",
-    label: "Configure Products",
+    label: "Configure",
     description: "Create products, customize attributes, and manage your panel",
     icon: Settings,
     color: "slate",

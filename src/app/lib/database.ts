@@ -348,12 +348,12 @@ export async function fetchImportBatches(): Promise<ImportBatchRecord[]> {
     .from('import_batches')
     .select(`
       id, file_name, row_count, recognized_columns, ignored_columns,
-      detection_confidence, status, imported_by, created_at,
+      detection_confidence, status, imported_by, imported_at,
       food_types(slug, label),
       profiles(name),
       instrumental_samples(count)
     `)
-    .order('created_at', { ascending: false })
+    .order('imported_at', { ascending: false })
     .limit(100);
 
   if (error && isMissingFoodImportSchema(dbError(error))) return [];
@@ -375,7 +375,7 @@ export async function fetchImportBatches(): Promise<ImportBatchRecord[]> {
       status: row.status as 'active' | 'archived' | 'deleted',
       importedBy: (row.imported_by as string) ?? null,
       importedByName: profile?.name ?? null,
-      createdAt: row.created_at as string,
+      createdAt: row.imported_at as string,
       sampleCount: countArr?.[0]?.count ?? 0,
     };
   });

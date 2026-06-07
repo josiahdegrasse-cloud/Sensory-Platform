@@ -364,7 +364,7 @@ export function MainLayout() {
     { path: "/survey-analysis", label: "Analyze Results",   icon: BarChart3 },
     { path: "/decision",        label: "Final Decision",    icon: GitMerge },
     { path: "/concept-testing", label: "Concept Testing",   icon: Lightbulb },
-    { path: "/admin",           label: "Configure Products", icon: ClipboardList },
+    { path: "/admin",           label: "Configure",          icon: ClipboardList },
   ];
 
   const getPanelistNavItems = () => [
