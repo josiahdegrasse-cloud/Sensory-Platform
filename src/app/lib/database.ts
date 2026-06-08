@@ -391,7 +391,8 @@ export async function fetchInstrumentalDataset(): Promise<InstrumentalDataset> {
       }));
     }
 
-    const composition = ((row.composition_profiles as Record<string, unknown>[] | null) ?? [])[0];
+    const compositionRaw = row.composition_profiles as Record<string, unknown>[] | Record<string, unknown> | null;
+    const composition = Array.isArray(compositionRaw) ? compositionRaw[0] : compositionRaw;
     if (composition) {
       compositionData[sampleId] = {
         protein: Number(composition.protein ?? 0),

@@ -115,7 +115,7 @@ function CategorySidebar() {
           {allTypes.map(ft => {
             const active = foodType === ft;
             const projects = projectBatchesByType[ft] ?? [];
-            const hasProjects = projects.length > 1;
+            const hasProjects = projects.length > 0;
             const expanded = expandedTypes[ft] ?? active;
             return (
               <div key={ft}>
