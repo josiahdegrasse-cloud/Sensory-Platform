@@ -27,7 +27,7 @@ import {
 } from "recharts";
 import { JargonTooltip } from "./jargon-tooltip";
 import { ImportMappingStudio } from "./import-mapping-studio";
-import { WorkflowGuide } from "./workflow-guide";
+import { ProjectHeader } from "./project-header";
 import {
   applyImportMappings,
   inferImportMappings,
@@ -908,7 +908,7 @@ export function Stage1Instrumental() {
 
   return (
     <div className="space-y-6">
-      <WorkflowGuide current="import" />
+      <ProjectHeader />
 
       {/* Header */}
       <div className="flex items-center justify-between">

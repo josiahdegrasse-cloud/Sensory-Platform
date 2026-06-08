@@ -25,7 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { CommercializationReportBuilder } from "./commercialization-report-builder";
-import { WorkflowGuide } from "./workflow-guide";
+import { ProjectHeader } from "./project-header";
 
 type SampleDecision = GoStopTweakDecision;
 
@@ -521,12 +521,12 @@ export function Stage4Enhanced() {
 
   return (
     <div className="space-y-6">
-      <WorkflowGuide current={confirmedGoDecision ? 'report' : 'decide'} />
+      <ProjectHeader />
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Final Decision</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Decision Review</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Validated against {METHOD_COMPARISON.pearsonR.toFixed(2)} correlation with trained panel (n=127)
+            The GO / TWEAK / STOP call for this project — recommendation, evidence, and the final sign-off. Validated against {METHOD_COMPARISON.pearsonR.toFixed(2)} correlation with trained panel (n=127).
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -605,6 +605,13 @@ export function Stage4Enhanced() {
                     name: confirmedGoDecision.sampleName,
                     category: foodType !== 'all' ? formatFoodTypeLabel(foodType) : undefined,
                     description: `A new product concept inspired by ${confirmedGoDecision.sampleName}, which received a confirmed GO decision for commercialization.`,
+                    sourceDecision: {
+                      id: confirmedGoDecision.id,
+                      sampleName: confirmedGoDecision.sampleName,
+                      issfScore: confirmedGoDecision.issfScore,
+                      confidence: confirmedGoDecision.confidence,
+                      timestamp: confirmedGoDecision.timestamp,
+                    },
                   },
                 }}
               >
@@ -616,254 +623,8 @@ export function Stage4Enhanced() {
         </div>
       )}
 
-      {/* Weight Configuration */}
-      {showWeightConfig && (
-        <Card className="border-2 border-blue-200 bg-blue-50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Activity className="size-4 text-blue-600" />
-              ISSF Score Weights
-              <span className="ml-auto text-xs text-slate-500 font-normal">
-                Total: <span className={
-                  weights.hedonic + weights.texture + weights.cata + weights.emotional === 95
-                    ? 'text-emerald-600 font-bold'
-                    : 'text-amber-600 font-bold'
-                }>{weights.hedonic + weights.texture + weights.cata + weights.emotional}%</span>
-                {' '}before instrument-signal calibration
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-4 gap-6">
-              {([
-                { key: 'hedonic', label: 'Hedonic Score', color: 'rose' },
-                { key: 'texture', label: 'Texture Quality', color: 'blue' },
-                { key: 'cata', label: 'CATA Attributes', color: 'purple' },
-                { key: 'emotional', label: 'Emotional Profile', color: 'emerald' },
-              ] as const).map(({ key, label, color }) => (
-                <div key={key} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-slate-700">{label}</label>
-                    <span className={`text-lg font-bold text-${color}-600`}>{weights[key]}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={95}
-                    step={5}
-                    value={weights[key]}
-                    onChange={e => setWeights(prev => ({ ...prev, [key]: Number(e.target.value) }))}
-                    className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                  />
-                  <div className="flex justify-between text-xs text-slate-400">
-                    <span>0%</span>
-                    <span>95%</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 flex items-center justify-between">
-              <p className="text-xs text-slate-500">
-                Default: Hedonic 30%, Texture 25%, CATA 25%, Emotional 15%. The engine then blends machine signal and applies hard GC-O/QC gates.
-              </p>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setWeights({ hedonic: 30, texture: 25, cata: 25, emotional: 15 })}
-              >
-                Reset to Default
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {/* Batch Decision Summary */}
-      <Card className="shadow-sm">
-        <CardContent className="pt-5 pb-4">
-          <div className="flex items-center justify-between mb-3">
-            <span className="font-semibold text-slate-800">Batch Decision Summary</span>
-            <span className="text-xs text-slate-500">{sampleDecisions.length} prototypes analyzed</span>
-          </div>
-          <div className="flex rounded-lg overflow-hidden h-9 shadow-inner">
-            {stats.go > 0 && (
-              <div
-                className="bg-emerald-500 flex items-center justify-center text-white text-sm font-bold gap-1 transition-all cursor-pointer hover:bg-emerald-600"
-                style={{ width: `${(stats.go / sampleDecisions.length) * 100}%` }}
-                title="Click to select first GO sample"
-                onClick={() => {
-                  const first = sampleDecisions.find(d => d.decision === "GO");
-                  if (first) setSelectedSample(first.sampleId);
-                }}
-              >
-                ▲ {stats.go}
-              </div>
-            )}
-            {stats.tweak > 0 && (
-              <div
-                className="bg-amber-500 flex items-center justify-center text-white text-sm font-bold gap-1 transition-all cursor-pointer hover:bg-amber-600"
-                style={{ width: `${(stats.tweak / sampleDecisions.length) * 100}%` }}
-                title="Click to select first TWEAK sample"
-                onClick={() => {
-                  const first = sampleDecisions.find(d => d.decision === "TWEAK");
-                  if (first) setSelectedSample(first.sampleId);
-                }}
-              >
-                ◆ {stats.tweak}
-              </div>
-            )}
-            {stats.stop > 0 && (
-              <div
-                className="bg-rose-500 flex items-center justify-center text-white text-sm font-bold gap-1 transition-all cursor-pointer hover:bg-rose-600"
-                style={{ width: `${(stats.stop / sampleDecisions.length) * 100}%` }}
-                title="Click to select first STOP sample"
-                onClick={() => {
-                  const first = sampleDecisions.find(d => d.decision === "STOP");
-                  if (first) setSelectedSample(first.sampleId);
-                }}
-              >
-                ■ {stats.stop}
-              </div>
-            )}
-          </div>
-          <div className="mt-4 grid grid-cols-5 gap-4 text-center">
-            <div>
-              <div className="text-2xl font-bold text-emerald-600">{stats.go}</div>
-              <div className="text-xs text-slate-500 mt-0.5">GO</div>
-              <div className="text-xs text-slate-400">advance now</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-amber-600">{stats.tweak}</div>
-              <div className="text-xs text-slate-500 mt-0.5">TWEAK</div>
-              <div className="text-xs text-slate-400">minor fix</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-rose-600">{stats.stop}</div>
-              <div className="text-xs text-slate-500 mt-0.5">STOP</div>
-              <div className="text-xs text-slate-400">reformulate</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-blue-600">{stats.avgConfidence}%</div>
-              <div className="text-xs text-slate-500 mt-0.5">Confidence</div>
-              <div className="text-xs text-slate-400">avg certainty</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-emerald-600">${(stats.totalSavings / 1000).toFixed(0)}k</div>
-              <div className="text-xs text-slate-500 mt-0.5">R&D Savings</div>
-              <div className="text-xs text-slate-400">vs full panel</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ISSF Score vs Hedonic */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="size-5 text-blue-600" />
-            ISSF Score vs. Hedonic Liking
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={350} key="issf-hedonic-container">
-            <ScatterChart 
-              margin={{ top: 20, right: 30, bottom: 20, left: 20 }}
-              id="issf-hedonic-scatter"
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <ReferenceArea x1={0} x2={52} y1={0} y2={9} fill="#fecaca" fillOpacity={0.25} />
-              <ReferenceArea x1={52} x2={76} y1={0} y2={9} fill="#fde68a" fillOpacity={0.25} />
-              <ReferenceArea x1={76} x2={100} y1={0} y2={9} fill="#a7f3d0" fillOpacity={0.25} />
-              <ReferenceLine x={52} stroke="#ef4444" strokeDasharray="4 4" strokeOpacity={0.5} label={{ value: "STOP", position: "insideTopLeft", fill: "#b91c1c", fontSize: 10 }} />
-              <ReferenceLine x={76} stroke="#10b981" strokeDasharray="4 4" strokeOpacity={0.5} label={{ value: "GO", position: "insideTopRight", fill: "#065f46", fontSize: 10 }} />
-              <XAxis
-                type="number" 
-                dataKey="issf" 
-                name="ISSF Score" 
-                domain={[0, 100]}
-                label={{ value: 'ISSF Score (0-100)', position: 'insideBottom', offset: -10 }}
-              />
-              <YAxis 
-                type="number" 
-                dataKey="hedonic" 
-                name="Hedonic" 
-                domain={[0, 9]}
-                label={{ value: 'Hedonic Liking (1-9)', angle: -90, position: 'insideLeft' }}
-              />
-              <RechartsTooltip 
-                content={({ active, payload }) => {
-                  if (active && payload && payload.length) {
-                    const data = payload[0].payload;
-                    return (
-                      <div className="bg-white p-3 shadow-xl rounded-lg border border-slate-200">
-                        <p className="font-bold text-slate-900">{data.sample}</p>
-                        <p className="text-sm text-slate-700">ISSF: {data.issf.toFixed(1)}</p>
-                        <p className="text-sm text-slate-700">Hedonic: {data.hedonic.toFixed(1)}/9</p>
-                        <p className="text-sm font-bold capitalize">{data.decision}</p>
-                      </div>
-                    );
-                  }
-                  return null;
-                }}
-              />
-              <Scatter
-                key="scatter-issf-hedonic"
-                data={scatterData}
-                dataKey="issf"
-                isAnimationActive={false}
-                style={{ cursor: 'pointer' }}
-                shape={(props: any) => {
-                  const { cx, cy, payload } = props;
-                  const isSelected = payload.sampleId === selectedSample;
-                  let color = "#10b981";
-                  if (payload.decision === "STOP") color = "#ef4444";
-                  if (payload.decision === "TWEAK") color = "#f59e0b";
-                  const s = isSelected ? 9 : 6;
-                  const shapeKey = `shape-${payload.id || payload.sample}`;
-                  const handleClick = () => setSelectedSample(payload.sampleId);
-                  if (payload.decision === "GO") {
-                    return (
-                      <g key={shapeKey} onClick={handleClick} style={{ cursor: 'pointer' }}>
-                        {isSelected && <circle cx={cx} cy={cy} r={15} fill="none" stroke="#1d4ed8" strokeWidth={2.5} />}
-                        <polygon points={`${cx},${cy - s} ${cx + s * 0.9},${cy + s * 0.5} ${cx - s * 0.9},${cy + s * 0.5}`} fill={color} stroke="#fff" strokeWidth={1} />
-                      </g>
-                    );
-                  }
-                  if (payload.decision === "STOP") {
-                    return (
-                      <g key={shapeKey} onClick={handleClick} style={{ cursor: 'pointer' }}>
-                        {isSelected && <circle cx={cx} cy={cy} r={13} fill="none" stroke="#1d4ed8" strokeWidth={2.5} />}
-                        <rect x={cx - s} y={cy - s} width={s * 2} height={s * 2} fill={color} stroke="#fff" strokeWidth={1} />
-                      </g>
-                    );
-                  }
-                  return (
-                    <g key={shapeKey} onClick={handleClick} style={{ cursor: 'pointer' }}>
-                      {isSelected && <circle cx={cx} cy={cy} r={14} fill="none" stroke="#1d4ed8" strokeWidth={2.5} />}
-                      <polygon points={`${cx},${cy - s} ${cx + s},${cy} ${cx},${cy + s} ${cx - s},${cy}`} fill={color} stroke="#fff" strokeWidth={1} />
-                    </g>
-                  );
-                }}
-              />
-            </ScatterChart>
-          </ResponsiveContainer>
-          <div className="mt-4 flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-emerald-500"></div>
-              <span className="text-sm text-slate-700">GO ({stats.go})</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-amber-500"></div>
-              <span className="text-sm text-slate-700">TWEAK ({stats.tweak})</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-rose-500"></div>
-              <span className="text-sm text-slate-700">STOP ({stats.stop})</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
+      {/* Recommendation — the focal point of this review */}
       <div className="grid grid-cols-4 gap-6">
         {/* Sample List */}
         <Card>
@@ -1123,6 +884,260 @@ export function Stage4Enhanced() {
           )}
         </div>
       </div>
+
+      {/* Supporting analytics — batch comparison and score tuning behind the recommendation above */}
+      <div className="pt-2 flex items-center gap-2">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-slate-400">Batch analytics</h2>
+        <span className="text-xs text-slate-400">How this recommendation compares across the batch</span>
+      </div>
+      {/* Weight Configuration */}
+      {showWeightConfig && (
+        <Card className="border-2 border-blue-200 bg-blue-50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Activity className="size-4 text-blue-600" />
+              ISSF Score Weights
+              <span className="ml-auto text-xs text-slate-500 font-normal">
+                Total: <span className={
+                  weights.hedonic + weights.texture + weights.cata + weights.emotional === 95
+                    ? 'text-emerald-600 font-bold'
+                    : 'text-amber-600 font-bold'
+                }>{weights.hedonic + weights.texture + weights.cata + weights.emotional}%</span>
+                {' '}before instrument-signal calibration
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-4 gap-6">
+              {([
+                { key: 'hedonic', label: 'Hedonic Score', color: 'rose' },
+                { key: 'texture', label: 'Texture Quality', color: 'blue' },
+                { key: 'cata', label: 'CATA Attributes', color: 'purple' },
+                { key: 'emotional', label: 'Emotional Profile', color: 'emerald' },
+              ] as const).map(({ key, label, color }) => (
+                <div key={key} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-slate-700">{label}</label>
+                    <span className={`text-lg font-bold text-${color}-600`}>{weights[key]}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={95}
+                    step={5}
+                    value={weights[key]}
+                    onChange={e => setWeights(prev => ({ ...prev, [key]: Number(e.target.value) }))}
+                    className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  />
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>0%</span>
+                    <span>95%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex items-center justify-between">
+              <p className="text-xs text-slate-500">
+                Default: Hedonic 30%, Texture 25%, CATA 25%, Emotional 15%. The engine then blends machine signal and applies hard GC-O/QC gates.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setWeights({ hedonic: 30, texture: 25, cata: 25, emotional: 15 })}
+              >
+                Reset to Default
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Batch Decision Summary */}
+      <Card className="shadow-sm">
+        <CardContent className="pt-5 pb-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="font-semibold text-slate-800">Batch Decision Summary</span>
+            <span className="text-xs text-slate-500">{sampleDecisions.length} prototypes analyzed</span>
+          </div>
+          <div className="flex rounded-lg overflow-hidden h-9 shadow-inner">
+            {stats.go > 0 && (
+              <div
+                className="bg-emerald-500 flex items-center justify-center text-white text-sm font-bold gap-1 transition-all cursor-pointer hover:bg-emerald-600"
+                style={{ width: `${(stats.go / sampleDecisions.length) * 100}%` }}
+                title="Click to select first GO sample"
+                onClick={() => {
+                  const first = sampleDecisions.find(d => d.decision === "GO");
+                  if (first) setSelectedSample(first.sampleId);
+                }}
+              >
+                ▲ {stats.go}
+              </div>
+            )}
+            {stats.tweak > 0 && (
+              <div
+                className="bg-amber-500 flex items-center justify-center text-white text-sm font-bold gap-1 transition-all cursor-pointer hover:bg-amber-600"
+                style={{ width: `${(stats.tweak / sampleDecisions.length) * 100}%` }}
+                title="Click to select first TWEAK sample"
+                onClick={() => {
+                  const first = sampleDecisions.find(d => d.decision === "TWEAK");
+                  if (first) setSelectedSample(first.sampleId);
+                }}
+              >
+                ◆ {stats.tweak}
+              </div>
+            )}
+            {stats.stop > 0 && (
+              <div
+                className="bg-rose-500 flex items-center justify-center text-white text-sm font-bold gap-1 transition-all cursor-pointer hover:bg-rose-600"
+                style={{ width: `${(stats.stop / sampleDecisions.length) * 100}%` }}
+                title="Click to select first STOP sample"
+                onClick={() => {
+                  const first = sampleDecisions.find(d => d.decision === "STOP");
+                  if (first) setSelectedSample(first.sampleId);
+                }}
+              >
+                ■ {stats.stop}
+              </div>
+            )}
+          </div>
+          <div className="mt-4 grid grid-cols-5 gap-4 text-center">
+            <div>
+              <div className="text-2xl font-bold text-emerald-600">{stats.go}</div>
+              <div className="text-xs text-slate-500 mt-0.5">GO</div>
+              <div className="text-xs text-slate-400">advance now</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-amber-600">{stats.tweak}</div>
+              <div className="text-xs text-slate-500 mt-0.5">TWEAK</div>
+              <div className="text-xs text-slate-400">minor fix</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-rose-600">{stats.stop}</div>
+              <div className="text-xs text-slate-500 mt-0.5">STOP</div>
+              <div className="text-xs text-slate-400">reformulate</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-blue-600">{stats.avgConfidence}%</div>
+              <div className="text-xs text-slate-500 mt-0.5">Confidence</div>
+              <div className="text-xs text-slate-400">avg certainty</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-emerald-600">${(stats.totalSavings / 1000).toFixed(0)}k</div>
+              <div className="text-xs text-slate-500 mt-0.5">R&D Savings</div>
+              <div className="text-xs text-slate-400">vs full panel</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ISSF Score vs Hedonic */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="size-5 text-blue-600" />
+            ISSF Score vs. Hedonic Liking
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={350} key="issf-hedonic-container">
+            <ScatterChart 
+              margin={{ top: 20, right: 30, bottom: 20, left: 20 }}
+              id="issf-hedonic-scatter"
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <ReferenceArea x1={0} x2={52} y1={0} y2={9} fill="#fecaca" fillOpacity={0.25} />
+              <ReferenceArea x1={52} x2={76} y1={0} y2={9} fill="#fde68a" fillOpacity={0.25} />
+              <ReferenceArea x1={76} x2={100} y1={0} y2={9} fill="#a7f3d0" fillOpacity={0.25} />
+              <ReferenceLine x={52} stroke="#ef4444" strokeDasharray="4 4" strokeOpacity={0.5} label={{ value: "STOP", position: "insideTopLeft", fill: "#b91c1c", fontSize: 10 }} />
+              <ReferenceLine x={76} stroke="#10b981" strokeDasharray="4 4" strokeOpacity={0.5} label={{ value: "GO", position: "insideTopRight", fill: "#065f46", fontSize: 10 }} />
+              <XAxis
+                type="number" 
+                dataKey="issf" 
+                name="ISSF Score" 
+                domain={[0, 100]}
+                label={{ value: 'ISSF Score (0-100)', position: 'insideBottom', offset: -10 }}
+              />
+              <YAxis 
+                type="number" 
+                dataKey="hedonic" 
+                name="Hedonic" 
+                domain={[0, 9]}
+                label={{ value: 'Hedonic Liking (1-9)', angle: -90, position: 'insideLeft' }}
+              />
+              <RechartsTooltip 
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    return (
+                      <div className="bg-white p-3 shadow-xl rounded-lg border border-slate-200">
+                        <p className="font-bold text-slate-900">{data.sample}</p>
+                        <p className="text-sm text-slate-700">ISSF: {data.issf.toFixed(1)}</p>
+                        <p className="text-sm text-slate-700">Hedonic: {data.hedonic.toFixed(1)}/9</p>
+                        <p className="text-sm font-bold capitalize">{data.decision}</p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Scatter
+                key="scatter-issf-hedonic"
+                data={scatterData}
+                dataKey="issf"
+                isAnimationActive={false}
+                style={{ cursor: 'pointer' }}
+                shape={(props: any) => {
+                  const { cx, cy, payload } = props;
+                  const isSelected = payload.sampleId === selectedSample;
+                  let color = "#10b981";
+                  if (payload.decision === "STOP") color = "#ef4444";
+                  if (payload.decision === "TWEAK") color = "#f59e0b";
+                  const s = isSelected ? 9 : 6;
+                  const shapeKey = `shape-${payload.id || payload.sample}`;
+                  const handleClick = () => setSelectedSample(payload.sampleId);
+                  if (payload.decision === "GO") {
+                    return (
+                      <g key={shapeKey} onClick={handleClick} style={{ cursor: 'pointer' }}>
+                        {isSelected && <circle cx={cx} cy={cy} r={15} fill="none" stroke="#1d4ed8" strokeWidth={2.5} />}
+                        <polygon points={`${cx},${cy - s} ${cx + s * 0.9},${cy + s * 0.5} ${cx - s * 0.9},${cy + s * 0.5}`} fill={color} stroke="#fff" strokeWidth={1} />
+                      </g>
+                    );
+                  }
+                  if (payload.decision === "STOP") {
+                    return (
+                      <g key={shapeKey} onClick={handleClick} style={{ cursor: 'pointer' }}>
+                        {isSelected && <circle cx={cx} cy={cy} r={13} fill="none" stroke="#1d4ed8" strokeWidth={2.5} />}
+                        <rect x={cx - s} y={cy - s} width={s * 2} height={s * 2} fill={color} stroke="#fff" strokeWidth={1} />
+                      </g>
+                    );
+                  }
+                  return (
+                    <g key={shapeKey} onClick={handleClick} style={{ cursor: 'pointer' }}>
+                      {isSelected && <circle cx={cx} cy={cy} r={14} fill="none" stroke="#1d4ed8" strokeWidth={2.5} />}
+                      <polygon points={`${cx},${cy - s} ${cx + s},${cy} ${cx},${cy + s} ${cx - s},${cy}`} fill={color} stroke="#fff" strokeWidth={1} />
+                    </g>
+                  );
+                }}
+              />
+            </ScatterChart>
+          </ResponsiveContainer>
+          <div className="mt-4 flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded-full bg-emerald-500"></div>
+              <span className="text-sm text-slate-700">GO ({stats.go})</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded-full bg-amber-500"></div>
+              <span className="text-sm text-slate-700">TWEAK ({stats.tweak})</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded-full bg-rose-500"></div>
+              <span className="text-sm text-slate-700">STOP ({stats.stop})</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
 
       {/* Confirm Decision dialog */}
       {confirmPending && selected && (

@@ -1,10 +1,13 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
-import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Tag, Archive, Trash2, Undo2, Database, ChevronDown, ChevronRight, Settings, AlertCircle, X } from "lucide-react";
+import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Tag, Archive, Trash2, Undo2, Database, ChevronDown, ChevronRight, Settings, AlertCircle, AlertTriangle, ArrowRight, X } from "lucide-react";
 import { useAuth } from "../contexts/auth-context";
 import { useEffect, useMemo, useState } from "react";
 import { useFoodType } from "../contexts/food-type-context";
 import { useImportBatches, useInstrumentalDataset, useProducts, useUpdateImportBatchStatus, useWorkspaceSettings } from "../lib/hooks";
 import { matchFoodType } from "../contexts/food-type-context";
+import { useProjectStatus } from "../lib/use-project-status";
+import type { SemanticTone, WorkflowStageState } from "../lib/project-status";
+import { ProjectStatusBadge } from "./project-status-badge";
 import { ConsentGate } from "./consent-gate";
 import {
   AlertDialog,
@@ -33,6 +36,25 @@ function NfiLogoMark({ size = 36 }: { size?: number }) {
 
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function stageTone(state: WorkflowStageState): SemanticTone {
+  switch (state) {
+    case 'complete': return 'success';
+    case 'current': return 'info';
+    case 'blocked': return 'critical';
+    default: return 'neutral';
+  }
+}
+
+function stageStateLabel(state: WorkflowStageState): string {
+  switch (state) {
+    case 'complete': return 'Done';
+    case 'current': return 'Now';
+    case 'available': return 'Ready';
+    case 'blocked': return 'Locked';
+    default: return '—';
+  }
 }
 
 function CategorySidebar() {
@@ -82,6 +104,8 @@ function CategorySidebar() {
     matchFoodType(product.category) === foodType &&
     (!selectedBatchId || product.sourceImportBatchId === selectedBatchId)
   ).length;
+  const status = useProjectStatus(foodType, selectedBatchId);
+  const hasActiveProject = foodType !== 'all' && Boolean(foodType);
 
   const btnStyle = (active: boolean) => ({
     background: active ? '#f1f5f9' : 'transparent',
@@ -269,6 +293,39 @@ function CategorySidebar() {
           </div>
         )}
       </div>
+      {hasActiveProject && (
+        <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+            <ArrowRight className="size-3.5 text-slate-400" />
+            Quick links
+          </div>
+          <div className="mt-2 flex flex-col gap-0.5">
+            {status.stages.map(stage => (
+              <Link
+                key={stage.id}
+                to={stage.path}
+                className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+              >
+                <span className="truncate">{stage.label}</span>
+                <ProjectStatusBadge label={stageStateLabel(stage.state)} tone={stageTone(stage.state)} showIcon={false} className="px-1.5 py-0 text-[10px]" />
+              </Link>
+            ))}
+          </div>
+          {status.warnings.length > 0 && (
+            <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-2.5">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700">
+                <AlertTriangle className="size-3.5" />
+                Warnings
+              </div>
+              {status.warnings.map(warning => (
+                <div key={warning} className="rounded-lg border border-amber-100 bg-amber-50 px-2 py-1.5 text-[11px] leading-snug text-amber-800">
+                  {warning}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <AlertDialog open={!!pendingAction} onOpenChange={open => !open && setPendingAction(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

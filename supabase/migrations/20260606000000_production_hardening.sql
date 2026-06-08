@@ -1,6 +1,92 @@
 -- Production hardening: authorization, transactional imports, private concept
 -- assets, durable decisions, and server-side workspace controls.
 
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS email text,
+  ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active',
+  ADD COLUMN IF NOT EXISTS training_level text NOT NULL DEFAULT 'screened',
+  ADD COLUMN IF NOT EXISTS consent_accepted_at timestamptz,
+  ADD COLUMN IF NOT EXISTS consent_version text,
+  ADD COLUMN IF NOT EXISTS consent_user_agent text;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'profiles_status_check'
+  ) THEN
+    ALTER TABLE public.profiles
+      ADD CONSTRAINT profiles_status_check
+      CHECK (status IN ('active', 'inactive', 'archived'));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'profiles_training_level_check'
+  ) THEN
+    ALTER TABLE public.profiles
+      ADD CONSTRAINT profiles_training_level_check
+      CHECK (training_level IN ('screened', 'trained', 'certified', 'expert'));
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS public.workspace_settings (
+  id boolean PRIMARY KEY DEFAULT true,
+  workspace_name text NOT NULL DEFAULT 'Sensory Analysis Workspace',
+  organization_name text NOT NULL DEFAULT 'New Food Innovation',
+  admin_contact_email text,
+  default_timezone text NOT NULL DEFAULT 'America/New_York',
+  data_retention_months integer NOT NULL DEFAULT 24,
+  require_panelist_consent boolean NOT NULL DEFAULT true,
+  allow_self_signup boolean NOT NULL DEFAULT true,
+  default_panel_size integer NOT NULL DEFAULT 24,
+  require_hedonic_section boolean NOT NULL DEFAULT true,
+  require_intensity_section boolean NOT NULL DEFAULT true,
+  require_emotion_section boolean NOT NULL DEFAULT true,
+  allow_panelist_comments boolean NOT NULL DEFAULT true,
+  require_all_samples_before_submit boolean NOT NULL DEFAULT true,
+  auto_create_food_types boolean NOT NULL DEFAULT true,
+  auto_create_surveys_from_imports boolean NOT NULL DEFAULT true,
+  require_import_review boolean NOT NULL DEFAULT false,
+  duplicate_sample_policy text NOT NULL DEFAULT 'skip',
+  require_panelist_id boolean NOT NULL DEFAULT false,
+  allow_panelists_view_history boolean NOT NULL DEFAULT false,
+  inactive_panelist_days integer NOT NULL DEFAULT 90,
+  concept_max_generations_per_concept integer NOT NULL DEFAULT 12,
+  concept_monthly_budget_cents integer NOT NULL DEFAULT 2500,
+  concept_require_approval boolean NOT NULL DEFAULT false,
+  decision_go_threshold integer NOT NULL DEFAULT 75,
+  decision_stop_threshold integer NOT NULL DEFAULT 45,
+  decision_min_responses integer NOT NULL DEFAULT 12,
+  decision_lock_confirmed boolean NOT NULL DEFAULT true,
+  anonymize_panelists_in_reports boolean NOT NULL DEFAULT true,
+  export_format text NOT NULL DEFAULT 'xlsx',
+  report_footer text NOT NULL DEFAULT '',
+  notify_on_import boolean NOT NULL DEFAULT true,
+  notify_on_completion_target boolean NOT NULL DEFAULT true,
+  notify_on_generation_failure boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT workspace_settings_singleton CHECK (id = true),
+  CONSTRAINT workspace_settings_retention_check CHECK (data_retention_months BETWEEN 1 AND 120),
+  CONSTRAINT workspace_settings_default_panel_size_check CHECK (default_panel_size BETWEEN 1 AND 500),
+  CONSTRAINT workspace_settings_duplicate_sample_policy_check CHECK (duplicate_sample_policy IN ('skip', 'rename', 'replace')),
+  CONSTRAINT workspace_settings_inactive_panelist_days_check CHECK (inactive_panelist_days BETWEEN 1 AND 730),
+  CONSTRAINT workspace_settings_concept_limits_check CHECK (
+    concept_max_generations_per_concept BETWEEN 1 AND 100
+    AND concept_monthly_budget_cents BETWEEN 0 AND 1000000
+  ),
+  CONSTRAINT workspace_settings_decision_thresholds_check CHECK (
+    decision_stop_threshold BETWEEN 0 AND 100
+    AND decision_go_threshold BETWEEN 0 AND 100
+    AND decision_stop_threshold < decision_go_threshold
+    AND decision_min_responses BETWEEN 1 AND 500
+  ),
+  CONSTRAINT workspace_settings_export_format_check CHECK (export_format IN ('xlsx', 'csv', 'pdf'))
+);
+
+INSERT INTO public.workspace_settings (id)
+VALUES (true)
+ON CONFLICT (id) DO NOTHING;
+
 CREATE OR REPLACE FUNCTION public.is_active_user()
 RETURNS boolean
 LANGUAGE sql
@@ -28,6 +114,19 @@ AS $$
     WHERE id = auth.uid() AND role = 'admin' AND status = 'active'
   )
 $$;
+
+ALTER TABLE public.workspace_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS workspace_settings_select_admin ON public.workspace_settings;
+CREATE POLICY workspace_settings_select_admin ON public.workspace_settings
+  FOR SELECT TO authenticated
+  USING (public.is_admin());
+
+DROP POLICY IF EXISTS workspace_settings_admin_all ON public.workspace_settings;
+CREATE POLICY workspace_settings_admin_all ON public.workspace_settings
+  FOR ALL TO authenticated
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
@@ -230,7 +329,7 @@ DECLARE
   duplicate_number integer;
   product_name text;
   product_status text;
-  idempotency_key text := nullif(left(btrim(COALESCE(payload->>'idempotencyKey', '')), 128), '');
+  v_idempotency_key text := nullif(left(btrim(COALESCE(payload->>'idempotencyKey', '')), 128), '');
 BEGIN
   IF NOT public.is_admin() THEN
     RAISE EXCEPTION 'Only active administrators can import instrument data';
@@ -256,10 +355,10 @@ BEGIN
   FROM public.workspace_settings
   WHERE id = true;
 
-  IF idempotency_key IS NOT NULL THEN
+  IF v_idempotency_key IS NOT NULL THEN
     SELECT id INTO batch_id
     FROM public.import_batches
-    WHERE import_batches.idempotency_key = idempotency_key;
+    WHERE import_batches.idempotency_key = v_idempotency_key;
     IF batch_id IS NOT NULL THEN
       RETURN batch_id;
     END IF;
@@ -308,7 +407,7 @@ BEGIN
     ARRAY(SELECT jsonb_array_elements_text(COALESCE(payload->'ignoredColumns', '[]'::jsonb))),
     LEAST(1, GREATEST(0, COALESCE((detection->>'confidence')::numeric, 0))),
     actor_id,
-    idempotency_key
+    v_idempotency_key
   )
   RETURNING id INTO batch_id;
 

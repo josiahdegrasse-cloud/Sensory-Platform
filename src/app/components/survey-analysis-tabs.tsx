@@ -7,7 +7,6 @@ import {
 import { CheckSquare, TrendingUp, Heart, Smile, Frown, AlertCircle, MessageCircle, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
-import { TabsContent } from "./ui/tabs";
 
 interface CataAttribute {
   id: string;
@@ -81,7 +80,6 @@ export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, 
   }));
 
   return (
-    <TabsContent value="cata">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -180,7 +178,6 @@ export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, 
           </div>
         </CardContent>
       </Card>
-    </TabsContent>
   );
 }
 
@@ -195,7 +192,6 @@ interface IntensityTabProps {
 
 export function IntensityTab({ activeIntensityData, activePanelistN, usingLiveData, intensityMax }: IntensityTabProps) {
   return (
-    <TabsContent value="intensity">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -262,7 +258,6 @@ export function IntensityTab({ activeIntensityData, activePanelistN, usingLiveDa
           </div>
         </CardContent>
       </Card>
-    </TabsContent>
   );
 }
 
@@ -289,7 +284,6 @@ export function HedonicTab({ activeHedonicData, activeAvgHedonic, activePanelist
   }));
 
   return (
-    <TabsContent value="hedonic">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -377,7 +371,6 @@ export function HedonicTab({ activeHedonicData, activeAvgHedonic, activePanelist
           </div>
         </CardContent>
       </Card>
-    </TabsContent>
   );
 }
 
@@ -391,7 +384,6 @@ interface CommentsTabProps {
 
 export function CommentsTab({ usingLiveData, matchingLiveData, commentsByProduct }: CommentsTabProps) {
   return (
-    <TabsContent value="comments">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -441,7 +433,6 @@ export function CommentsTab({ usingLiveData, matchingLiveData, commentsByProduct
           })()}
         </CardContent>
       </Card>
-    </TabsContent>
   );
 }
 
@@ -454,7 +445,6 @@ interface EmotionalTabProps {
 
 export function EmotionalTab({ activeEmotions, activeEmotionalBalance }: EmotionalTabProps) {
   return (
-    <TabsContent value="emotional">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -539,6 +529,5 @@ export function EmotionalTab({ activeEmotions, activeEmotionalBalance }: Emotion
           </div>
         </CardContent>
       </Card>
-    </TabsContent>
   );
 }

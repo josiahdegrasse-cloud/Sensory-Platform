@@ -2,9 +2,13 @@ import { Card, CardContent } from "./ui/card";
 import { Link } from "react-router";
 import {
   FlaskConical, BarChart3, GitMerge, Settings,
-  Lightbulb, ChevronRight, Users, TrendingUp,
+  Lightbulb, ChevronRight, Users, FolderKanban,
 } from "lucide-react";
 import { useAuth } from "../contexts/auth-context";
+import { useFoodType } from "../contexts/food-type-context";
+import { useProjectStatusList } from "../lib/use-project-status";
+import { ProjectCard } from "./project-card";
+import { NextActionCard } from "./next-action-card";
 
 interface Module {
   path: string;
@@ -93,6 +97,55 @@ function ModuleCard({ module }: { module: Module }) {
   );
 }
 
+function ActiveProjects() {
+  const { setSelection } = useFoodType();
+  const projects = useProjectStatusList();
+
+  if (projects.length === 0) {
+    return (
+      <ActiveProjectsEmptyState />
+    );
+  }
+
+  const featured = projects[0];
+
+  return (
+    <div className="space-y-4">
+      <NextActionCard
+        projectName={featured.status.projectName}
+        action={featured.status.nextAction}
+        onNavigate={() => setSelection(featured.batch.foodTypeSlug, `batch:${featured.batch.id}`)}
+      />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {projects.map(({ batch, status }) => (
+          <ProjectCard
+            key={batch.id}
+            status={status}
+            onOpen={() => setSelection(batch.foodTypeSlug, `batch:${batch.id}`)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ActiveProjectsEmptyState() {
+  return (
+    <Card className="border border-dashed border-slate-300 bg-slate-50">
+      <CardContent className="py-10 text-center">
+        <FolderKanban className="size-8 text-slate-300 mx-auto mb-2" />
+        <p className="text-sm font-semibold text-slate-700">No active projects yet</p>
+        <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+          Import an instrumental dataset to start your first project — the journey from raw data to a commercialization decision begins there.
+        </p>
+        <Link to="/stage1" className="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-900">
+          Import data <ChevronRight className="size-3.5" />
+        </Link>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function OverviewDashboard() {
   const { user } = useAuth();
 
@@ -102,44 +155,24 @@ export function OverviewDashboard() {
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">NFI Platform</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Sensory evaluation, consumer research, and concept testing — from R&D to market.
+          One project, one continuous journey — from raw instrumental data to a commercialization decision.
         </p>
       </div>
 
-      {/* Two tracks */}
-      <div className="grid grid-cols-2 gap-4">
-        <Card className="border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white">
-          <CardContent className="pt-5 pb-5">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center">
-                <FlaskConical className="size-4 text-white" />
-              </div>
-              <div className="font-bold text-slate-900">R&D Track</div>
-            </div>
-            <p className="text-sm text-slate-600">
-              Objective scoring, machine testing, and GO/TWEAK/STOP decisions for your formulation team.
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-white">
-          <CardContent className="pt-5 pb-5">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center">
-                <TrendingUp className="size-4 text-white" />
-              </div>
-              <div className="font-bold text-slate-900">Marketing Track</div>
-            </div>
-            <p className="text-sm text-slate-600">
-              Concept testing, consumer preference analysis, and innovation validation before launch.
-            </p>
-          </CardContent>
-        </Card>
+      {/* Active projects — the action-oriented home view */}
+      <div>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-slate-900">Your projects</h2>
+          <p className="text-xs text-slate-400">What's in motion, what needs attention, what to click next</p>
+        </div>
+        <ActiveProjects />
       </div>
 
-      {/* Module grid */}
+      {/* Module grid — secondary navigation, kept for direct access */}
       <div>
         <div className="mb-4">
           <h2 className="text-lg font-bold text-slate-900">Modules</h2>
+          <p className="text-xs text-slate-400">Jump straight to a workflow stage</p>
         </div>
         <div className="grid grid-cols-3 gap-4">
           {MODULES.map(m => <ModuleCard key={m.path} module={m} />)}

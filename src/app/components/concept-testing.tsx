@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import {
   Lightbulb, ChevronRight, ChevronLeft, Send, CheckCircle2, Image as ImageIcon,
-  ListChecks, Users, AlertTriangle, FileCheck2, ChevronDown,
+  ListChecks, Users, AlertTriangle, FileCheck2, ChevronDown, Gauge,
 } from 'lucide-react';
 import { insertConceptTest } from '../lib/database';
 import { detectFoodType } from '../lib/food-intelligence';
@@ -21,7 +21,7 @@ import { ImagesStep } from './concept-testing/ImagesStep';
 import { QuestionsStep } from './concept-testing/QuestionsStep';
 import { PanelStep } from './concept-testing/PanelStep';
 import { ReviewStep } from './concept-testing/ReviewStep';
-import { WorkflowGuide } from './workflow-guide';
+import { ProjectHeader } from './project-header';
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
@@ -68,6 +68,7 @@ export function ConceptTesting() {
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState('');
   const [draftNotice, setDraftNotice] = useState('');
+  const [sourceDecision, setSourceDecision] = useState<{ id: string; sampleName: string; issfScore: number; confidence: number; timestamp: string } | null>(null);
   const [reportsExpanded, setReportsExpanded] = useState(false);
   const { data: settings } = useConceptGenerationSettings();
   const { data: workspaceSettings } = useWorkspaceSettings();
@@ -117,7 +118,14 @@ export function ConceptTesting() {
       localStorage.removeItem(DRAFT_STORAGE_KEY);
     }
 
-    const seed = (location.state as { conceptSeed?: { name?: string; category?: string; description?: string } } | null)?.conceptSeed;
+    const seed = (location.state as {
+      conceptSeed?: {
+        name?: string;
+        category?: string;
+        description?: string;
+        sourceDecision?: { id: string; sampleName: string; issfScore: number; confidence: number; timestamp: string };
+      };
+    } | null)?.conceptSeed;
     if (seed?.name) {
       setDraft(prev => ({
         ...prev,
@@ -126,6 +134,7 @@ export function ConceptTesting() {
         description: seed.description?.trim() || prev.description,
       }));
       setDraftNotice(`Pre-filled from your "${seed.name}" GO decision — review and personalize before launching.`);
+      if (seed.sourceDecision) setSourceDecision(seed.sourceDecision);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -231,7 +240,7 @@ export function ConceptTesting() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <WorkflowGuide current="concept" />
+      <ProjectHeader />
       {/* Page header */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -323,6 +332,30 @@ export function ConceptTesting() {
           <button type="button" onClick={() => setDraftNotice('')} className="text-xs font-semibold text-blue-700 hover:text-blue-900">
             Dismiss
           </button>
+        </div>
+      )}
+
+      {sourceDecision && (
+        <div className="flex flex-col gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-700" />
+            <div>
+              <p className="text-sm font-semibold text-emerald-950">
+                Generated from a validated sample: {sourceDecision.sampleName}
+              </p>
+              <p className="mt-1 text-xs text-emerald-800">
+                This concept is built on a sample that earned a confirmed <strong>GO</strong> decision —
+                ISSF {sourceDecision.issfScore.toFixed(0)} at {sourceDecision.confidence.toFixed(0)}% confidence
+                on {new Date(sourceDecision.timestamp).toLocaleDateString()}.
+              </p>
+            </div>
+          </div>
+          <Button asChild size="sm" variant="outline" className="shrink-0 border-emerald-300 text-emerald-800 hover:bg-emerald-100">
+            <Link to="/decision">
+              <Gauge className="size-4" />
+              View source decision
+            </Link>
+          </Button>
         </div>
       )}
 
