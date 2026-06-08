@@ -454,11 +454,10 @@ export function SurveyAnalysis() {
 
       {analysisType === 'single' ? (
         <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="sensory">Sensory</TabsTrigger>
             <TabsTrigger value="instrumental">Instrumental</TabsTrigger>
-            <TabsTrigger value="correlations">Correlations</TabsTrigger>
             <TabsTrigger value="consumer">Consumer</TabsTrigger>
             <TabsTrigger value="comments">
               Comments
@@ -663,6 +662,45 @@ export function SurveyAnalysis() {
                     </CardContent>
                   </Card>
                 )}
+
+                {correlationRows.length > 0 ? (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <GitMerge className="size-5 text-blue-600" />
+                        Machine Signal vs Panel Perception
+                      </CardTitle>
+                      <p className="text-sm text-slate-600">
+                        How instrumental readings line up with {usingLiveData ? 'live panelist' : 'reference panel'} intensity ratings for {selectedData.sampleName}.
+                      </p>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {correlationRows.map(row => {
+                          const diff = Math.abs(row.panelValue - row.machineValue);
+                          const aligned = diff <= 1.5;
+                          return (
+                            <div key={row.attribute} className="space-y-1 rounded-lg border border-slate-200 p-3">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="font-medium text-slate-700">{row.attribute}</span>
+                                <Badge className={aligned ? 'bg-emerald-600' : 'bg-amber-600'}>
+                                  {aligned ? 'Aligned' : 'Diverges'}
+                                </Badge>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 text-xs text-slate-500">
+                                <div>Machine reading: <span className="font-semibold text-slate-900">{row.machineValue.toFixed(1)}</span></div>
+                                <div>Panel rating: <span className="font-semibold text-slate-900">{row.panelValue.toFixed(1)}</span></div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <p className="mt-4 text-xs text-slate-400">
+                        "Aligned" means the machine reading and panel rating differ by 1.5 points or less on a comparable 0–10 scale.
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : null}
               </div>
             ) : (
               <Card className="border-dashed">
@@ -675,54 +713,6 @@ export function SurveyAnalysis() {
                       Import machine data
                     </Link>
                   </Button>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          <TabsContent value="correlations">
-            {correlationRows.length > 0 ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <GitMerge className="size-5 text-blue-600" />
-                    Machine Signal vs Panel Perception
-                  </CardTitle>
-                  <p className="text-sm text-slate-600">
-                    How instrumental readings line up with {usingLiveData ? 'live panelist' : 'reference panel'} intensity ratings for {selectedData.sampleName}.
-                  </p>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {correlationRows.map(row => {
-                      const diff = Math.abs(row.panelValue - row.machineValue);
-                      const aligned = diff <= 1.5;
-                      return (
-                        <div key={row.attribute} className="space-y-1 rounded-lg border border-slate-200 p-3">
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="font-medium text-slate-700">{row.attribute}</span>
-                            <Badge className={aligned ? 'bg-emerald-600' : 'bg-amber-600'}>
-                              {aligned ? 'Aligned' : 'Diverges'}
-                            </Badge>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2 text-xs text-slate-500">
-                            <div>Machine reading: <span className="font-semibold text-slate-900">{row.machineValue.toFixed(1)}</span></div>
-                            <div>Panel rating: <span className="font-semibold text-slate-900">{row.panelValue.toFixed(1)}</span></div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <p className="mt-4 text-xs text-slate-400">
-                    "Aligned" means the machine reading and panel rating differ by 1.5 points or less on a comparable 0–10 scale.
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card className="border-dashed">
-                <CardContent className="py-10 text-center">
-                  <GitMerge className="size-10 text-slate-300 mx-auto mb-3" />
-                  <p className="text-slate-500">Not enough overlapping data to compare machine and panel signals yet.</p>
                 </CardContent>
               </Card>
             )}
