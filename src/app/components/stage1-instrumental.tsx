@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router";
 import { matchFoodType, useFoodType } from "../contexts/food-type-context";
 import { useAuth } from "../contexts/auth-context";
@@ -474,7 +474,6 @@ export function Stage1Instrumental() {
   const [showPreview, setShowPreview] = useState(false);
   const [importStep, setImportStep] = useState<1 | 2 | 3>(1);
   const [batchName, setBatchName] = useState('');
-  const [dragActive, setDragActive] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
@@ -574,21 +573,6 @@ export function Stage1Instrumental() {
       setSelectedSamples([filteredETongueData[0].sampleId]);
     }
   }, [filteredETongueData, selectedSamples]);
-
-  const handleDrag = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") setDragActive(true);
-    else if (e.type === "dragleave") setDragActive(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) handleFile(file);
-  }, []);
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -925,30 +909,6 @@ export function Stage1Instrumental() {
         </div>
       </div>
 
-      {/* Drop zone — visible when not previewing */}
-      {!showPreview && (
-        <div
-          onDragEnter={handleDrag}
-          onDragLeave={handleDrag}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
-          className={`border-2 border-dashed rounded-xl p-6 flex items-center justify-center gap-3 transition-colors cursor-default ${
-            dragActive
-              ? "border-slate-500 bg-slate-50"
-              : "border-slate-200 bg-white hover:border-slate-300"
-          }`}
-        >
-          <Upload className="size-5 text-slate-400 shrink-0" />
-          <p className="text-sm text-slate-500">
-            Drop a <span className="font-medium text-slate-700">.csv</span> file here or use the{" "}
-            <label htmlFor="csv-upload-header" className="font-medium text-slate-700 underline underline-offset-2 cursor-pointer">
-              Import CSV
-            </label>{" "}
-            button above
-          </p>
-        </div>
-      )}
-
       {/* Error banner */}
       {importError && (
         <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2">
@@ -1199,7 +1159,6 @@ export function Stage1Instrumental() {
         </Card>
       )}
 
-      {/* Main grid — no drag handlers; drop zone above handles it */}
       <div id="machine-results" className="grid grid-cols-4 gap-6 scroll-mt-6">
         <Card className="border-2 border-slate-200 shadow-sm">
           <CardHeader className="bg-slate-50 border-b rounded-t-lg">

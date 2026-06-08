@@ -413,6 +413,10 @@ export function useImportBatches(enabled = true) {
     queryKey: queryKeys.importBatches,
     queryFn: fetchImportBatches,
     enabled,
+    // Status changes (delete/restore/archive) must always be reflected immediately —
+    // a 5-minute staleTime previously let the dashboard and Configure disagree on
+    // which batches were active.
+    refetchOnMount: 'always',
   })
 }
 
