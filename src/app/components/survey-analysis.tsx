@@ -4,8 +4,7 @@ import { useAuth } from '../contexts/auth-context';
 import { useFoodType, sampleMatchesFoodType, matchFoodType } from '../contexts/food-type-context';
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
-import { Badge } from "./ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from "../data/enhanced-sensory";
 import { getSampleColor } from "../utils/sample-colors";
 import { useInstrumentalDataset, useProducts } from "../lib/hooks";
@@ -286,15 +285,6 @@ export function SurveyAnalysis() {
     : '0.0';
   const activeTopCataCount     = activeCataAttributes.length > 0 ? activeCataAttributes[0].count : 0;
   const activeEmotionalBalance = (activeEmotions.positive - activeEmotions.negative).toFixed(1);
-  const importedSelectedSample = instrumentalDataset?.eTongueData.find(sample => sample.sampleId === selectedData.sampleId);
-  const hasMachineData = !!importedSelectedSample || importedSensoryData.some(sample => sample.sampleId === selectedData.sampleId);
-  const sourceStatus = usingLiveData && hasMachineData
-    ? 'Machine data joined with live panel responses'
-    : usingLiveData
-      ? 'Live panel responses'
-      : hasMachineData
-        ? 'Imported machine data, waiting for panel responses'
-        : 'Reference dataset';
 
   const exportSampleCSV = () => {
     if (!selectedData) return;
@@ -306,23 +296,6 @@ export function SurveyAnalysis() {
     const csv = buildAllDataCSVRows(liveAggregations);
     downloadCsv(csv, `issf-full-export-${new Date().toISOString().split('T')[0]}.csv`);
   };
-
-  const compositionEntry = instrumentalDataset?.compositionData?.[selectedData.sampleId];
-  const gcmsCompounds = (instrumentalDataset?.gcmsData?.[selectedData.sampleId] ?? []).slice(0, 6);
-
-  const TASTE_KEY_BY_INTENSITY_LABEL: Record<string, keyof EnhancedSensoryProfile['taste']> = {
-    Sourness: 'sourness',
-    Bitterness: 'bitterness',
-    Saltiness: 'saltiness',
-    Umami: 'umami',
-    Sweetness: 'sweetness',
-  };
-  const correlationRows = Object.entries(selectedData.intensity)
-    .map(([label, panelValue]) => {
-      const tasteKey = TASTE_KEY_BY_INTENSITY_LABEL[label];
-      return tasteKey ? { attribute: label, panelValue: Number(panelValue), machineValue: Number(selectedData.taste[tasteKey]) } : null;
-    })
-    .filter((row): row is { attribute: string; panelValue: number; machineValue: number } => row !== null);
 
   const multiSampleProducts = allProducts.filter(p => {
     if (!p.isMultiSample) return false;
@@ -338,15 +311,13 @@ export function SurveyAnalysis() {
       <ProjectHeader />
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Insights</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Analyze Results</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Understand how instrumental data and panelist perception align.
-            {' '}
             {analysisType === 'single'
-              ? `${usingLiveData ? 'Live panel responses' : 'E-Tongue + GC-MS + Semi-trained Panel'} (n=${activePanelistN}).`
+              ? `${usingLiveData ? 'Live panel responses' : 'Reference panel'} (n=${activePanelistN}) — CATA, Intensity, Hedonic, Emotional`
               : analysisType === 'multi'
-                ? 'Multi-sample comparative evaluations — discrimination, ranking, preferences.'
-                : 'Concept test panelist feedback — appeal, visual preference, purchase intent.'}
+                ? 'Multi-sample comparative evaluations - Discrimination, Ranking, Preferences'
+                : 'Concept test panelist feedback - Appeal, Visual preference, Purchase intent'}
           </p>
         </div>
         <div className="flex gap-2">
@@ -356,6 +327,27 @@ export function SurveyAnalysis() {
               Move forward & write report
             </Link>
           </Button>
+          {analysisType === 'single' && (
+            <>
+              <Button onClick={exportSampleCSV} variant="outline">
+                <Download className="size-4 mr-2" />
+                Export Sample CSV
+              </Button>
+              {user?.role === 'admin' && (
+                <Button onClick={exportAllDataCSV} variant="outline">
+                  <Download className="size-4 mr-2" />
+                  Export All Data
+                </Button>
+              )}
+              <Button
+                onClick={() => setShowAllSamples(!showAllSamples)}
+                variant="outline"
+              >
+                {showAllSamples ? <EyeOff className="size-4 mr-2" /> : <Eye className="size-4 mr-2" />}
+                {showAllSamples ? "Single Sample" : "All Samples"}
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -443,340 +435,150 @@ export function SurveyAnalysis() {
         </div>
       )}
 
-      {analysisType === 'single' && !usingLiveData && !liveDataFetchFailed && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm">
-          <AlertCircle className="size-4 text-amber-600 shrink-0" />
-          <span className="text-amber-800">
-            <strong>Simulated data:</strong> No live panel responses matched this sample. Charts show E-Tongue / GC-MS / semi-trained panel benchmarks — not real panelist submissions.
-          </span>
-        </div>
-      )}
-
       {analysisType === 'single' ? (
-        <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="sensory">Sensory</TabsTrigger>
-            <TabsTrigger value="instrumental">Instrumental</TabsTrigger>
-            <TabsTrigger value="consumer">Consumer</TabsTrigger>
-            <TabsTrigger value="comments">
-              Comments
-              {usingLiveData && matchingLiveData && (commentsByProduct[matchingLiveData.productId]?.length ?? 0) > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-blue-600 text-white rounded-full">
-                  {commentsByProduct[matchingLiveData.productId].length}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="exports">Exports</TabsTrigger>
-          </TabsList>
+        <>
+          {/* Sample Selector */}
+          <Card>
+            <CardHeader className="bg-gradient-to-r from-blue-50 to-slate-50 border-b">
+              <CardTitle className="text-lg">Select Sample</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <div className="grid grid-cols-7 gap-2">
+                {filteredSamples.map(sample => {
+                  const typeColor = getSampleColor(sample.sampleName);
+                  const isSelected = selectedSample === sample.sampleId;
+                  return (
+                    <button
+                      key={sample.sampleId}
+                      onClick={() => setSelectedSample(sample.sampleId)}
+                      className="p-3 rounded-lg border-2 transition-all text-center"
+                      style={{
+                        borderColor: isSelected ? typeColor : '#e2e8f0',
+                        backgroundColor: isSelected ? `${typeColor}18` : 'white',
+                      }}
+                    >
+                      <div className="font-bold text-slate-900 text-xs leading-tight">{sample.sampleName}</div>
+                      <div className="text-xs mt-1 font-semibold" style={{ color: typeColor }}>
+                        {sample.hedonic.overall.toFixed(1)}/9
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
 
-          <TabsContent value="overview" className="space-y-6">
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-                <p className="text-xs font-semibold text-slate-500">Data source</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900">{sourceStatus}</p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-                <p className="text-xs font-semibold text-slate-500">Machine sample</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900">
-                  {hasMachineData ? selectedData.sampleId : 'Reference only'}
-                </p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-                <p className="text-xs font-semibold text-slate-500">Panel responses</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900">
-                  {usingLiveData ? `${activePanelistN} submitted` : 'Not submitted yet'}
-                </p>
-              </div>
-            </div>
-
+          {/* Key Metrics */}
+          <div className="grid grid-cols-4 gap-4">
             <Card>
-              <CardHeader className="bg-gradient-to-r from-blue-50 to-slate-50 border-b">
-                <CardTitle className="text-lg">Select Sample</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <div className="grid grid-cols-7 gap-2">
-                  {filteredSamples.map(sample => {
-                    const typeColor = getSampleColor(sample.sampleName);
-                    const isSelected = selectedSample === sample.sampleId;
-                    return (
-                      <button
-                        key={sample.sampleId}
-                        onClick={() => setSelectedSample(sample.sampleId)}
-                        className="p-3 rounded-lg border-2 transition-all text-center"
-                        style={{
-                          borderColor: isSelected ? typeColor : '#e2e8f0',
-                          backgroundColor: isSelected ? `${typeColor}18` : 'white',
-                        }}
-                      >
-                        <div className="font-bold text-slate-900 text-xs leading-tight">{sample.sampleName}</div>
-                        <div className="text-xs mt-1 font-semibold" style={{ color: typeColor }}>
-                          {sample.hedonic.overall.toFixed(1)}/9
-                        </div>
-                      </button>
-                    );
-                  })}
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <Heart className="size-8 text-rose-500" />
+                  <div>
+                    <div className="text-2xl font-bold text-slate-900">{activeAvgHedonic}</div>
+                    <div className="text-sm text-slate-600">Avg Hedonic</div>
+                    <div className="text-xs text-slate-500">1-9 scale</div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            <div className="grid grid-cols-4 gap-4">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-3">
-                    <Heart className="size-8 text-rose-500" />
-                    <div>
-                      <div className="text-2xl font-bold text-slate-900">{activeAvgHedonic}</div>
-                      <div className="text-sm text-slate-600">Avg Hedonic</div>
-                      <div className="text-xs text-slate-500">1-9 scale</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-3">
-                    <CheckSquare className="size-8 text-blue-500" />
-                    <div>
-                      <div className="text-2xl font-bold text-slate-900">{activeTopCataCount}/{activePanelistN}</div>
-                      <div className="text-sm text-slate-600">Top CATA</div>
-                      <div className="text-xs text-slate-500">{activeCataAttributes[0]?.attribute || "N/A"}</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-3">
-                    <TrendingUp className="size-8 text-purple-500" />
-                    <div>
-                      <div className="text-2xl font-bold text-slate-900">{activeAvgIntensity}</div>
-                      <div className="text-sm text-slate-600">Avg Intensity</div>
-                      <div className="text-xs text-slate-500">0-10 scale</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-3">
-                    {parseFloat(activeEmotionalBalance) >= 0 ? (
-                      <Smile className="size-8 text-emerald-500" />
-                    ) : (
-                      <Frown className="size-8 text-amber-500" />
-                    )}
-                    <div>
-                      <div className="text-2xl font-bold text-slate-900">{activeEmotionalBalance}</div>
-                      <div className="text-sm text-slate-600">Emotion Balance</div>
-                      <div className="text-xs text-slate-500">Pos - Neg</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="sensory" className="space-y-6">
-            <CATATab
-              activeCataAttributes={activeCataAttributes}
-              activePanelistN={activePanelistN}
-              usingLiveData={usingLiveData}
-              activeSampleId={activeSampleId}
-            />
-            <IntensityTab
-              activeIntensityData={activeIntensityData}
-              activePanelistN={activePanelistN}
-              usingLiveData={usingLiveData}
-              intensityMax={intensityMax}
-            />
-            <EmotionalTab
-              activeEmotions={activeEmotions}
-              activeEmotionalBalance={activeEmotionalBalance}
-            />
-          </TabsContent>
-
-          <TabsContent value="instrumental">
-            {hasMachineData ? (
-              <div className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <FlaskConical className="size-5 text-blue-600" />
-                      E-Tongue Taste Profile
-                    </CardTitle>
-                    <p className="text-sm text-slate-600">
-                      Instrumental readings for {selectedData.sampleName} ({selectedData.sampleId}).
-                    </p>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                      {(['sourness', 'bitterness', 'saltiness', 'umami', 'sweetness'] as const).map(key => (
-                        <div key={key} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
-                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{key}</div>
-                          <div className="mt-1 text-xl font-bold text-slate-900">{Number(selectedData.taste[key]).toFixed(1)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {compositionEntry && (
-                  <Card>
-                    <CardHeader><CardTitle>Composition</CardTitle></CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        {([
-                          ['Moisture', compositionEntry.moisture],
-                          ['Fat', compositionEntry.fat],
-                          ['Protein', compositionEntry.protein],
-                          ['Salt', compositionEntry.saltContent],
-                        ] as const).map(([label, value]) => (
-                          <div key={label} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
-                            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</div>
-                            <div className="mt-1 text-xl font-bold text-slate-900">{Number(value ?? 0).toFixed(1)}%</div>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {gcmsCompounds.length > 0 && (
-                  <Card>
-                    <CardHeader><CardTitle>Top GC-MS Compounds</CardTitle></CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        {gcmsCompounds.map(compound => (
-                          <div key={compound.name} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                            <div>
-                              <span className="font-semibold text-slate-900">{compound.name}</span>
-                              <span className="ml-2 text-slate-500">{compound.aroma}</span>
-                            </div>
-                            <span className="text-slate-600">{compound.concentration.toFixed(2)} ppm</span>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {correlationRows.length > 0 ? (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <GitMerge className="size-5 text-blue-600" />
-                        Machine Signal vs Panel Perception
-                      </CardTitle>
-                      <p className="text-sm text-slate-600">
-                        How instrumental readings line up with {usingLiveData ? 'live panelist' : 'reference panel'} intensity ratings for {selectedData.sampleName}.
-                      </p>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {correlationRows.map(row => {
-                          const diff = Math.abs(row.panelValue - row.machineValue);
-                          const aligned = diff <= 1.5;
-                          return (
-                            <div key={row.attribute} className="space-y-1 rounded-lg border border-slate-200 p-3">
-                              <div className="flex items-center justify-between text-sm">
-                                <span className="font-medium text-slate-700">{row.attribute}</span>
-                                <Badge className={aligned ? 'bg-emerald-600' : 'bg-amber-600'}>
-                                  {aligned ? 'Aligned' : 'Diverges'}
-                                </Badge>
-                              </div>
-                              <div className="grid grid-cols-2 gap-2 text-xs text-slate-500">
-                                <div>Machine reading: <span className="font-semibold text-slate-900">{row.machineValue.toFixed(1)}</span></div>
-                                <div>Panel rating: <span className="font-semibold text-slate-900">{row.panelValue.toFixed(1)}</span></div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <p className="mt-4 text-xs text-slate-400">
-                        "Aligned" means the machine reading and panel rating differ by 1.5 points or less on a comparable 0–10 scale.
-                      </p>
-                    </CardContent>
-                  </Card>
-                ) : null}
-              </div>
-            ) : (
-              <Card className="border-dashed">
-                <CardContent className="py-10 text-center">
-                  <FlaskConical className="size-10 text-slate-300 mx-auto mb-3" />
-                  <p className="text-slate-500">No imported instrumental data for this sample.</p>
-                  <Button asChild variant="outline" className="mt-4">
-                    <Link to="/stage1">
-                      <FlaskConical className="size-4 mr-2" />
-                      Import machine data
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          <TabsContent value="consumer">
-            <HedonicTab
-              activeHedonicData={activeHedonicData}
-              activeAvgHedonic={activeAvgHedonic}
-              activePanelistN={activePanelistN}
-            />
-          </TabsContent>
-
-          <TabsContent value="comments">
-            <CommentsTab
-              usingLiveData={usingLiveData}
-              matchingLiveData={matchingLiveData}
-              commentsByProduct={commentsByProduct}
-            />
-          </TabsContent>
-
-          <TabsContent value="exports" className="space-y-4">
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Download className="size-5 text-blue-600" />
-                  Export this sample
-                </CardTitle>
-                <p className="text-sm text-slate-600">Download the data behind these charts for {selectedData.sampleName}.</p>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
-                <Button onClick={exportSampleCSV} variant="outline">
-                  <Download className="size-4 mr-2" />
-                  Export Sample CSV
-                </Button>
-                {user?.role === 'admin' && (
-                  <Button onClick={exportAllDataCSV} variant="outline">
-                    <Download className="size-4 mr-2" />
-                    Export All Data
-                  </Button>
-                )}
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <CheckSquare className="size-8 text-blue-500" />
+                  <div>
+                    <div className="text-2xl font-bold text-slate-900">{activeTopCataCount}/{activePanelistN}</div>
+                    <div className="text-sm text-slate-600">Top CATA</div>
+                    <div className="text-xs text-slate-500">{activeCataAttributes[0]?.attribute || "N/A"}</div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader>
-                <CardTitle>Compare across samples</CardTitle>
-                <p className="text-sm text-slate-600">See how every sample in this project stacks up side by side.</p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Button onClick={() => setShowAllSamples(!showAllSamples)} variant="outline">
-                  {showAllSamples ? <EyeOff className="size-4 mr-2" /> : <Eye className="size-4 mr-2" />}
-                  {showAllSamples ? "Hide all-samples comparison" : "Show all-samples comparison"}
-                </Button>
-                {showAllSamples && (
-                  <AllSamplesComparisonView
-                    allSamplesHedonic={allSamplesHedonic}
-                    enhancedSensoryData={allSensoryData}
-                  />
-                )}
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <TrendingUp className="size-8 text-purple-500" />
+                  <div>
+                    <div className="text-2xl font-bold text-slate-900">{activeAvgIntensity}</div>
+                    <div className="text-sm text-slate-600">Avg Intensity</div>
+                    <div className="text-xs text-slate-500">0-10 scale</div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  {parseFloat(activeEmotionalBalance) >= 0 ? (
+                    <Smile className="size-8 text-emerald-500" />
+                  ) : (
+                    <Frown className="size-8 text-amber-500" />
+                  )}
+                  <div>
+                    <div className="text-2xl font-bold text-slate-900">{activeEmotionalBalance}</div>
+                    <div className="text-sm text-slate-600">Emotion Balance</div>
+                    <div className="text-xs text-slate-500">Pos - Neg</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {!showAllSamples ? (
+            // Single Sample Detailed View
+            <Tabs defaultValue="cata" className="w-full">
+              <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="cata">CATA Attributes</TabsTrigger>
+                <TabsTrigger value="intensity">Intensity Ratings</TabsTrigger>
+                <TabsTrigger value="hedonic">Hedonic Scores</TabsTrigger>
+                <TabsTrigger value="emotional">Emotional Profile</TabsTrigger>
+                <TabsTrigger value="comments">
+                  Comments
+                  {usingLiveData && matchingLiveData && (commentsByProduct[matchingLiveData.productId]?.length ?? 0) > 0 && (
+                    <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-blue-600 text-white rounded-full">
+                      {commentsByProduct[matchingLiveData.productId].length}
+                    </span>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+
+              <CATATab
+                activeCataAttributes={activeCataAttributes}
+                activePanelistN={activePanelistN}
+                usingLiveData={usingLiveData}
+                activeSampleId={activeSampleId}
+              />
+              <IntensityTab
+                activeIntensityData={activeIntensityData}
+                activePanelistN={activePanelistN}
+                usingLiveData={usingLiveData}
+                intensityMax={intensityMax}
+              />
+              <HedonicTab
+                activeHedonicData={activeHedonicData}
+                activeAvgHedonic={activeAvgHedonic}
+                activePanelistN={activePanelistN}
+              />
+              <CommentsTab
+                usingLiveData={usingLiveData}
+                matchingLiveData={matchingLiveData}
+                commentsByProduct={commentsByProduct}
+              />
+              <EmotionalTab
+                activeEmotions={activeEmotions}
+                activeEmotionalBalance={activeEmotionalBalance}
+              />
+            </Tabs>
+          ) : (
+            <AllSamplesComparisonView
+              allSamplesHedonic={allSamplesHedonic}
+              enhancedSensoryData={allSensoryData}
+            />
+          )}
+        </>
       ) : analysisType === 'multi' ? (
         /* Multi-Sample Analysis Section */
         <MultiSampleAnalysis
