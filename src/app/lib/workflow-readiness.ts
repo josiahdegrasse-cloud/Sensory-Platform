@@ -102,7 +102,12 @@ export function findDataIntegrityIssues(input: {
 
   products.forEach(product => {
     if (product.sourceSampleId && !sampleIds.has(product.sourceSampleId)) {
-      issues.push({ id: `orphan-survey:${product.id}`, severity: 'warning', message: `${product.name} references a sample that is not active.` });
+      // Only flag if the source batch is also gone — if the batch exists but is archived/deleted
+      // the sample is simply inactive (not orphaned) and will recover when the batch is restored.
+      const batchGone = product.sourceImportBatchId && !batchIds.has(product.sourceImportBatchId);
+      if (batchGone || !product.sourceImportBatchId) {
+        issues.push({ id: `orphan-survey:${product.id}`, severity: 'warning', message: `${product.name} references a sample that is not active.` });
+      }
     }
     if (product.sourceImportBatchId && !batchIds.has(product.sourceImportBatchId)) {
       issues.push({ id: `orphan-product-batch:${product.id}`, severity: 'error', message: `${product.name} references a missing import project.` });
