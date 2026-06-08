@@ -14,7 +14,7 @@ import { useSurveyData } from "../lib/use-survey-data";
 import { buildSampleCSVRows, buildAllDataCSVRows, downloadCsv } from "../utils/survey-csv-export";
 import {
   Users, Heart, Smile, Frown, CheckSquare,
-  TrendingUp, AlertCircle, Eye, EyeOff, Download, Layers, FlaskConical, ClipboardList, Megaphone
+  TrendingUp, AlertCircle, Eye, EyeOff, Download, Layers, FlaskConical, ClipboardList, Megaphone, GitMerge
 } from "lucide-react";
 import { MultiSampleAnalysis } from "./multi-sample-analysis";
 import { CATATab, IntensityTab, HedonicTab, CommentsTab, EmotionalTab } from "./survey-analysis-tabs";
@@ -324,6 +324,12 @@ export function SurveyAnalysis() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button asChild className="bg-emerald-700 text-white hover:bg-emerald-800">
+            <Link to="/decision">
+              <GitMerge className="size-4 mr-2" />
+              Move forward & write report
+            </Link>
+          </Button>
           {analysisType === 'single' && (
             <>
               <Button onClick={exportSampleCSV} variant="outline">
