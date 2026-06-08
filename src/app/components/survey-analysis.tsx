@@ -20,6 +20,7 @@ import { MultiSampleAnalysis } from "./multi-sample-analysis";
 import { CATATab, IntensityTab, HedonicTab, CommentsTab, EmotionalTab } from "./survey-analysis-tabs";
 import { AllSamplesComparisonView } from "./all-samples-comparison";
 import { ConceptTestAnalysis } from "./concept-test-analysis";
+import { WorkflowGuide } from "./workflow-guide";
 
 const RESEARCH_PANEL_N = 14;
 
@@ -140,6 +141,7 @@ export function SurveyAnalysis() {
 
     return (
       <div className="space-y-6">
+        <WorkflowGuide current="insights" />
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Analyze Results</h1>
           <p className="text-sm text-slate-500 mt-1">
@@ -179,13 +181,16 @@ export function SurveyAnalysis() {
 
               <div className="mt-6 flex flex-wrap gap-2">
                 <Button asChild>
-                  <Link to="/stage1">
-                    <FlaskConical className="size-4" />
-                    Create questionnaires
+                  <Link to="/admin">
+                    <ClipboardList className="size-4" />
+                    Create questionnaires from your samples
                   </Link>
                 </Button>
                 <Button asChild variant="outline">
-                  <Link to="/admin">Review questionnaire setup</Link>
+                  <Link to="/stage1">
+                    <FlaskConical className="size-4" />
+                    Import more machine data
+                  </Link>
                 </Button>
               </div>
             </div>
@@ -312,6 +317,7 @@ export function SurveyAnalysis() {
 
   return (
     <div className="space-y-6">
+      <WorkflowGuide current="insights" />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Analyze Results</h1>

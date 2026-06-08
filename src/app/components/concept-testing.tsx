@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -21,6 +21,7 @@ import { ImagesStep } from './concept-testing/ImagesStep';
 import { QuestionsStep } from './concept-testing/QuestionsStep';
 import { PanelStep } from './concept-testing/PanelStep';
 import { ReviewStep } from './concept-testing/ReviewStep';
+import { WorkflowGuide } from './workflow-guide';
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
@@ -57,6 +58,7 @@ interface StoredConceptDraft {
 
 export function ConceptTesting() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [step, setStep] = useState<WizardStep>('concept');
   const [draft, setDraft] = useState<ConceptDraft>(() => makeEmptyDraft());
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -99,18 +101,33 @@ export function ConceptTesting() {
   useEffect(() => {
     try {
       const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
-      if (!raw) return;
-      const saved = JSON.parse(raw) as StoredConceptDraft;
-      if (!saved?.draft) return;
-      setDraft({ ...makeEmptyDraft(saved.draft.promptStyle), ...saved.draft });
-      setQuestions(saved.questions ?? []);
-      setSegments(saved.segments ?? []);
-      setAssignedPanelistIds(saved.assignedPanelistIds ?? []);
-      setPanelSize(saved.panelSize ?? 50);
-      setDraftNotice(`Draft restored from ${new Date(saved.savedAt).toLocaleString()}.`);
+      if (raw) {
+        const saved = JSON.parse(raw) as StoredConceptDraft;
+        if (saved?.draft) {
+          setDraft({ ...makeEmptyDraft(saved.draft.promptStyle), ...saved.draft });
+          setQuestions(saved.questions ?? []);
+          setSegments(saved.segments ?? []);
+          setAssignedPanelistIds(saved.assignedPanelistIds ?? []);
+          setPanelSize(saved.panelSize ?? 50);
+          setDraftNotice(`Draft restored from ${new Date(saved.savedAt).toLocaleString()}.`);
+          return;
+        }
+      }
     } catch {
       localStorage.removeItem(DRAFT_STORAGE_KEY);
     }
+
+    const seed = (location.state as { conceptSeed?: { name?: string; category?: string; description?: string } } | null)?.conceptSeed;
+    if (seed?.name) {
+      setDraft(prev => ({
+        ...prev,
+        name: seed.name?.trim() || prev.name,
+        category: seed.category?.trim() || prev.category,
+        description: seed.description?.trim() || prev.description,
+      }));
+      setDraftNotice(`Pre-filled from your "${seed.name}" GO decision — review and personalize before launching.`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -214,6 +231,7 @@ export function ConceptTesting() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+      <WorkflowGuide current="concept" />
       {/* Page header */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

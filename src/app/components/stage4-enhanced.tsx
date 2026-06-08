@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { CommercializationReportBuilder } from "./commercialization-report-builder";
+import { WorkflowGuide } from "./workflow-guide";
 
 type SampleDecision = GoStopTweakDecision;
 
@@ -520,6 +521,7 @@ export function Stage4Enhanced() {
 
   return (
     <div className="space-y-6">
+      <WorkflowGuide current={confirmedGoDecision ? 'report' : 'decide'} />
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Final Decision</h1>
@@ -596,7 +598,16 @@ export function Stage4Enhanced() {
               settings={workspaceSettings}
             />
             <Button asChild size="sm" className="bg-emerald-700 text-white hover:bg-emerald-800">
-              <Link to="/concept-testing">
+              <Link
+                to="/concept-testing"
+                state={{
+                  conceptSeed: {
+                    name: confirmedGoDecision.sampleName,
+                    category: foodType !== 'all' ? formatFoodTypeLabel(foodType) : undefined,
+                    description: `A new product concept inspired by ${confirmedGoDecision.sampleName}, which received a confirmed GO decision for commercialization.`,
+                  },
+                }}
+              >
                 <Megaphone className="size-4" />
                 Open Concept Lab
               </Link>

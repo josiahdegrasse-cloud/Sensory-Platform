@@ -27,6 +27,7 @@ import {
 } from "recharts";
 import { JargonTooltip } from "./jargon-tooltip";
 import { ImportMappingStudio } from "./import-mapping-studio";
+import { WorkflowGuide } from "./workflow-guide";
 import {
   applyImportMappings,
   inferImportMappings,
@@ -907,6 +908,7 @@ export function Stage1Instrumental() {
 
   return (
     <div className="space-y-6">
+      <WorkflowGuide current="import" />
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -1010,16 +1012,19 @@ export function Stage1Instrumental() {
                       </span>
                     </div>
                   </div>
-                  <div className="flex flex-wrap justify-end gap-2">
-                    <Button variant="outline" size="sm" onClick={() => viewImportedCharts(lastImportSummary)}>
-                      <BarChart3 className="size-4 mr-1.5" />View charts
-                    </Button>
-                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => openImportedWorkflow(lastImportSummary, '/admin')}>
-                      <ClipboardList className="size-4 mr-1.5" />Configure surveys
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => openImportedWorkflow(lastImportSummary, '/concept-testing')}>
-                      <Lightbulb className="size-4 mr-1.5" />Concepts
-                    </Button>
+                  <div className="flex flex-col items-end gap-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-blue-600">Recommended next step</span>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => openImportedWorkflow(lastImportSummary, '/admin')}>
+                        <ClipboardList className="size-4 mr-1.5" />Send surveys to your panel
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => viewImportedCharts(lastImportSummary)}>
+                        <BarChart3 className="size-4 mr-1.5" />View charts
+                      </Button>
+                      <Button variant="outline" size="sm" className="text-slate-500" onClick={() => openImportedWorkflow(lastImportSummary, '/concept-testing')}>
+                        <Lightbulb className="size-4 mr-1.5" />Concepts (after panel feedback)
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </CardContent>
