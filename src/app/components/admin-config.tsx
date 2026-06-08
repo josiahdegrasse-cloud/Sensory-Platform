@@ -8,10 +8,9 @@ import { Checkbox } from './ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { type Product, DEFAULT_CATA_ATTRIBUTES, getDefaultCataAttributes } from '../data/mock-users';
 import { useFoodType, matchFoodType } from '../contexts/food-type-context';
-import { type Template } from '../lib/database';
 import {
-  useProducts, useTemplates, usePanelists,
-  useInsertProduct, useUpdateProduct, useDeleteProduct, useInsertTemplate, useDeleteTemplate,
+  useProducts, usePanelists,
+  useInsertProduct, useUpdateProduct, useDeleteProduct,
   useUpdatePanelistId, useAllResponses, useImportBatches,
   useInstrumentalDataset, useUpdateImportBatchStatus,
   useConceptLabDiagnostics,
@@ -19,7 +18,7 @@ import {
 import {
   Plus, Settings, Trash2, Save, CheckCircle2, FolderOpen, Layers,
   ClipboardList, Users, AlertCircle, Search, Activity, FlaskConical, Archive, RotateCcw,
-  Upload, FileText, Database, ShieldCheck,
+  Upload, Database, ShieldCheck,
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { useAuth } from '../contexts/auth-context';
@@ -27,16 +26,13 @@ import { PanelistPerformancePanel } from './panelist-performance';
 import { formatFoodTypeLabel } from '../lib/food-intelligence';
 import { findDataIntegrityIssues } from '../lib/workflow-readiness';
 
-type AdminTab = 'products' | 'panelists' | 'templates' | 'imports';
-
-type QuestionnaireTemplate = Template;
+type AdminTab = 'products' | 'panelists' | 'imports';
 
 export function AdminConfig() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>('products');
   const { data: products = [] } = useProducts();
   const { data: panelists = [] } = usePanelists();
-  const { data: templates = [] } = useTemplates();
   const { data: allResponses = [] } = useAllResponses();
   const { data: importBatches = [] } = useImportBatches(activeTab === 'products' || activeTab === 'imports');
   const { data: instrumentalDataset } = useInstrumentalDataset(activeTab === 'products' || activeTab === 'imports');
@@ -45,8 +41,6 @@ export function AdminConfig() {
   const insertProductMutation = useInsertProduct();
   const updateProductMutation = useUpdateProduct();
   const deleteProductMutation = useDeleteProduct();
-  const insertTemplateMutation = useInsertTemplate();
-  const deleteTemplateMutation = useDeleteTemplate();
   const updatePanelistIdMutation = useUpdatePanelistId();
   const updateImportBatchStatusMutation = useUpdateImportBatchStatus();
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -57,7 +51,6 @@ export function AdminConfig() {
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [customAttributes, setCustomAttributes] = useState<string[]>([]);
   const [newAttribute, setNewAttribute] = useState('');
-  const [templateName, setTemplateName] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
   const [mutationError, setMutationError] = useState('');
 
@@ -464,34 +457,6 @@ export function AdminConfig() {
     }
   };
 
-  const handleSaveTemplate = async () => {
-    if (!templateName || customAttributes.length === 0) return;
-    setMutationError('');
-    try {
-      await insertTemplateMutation.mutateAsync({ name: templateName, attributes: customAttributes });
-      setTemplateName('');
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
-    } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Failed to save template.');
-    }
-  };
-
-  const handleLoadTemplate = async (templateId: string) => {
-    const template = templates.find(t => t.id === templateId);
-    if (!selectedProduct) { setMutationError('Select a product first, then load the template.'); return; }
-    if (!template) return;
-    setMutationError('');
-    try {
-      await updateProductMutation.mutateAsync({ id: selectedProduct, updates: { customAttributes: template.attributes } });
-      setCustomAttributes(template.attributes);
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
-    } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Failed to apply template.');
-    }
-  };
-
   const handleEditPanelistId = (userId: string, currentId: string | null) => {
     setEditingPanelistId(userId);
     setPanelistIdInput(currentId ?? '');
@@ -569,7 +534,6 @@ export function AdminConfig() {
   const tabs: { id: AdminTab; label: string; icon: React.ElementType }[] = [
     { id: 'products',  label: 'Surveys',  icon: ClipboardList },
     { id: 'panelists', label: 'Panelists', icon: Users },
-    { id: 'templates', label: 'Templates', icon: FileText },
     { id: 'imports',   label: 'Imports',   icon: Upload },
   ];
 
@@ -978,41 +942,6 @@ export function AdminConfig() {
                     <Save className="size-4 mr-2" />Save Attributes
                   </Button>
 
-                  <div className="border-t border-slate-200 pt-3 space-y-2">
-                    <Label className="text-xs font-bold text-slate-700">Templates ({templates.length})</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Template name…"
-                        value={templateName}
-                        onChange={e => setTemplateName(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleSaveTemplate()}
-                        className="text-sm"
-                      />
-                      <Button size="sm" onClick={handleSaveTemplate} variant="outline" className="flex-shrink-0 text-xs">Save</Button>
-                    </div>
-                    {templates.length > 0 && (
-                      <div className="space-y-1 max-h-28 overflow-y-auto">
-                        {templates.map(t => (
-                          <div key={t.id} className="flex items-center gap-2 p-1.5 bg-slate-50 rounded border border-slate-200">
-                            <button onClick={() => handleLoadTemplate(t.id)} className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 flex-shrink-0">
-                              <FolderOpen className="size-3" />Load
-                            </button>
-                            <span className="text-xs flex-1 truncate">{t.name}</span>
-                            <button
-                              onClick={async () => {
-                                setMutationError('');
-                                try { await deleteTemplateMutation.mutateAsync(t.id); }
-                                catch (err) { setMutationError(err instanceof Error ? err.message : 'Failed to delete template.'); }
-                              }}
-                              className="text-rose-500 hover:text-rose-700"
-                            >
-                              <Trash2 className="size-3" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
                 </div>
               )}
           </div>
@@ -1067,76 +996,6 @@ export function AdminConfig() {
 
       </> /* end panelists tab */}
 
-      {/* ── Templates tab ── */}
-      {activeTab === 'templates' && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <FileText className="size-4 text-slate-500" />
-              Attribute Templates
-            </CardTitle>
-            <p className="text-sm text-slate-500">Save and reuse questionnaire attribute sets across products.</p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-2">
-              <Input
-                placeholder="Template name…"
-                value={templateName}
-                onChange={e => setTemplateName(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSaveTemplate()}
-                className="flex-1"
-              />
-              <Button onClick={handleSaveTemplate} disabled={!templateName} className="bg-slate-900 hover:bg-slate-700">
-                <Save className="size-4 mr-1.5" />Save
-              </Button>
-            </div>
-            {templates.length === 0 ? (
-              <div className="py-10 text-center text-slate-400">
-                <FileText className="size-8 mx-auto mb-2 opacity-30" />
-                <p className="text-sm">No templates saved yet.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {templates.map(t => (
-                  <div key={t.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                    <FileText className="size-4 text-slate-400 shrink-0" />
-                    <span className="flex-1 text-sm font-medium text-slate-800">{t.name}</span>
-                    <span className="text-xs text-slate-500">{t.attributes.length} attributes</span>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={() => {
-                          if (selectedProduct) {
-                            handleLoadTemplate(t.id);
-                          } else {
-                            setMutationError('Select a product in the Products tab first.');
-                          }
-                        }}
-                      >
-                        <FolderOpen className="size-3 mr-1" />Apply
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs border-rose-300 text-rose-600 hover:bg-rose-50"
-                        onClick={async () => {
-                          setMutationError('');
-                          try { await deleteTemplateMutation.mutateAsync(t.id); }
-                          catch (err) { setMutationError(err instanceof Error ? err.message : 'Failed to delete template.'); }
-                        }}
-                      >
-                        <Trash2 className="size-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {/* ── Imports tab ── */}
       {activeTab === 'imports' && (
