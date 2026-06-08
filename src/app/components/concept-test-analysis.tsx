@@ -1,4 +1,8 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip as RechartsTooltip, ResponsiveContainer, LabelList,
+} from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { useAdminConceptTests, useConceptTestResponses } from '../lib/hooks';
@@ -154,24 +158,47 @@ function QuestionResultCard({
   );
 }
 
+function ChartTooltip({ render }: { render: (payload: Record<string, unknown>) => ReactNode }) {
+  return ({ active, payload }: { active?: boolean; payload?: Array<{ payload: Record<string, unknown> }> }) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className="bg-white px-3 py-2 shadow-lg rounded-lg border text-xs">
+        {render(payload[0].payload)}
+      </div>
+    );
+  };
+}
+
 function ScaleResults({ values }: { values: number[] }) {
   const avg = values.reduce((s, v) => s + v, 0) / values.length;
-  const counts = [1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => values.filter(v => v === n).length);
-  const max = Math.max(1, ...counts);
+  const data = [1, 2, 3, 4, 5, 6, 7, 8, 9].map(rating => ({
+    rating: String(rating),
+    count: values.filter(v => v === rating).length,
+  }));
   return (
     <div className="space-y-2">
       <div className="flex items-baseline gap-2">
         <span className="text-2xl font-bold text-orange-600">{avg.toFixed(1)}</span>
-        <span className="text-xs text-slate-500">average (1–9 scale)</span>
+        <span className="text-xs text-slate-500">average · {values.length} rating{values.length !== 1 ? 's' : ''} (1–9 scale)</span>
       </div>
-      <div className="flex items-end gap-1 h-12">
-        {counts.map((c, i) => (
-          <div key={i} className="flex-1 flex flex-col items-center justify-end gap-0.5">
-            <div className="w-full bg-orange-200 rounded-t-sm" style={{ height: `${c === 0 ? 2 : Math.round((c / max) * 100)}%` }} />
-            <span className="text-[9px] text-slate-400">{i + 1}</span>
-          </div>
-        ))}
-      </div>
+      <ResponsiveContainer width="100%" height={150}>
+        <BarChart data={data} margin={{ top: 6, right: 8, left: -20, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <XAxis dataKey="rating" tick={{ fontSize: 11 }} tickLine={false} />
+          <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={28} />
+          <RechartsTooltip
+            content={ChartTooltip({
+              render: d => (
+                <>
+                  <p className="font-semibold text-slate-900">Rating {String(d.rating)}</p>
+                  <p className="text-slate-600">{String(d.count)} response{Number(d.count) !== 1 ? 's' : ''}</p>
+                </>
+              ),
+            })}
+          />
+          <Bar dataKey="count" fill="#fb923c" radius={[3, 3, 0, 0]} isAnimationActive={false} />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -186,24 +213,30 @@ function ChoiceResults({ answers }: { answers: (string | string[])[] }) {
       total += 1;
     });
   });
-  const entries = Array.from(tally.entries())
-    .map(([opt, count]) => ({ opt, count }))
+  const data = Array.from(tally.entries())
+    .map(([opt, count]) => ({ opt, count, pct: Math.round((count / Math.max(1, total)) * 100) }))
     .sort((a, b) => b.count - a.count);
-  const max = Math.max(1, ...entries.map(e => e.count));
   return (
-    <div className="space-y-1.5">
-      {entries.map(({ opt, count }) => (
-        <div key={opt} className="flex items-center gap-2">
-          <span className="w-40 text-xs text-slate-600 truncate flex-shrink-0">{opt}</span>
-          <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-            <div className="h-full bg-orange-400 rounded-full" style={{ width: `${Math.round((count / max) * 100)}%` }} />
-          </div>
-          <span className="text-xs font-semibold text-slate-700 w-16 text-right">
-            {count} ({Math.round((count / Math.max(1, total)) * 100)}%)
-          </span>
-        </div>
-      ))}
-    </div>
+    <ResponsiveContainer width="100%" height={Math.max(80, data.length * 36)}>
+      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 44, left: 8, bottom: 4 }}>
+        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+        <XAxis type="number" hide />
+        <YAxis type="category" dataKey="opt" width={150} tick={{ fontSize: 11 }} tickLine={false} />
+        <RechartsTooltip
+          content={ChartTooltip({
+            render: d => (
+              <>
+                <p className="font-semibold text-slate-900">{String(d.opt)}</p>
+                <p className="text-slate-600">{String(d.count)} pick{Number(d.count) !== 1 ? 's' : ''} ({String(d.pct)}%)</p>
+              </>
+            ),
+          })}
+        />
+        <Bar dataKey="count" fill="#fb923c" radius={[0, 3, 3, 0]} isAnimationActive={false}>
+          <LabelList dataKey="pct" position="right" formatter={(v: number) => `${v}%`} style={{ fontSize: 11, fill: '#475569', fontWeight: 600 }} />
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
   );
 }
 
@@ -218,23 +251,44 @@ function RankingResults({ answers, options }: { answers: string[][]; options: st
       stats.set(opt, s);
     });
   });
-  const entries = (options.length > 0 ? options : Array.from(stats.keys()))
+  const data = (options.length > 0 ? options : Array.from(stats.keys()))
     .map(opt => {
       const s = stats.get(opt);
-      return { opt, avgRank: s && s.n > 0 ? s.sum / s.n : null, firstPlace: s?.firstPlace ?? 0 };
+      return {
+        opt,
+        firstPlace: s?.firstPlace ?? 0,
+        avgRank: s && s.n > 0 ? Number((s.sum / s.n).toFixed(1)) : null,
+      };
     })
-    .sort((a, b) => (a.avgRank ?? 99) - (b.avgRank ?? 99));
+    .sort((a, b) => b.firstPlace - a.firstPlace);
   return (
-    <div className="space-y-1.5">
-      {entries.map(({ opt, avgRank, firstPlace }) => (
-        <div key={opt} className="flex items-center justify-between text-xs">
-          <span className="text-slate-600 truncate">{opt}</span>
-          <span className="text-slate-700 font-semibold flex-shrink-0">
-            {avgRank !== null ? `avg rank ${avgRank.toFixed(1)}` : '—'} · {firstPlace} first-place pick{firstPlace !== 1 ? 's' : ''}
-          </span>
-        </div>
-      ))}
-    </div>
+    <ResponsiveContainer width="100%" height={Math.max(80, data.length * 36)}>
+      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 80, left: 8, bottom: 4 }}>
+        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+        <XAxis type="number" allowDecimals={false} hide />
+        <YAxis type="category" dataKey="opt" width={150} tick={{ fontSize: 11 }} tickLine={false} />
+        <RechartsTooltip
+          content={ChartTooltip({
+            render: d => (
+              <>
+                <p className="font-semibold text-slate-900">{String(d.opt)}</p>
+                <p className="text-slate-600">
+                  {String(d.firstPlace)} first-place pick{Number(d.firstPlace) !== 1 ? 's' : ''} · avg rank {d.avgRank != null ? String(d.avgRank) : '—'}
+                </p>
+              </>
+            ),
+          })}
+        />
+        <Bar dataKey="firstPlace" fill="#f59e0b" radius={[0, 3, 3, 0]} isAnimationActive={false}>
+          <LabelList
+            dataKey="avgRank"
+            position="right"
+            formatter={(v: number | null) => v != null ? `avg rank ${v}` : ''}
+            style={{ fontSize: 11, fill: '#475569', fontWeight: 600 }}
+          />
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
   );
 }
 
