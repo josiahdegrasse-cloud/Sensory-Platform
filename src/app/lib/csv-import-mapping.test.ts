@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyImportMappings, inferImportMappings, validateImportMappings } from './csv-import-mapping';
+import { applyImportMappings, inferImportMappings } from './csv-import-mapping';
 
 describe('CSV import mapping', () => {
   it('infers common laboratory column names', () => {
@@ -16,13 +16,5 @@ describe('CSV import mapping', () => {
       ],
     );
     expect(mapped[0]).toEqual({ sampleId: 'Y1', protein: '18' });
-  });
-
-  it('blocks duplicate targets and missing sample IDs', () => {
-    const result = validateImportMappings([
-      { source: 'a', target: 'protein', conversion: 'none' },
-      { source: 'b', target: 'protein', conversion: 'none' },
-    ]);
-    expect(result.errors).toHaveLength(2);
   });
 });

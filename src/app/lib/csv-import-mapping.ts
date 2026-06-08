@@ -63,16 +63,3 @@ export function applyImportMappings(
     return mapped;
   }, {}));
 }
-
-export function validateImportMappings(mappings: ImportColumnMapping[]) {
-  const errors: string[] = [];
-  const warnings: string[] = [];
-  const targets = mappings.filter(item => item.target !== 'ignore').map(item => item.target);
-  const duplicates = targets.filter((target, index) => targets.indexOf(target) !== index);
-  if (!targets.includes('sampleId')) errors.push('Map one source column to Sample ID.');
-  if (duplicates.length > 0) errors.push(`Each platform field can only be mapped once: ${[...new Set(duplicates)].join(', ')}.`);
-  if (!targets.some(target => ['sourness', 'bitterness', 'saltiness', 'umami', 'sweetness'].includes(target))) {
-    warnings.push('No e-tongue taste measurements are mapped.');
-  }
-  return { errors, warnings };
-}
