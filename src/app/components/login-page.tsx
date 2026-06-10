@@ -98,16 +98,15 @@ export function LoginPage({ onSignup, branding }: Props) {
         {/* Logo */}
         <div className="flex items-center gap-3">
           {hasBranding ? (
-            <>
+            // White plate so any brand logo (incl. dark wordmarks) reads on the
+            // dark panel; `contain` keeps wide wordmarks from being cropped.
+            <div style={{ background: '#fff', borderRadius: 10, padding: '10px 14px', display: 'inline-flex', alignItems: 'center' }}>
               <img
                 src={branding!.logoUrl!}
                 alt={branding?.workspaceName ?? 'Logo'}
-                style={{ width: 42, height: 42, borderRadius: '26%', objectFit: 'cover', flexShrink: 0 }}
+                style={{ height: 44, width: 'auto', maxWidth: 200, objectFit: 'contain', display: 'block' }}
               />
-              <div className="text-white/80 text-sm font-medium max-w-[160px] leading-snug">
-                {branding?.workspaceName}
-              </div>
-            </>
+            </div>
           ) : (
             <>
               <NfiLogoMark size={42} />
@@ -148,14 +147,12 @@ export function LoginPage({ onSignup, branding }: Props) {
         {/* Mobile logo */}
         <div className="lg:hidden flex items-center gap-3 mb-8">
           {hasBranding ? (
-            <>
-              <img
-                src={branding!.logoUrl!}
-                alt={branding?.workspaceName ?? 'Logo'}
-                style={{ width: 36, height: 36, borderRadius: '26%', objectFit: 'cover', flexShrink: 0 }}
-              />
-              <div className="text-[13px] font-medium text-slate-700">{branding?.workspaceName}</div>
-            </>
+            // Mobile right panel is white, so the contained logo shows as-is.
+            <img
+              src={branding!.logoUrl!}
+              alt={branding?.workspaceName ?? 'Logo'}
+              style={{ height: 32, width: 'auto', maxWidth: 180, objectFit: 'contain', display: 'block' }}
+            />
           ) : (
             <>
               <NfiLogoMark size={36} />
