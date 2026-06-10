@@ -13,7 +13,6 @@ import {
   useInsertProduct, useUpdateProduct, useDeleteProduct,
   useUpdatePanelistId, useAllResponses, useImportBatches,
   useInstrumentalDataset, useUpdateImportBatchStatus,
-  useConceptLabDiagnostics,
 } from '../lib/hooks';
 import {
   Plus, Settings, Trash2, Save, CheckCircle2, FolderOpen, Layers,
@@ -24,7 +23,6 @@ import { Alert, AlertDescription } from './ui/alert';
 import { useAuth } from '../contexts/auth-context';
 import { PanelistPerformancePanel } from './panelist-performance';
 import { formatFoodTypeLabel } from '../lib/food-intelligence';
-import { findDataIntegrityIssues } from '../lib/workflow-readiness';
 
 type AdminTab = 'products' | 'panelists' | 'imports';
 
@@ -36,7 +34,6 @@ export function AdminConfig() {
   const { data: allResponses = [] } = useAllResponses();
   const { data: importBatches = [] } = useImportBatches(activeTab === 'products' || activeTab === 'imports');
   const { data: instrumentalDataset } = useInstrumentalDataset(activeTab === 'products' || activeTab === 'imports');
-  const { data: conceptDiagnostics } = useConceptLabDiagnostics(activeTab === 'imports');
 
   const insertProductMutation = useInsertProduct();
   const updateProductMutation = useUpdateProduct();
@@ -209,32 +206,6 @@ export function AdminConfig() {
     (product.assignedPanelistIds?.length ?? 0) === 0
   );
   const selectedProject = selectedBatchId ? importBatches.find(batch => batch.id === selectedBatchId) : null;
-  const importHealthItems = [
-    {
-      label: 'Food intelligence SQL',
-      ready: importBatches.length > 0 || (instrumentalDataset?.eTongueData.length ?? 0) > 0,
-      detail: importBatches.length > 0
-        ? `${importBatches.length} import batch${importBatches.length === 1 ? '' : 'es'} available.`
-        : 'No saved imports yet. Upload a CSV to verify the food import tables.',
-    },
-    {
-      label: 'Machine data visibility',
-      ready: (instrumentalDataset?.eTongueData.length ?? 0) > 0,
-      detail: `${instrumentalDataset?.eTongueData.length ?? 0} active machine sample${(instrumentalDataset?.eTongueData.length ?? 0) === 1 ? '' : 's'} visible.`,
-    },
-    {
-      label: 'Concept Lab setup',
-      ready: !!conceptDiagnostics && conceptDiagnostics.messages.length === 0,
-      detail: conceptDiagnostics?.messages.length
-        ? conceptDiagnostics.messages.join(' ')
-        : 'Settings, image history, and storage are ready.',
-    },
-  ];
-  const integrityIssues = findDataIntegrityIssues({
-    dataset: instrumentalDataset,
-    products,
-    importBatches,
-  });
   const recoverableImportCount = importBatches.filter(batch => batch.status !== 'active').length;
 
   // ── Sample handlers ───────────────────────────────────────────────────────────
@@ -1018,37 +989,6 @@ export function AdminConfig() {
                 </div>
                 <RotateCcw className="size-5 shrink-0 text-slate-500" />
               </div>
-            )}
-            <div className="grid gap-3 md:grid-cols-3">
-              {importHealthItems.map(item => (
-                <div
-                  key={item.label}
-                  className={`rounded-lg border p-3 ${
-                    item.ready ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <div className={`flex size-7 items-center justify-center rounded-md ${item.ready ? 'bg-emerald-600' : 'bg-amber-500'}`}>
-                      {item.ready ? <ShieldCheck className="size-4 text-white" /> : <AlertCircle className="size-4 text-white" />}
-                    </div>
-                    <p className={`text-sm font-semibold ${item.ready ? 'text-emerald-950' : 'text-amber-950'}`}>{item.label}</p>
-                  </div>
-                  <p className={`mt-2 text-xs ${item.ready ? 'text-emerald-800' : 'text-amber-800'}`}>{item.detail}</p>
-                </div>
-              ))}
-            </div>
-            {integrityIssues.length > 0 && (
-              <Alert variant="destructive">
-                <AlertCircle className="size-4" />
-                <AlertDescription>
-                  <div className="font-semibold">Data integrity needs attention</div>
-                  <ul className="mt-1 space-y-1 text-sm">
-                    {integrityIssues.slice(0, 5).map(issue => (
-                      <li key={issue.id}>{issue.message}</li>
-                    ))}
-                  </ul>
-                </AlertDescription>
-              </Alert>
             )}
             {importBatches.length === 0 ? (
               <div className="py-12 text-center text-slate-400">
