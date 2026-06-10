@@ -31,7 +31,16 @@ function AppContent() {
     if (showSignup && allowSelfSignup) {
       return <SignupPage onBack={() => setShowSignup(false)} />;
     }
-    return <LoginPage onSignup={allowSelfSignup ? () => setShowSignup(true) : undefined} />;
+    return (
+      <LoginPage
+        onSignup={allowSelfSignup ? () => setShowSignup(true) : undefined}
+        branding={workspaceConfig ? {
+          workspaceName: workspaceConfig.workspaceName,
+          logoUrl: workspaceConfig.logoUrl ?? null,
+          primaryColor: workspaceConfig.primaryColor ?? null,
+        } : undefined}
+      />
+    );
   }
 
   return <RouterProvider router={router} />;

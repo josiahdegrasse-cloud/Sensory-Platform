@@ -68,3 +68,52 @@ describe('GO / STOP / TWEAK engine', () => {
     expect(decision.details.some(detail => detail.includes('Instrument signal'))).toBe(true);
   });
 });
+
+describe('GO / STOP / TWEAK engine — invariants', () => {
+  const sample = ENHANCED_SENSORY_DATA.find(item => item.sampleId === 'S4')!;
+
+  it('is deterministic: identical inputs yield an identical decision and fingerprint', () => {
+    const a = calculateGoStopTweakDecision(sample, weights, 'cheese');
+    const b = calculateGoStopTweakDecision(sample, weights, 'cheese');
+    expect(a).toEqual(b);
+    expect(a.decisionFingerprint).toBe(b.decisionFingerprint);
+  });
+
+  it('falls back to default weights when every weight is zero (no divide-by-zero)', () => {
+    const zeroed = calculateGoStopTweakDecision(sample, { hedonic: 0, texture: 0, cata: 0, emotional: 0 }, 'cheese');
+    const defaulted = calculateGoStopTweakDecision(sample, { hedonic: 30, texture: 25, cata: 25, emotional: 15 }, 'cheese');
+    expect(Number.isFinite(zeroed.issfScore)).toBe(true);
+    expect(zeroed.issfScore).toBe(defaulted.issfScore);
+    expect(zeroed.decision).toBe(defaulted.decision);
+  });
+
+  it('keeps the GO threshold above the STOP threshold even when callers invert them', () => {
+    const inverted = calculateGoStopTweakDecision(sample, weights, 'cheese', { go: 10, stop: 90 });
+    expect(['GO', 'TWEAK', 'STOP']).toContain(inverted.decision);
+    // A near-impossible STOP floor of 90 must not let a borderline sample pass as GO.
+    expect(inverted.decision).not.toBe('GO');
+  });
+
+  it('clamps the ISSF score to [0, 100] and caps prescriptions at 3 for every sample', () => {
+    for (const item of ENHANCED_SENSORY_DATA) {
+      const decision = calculateGoStopTweakDecision(item, weights, 'cheese');
+      expect(decision.issfScore).toBeGreaterThanOrEqual(0);
+      expect(decision.issfScore).toBeLessThanOrEqual(100);
+      expect(decision.confidenceScore).toBeGreaterThanOrEqual(35);
+      expect(decision.confidenceScore).toBeLessThanOrEqual(98);
+      expect(decision.prescriptions.length).toBeLessThanOrEqual(3);
+      // Prescriptions are ordered by descending expected lift, priorities renumbered 1..n.
+      const lifts = decision.prescriptions.map(p => p.expectedLift);
+      expect([...lifts].sort((a, b) => b - a)).toEqual(lifts);
+      decision.prescriptions.forEach((p, index) => expect(p.priority).toBe(index + 1));
+    }
+  });
+
+  it('hard-stops on a quality-floor breach even without a failed gate', () => {
+    // overall hedonic below 3.8 is a hard stop regardless of weighted scoring.
+    const floored = { ...sample, hedonic: { ...sample.hedonic, overall: 2 } };
+    const decision = calculateGoStopTweakDecision(floored, weights, 'cheese');
+    expect(decision.decision).toBe('STOP');
+    expect(decision.issfScore).toBeLessThanOrEqual(54);
+  });
+});

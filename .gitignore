@@ -3,3 +3,22 @@ node_modules
 .env.local
 dist
 DEMO_CREDENTIALS.local.md
+
+# OS / editor cruft
+.DS_Store
+
+# Test & build artifacts
+test-results
+playwright-report
+
+# Supabase CLI local state
+supabase/.temp
+
+# Agent/automation tooling scratch — not part of the application
+.swarm
+ruvector.db
+.agents
+.claude-flow/metrics
+.claude-flow/security
+.claude-flow/agents
+.claude-flow/swarm

@@ -1,0 +1,326 @@
+import { supabase } from '../supabase';
+import type { FoodTypeDetection } from '../food-intelligence';
+import { formatFoodTypeLabel, getDefaultCataAttributesForFoodType, slugifyFoodType } from '../food-intelligence';
+import { dbError, isMissingFoodImportSchema } from './shared';
+
+export interface FoodTypeRecord {
+  id: string;
+  slug: string;
+  label: string;
+  status: 'active' | 'archived' | 'deleted';
+  source: 'system' | 'import' | 'manual';
+  aliases: string[];
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ETongueMeasurementRecord {
+  sampleId: string;
+  sampleName?: string;
+  sourness: number;
+  bitterness: number;
+  saltiness: number;
+  umami: number;
+  sweetness: number;
+  type?: string;
+  category?: string;
+  importBatchId?: string;
+}
+
+export interface GCMSCompoundRecord {
+  name: string;
+  concentration: number;
+  aroma: string;
+  threshold: number;
+}
+
+export interface ChemicalCompositionRecord {
+  protein: number;
+  fat: number;
+  moisture: number;
+  pH: number;
+  saltContent: number;
+  calciumMg: number;
+}
+
+export interface InstrumentalDataset {
+  eTongueData: ETongueMeasurementRecord[];
+  gcmsData: Record<string, GCMSCompoundRecord[]>;
+  compositionData: Record<string, ChemicalCompositionRecord>;
+}
+
+export interface InstrumentalImportInput extends InstrumentalDataset {
+  fileName: string;
+  rowCount: number;
+  recognizedColumns: string[];
+  ignoredColumns: string[];
+  detection: FoodTypeDetection;
+  importedBy?: string | null;
+}
+
+function toFoodType(row: Record<string, unknown>): FoodTypeRecord {
+  return {
+    id: row.id as string,
+    slug: row.slug as string,
+    label: row.label as string,
+    status: row.status as 'active' | 'archived' | 'deleted',
+    source: row.source as 'system' | 'import' | 'manual',
+    aliases: (row.aliases as string[]) ?? [],
+    createdBy: (row.created_by as string) ?? null,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  };
+}
+
+export async function fetchFoodTypes(): Promise<FoodTypeRecord[]> {
+  const { data, error } = await supabase
+    .from('food_types')
+    .select('*')
+    .order('source', { ascending: false })
+    .order('label', { ascending: true });
+  if (error && isMissingFoodImportSchema(dbError(error))) return [];
+  if (error) throw dbError(error);
+  return (data ?? []).map(toFoodType);
+}
+
+export async function upsertFoodType(
+  detection: FoodTypeDetection,
+  source: 'import' | 'manual' = 'import',
+  actorId?: string | null,
+): Promise<FoodTypeRecord> {
+  const slug = slugifyFoodType(detection.slug);
+  const { data: existing, error: existingError } = await supabase
+    .from('food_types')
+    .select('*')
+    .eq('slug', slug)
+    .maybeSingle();
+  if (existingError) throw dbError(existingError);
+
+  if (existing) {
+    const existingRecord = toFoodType(existing);
+    const aliases = Array.from(new Set([...existingRecord.aliases, ...(detection.aliases ?? [])]));
+    const { data, error } = await supabase
+      .from('food_types')
+      .update({
+        label: existingRecord.source === 'system' ? existingRecord.label : detection.label || formatFoodTypeLabel(slug),
+        status: 'active',
+        aliases,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('slug', slug)
+      .select()
+      .single();
+    if (error) throw dbError(error);
+    return toFoodType(data);
+  }
+
+  const { data, error } = await supabase
+    .from('food_types')
+    .insert({
+      slug,
+      label: detection.label || formatFoodTypeLabel(slug),
+      status: 'active',
+      source,
+      aliases: detection.aliases ?? [],
+      created_by: actorId ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .select()
+    .single();
+  if (error) throw dbError(error);
+  return toFoodType(data);
+}
+
+export async function archiveFoodTypeRecord(slug: string): Promise<void> {
+  const { error } = await supabase.rpc('set_food_type_status', {
+    target_slug: slug,
+    next_status: 'archived',
+  });
+  if (error) throw dbError(error);
+}
+
+export async function restoreFoodTypeRecord(slug: string): Promise<void> {
+  const { error } = await supabase.rpc('set_food_type_status', {
+    target_slug: slug,
+    next_status: 'active',
+  });
+  if (error) throw dbError(error);
+}
+
+export async function deleteFoodTypeRecord(slug: string): Promise<void> {
+  const { error } = await supabase.rpc('set_food_type_status', {
+    target_slug: slug,
+    next_status: 'deleted',
+  });
+  if (error) throw dbError(error);
+}
+
+export async function updateImportBatchStatus(
+  id: string,
+  status: 'active' | 'archived' | 'deleted',
+): Promise<void> {
+  const { error } = await supabase.rpc('set_import_batch_status', {
+    target_batch_id: id,
+    next_status: status,
+  });
+  if (error) throw dbError(error);
+}
+
+export interface ImportBatchRecord {
+  id: string;
+  foodTypeSlug: string;
+  foodTypeLabel: string;
+  fileName: string;
+  rowCount: number;
+  recognizedColumns: string[];
+  ignoredColumns: string[];
+  detectionConfidence: number;
+  status: 'active' | 'archived' | 'deleted';
+  importedBy: string | null;
+  importedByName: string | null;
+  createdAt: string;
+  sampleCount: number;
+}
+
+export async function fetchImportBatches(): Promise<ImportBatchRecord[]> {
+  const { data, error } = await supabase
+    .from('import_batches')
+    .select(`
+      id, file_name, row_count, recognized_columns, ignored_columns,
+      detection_confidence, status, imported_by, imported_at,
+      food_types(slug, label),
+      profiles(name),
+      instrumental_samples(count)
+    `)
+    .order('imported_at', { ascending: false })
+    .limit(100);
+
+  if (error && isMissingFoodImportSchema(dbError(error))) return [];
+  if (error) throw dbError(error);
+
+  return ((data ?? []) as Record<string, unknown>[]).map(row => {
+    const ft = row.food_types as { slug?: string; label?: string } | null;
+    const profile = row.profiles as { name?: string } | null;
+    const countArr = row.instrumental_samples as { count?: number }[] | null;
+    return {
+      id: row.id as string,
+      foodTypeSlug: ft?.slug ?? 'generic',
+      foodTypeLabel: ft?.label ?? 'Generic',
+      fileName: row.file_name as string,
+      rowCount: row.row_count as number,
+      recognizedColumns: (row.recognized_columns as string[]) ?? [],
+      ignoredColumns: (row.ignored_columns as string[]) ?? [],
+      detectionConfidence: Number(row.detection_confidence ?? 0),
+      status: row.status as 'active' | 'archived' | 'deleted',
+      importedBy: (row.imported_by as string) ?? null,
+      importedByName: profile?.name ?? null,
+      createdAt: row.imported_at as string,
+      sampleCount: countArr?.[0]?.count ?? 0,
+    };
+  });
+}
+
+export async function fetchInstrumentalDataset(): Promise<InstrumentalDataset> {
+  const { data, error } = await supabase
+    .from('instrumental_samples')
+    .select(`
+      sample_id,
+      sample_name,
+      category,
+      food_types!inner(slug, status),
+      import_batches!inner(id, status),
+      e_tongue_measurements(sourness, bitterness, saltiness, umami, sweetness),
+      gcms_compounds(name, concentration, aroma, threshold),
+      composition_profiles(protein, fat, moisture, ph, salt_content, calcium_mg)
+    `)
+    .eq('food_types.status', 'active')
+    .eq('import_batches.status', 'active')
+    .order('created_at', { ascending: true });
+
+  if (error && isMissingFoodImportSchema(dbError(error))) {
+    return { eTongueData: [], gcmsData: {}, compositionData: {} };
+  }
+  if (error) throw dbError(error);
+
+  const eTongueData: ETongueMeasurementRecord[] = [];
+  const gcmsData: Record<string, GCMSCompoundRecord[]> = {};
+  const compositionData: Record<string, ChemicalCompositionRecord> = {};
+
+  ((data ?? []) as Record<string, unknown>[]).forEach(row => {
+    const sampleId = row.sample_id as string;
+    const foodType = row.food_types as { slug?: string } | null;
+    const importBatch = row.import_batches as { id?: string } | null;
+    const eTongue = ((row.e_tongue_measurements as Record<string, unknown>[] | null) ?? [])[0];
+    if (eTongue) {
+      eTongueData.push({
+        sampleId,
+        sampleName: (row.sample_name as string) ?? undefined,
+        category: (row.category as string) ?? undefined,
+        importBatchId: importBatch?.id,
+        type: foodType?.slug,
+        sourness: Number(eTongue.sourness ?? 0),
+        bitterness: Number(eTongue.bitterness ?? 0),
+        saltiness: Number(eTongue.saltiness ?? 0),
+        umami: Number(eTongue.umami ?? 0),
+        sweetness: Number(eTongue.sweetness ?? 0),
+      });
+    }
+
+    const compounds = (row.gcms_compounds as Record<string, unknown>[] | null) ?? [];
+    if (compounds.length > 0) {
+      gcmsData[sampleId] = compounds.map(compound => ({
+        name: compound.name as string,
+        concentration: Number(compound.concentration ?? 0),
+        aroma: (compound.aroma as string) ?? 'unknown',
+        threshold: Number(compound.threshold ?? 0),
+      }));
+    }
+
+    const compositionRaw = row.composition_profiles as Record<string, unknown>[] | Record<string, unknown> | null;
+    const composition = Array.isArray(compositionRaw) ? compositionRaw[0] : compositionRaw;
+    if (composition) {
+      compositionData[sampleId] = {
+        protein: Number(composition.protein ?? 0),
+        fat: Number(composition.fat ?? 0),
+        moisture: Number(composition.moisture ?? 0),
+        pH: Number(composition.ph ?? 0),
+        saltContent: Number(composition.salt_content ?? 0),
+        calciumMg: Number(composition.calcium_mg ?? 0),
+      };
+    }
+  });
+
+  return { eTongueData, gcmsData, compositionData };
+}
+
+export async function insertInstrumentalImport(input: InstrumentalImportInput): Promise<InstrumentalDataset> {
+  const fingerprintSource = JSON.stringify({
+    fileName: input.fileName,
+    detection: input.detection.slug,
+    eTongueData: input.eTongueData,
+    gcmsData: input.gcmsData,
+    compositionData: input.compositionData,
+  });
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(fingerprintSource));
+  const idempotencyKey = Array.from(new Uint8Array(digest))
+    .map(byte => byte.toString(16).padStart(2, '0'))
+    .join('');
+  const { error } = await supabase.rpc('create_instrumental_import', {
+    payload: {
+      idempotencyKey,
+      fileName: input.fileName,
+      rowCount: input.rowCount,
+      recognizedColumns: input.recognizedColumns,
+      ignoredColumns: input.ignoredColumns,
+      detection: input.detection,
+      eTongueData: input.eTongueData,
+      gcmsData: input.gcmsData,
+      compositionData: input.compositionData,
+      customAttributes: getDefaultCataAttributesForFoodType(input.detection.slug),
+    },
+  });
+  if (error) throw dbError(error);
+
+  return fetchInstrumentalDataset();
+}

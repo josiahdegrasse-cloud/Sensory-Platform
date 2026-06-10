@@ -22,6 +22,7 @@ import {
 } from './database'
 import type { TrainingLevel } from '../utils/panelist-metrics'
 import type { Product } from '../data/mock-users'
+import { getTenantSlug } from './tenant'
 
 export const queryKeys = {
   products: ['products'] as const,
@@ -277,7 +278,11 @@ export function useWorkspaceSettings() {
 }
 
 export function usePublicWorkspaceConfig() {
-  return useQuery({ queryKey: queryKeys.publicWorkspaceConfig, queryFn: fetchPublicWorkspaceConfig })
+  const slug = getTenantSlug();
+  return useQuery({
+    queryKey: [...queryKeys.publicWorkspaceConfig, slug] as const,
+    queryFn: () => fetchPublicWorkspaceConfig(slug ?? undefined),
+  })
 }
 
 export function useUpdateWorkspaceSettings() {

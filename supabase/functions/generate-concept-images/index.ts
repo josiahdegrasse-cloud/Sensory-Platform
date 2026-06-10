@@ -142,12 +142,22 @@ Deno.serve(async (req: Request) => {
 
   const { data: profile, error: profileError } = await callerClient
     .from('profiles')
-    .select('id, role, status')
+    .select('id, role, status, org_id')
     .eq('id', callerUser.id)
     .single();
 
   if (profileError || profile?.role !== 'admin' || profile?.status !== 'active') {
     return new Response(JSON.stringify({ error: 'Forbidden' }), {
+      status: 403,
+      headers: { ...headers, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Multi-tenant: every read/write below is scoped to the caller's organization.
+  // The service-role client bypasses RLS, so org_id must be applied explicitly.
+  const orgId = (profile as { org_id?: string | null }).org_id ?? null;
+  if (!orgId) {
+    return new Response(JSON.stringify({ error: 'No organization context for this account.' }), {
       status: 403,
       headers: { ...headers, 'Content-Type': 'application/json' },
     });
@@ -160,12 +170,13 @@ Deno.serve(async (req: Request) => {
     const { data: settings } = await serviceClient
       .from('concept_generation_settings')
       .select('*')
+      .eq('org_id', orgId)
       .eq('active', true)
       .maybeSingle();
     const { data: workspaceSettings } = await serviceClient
       .from('workspace_settings')
       .select('concept_max_generations_per_concept, concept_monthly_budget_cents, concept_require_approval')
-      .eq('id', true)
+      .eq('org_id', orgId)
       .maybeSingle();
 
     const configuredCount = Number(settings?.default_image_count) || DEFAULT_IMAGE_COUNT;
@@ -198,6 +209,7 @@ Deno.serve(async (req: Request) => {
     const { data: monthlyRows, error: monthlyError } = await serviceClient
       .from('concept_image_generations')
       .select('estimated_cost')
+      .eq('org_id', orgId)
       .gte('created_at', monthStart.toISOString())
       .in('status', ['generating', 'completed']);
     if (monthlyError) throw monthlyError;
@@ -217,6 +229,7 @@ Deno.serve(async (req: Request) => {
     let generationCountQuery = serviceClient
       .from('concept_image_generations')
       .select('id', { count: 'exact', head: true })
+      .eq('org_id', orgId)
       .eq('created_by', profile.id)
       .eq('concept_name', clean(body.conceptName))
       .eq('project_name', projectName)
@@ -238,6 +251,7 @@ Deno.serve(async (req: Request) => {
     const { data: generation, error: generationError } = await serviceClient
       .from('concept_image_generations')
       .insert({
+        org_id: orgId,
         concept_test_id: body.conceptTestId || null,
         created_by: profile.id,
         project_name: projectName,
@@ -326,6 +340,7 @@ Deno.serve(async (req: Request) => {
       const { data: imageRow, error: imageError } = await serviceClient
         .from('concept_images')
         .insert({
+          org_id: orgId,
           generation_id: generation.id,
           concept_test_id: body.conceptTestId || null,
           image_url: storagePath,

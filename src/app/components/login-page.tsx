@@ -6,8 +6,15 @@ import { useAuth } from '../contexts/auth-context';
 import { AlertCircle, CheckCircle2, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 
+export interface LoginBranding {
+  workspaceName?: string;
+  logoUrl?: string | null;
+  primaryColor?: string | null;
+}
+
 interface Props {
   onSignup?: () => void;
+  branding?: LoginBranding;
 }
 
 const NFI_BLUE = '#6B7890';
@@ -39,7 +46,14 @@ function mapLoginError(msg: string): string {
   return msg;
 }
 
-export function LoginPage({ onSignup }: Props) {
+export function LoginPage({ onSignup, branding }: Props) {
+  // A tenant is "branded" once it has its own logo; until then the default NFI
+  // look is preserved exactly (accent stays #111 with the #333 hover).
+  const hasBranding = !!branding?.logoUrl;
+  const brandName = hasBranding ? (branding?.workspaceName || 'your') : 'NFI';
+  const accent = branding?.primaryColor || '#111';
+  const accentHover = branding?.primaryColor || '#333';
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -83,12 +97,27 @@ export function LoginPage({ onSignup }: Props) {
       >
         {/* Logo */}
         <div className="flex items-center gap-3">
-          <NfiLogoMark size={42} />
-          <div style={{ lineHeight: '1.3' }}>
-            <div className="text-white/80 text-sm">new</div>
-            <div className="text-white/80 text-sm">food</div>
-            <div className="text-white/80 text-sm">innovation</div>
-          </div>
+          {hasBranding ? (
+            <>
+              <img
+                src={branding!.logoUrl!}
+                alt={branding?.workspaceName ?? 'Logo'}
+                style={{ width: 42, height: 42, borderRadius: '26%', objectFit: 'cover', flexShrink: 0 }}
+              />
+              <div className="text-white/80 text-sm font-medium max-w-[160px] leading-snug">
+                {branding?.workspaceName}
+              </div>
+            </>
+          ) : (
+            <>
+              <NfiLogoMark size={42} />
+              <div style={{ lineHeight: '1.3' }}>
+                <div className="text-white/80 text-sm">new</div>
+                <div className="text-white/80 text-sm">food</div>
+                <div className="text-white/80 text-sm">innovation</div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Centre copy */}
@@ -108,7 +137,9 @@ export function LoginPage({ onSignup }: Props) {
 
         {/* Footer */}
         <p className="text-white/25 text-sm">
-          Supporting over 60 international food companies.
+          {hasBranding
+            ? 'Powered by New Food Innovation'
+            : 'Supporting over 60 international food companies.'}
         </p>
       </div>
 
@@ -116,12 +147,25 @@ export function LoginPage({ onSignup }: Props) {
       <div className="flex-1 flex flex-col justify-center px-8 sm:px-16 bg-white">
         {/* Mobile logo */}
         <div className="lg:hidden flex items-center gap-3 mb-8">
-          <NfiLogoMark size={36} />
-          <div style={{ lineHeight: '1.22' }}>
-            <div className="text-[11px] text-slate-700">new</div>
-            <div className="text-[11px] text-slate-700">food</div>
-            <div className="text-[11px] text-slate-700">innovation</div>
-          </div>
+          {hasBranding ? (
+            <>
+              <img
+                src={branding!.logoUrl!}
+                alt={branding?.workspaceName ?? 'Logo'}
+                style={{ width: 36, height: 36, borderRadius: '26%', objectFit: 'cover', flexShrink: 0 }}
+              />
+              <div className="text-[13px] font-medium text-slate-700">{branding?.workspaceName}</div>
+            </>
+          ) : (
+            <>
+              <NfiLogoMark size={36} />
+              <div style={{ lineHeight: '1.22' }}>
+                <div className="text-[11px] text-slate-700">new</div>
+                <div className="text-[11px] text-slate-700">food</div>
+                <div className="text-[11px] text-slate-700">innovation</div>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="max-w-sm w-full mx-auto">
@@ -170,9 +214,9 @@ export function LoginPage({ onSignup }: Props) {
                   <Button
                     type="submit"
                     className="w-full h-11 text-white font-semibold text-sm rounded-lg transition-colors"
-                    style={{ background: '#111' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#333')}
-                    onMouseLeave={e => (e.currentTarget.style.background = '#111')}
+                    style={{ background: accent }}
+                    onMouseEnter={e => (e.currentTarget.style.background = accentHover)}
+                    onMouseLeave={e => (e.currentTarget.style.background = accent)}
                     disabled={resetLoading}
                   >
                     {resetLoading ? 'Sending…' : 'Send reset link'}
@@ -184,7 +228,7 @@ export function LoginPage({ onSignup }: Props) {
             <>
               <div className="mb-8">
                 <h2 className="text-2xl font-bold text-slate-900">Sign in</h2>
-                <p className="text-slate-500 text-sm mt-1">Access your NFI workspace</p>
+                <p className="text-slate-500 text-sm mt-1">Access your {brandName} workspace</p>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-5">
@@ -238,9 +282,9 @@ export function LoginPage({ onSignup }: Props) {
                 <Button
                   type="submit"
                   className="w-full h-11 text-white font-semibold text-sm rounded-lg transition-colors"
-                  style={{ background: '#111' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#333')}
-                  onMouseLeave={e => (e.currentTarget.style.background = '#111')}
+                  style={{ background: accent }}
+                  onMouseEnter={e => (e.currentTarget.style.background = accentHover)}
+                  onMouseLeave={e => (e.currentTarget.style.background = accent)}
                   disabled={loading}
                 >
                   {loading ? 'Signing in…' : (
