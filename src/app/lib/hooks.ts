@@ -15,7 +15,7 @@ import {
   insertProduct, updateProduct, deleteProduct,
   insertTemplate, deleteTemplate, updatePanelistId, updatePanelistTrainingLevel, updatePanelistStatus,
   insertConceptTest, insertConceptResponse,
-  insertInstrumentalImport, archiveFoodTypeRecord, restoreFoodTypeRecord, deleteFoodTypeRecord, updateImportBatchStatus,
+  insertInstrumentalImport, archiveFoodTypeRecord, restoreFoodTypeRecord, deleteFoodTypeRecord, updateImportBatchStatus, deleteImportBatch,
   type Template, type ConceptTest, type InstrumentalImportInput, type ConceptGenerationSettings,
   type WorkspaceSettings, type PanelistInfo,
   type CommercializationReportRecord,
@@ -404,6 +404,19 @@ export function useUpdateImportBatchStatus() {
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: 'active' | 'archived' | 'deleted' }) =>
       updateImportBatchStatus(id, status),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.importBatches })
+      qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
+      qc.invalidateQueries({ queryKey: queryKeys.products })
+      qc.invalidateQueries({ queryKey: queryKeys.activeProducts })
+    },
+  })
+}
+
+export function useDeleteImportBatch() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteImportBatch(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.importBatches })
       qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })

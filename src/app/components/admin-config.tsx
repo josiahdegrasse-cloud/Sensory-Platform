@@ -12,7 +12,7 @@ import {
   useProducts, usePanelists,
   useInsertProduct, useUpdateProduct, useDeleteProduct,
   useUpdatePanelistId, useAllResponses, useImportBatches,
-  useInstrumentalDataset, useUpdateImportBatchStatus,
+  useInstrumentalDataset, useUpdateImportBatchStatus, useDeleteImportBatch,
 } from '../lib/hooks';
 import {
   Plus, Settings, Trash2, Save, CheckCircle2, FolderOpen, Layers,
@@ -40,6 +40,7 @@ export function AdminConfig() {
   const deleteProductMutation = useDeleteProduct();
   const updatePanelistIdMutation = useUpdatePanelistId();
   const updateImportBatchStatusMutation = useUpdateImportBatchStatus();
+  const deleteImportBatchMutation = useDeleteImportBatch();
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmImportDeleteId, setConfirmImportDeleteId] = useState<string | null>(null);
 
@@ -425,6 +426,16 @@ export function AdminConfig() {
       if (status === 'deleted') setConfirmImportDeleteId(null);
     } catch (err) {
       setMutationError(err instanceof Error ? err.message : `Failed to ${status} import.`);
+    }
+  };
+
+  const handleDeleteImportBatch = async (id: string) => {
+    setMutationError('');
+    try {
+      await deleteImportBatchMutation.mutateAsync(id);
+      setConfirmImportDeleteId(null);
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : 'Failed to delete import.');
     }
   };
 
@@ -1054,8 +1065,8 @@ export function AdminConfig() {
                                 <Button
                                   size="sm"
                                   className="h-7 text-xs bg-rose-600 hover:bg-rose-700"
-                                  disabled={updateImportBatchStatusMutation.isPending}
-                                  onClick={() => handleUpdateImportBatchStatus(batch.id, 'deleted')}
+                                  disabled={deleteImportBatchMutation.isPending}
+                                  onClick={() => handleDeleteImportBatch(batch.id)}
                                 >
                                   Confirm
                                 </Button>

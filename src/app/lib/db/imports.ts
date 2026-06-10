@@ -167,6 +167,13 @@ export async function updateImportBatchStatus(
   if (error) throw dbError(error);
 }
 
+// Permanently removes an import batch (and its products + samples). Unlike the
+// 'deleted' status above (soft, restorable), this cannot be undone.
+export async function deleteImportBatch(id: string): Promise<void> {
+  const { error } = await supabase.rpc('delete_import_batch', { target_batch_id: id });
+  if (error) throw dbError(error);
+}
+
 export interface ImportBatchRecord {
   id: string;
   foodTypeSlug: string;
