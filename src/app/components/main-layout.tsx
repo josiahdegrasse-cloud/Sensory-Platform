@@ -371,6 +371,11 @@ export function MainLayout() {
   const { user, logout } = useAuth();
   const { data: workspaceSettings } = useWorkspaceSettings();
 
+  // Per-tenant branding (falls back to NFI when the org hasn't set its own).
+  const brandColor = workspaceSettings?.primaryColor || NFI_BLUE;
+  const brandLogo = workspaceSettings?.logoUrl ?? null;
+  const brandName = workspaceSettings?.workspaceName ?? null;
+
   const isActive = (path: string) => {
     if (path === "/" && location.pathname === "/") return true;
     if (path !== "/" && location.pathname.startsWith(path)) return true;
@@ -408,12 +413,22 @@ export function MainLayout() {
           {/* Top bar */}
           <div className="flex items-center justify-between py-3 border-b border-slate-100">
             <Link to="/" className="flex items-center gap-2.5 hover:opacity-75 transition-opacity">
-              <NfiLogoMark size={36} />
-              <div style={{ lineHeight: '1.22' }}>
-                <div className="text-[11px] text-slate-700">new</div>
-                <div className="text-[11px] text-slate-700">food</div>
-                <div className="text-[11px] text-slate-700">innovation</div>
-              </div>
+              {brandLogo ? (
+                <img
+                  src={brandLogo}
+                  alt={brandName ?? 'Logo'}
+                  style={{ height: 36, width: 'auto', maxWidth: 160, objectFit: 'contain', display: 'block' }}
+                />
+              ) : (
+                <>
+                  <NfiLogoMark size={36} />
+                  <div style={{ lineHeight: '1.22' }}>
+                    <div className="text-[11px] text-slate-700">new</div>
+                    <div className="text-[11px] text-slate-700">food</div>
+                    <div className="text-[11px] text-slate-700">innovation</div>
+                  </div>
+                </>
+              )}
             </Link>
 
             <div className="flex items-center gap-4">
@@ -432,7 +447,7 @@ export function MainLayout() {
                   className="flex size-8 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
                   style={{
                     background: isActive('/settings') ? '#f1f5f9' : undefined,
-                    color: isActive('/settings') ? NFI_BLUE : undefined,
+                    color: isActive('/settings') ? brandColor : undefined,
                   }}
                 >
                   <Settings className="size-4" />
@@ -459,8 +474,8 @@ export function MainLayout() {
                   to={item.path}
                   className="flex items-center gap-1.5 px-4 py-3 text-sm transition-colors border-b-2"
                   style={{
-                    borderBottomColor: active ? NFI_BLUE : 'transparent',
-                    color: active ? NFI_BLUE : '#64748b',
+                    borderBottomColor: active ? brandColor : 'transparent',
+                    color: active ? brandColor : '#64748b',
                     fontWeight: active ? 600 : 400,
                   }}
                   onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = '#1e293b'; }}
