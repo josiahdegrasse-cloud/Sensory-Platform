@@ -935,9 +935,9 @@ export function AdminConfig() {
                   <Button
                     onClick={handleSaveAttributes}
                     className="w-full"
-                    style={{ background: '#6B7890' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#5a6878')}
-                    onMouseLeave={e => (e.currentTarget.style.background = '#6B7890')}
+                    style={{ background: 'var(--brand)' }}
+                    onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(0.92)')}
+                    onMouseLeave={e => (e.currentTarget.style.filter = '')}
                   >
                     <Save className="size-4 mr-2" />Save Attributes
                   </Button>

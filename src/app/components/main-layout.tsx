@@ -88,7 +88,7 @@ function CategorySidebar() {
 
   const btnStyle = (active: boolean) => ({
     background: active ? '#f1f5f9' : 'transparent',
-    color: active ? NFI_BLUE : '#64748b',
+    color: active ? 'var(--brand)' : '#64748b',
     fontWeight: active ? 600 : 400,
   });
 
@@ -359,7 +359,7 @@ function FoodTypeBadge() {
   const batch = batchId ? importBatches.find(item => item.id === batchId) : null;
   const label = batch ? batch.fileName.replace(/\.csv$/i, '') : (subCategory ?? typeLabel);
   return (
-    <span className="px-2.5 py-1 rounded-full text-xs font-semibold border" style={{ background: '#f1f5f9', color: NFI_BLUE, borderColor: '#cbd5e1' }}>
+    <span className="px-2.5 py-1 rounded-full text-xs font-semibold border" style={{ background: '#f1f5f9', color: 'var(--brand)', borderColor: '#cbd5e1' }}>
       {label}
     </span>
   );
@@ -372,9 +372,14 @@ export function MainLayout() {
   const { data: workspaceSettings } = useWorkspaceSettings();
 
   // Per-tenant branding (falls back to NFI when the org hasn't set its own).
-  const brandColor = workspaceSettings?.primaryColor || NFI_BLUE;
   const brandLogo = workspaceSettings?.logoUrl ?? null;
   const brandName = workspaceSettings?.workspaceName ?? null;
+
+  // Drive the global --brand accent from the org's colour so every var(--brand)
+  // usage across the app themes per tenant from one place.
+  useEffect(() => {
+    document.documentElement.style.setProperty('--brand', workspaceSettings?.primaryColor || NFI_BLUE);
+  }, [workspaceSettings?.primaryColor]);
 
   const isActive = (path: string) => {
     if (path === "/" && location.pathname === "/") return true;
@@ -447,7 +452,7 @@ export function MainLayout() {
                   className="flex size-8 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
                   style={{
                     background: isActive('/settings') ? '#f1f5f9' : undefined,
-                    color: isActive('/settings') ? brandColor : undefined,
+                    color: isActive('/settings') ? 'var(--brand)' : undefined,
                   }}
                 >
                   <Settings className="size-4" />
@@ -474,8 +479,8 @@ export function MainLayout() {
                   to={item.path}
                   className="flex items-center gap-1.5 px-4 py-3 text-sm transition-colors border-b-2"
                   style={{
-                    borderBottomColor: active ? brandColor : 'transparent',
-                    color: active ? brandColor : '#64748b',
+                    borderBottomColor: active ? 'var(--brand)' : 'transparent',
+                    color: active ? 'var(--brand)' : '#64748b',
                     fontWeight: active ? 600 : 400,
                   }}
                   onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = '#1e293b'; }}
