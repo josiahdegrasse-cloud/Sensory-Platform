@@ -1,12 +1,18 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { Link } from "react-router";
 import { useAuth } from '../contexts/auth-context';
 import { useFoodType, sampleMatchesFoodType, matchFoodType } from '../contexts/food-type-context';
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "./ui/dropdown-menu";
 import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from "../data/enhanced-sensory";
-import { getSampleColor } from "../utils/sample-colors";
+import { getSampleColor, SAMPLE_TYPE_LEGEND } from "../utils/sample-colors";
 import { useInstrumentalDataset, useProducts } from "../lib/hooks";
 import { mergeAnalysisProfiles } from "../lib/analysis-dataset";
 import { formatFoodTypeLabel } from "../lib/food-intelligence";
@@ -14,7 +20,7 @@ import { useSurveyData } from "../lib/use-survey-data";
 import { buildSampleCSVRows, buildAllDataCSVRows, downloadCsv } from "../utils/survey-csv-export";
 import {
   Users, Heart, Smile, Frown, CheckSquare,
-  TrendingUp, AlertCircle, Eye, EyeOff, Download, Layers, FlaskConical, ClipboardList, Megaphone, GitMerge
+  TrendingUp, AlertCircle, Download, Layers, FlaskConical, ClipboardList, Megaphone, GitMerge, ChevronDown
 } from "lucide-react";
 import { MultiSampleAnalysis } from "./multi-sample-analysis";
 import { CATATab, IntensityTab, HedonicTab, CommentsTab, EmotionalTab } from "./survey-analysis-tabs";
@@ -23,6 +29,18 @@ import { ConceptTestAnalysis } from "./concept-test-analysis";
 import { ProjectHeader } from "./project-header";
 
 const RESEARCH_PANEL_N = 14;
+
+const ANALYSIS_TYPES = [
+  { id: 'single' as const, icon: Users,     label: 'Single-Sample Analysis', desc: 'CATA, Intensity, Hedonic, Emotions',        color: '#2563eb' },
+  { id: 'multi' as const,  icon: Layers,    label: 'Multi-Sample Analysis',  desc: 'Discrimination, Ranking, Comparison',       color: '#7c3aed' },
+  { id: 'concept' as const, icon: Megaphone, label: 'Concept Tests',         desc: 'Appeal, Visual preference, Purchase intent', color: '#ea580c' },
+];
+
+function SectionHeading({ children }: { children: ReactNode }) {
+  return (
+    <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{children}</h2>
+  );
+}
 
 export function SurveyAnalysis() {
   const { user } = useAuth();
@@ -309,112 +327,80 @@ export function SurveyAnalysis() {
   return (
     <div className="space-y-6">
       <ProjectHeader />
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Analyze Results</h1>
           <p className="text-sm text-slate-500 mt-1">
             {analysisType === 'single'
               ? `${usingLiveData ? 'Live panel responses' : 'Reference panel'} (n=${activePanelistN}) — CATA, Intensity, Hedonic, Emotional`
               : analysisType === 'multi'
-                ? 'Multi-sample comparative evaluations - Discrimination, Ranking, Preferences'
-                : 'Concept test panelist feedback - Appeal, Visual preference, Purchase intent'}
+                ? 'Multi-sample comparative evaluations — Discrimination, Ranking, Preferences'
+                : 'Concept test panelist feedback — Appeal, Visual preference, Purchase intent'}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex shrink-0 items-center gap-2">
+          {analysisType === 'single' && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Download className="size-4 mr-2" />
+                  Export
+                  <ChevronDown className="size-4 ml-1 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={exportSampleCSV}>
+                  Current sample (CSV)
+                </DropdownMenuItem>
+                {user?.role === 'admin' && (
+                  <DropdownMenuItem onClick={exportAllDataCSV}>
+                    All panel data (CSV)
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <Button asChild className="bg-emerald-700 text-white hover:bg-emerald-800">
             <Link to="/decision">
               <GitMerge className="size-4 mr-2" />
               Move forward & write report
             </Link>
           </Button>
-          {analysisType === 'single' && (
-            <>
-              <Button onClick={exportSampleCSV} variant="outline">
-                <Download className="size-4 mr-2" />
-                Export Sample CSV
-              </Button>
-              {user?.role === 'admin' && (
-                <Button onClick={exportAllDataCSV} variant="outline">
-                  <Download className="size-4 mr-2" />
-                  Export All Data
-                </Button>
-              )}
-              <Button
-                onClick={() => setShowAllSamples(!showAllSamples)}
-                variant="outline"
-              >
-                {showAllSamples ? <EyeOff className="size-4 mr-2" /> : <Eye className="size-4 mr-2" />}
-                {showAllSamples ? "Single Sample" : "All Samples"}
-              </Button>
-            </>
-          )}
         </div>
       </div>
 
-      {/* Analysis Type Toggle */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-4xl">
-        <button
-          onClick={() => setAnalysisType('single')}
-          className={`p-4 rounded-lg border-2 transition-all text-left ${
-            analysisType === 'single'
-              ? 'border-blue-600 bg-blue-50'
-              : 'border-slate-200 hover:border-blue-300 bg-white'
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-              analysisType === 'single' ? 'bg-blue-600' : 'bg-slate-200'
-            }`}>
-              <Users className={`size-5 ${analysisType === 'single' ? 'text-white' : 'text-slate-500'}`} />
-            </div>
-            <div>
-              <div className="font-bold text-slate-900">Single-Sample Analysis</div>
-              <p className="text-xs text-slate-600">CATA, Intensity, Hedonic, Emotions</p>
-            </div>
-          </div>
-        </button>
-
-        <button
-          onClick={() => setAnalysisType('multi')}
-          className={`p-4 rounded-lg border-2 transition-all text-left ${
-            analysisType === 'multi'
-              ? 'border-purple-600 bg-gradient-to-br from-purple-50 to-pink-50'
-              : 'border-slate-200 hover:border-purple-300 bg-white'
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-              analysisType === 'multi' ? 'bg-purple-600' : 'bg-slate-200'
-            }`}>
-              <Layers className={`size-5 ${analysisType === 'multi' ? 'text-white' : 'text-slate-500'}`} />
-            </div>
-            <div>
-              <div className="font-bold text-slate-900">Multi-Sample Analysis</div>
-              <p className="text-xs text-slate-600">Discrimination, Ranking, Comparison</p>
-            </div>
-          </div>
-        </button>
-
-        <button
-          onClick={() => setAnalysisType('concept')}
-          className={`p-4 rounded-lg border-2 transition-all text-left ${
-            analysisType === 'concept'
-              ? 'border-orange-500 bg-gradient-to-br from-orange-50 to-amber-50'
-              : 'border-slate-200 hover:border-orange-300 bg-white'
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-              analysisType === 'concept' ? 'bg-orange-500' : 'bg-slate-200'
-            }`}>
-              <Megaphone className={`size-5 ${analysisType === 'concept' ? 'text-white' : 'text-slate-500'}`} />
-            </div>
-            <div>
-              <div className="font-bold text-slate-900">Concept Tests</div>
-              <p className="text-xs text-slate-600">Appeal, Visual preference, Purchase intent</p>
-            </div>
-          </div>
-        </button>
+      {/* Step 1 — Analysis type */}
+      <div className="space-y-3">
+        <SectionHeading>Analysis type</SectionHeading>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-4xl">
+          {ANALYSIS_TYPES.map(({ id, icon: Icon, label, desc, color }) => {
+            const isActive = analysisType === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setAnalysisType(id)}
+                className="p-4 rounded-lg border-2 transition-all text-left hover:border-slate-300"
+                style={{
+                  borderColor: isActive ? color : '#e2e8f0',
+                  backgroundColor: isActive ? `${color}12` : 'white',
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-10 h-10 rounded-lg flex items-center justify-center transition-colors"
+                    style={{ backgroundColor: isActive ? color : '#f1f5f9' }}
+                  >
+                    <Icon className="size-5" style={{ color: isActive ? 'white' : '#64748b' }} />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-slate-900">{label}</div>
+                    <p className="text-xs text-slate-500">{desc}</p>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {liveDataFetchFailed && (
@@ -437,36 +423,51 @@ export function SurveyAnalysis() {
 
       {analysisType === 'single' ? (
         <>
-          {/* Sample Selector */}
-          <Card>
-            <CardHeader className="bg-gradient-to-r from-blue-50 to-slate-50 border-b">
-              <CardTitle className="text-lg">Select Sample</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <div className="grid grid-cols-7 gap-2">
-                {filteredSamples.map(sample => {
-                  const typeColor = getSampleColor(sample.sampleName);
-                  const isSelected = selectedSample === sample.sampleId;
-                  return (
-                    <button
-                      key={sample.sampleId}
-                      onClick={() => setSelectedSample(sample.sampleId)}
-                      className="p-3 rounded-lg border-2 transition-all text-center"
-                      style={{
-                        borderColor: isSelected ? typeColor : '#e2e8f0',
-                        backgroundColor: isSelected ? `${typeColor}18` : 'white',
-                      }}
-                    >
-                      <div className="font-bold text-slate-900 text-xs leading-tight">{sample.sampleName}</div>
-                      <div className="text-xs mt-1 font-semibold" style={{ color: typeColor }}>
-                        {sample.hedonic.overall.toFixed(1)}/9
-                      </div>
-                    </button>
-                  );
-                })}
+          {/* Step 2 — Sample selector */}
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <SectionHeading>Sample ({filteredSamples.length})</SectionHeading>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                {SAMPLE_TYPE_LEGEND
+                  .filter(t => filteredSamples.some(s => getSampleColor(s.sampleName) === t.color))
+                  .map(t => (
+                    <span key={t.label} className="flex items-center gap-1.5 text-xs text-slate-500">
+                      <span className="size-2 rounded-full" style={{ backgroundColor: t.color }} />
+                      {t.label}
+                    </span>
+                  ))}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                  {filteredSamples.map(sample => {
+                    const typeColor = getSampleColor(sample.sampleName);
+                    const isSelected = selectedSample === sample.sampleId;
+                    return (
+                      <button
+                        key={sample.sampleId}
+                        onClick={() => setSelectedSample(sample.sampleId)}
+                        className="flex items-center gap-2.5 p-3 rounded-lg border-2 transition-all text-left hover:border-slate-300"
+                        style={{
+                          borderColor: isSelected ? typeColor : '#e2e8f0',
+                          backgroundColor: isSelected ? `${typeColor}14` : 'white',
+                        }}
+                      >
+                        <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: typeColor }} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-xs font-semibold text-slate-900 leading-tight">{sample.sampleName}</span>
+                          <span className="text-xs font-semibold" style={{ color: typeColor }}>
+                            {sample.hedonic.overall.toFixed(1)}<span className="text-slate-400 font-normal">/9</span>
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
           {/* Key Metrics */}
           <div className="grid grid-cols-4 gap-4">
@@ -527,8 +528,30 @@ export function SurveyAnalysis() {
             </Card>
           </div>
 
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <SectionHeading>{showAllSamples ? 'Compare all samples' : 'Detailed results'}</SectionHeading>
+              <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-sm">
+                <button
+                  onClick={() => setShowAllSamples(false)}
+                  className={`rounded-md px-3 py-1 font-medium transition-colors ${
+                    !showAllSamples ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  This sample
+                </button>
+                <button
+                  onClick={() => setShowAllSamples(true)}
+                  className={`rounded-md px-3 py-1 font-medium transition-colors ${
+                    showAllSamples ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Compare all
+                </button>
+              </div>
+            </div>
+
           {!showAllSamples ? (
-            // Single Sample Detailed View
             <Tabs defaultValue="cata" className="w-full">
               <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="cata">CATA Attributes</TabsTrigger>
@@ -578,6 +601,7 @@ export function SurveyAnalysis() {
               enhancedSensoryData={allSensoryData}
             />
           )}
+          </div>
         </>
       ) : analysisType === 'multi' ? (
         /* Multi-Sample Analysis Section */
