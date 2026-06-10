@@ -35,9 +35,15 @@ describe.skipIf(!CONFIGURED)('RLS tenant isolation', () => {
   beforeAll(async () => {
     admin = createClient(URL!, SERVICE!, { auth: { persistSession: false, autoRefreshToken: false } });
 
-    const { data: a } = await admin.from('organizations').insert(orgA).select().single();
-    const { data: b } = await admin.from('organizations').insert(orgB).select().single();
-    ids.orgA = a!.id; ids.orgB = b!.id;
+    const must = <T,>(label: string, res: { data: T | null; error: { message: string } | null }): T => {
+      if (res.error) throw new Error(`${label}: ${res.error.message}`);
+      if (res.data == null) throw new Error(`${label}: no data returned`);
+      return res.data;
+    };
+
+    const a = must('org A insert', await admin.from('organizations').insert(orgA).select().single());
+    const b = must('org B insert', await admin.from('organizations').insert(orgB).select().single());
+    ids.orgA = (a as { id: string }).id; ids.orgB = (b as { id: string }).id;
 
     // Create confirmed users; handle_new_user seeds their profile with org_id
     // from metadata. Elevate each to admin of their own org.
@@ -49,15 +55,16 @@ describe.skipIf(!CONFIGURED)('RLS tenant isolation', () => {
       email: userB.email, password: userB.password, email_confirm: true,
       user_metadata: { name: 'Admin B', org_id: ids.orgB },
     });
-    ids.userA = ua.user!.id; ids.userB = ub.user!.id;
-    await admin.from('profiles').update({ role: 'admin', org_id: ids.orgA }).eq('id', ids.userA);
-    await admin.from('profiles').update({ role: 'admin', org_id: ids.orgB }).eq('id', ids.userB);
+    if (!ua.user || !ub.user) throw new Error('createUser returned no user');
+    ids.userA = ua.user.id; ids.userB = ub.user.id;
+    must('profile A update', await admin.from('profiles').update({ role: 'admin', org_id: ids.orgA }).eq('id', ids.userA).select().single());
+    must('profile B update', await admin.from('profiles').update({ role: 'admin', org_id: ids.orgB }).eq('id', ids.userB).select().single());
 
     // Seed one product per org. org_id is set explicitly because the service
     // role has no auth.uid() for the trigger to derive from.
-    const { data: pa } = await admin.from('products').insert({ name: 'Secret Formula A', org_id: ids.orgA }).select().single();
-    const { data: pb } = await admin.from('products').insert({ name: 'Secret Formula B', org_id: ids.orgB }).select().single();
-    ids.productA = pa!.id; ids.productB = pb!.id;
+    const pa = must('product A insert', await admin.from('products').insert({ name: 'Secret Formula A', category: 'Test', status: 'active', org_id: ids.orgA }).select().single());
+    const pb = must('product B insert', await admin.from('products').insert({ name: 'Secret Formula B', category: 'Test', status: 'active', org_id: ids.orgB }).select().single());
+    ids.productA = (pa as { id: string }).id; ids.productB = (pb as { id: string }).id;
 
     clientA = createClient(URL!, ANON!, { auth: { persistSession: false, autoRefreshToken: false } });
     clientB = createClient(URL!, ANON!, { auth: { persistSession: false, autoRefreshToken: false } });
