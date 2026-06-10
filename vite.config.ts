@@ -40,6 +40,11 @@ export default defineConfig({
 
   build: {
     sourcemap: false,
+    // Charting/PDF/Excel libraries are intentionally large but lazy-loaded
+    // (dynamic import or route-level code splitting), so they never land in
+    // the initial bundle. Raise the warning limit to avoid noise for those
+    // known on-demand chunks.
+    chunkSizeWarningLimit: 1000,
     esbuild: {
       drop: ['console', 'debugger'],
     },

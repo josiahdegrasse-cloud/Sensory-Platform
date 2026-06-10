@@ -98,9 +98,10 @@ function pickProjectName(input: ComputeProjectStatusInput): string {
  * decisionMinResponses, etc.) so the header and the underlying pages never
  * disagree about "what's done."
  *
- * TODO: once a `report` persistence model lands beyond CommercializationReportRecord
- * drafts, tighten the "report" stage rule to require an exported/approved report
- * rather than any draft snapshot.
+ * Note: CommercializationReportRecord already supports 'review'/'approved'
+ * status (see saveCommercializationReport), but no UI flow sets it yet, so
+ * the "report" stage treats any saved snapshot as complete. Tighten this to
+ * `report.status === 'approved'` once the report page gains an approval step.
  */
 export function computeProjectStatus(input: ComputeProjectStatusInput): ProjectStatusSummary {
   const {

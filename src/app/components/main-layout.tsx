@@ -62,7 +62,7 @@ function CategorySidebar() {
   const selectedSampleIds = useMemo(() => new Set(selectedSamples.map(sample => sample.sampleId)), [selectedSamples]);
   const selectedBatch = selectedBatchId
     ? importBatches.find(batch => batch.id === selectedBatchId)
-    : importBatches.find(batch => batch.foodTypeSlug === foodType);
+    : importBatches.find(batch => batch.foodTypeSlug === foodType && batch.status === 'active');
   const projectBatchesByType = useMemo(() => {
     const groups: Record<string, typeof importBatches> = {};
     importBatches
