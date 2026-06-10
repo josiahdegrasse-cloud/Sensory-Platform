@@ -1,9 +1,9 @@
-import { ClipboardList, Gauge, GitMerge } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { useFoodType } from '../contexts/food-type-context';
 import { useProjectStatus } from '../lib/use-project-status';
 import { ProjectStatusBadge } from './project-status-badge';
 import { ProjectWorkflowProgress } from './project-workflow-progress';
+import { ProjectMetrics } from './project-metrics';
 
 /**
  * Persistent project context bar shown across the admin workflow pages
@@ -26,26 +26,12 @@ export function ProjectHeader() {
             <h2 className="text-lg font-bold text-slate-900 truncate">{status.projectName}</h2>
             <ProjectStatusBadge label={status.statusLabel} tone={status.statusTone} />
           </div>
-          <p className="mt-0.5 text-xs text-slate-500">
-            {status.foodTypeLabel}
-            {status.responseTarget > 0 && (
-              <>
-                {' · '}
-                <span className="inline-flex items-center gap-1"><ClipboardList className="size-3" /> Responses {status.responseCompleted}/{status.responseTarget}</span>
-              </>
-            )}
-            {status.issfScore !== null && (
-              <>
-                {' · '}
-                <span className="inline-flex items-center gap-1"><Gauge className="size-3" /> ISSF {status.issfScore.toFixed(0)}</span>
-              </>
-            )}
-            {' · '}
-            <span className="inline-flex items-center gap-1"><GitMerge className="size-3" /> Decision: {status.decisionStatus}</span>
-          </p>
+          <p className="mt-0.5 text-xs text-slate-500">{status.foodTypeLabel}</p>
         </div>
 
         <ProjectWorkflowProgress stages={status.stages} variant="compact" />
+
+        <ProjectMetrics status={status} />
 
         {status.warnings.length > 0 && (
           <div className="flex flex-wrap gap-2">

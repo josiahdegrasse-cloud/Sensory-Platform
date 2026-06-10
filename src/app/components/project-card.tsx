@@ -1,8 +1,9 @@
 import { Link } from 'react-router';
-import { ArrowRight, ClipboardList, Gauge, GitMerge, AlertTriangle } from 'lucide-react';
+import { ArrowRight, AlertTriangle } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { ProjectStatusBadge, toneSolidClasses } from './project-status-badge';
 import { ProjectWorkflowProgress } from './project-workflow-progress';
+import { ProjectMetrics } from './project-metrics';
 import type { ProjectStatusSummary } from '../lib/project-status';
 
 interface ProjectCardProps {
@@ -30,15 +31,7 @@ export function ProjectCard({ status, onOpen }: ProjectCardProps) {
 
         <ProjectWorkflowProgress stages={status.stages} variant="compact" />
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
-          {status.responseTarget > 0 && (
-            <span className="inline-flex items-center gap-1.5"><ClipboardList className="size-3.5 text-slate-400" /> Responses <strong className="text-slate-900">{status.responseCompleted}/{status.responseTarget}</strong></span>
-          )}
-          {status.issfScore !== null && (
-            <span className="inline-flex items-center gap-1.5"><Gauge className="size-3.5 text-slate-400" /> ISSF <strong className="text-slate-900">{status.issfScore.toFixed(0)}</strong></span>
-          )}
-          <span className="inline-flex items-center gap-1.5"><GitMerge className="size-3.5 text-slate-400" /> Decision <strong className="text-slate-900">{status.decisionStatus}</strong></span>
-        </div>
+        <ProjectMetrics status={status} />
 
         {status.warnings.length > 0 && (
           <div className="space-y-1">

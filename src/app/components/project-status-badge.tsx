@@ -21,6 +21,17 @@ export function toneClasses(toneValue: SemanticTone) {
   return TONE_STYLES[toneValue].className;
 }
 
+export function toneTextClasses(toneValue: SemanticTone) {
+  switch (toneValue) {
+    case 'success': return 'text-emerald-700';
+    case 'info': return 'text-blue-700';
+    case 'warning': return 'text-amber-700';
+    case 'critical': return 'text-rose-700';
+    case 'creative': return 'text-purple-700';
+    default: return 'text-slate-600';
+  }
+}
+
 export function toneSolidClasses(toneValue: SemanticTone) {
   switch (toneValue) {
     case 'success': return 'bg-emerald-600 text-white';

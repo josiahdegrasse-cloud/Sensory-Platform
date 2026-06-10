@@ -117,9 +117,29 @@ export function computeProjectStatus(input: ComputeProjectStatusInput): ProjectS
   );
   const sampleIds = new Set(samples.map(s => s.sampleId));
 
+  // ---- Decisions for this project ----
+  // Match on imported sample ids first; fall back to food-type matching so that
+  // decisions made against the reference/demo dataset (which isn't part of any
+  // import batch) still surface here the same way they do on the Decision page.
+  const projectDecisions = decisionRecords.filter(record =>
+    sampleIds.has(record.sampleId) ||
+    (!importBatchId && sampleMatchesFoodType(record.sampleId, record.sampleName) === foodType)
+  );
+  const latestDecision = projectDecisions[0] ?? null; // fetchDecisionRecords orders by recency
+
+  // The response/ISSF metrics must describe the same samples the decision does.
+  // A reference decision surfaced by the food-type fallback references a sample
+  // that isn't in this view's instrumental set, so counting responses only over
+  // `sampleIds` would show "0 responses" next to a GO/ISSF — a contradiction the
+  // workflow can't actually produce (a decision requires its sample's responses).
+  // Folding the decision samples into the population keeps the numbers in sync.
+  // It's a strict superset of `sampleIds`, so a reference decision is never hidden.
+  const populationSampleIds = new Set(sampleIds);
+  projectDecisions.forEach(record => populationSampleIds.add(record.sampleId));
+
   const projectProducts = products.filter(product =>
     product.status !== 'archived' &&
-    (product.sourceSampleId ? sampleIds.has(product.sourceSampleId) : false)
+    (product.sourceSampleId ? populationSampleIds.has(product.sourceSampleId) : false)
   );
 
   // ---- Data stage: required datasets present for at least one sample ----
@@ -155,14 +175,6 @@ export function computeProjectStatus(input: ComputeProjectStatusInput): ProjectS
       : 'blocked';
 
   // ---- Decision stage: a decision record exists for one of this project's samples ----
-  // Match on imported sample ids first; fall back to food-type matching so that
-  // decisions made against the reference/demo dataset (which isn't part of any
-  // import batch) still surface here the same way they do on the Decision page.
-  const projectDecisions = decisionRecords.filter(record =>
-    sampleIds.has(record.sampleId) ||
-    (!importBatchId && sampleMatchesFoodType(record.sampleId, record.sampleName) === foodType)
-  );
-  const latestDecision = projectDecisions[0] ?? null; // fetchDecisionRecords orders by recency
   const decisionState: WorkflowStageState = latestDecision
     ? 'complete'
     : insightsState === 'complete'
