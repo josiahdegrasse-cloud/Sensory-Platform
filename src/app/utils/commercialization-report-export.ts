@@ -27,8 +27,15 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, '');
 }
 
+/**
+ * Builds a clean, descriptive PDF filename, e.g.
+ * `new-food-innovation-coconut-cheddar-v3-commercialization-report-go-2026-06-11.pdf`.
+ * Falls back to "food-platform" when no client/organization name is available.
+ */
 export function buildCommercializationReportFilename(input: {
+  clientName?: string | null;
   productName: string;
+  decision?: string | null;
   generatedAt: string | Date;
   version?: number;
 }) {
@@ -36,9 +43,13 @@ export function buildCommercializationReportFilename(input: {
   const date = Number.isNaN(generatedAt.getTime())
     ? new Date().toISOString().slice(0, 10)
     : generatedAt.toISOString().slice(0, 10);
+  const client = slugify(input.clientName || '') || 'food-platform';
   const product = slugify(input.productName) || 'product';
-  const version = input.version && input.version > 1 ? `-r${input.version}` : '';
-  return `${product}-${date}${version}.pdf`;
+  const parts = [client, product, 'commercialization-report'];
+  if (input.decision) parts.push(slugify(input.decision));
+  parts.push(date);
+  if (input.version && input.version > 1) parts.push(`r${input.version}`);
+  return `${parts.join('-')}.pdf`;
 }
 
 async function imageDataUrl(url: string) {
@@ -454,7 +465,9 @@ export async function buildCommercializationReportPdf(input: CommercializationRe
   }
 
   const filename = buildCommercializationReportFilename({
+    clientName: input.organizationName,
     productName: input.snapshot.product.sampleName,
+    decision: input.snapshot.decision.outcome,
     generatedAt: input.snapshot.generatedAt,
     version: input.version,
   });

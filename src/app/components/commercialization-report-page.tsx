@@ -21,7 +21,7 @@ import { useSurveyData } from '../lib/use-survey-data';
 import { DataProvenanceBadge } from './data-provenance-badge';
 import { formatFoodTypeLabel } from '../lib/food-intelligence';
 import {
-  summarizeConceptResponses, type CommercializationReportSnapshot,
+  summarizeConceptResponses, formatDecisionDimension, type CommercializationReportSnapshot,
   DEFAULT_REPORT_ORGANIZATION_NAME, DEFAULT_REPORT_WORKSPACE_NAME,
 } from '../lib/commercialization-report';
 import { downloadCommercializationReportPdf } from '../utils/commercialization-report-export';
@@ -174,7 +174,6 @@ export function CommercializationReportPage() {
     ? { scale: 10, entries: Object.entries(sensoryProfile.intensity).slice(0, 5).map(([label, value]) => ({ label, value: value as number })) }
     : null;
   const topCompounds = [...compounds].sort((a, b) => b.concentration - a.concentration).slice(0, 5);
-  const hasAppendixContent = !!appendixIntensity || topCompounds.length > 0 || !!composition;
 
   const risks: string[] = [
     ...status.warnings,
@@ -306,7 +305,7 @@ export function CommercializationReportPage() {
                 {Object.entries(snapshot.decision.dimensions).map(([dimension, score]) => (
                   <div key={dimension} className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2">
                     <div className="text-sm font-bold text-slate-900">{(score as number).toFixed(0)}</div>
-                    <div className="text-[11px] capitalize text-slate-500">{dimension}</div>
+                    <div className="text-[11px] text-slate-500">{formatDecisionDimension(dimension as Parameters<typeof formatDecisionDimension>[0])}</div>
                   </div>
                 ))}
               </div>
@@ -326,10 +325,9 @@ export function CommercializationReportPage() {
             </>
           ) : (
             <p className="border-t border-slate-100 pt-3 text-xs text-slate-500">
-              A dimension breakdown (hedonic, texture, CATA, emotional) and formulation watch points will appear here once a branded report draft is saved from the Decision page.
+              A breakdown of sensory acceptance, texture, descriptor, and emotional-response scores, plus formulation watch points, will appear here once a branded report draft is saved from the Decision page.
             </p>
           )}
-          <p className="text-xs text-slate-500 font-mono">Fingerprint: {focusDecision.decisionFingerprint}</p>
         </ReportSection>
       </div>
 
@@ -458,53 +456,63 @@ export function CommercializationReportPage() {
       </ReportSection>
 
       {/* Appendix */}
-      {hasAppendixContent && (
-        <Card className="break-inside-avoid border border-slate-200 bg-white">
-          <Accordion type="single" collapsible>
-            <AccordionItem value="appendix" className="border-b-0">
-              <AccordionTrigger className="px-6 py-4 hover:no-underline">
-                <span className="flex items-center gap-2.5 text-base font-semibold text-slate-900">
-                  <span className="flex size-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
-                    <ListChecks className="size-4" />
-                  </span>
-                  Appendix: Detailed Data
+      <Card className="break-inside-avoid border border-slate-200 bg-white">
+        <Accordion type="single" collapsible>
+          <AccordionItem value="appendix" className="border-b-0">
+            <AccordionTrigger className="px-6 py-4 hover:no-underline">
+              <span className="flex items-center gap-2.5 text-base font-semibold text-slate-900">
+                <span className="flex size-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                  <ListChecks className="size-4" />
                 </span>
-              </AccordionTrigger>
-              <AccordionContent className="space-y-4 px-6 text-sm text-slate-700">
-                {appendixIntensity && (
-                  <div>
-                    <p className="mb-1.5 text-xs font-semibold text-slate-500">Intensity ratings ({appendixIntensity.scale === 5 ? '0–5' : '0–10'} scale)</p>
-                    <ScoreBars entries={appendixIntensity.entries} />
+                Appendix: Detailed Data
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="space-y-4 px-6 text-sm text-slate-700">
+              {appendixIntensity && (
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold text-slate-500">Intensity ratings ({appendixIntensity.scale === 5 ? '0–5' : '0–10'} scale)</p>
+                  <ScoreBars entries={appendixIntensity.entries} />
+                </div>
+              )}
+              {composition && (
+                <div className="border-t border-slate-100 pt-3">
+                  <p className="mb-1.5 text-xs font-semibold text-slate-500">Additional composition</p>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <MetricTile label="Moisture" value={`${composition.moisture.toFixed(1)}%`} />
+                    <MetricTile label="pH" value={composition.pH.toFixed(2)} />
+                    <MetricTile label="Calcium" value={`${composition.calciumMg.toFixed(0)} mg`} />
                   </div>
-                )}
-                {composition && (
-                  <div className="border-t border-slate-100 pt-3">
-                    <p className="mb-1.5 text-xs font-semibold text-slate-500">Additional composition</p>
-                    <div className="grid grid-cols-3 gap-2 text-xs">
-                      <MetricTile label="Moisture" value={`${composition.moisture.toFixed(1)}%`} />
-                      <MetricTile label="pH" value={composition.pH.toFixed(2)} />
-                      <MetricTile label="Calcium" value={`${composition.calciumMg.toFixed(0)} mg`} />
-                    </div>
-                  </div>
-                )}
-                {topCompounds.length > 0 && (
-                  <div className="border-t border-slate-100 pt-3">
-                    <p className="mb-1.5 text-xs font-semibold text-slate-500">Top GC-MS compounds by concentration</p>
-                    <ul className="space-y-1 text-xs">
-                      {topCompounds.map(compound => (
-                        <li key={compound.name} className="flex items-center justify-between gap-2">
-                          <span className="text-slate-700">{compound.name} <span className="text-slate-400">({compound.aroma})</span></span>
-                          <span className="font-mono text-slate-500">{compound.concentration.toFixed(1)} ppm</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
-        </Card>
-      )}
+                </div>
+              )}
+              {topCompounds.length > 0 && (
+                <div className="border-t border-slate-100 pt-3">
+                  <p className="mb-1.5 text-xs font-semibold text-slate-500">Top GC-MS compounds by concentration</p>
+                  <ul className="space-y-1 text-xs">
+                    {topCompounds.map(compound => (
+                      <li key={compound.name} className="flex items-center justify-between gap-2">
+                        <span className="text-slate-700">{compound.name} <span className="text-slate-400">({compound.aroma})</span></span>
+                        <span className="font-mono text-slate-500">{compound.concentration.toFixed(1)} ppm</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div className="border-t border-slate-100 pt-3">
+                <p className="mb-1.5 text-xs font-semibold text-slate-500">Report metadata</p>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                  <div><dt className="text-slate-500">Decision record</dt><dd className="font-mono text-slate-700">{snapshot?.decision.recordId ?? focusDecision.id}</dd></div>
+                  <div><dt className="text-slate-500">Method version</dt><dd className="font-mono text-slate-700">{snapshot?.decision.methodVersion ?? focusDecision.methodVersion}</dd></div>
+                  {savedReport && (
+                    <div><dt className="text-slate-500">Report version</dt><dd className="text-slate-700">v{savedReport.version} · {savedReport.status}</dd></div>
+                  )}
+                  <div><dt className="text-slate-500">Generated</dt><dd className="text-slate-700">{new Date(snapshot?.generatedAt ?? focusDecision.timestamp).toLocaleString()}</dd></div>
+                  <div className="col-span-2"><dt className="text-slate-500">Decision fingerprint</dt><dd className="break-all font-mono text-slate-700">{snapshot?.decision.fingerprint ?? focusDecision.decisionFingerprint}</dd></div>
+                </dl>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </Card>
 
       {/* Export */}
       <Card className="break-inside-avoid border border-slate-200 bg-white print:hidden">
