@@ -8,6 +8,8 @@ import {
 import { CheckSquare, TrendingUp, Heart, Smile, Frown, AlertCircle, MessageCircle, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
+import { DataProvenanceBadge } from './data-provenance-badge';
+import { canShowInferentialStatistics } from '../lib/insights';
 
 interface CataAttribute {
   id: string;
@@ -68,6 +70,7 @@ interface CATATabProps {
 }
 
 export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, activeSampleId }: CATATabProps) {
+  const canShowSignificance = canShowInferentialStatistics(activePanelistN, !usingLiveData);
   const critP05 = (() => {
     for (let k = activePanelistN; k >= 0; k--) {
       if (pValueOneTailed(k, activePanelistN) > 0.05) return k + 1;
@@ -83,13 +86,18 @@ export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, 
   return (
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CheckSquare className="size-5 text-blue-600" />
-            Check-All-That-Apply (CATA) Results
-          </CardTitle>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <CardTitle className="flex items-center gap-2">
+              <CheckSquare className="size-5 text-blue-600" />
+              Panelist-selected sensory descriptors
+            </CardTitle>
+            <DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={activePanelistN} />
+          </div>
           <p className="text-sm text-slate-600">
-            Frequency of attribute selection across {activePanelistN} {usingLiveData ? 'panelists (live)' : 'semi-trained panelists'}.{" "}
-            Significance threshold: ≥{critP05}/{activePanelistN} (binomial, p=0.5, α=0.05).
+            Frequency of attribute selection across {activePanelistN} {usingLiveData ? 'panelists' : 'reference observations'}.
+            {canShowSignificance
+              ? ` Significance threshold: ≥${critP05}/${activePanelistN} (binomial, p=0.5, α=0.05).`
+              : ' Inferential significance is not shown for this evidence set.'}
           </p>
         </CardHeader>
         <CardContent>
@@ -131,23 +139,28 @@ export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, 
                   {dataWithSig.map((entry) => (
                     <Cell
                       key={`cell-${entry.id}`}
-                      fill={entry.sig === "**" ? STATUS.goDark : entry.sig === "*" ? STATUS.info : CHART_CHROME.muted}
+                      fill={canShowSignificance && entry.sig === "**" ? STATUS.goDark : canShowSignificance && entry.sig === "*" ? STATUS.info : CHART_CHROME.muted}
                     />
                   ))}
                   <LabelList
                     dataKey="sig"
                     position="right"
+                    formatter={(value: string) => canShowSignificance ? value : ''}
                     style={{ fontSize: 13, fontWeight: 700, fill: STATUS.goDark }}
                   />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
 
-            <div className="mt-4 text-xs text-slate-400">
-              Green bars = statistically significant above chance (binomial test, one-tailed, p=0.5 null hypothesis). ** p&lt;0.01 &nbsp; * p&lt;0.05 &nbsp; grey = not significant.
+            <div className="mt-4 text-xs text-slate-500">
+              {canShowSignificance
+                ? 'Green bars are statistically significant above chance. Grey bars are not significant.'
+                : usingLiveData
+                  ? 'A minimum of 5 live responses is required before inferential significance is displayed.'
+                  : 'Reference/demo descriptor frequencies are descriptive only and must not be presented as client findings.'}
             </div>
 
-            <div className="mt-6 grid grid-cols-3 gap-4">
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">
               <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-3 h-3 rounded-full bg-emerald-600"></div>
@@ -195,16 +208,19 @@ export function IntensityTab({ activeIntensityData, activePanelistN, usingLiveDa
   return (
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="size-5 text-purple-600" />
-            Sensory Intensity Ratings ({usingLiveData ? '1–5' : '0–10'} scale)
-          </CardTitle>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="size-5 text-blue-600" />
+              Sensory intensity ratings ({usingLiveData ? '1–5' : '0–10'} scale)
+            </CardTitle>
+            <DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={activePanelistN} />
+          </div>
           <p className="text-sm text-slate-600">
             Mean intensity scores from {activePanelistN} {usingLiveData ? 'panelists (live)' : 'semi-trained panelists'}
           </p>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid gap-6 lg:grid-cols-2">
             <div>
               <ResponsiveContainer width="100%" height={350}>
                 <RadarChart data={activeIntensityData}>
@@ -248,12 +264,15 @@ export function IntensityTab({ activeIntensityData, activePanelistN, usingLiveDa
             </div>
           </div>
 
-          <div className="mt-6 p-4 bg-purple-50 rounded-lg border border-purple-200">
+          <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
             <div className="flex items-start gap-3">
-              <AlertCircle className="size-5 text-purple-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-purple-900">
-                <strong>Panel Training:</strong> Semi-trained panelists completed 3-hour HFD (Human Factors Design)
-                training on intensity rating calibration using reference standards.
+              <AlertCircle className="mt-0.5 size-5 shrink-0 text-slate-500" />
+              <div className="text-sm text-slate-700">
+                <strong>Evidence note:</strong> {usingLiveData
+                  ? activePanelistN === 1
+                    ? 'One response is directional only and should not be treated as representative.'
+                    : `These means summarize ${activePanelistN} live responses. Review panel design before making broader claims.`
+                  : 'This reference profile demonstrates the method and is not evidence collected from the active client panel.'}
               </div>
             </div>
           </div>
@@ -268,6 +287,7 @@ interface HedonicTabProps {
   activeHedonicData: HedonicDatum[];
   activeAvgHedonic: string;
   activePanelistN: number;
+  usingLiveData: boolean;
 }
 
 function getHedonicColor(score: number): string {
@@ -276,8 +296,9 @@ function getHedonicColor(score: number): string {
   return STATUS.stop;
 }
 
-export function HedonicTab({ activeHedonicData, activeAvgHedonic, activePanelistN }: HedonicTabProps) {
+export function HedonicTab({ activeHedonicData, activeAvgHedonic, activePanelistN, usingLiveData }: HedonicTabProps) {
   const n = activePanelistN;
+  const canShowIntervals = canShowInferentialStatistics(n, !usingLiveData);
   const dataWithSem = activeHedonicData.map(d => ({
     ...d,
     sem: d.sd / Math.sqrt(n),
@@ -287,10 +308,13 @@ export function HedonicTab({ activeHedonicData, activeAvgHedonic, activePanelist
   return (
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Heart className="size-5 text-rose-600" />
-            Hedonic Liking Scores (9-point scale)
-          </CardTitle>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <CardTitle className="flex items-center gap-2">
+              <Heart className="size-5 text-rose-600" />
+              Overall liking scores (9-point scale)
+            </CardTitle>
+            <DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={n} />
+          </div>
           <p className="text-sm text-slate-600">
             Consumer acceptance ratings: 1 = Dislike Extremely, 9 = Like Extremely · n={n} panelists
           </p>
@@ -319,7 +343,7 @@ export function HedonicTab({ activeHedonicData, activeAvgHedonic, activePanelist
                 }}
               />
               <Bar dataKey="score" radius={[8, 8, 0, 0]}>
-                <ErrorBar dataKey="ci95" width={4} strokeWidth={2} stroke={CHART_CHROME.axis} />
+                {canShowIntervals && <ErrorBar dataKey="ci95" width={4} strokeWidth={2} stroke={CHART_CHROME.axis} />}
                 {dataWithSem.map((entry) => (
                   <Cell key={`hedonic-bar-${entry.id}`} fill={getHedonicColor(entry.score)} />
                 ))}
@@ -327,7 +351,11 @@ export function HedonicTab({ activeHedonicData, activeAvgHedonic, activePanelist
             </BarChart>
           </ResponsiveContainer>
           <p className="text-xs text-slate-500 mt-2 text-center">
-            Error bars show 95% CI (±1.96 × SEM, n={n}). Non-overlapping intervals indicate a statistically meaningful difference between dimensions.
+            {canShowIntervals
+              ? `Error bars show descriptive 95% confidence intervals (n=${n}). Confirm the study design before interpreting differences as meaningful.`
+              : usingLiveData
+                ? 'Confidence intervals are hidden until at least 5 live responses are available.'
+                : 'Reference/demo liking scores are shown for method orientation only.'}
           </p>
 
           <div className="mt-6 grid grid-cols-4 gap-4">
@@ -442,22 +470,27 @@ export function CommentsTab({ usingLiveData, matchingLiveData, commentsByProduct
 interface EmotionalTabProps {
   activeEmotions: Emotions;
   activeEmotionalBalance: string;
+  activePanelistN: number;
+  usingLiveData: boolean;
 }
 
-export function EmotionalTab({ activeEmotions, activeEmotionalBalance }: EmotionalTabProps) {
+export function EmotionalTab({ activeEmotions, activeEmotionalBalance, activePanelistN, usingLiveData }: EmotionalTabProps) {
   return (
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="size-5 text-blue-600" />
-            Emotional Response Profile (EsSense25)
-          </CardTitle>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <CardTitle className="flex items-center gap-2">
+              <Users className="size-5 text-blue-600" />
+              Emotional response indicators
+            </CardTitle>
+            <DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={activePanelistN} />
+          </div>
           <p className="text-sm text-slate-600">
             17 positive + 8 negative emotions rated on 0-5 scale
           </p>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid gap-6 sm:grid-cols-2">
             <div className="p-6 bg-gradient-to-br from-emerald-50 to-white rounded-xl border-2 border-emerald-200">
               <div className="flex items-center gap-3 mb-4">
                 <Smile className="size-10 text-emerald-600" />
@@ -493,9 +526,9 @@ export function EmotionalTab({ activeEmotions, activeEmotionalBalance }: Emotion
             </div>
           </div>
 
-          <div className="mt-6 p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border-2 border-blue-200">
-            <h3 className="font-bold text-blue-900 mb-3">Emotional Balance Analysis</h3>
-            <div className="grid grid-cols-3 gap-4">
+          <div className="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-6">
+            <h3 className="mb-3 font-bold text-blue-900">Emotional balance</h3>
+            <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <div className="text-sm text-slate-600 mb-1">Net Emotional Score</div>
                 <div className="text-3xl font-bold text-slate-900">{activeEmotionalBalance}</div>
@@ -509,12 +542,6 @@ export function EmotionalTab({ activeEmotions, activeEmotionalBalance }: Emotion
                    parseFloat(activeEmotionalBalance) >= 0 ? "Neutral/Mixed" : "Negative"}
                 </Badge>
               </div>
-              <div>
-                <div className="text-sm text-slate-600 mb-1">Consumer Readiness</div>
-                <Badge className={parseFloat(activeEmotionalBalance) >= 1.5 ? "bg-emerald-600" : "bg-amber-600"}>
-                  {parseFloat(activeEmotionalBalance) >= 1.5 ? "Ready" : "Needs Work"}
-                </Badge>
-              </div>
             </div>
           </div>
 
@@ -522,9 +549,10 @@ export function EmotionalTab({ activeEmotions, activeEmotionalBalance }: Emotion
             <div className="flex items-start gap-3">
               <AlertCircle className="size-5 text-blue-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-blue-900">
-                <strong>Method:</strong> EsSense25 profile adapted for plant-based cheese evaluation.
-                Panelists rated emotional intensity triggered by sample consumption on a 1–5 scale
-                (1 = Not at all, 5 = Extremely).
+                <strong>Interpretation limit:</strong> Emotional balance describes the responses collected for this sample.
+                {usingLiveData && activePanelistN === 1
+                  ? ' One response is directional only and cannot establish consumer readiness.'
+                  : ' It should not be used as a standalone commercialization or consumer-readiness claim.'}
               </div>
             </div>
           </div>

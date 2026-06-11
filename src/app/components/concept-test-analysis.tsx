@@ -6,14 +6,23 @@ import {
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
+import { StageEmptyState } from './stage-empty-state';
+import { DataProvenanceBadge } from './data-provenance-badge';
 import { useAdminConceptTests, useConceptTestResponses } from '../lib/hooks';
 import type { ConceptTest, ConceptQuestion, ConceptResponse } from '../lib/database';
 import { Megaphone, Trophy, MessageSquare, Users } from 'lucide-react';
+import { InsightInterpretationBlock } from './insights-ui';
 
-export function ConceptTestAnalysis() {
-  const { data: tests = [], isLoading } = useAdminConceptTests();
+export function ConceptTestAnalysis({ projectTests, minimumResponses = 12 }: {
+  projectTests?: ConceptTest[];
+  minimumResponses?: number;
+}) {
+  const { data: allTests = [], isLoading } = useAdminConceptTests();
+  const tests = projectTests ?? allTests;
   const [selectedTestId, setSelectedTestId] = useState('');
-  const activeTestId = selectedTestId || tests[0]?.id || '';
+  const activeTestId = tests.some(test => test.id === selectedTestId)
+    ? selectedTestId
+    : tests[0]?.id || '';
   const selectedTest = tests.find(t => t.id === activeTestId);
   const { data: responses = [], isLoading: responsesLoading } = useConceptTestResponses(activeTestId || undefined);
 
@@ -23,22 +32,19 @@ export function ConceptTestAnalysis() {
 
   if (tests.length === 0) {
     return (
-      <Card className="border-2 border-dashed border-orange-200">
-        <CardContent className="pt-12 pb-12 text-center">
-          <Megaphone className="size-16 text-orange-300 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-slate-700 mb-2">No concept tests yet</h3>
-          <p className="text-slate-600">
-            Launch a concept test from the Concept Lab to see panelist feedback here.
-          </p>
-        </CardContent>
-      </Card>
+      <StageEmptyState
+        icon={Megaphone}
+        headline="No concept tests yet"
+        body="Launch a concept test from the Concept Lab to see panelist feedback here."
+        cta={{ label: 'Open Concept Lab', to: '/concept-testing' }}
+      />
     );
   }
 
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader className="bg-gradient-to-r from-orange-50 to-amber-50 border-b">
+        <CardHeader className="border-b border-slate-100">
           <CardTitle className="text-lg">Select Concept Test</CardTitle>
         </CardHeader>
         <CardContent className="pt-4">
@@ -50,7 +56,7 @@ export function ConceptTestAnalysis() {
                   key={test.id}
                   onClick={() => setSelectedTestId(test.id)}
                   className={`p-3 rounded-lg border-2 text-left transition-all ${
-                    isSelected ? 'border-orange-500 bg-orange-50' : 'border-slate-200 hover:border-orange-300 bg-white'
+                    isSelected ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:border-slate-300 bg-white'
                   }`}
                 >
                   <div className="font-bold text-slate-900 text-sm leading-tight truncate">{test.name}</div>
@@ -72,43 +78,64 @@ export function ConceptTestAnalysis() {
       {responsesLoading ? (
         <div className="text-center py-16 text-slate-500">Loading responses…</div>
       ) : !selectedTest || responses.length === 0 ? (
-        <Card className="border-2 border-dashed border-slate-200">
-          <CardContent className="pt-12 pb-12 text-center">
-            <Users className="size-12 text-slate-300 mx-auto mb-3" />
-            <h3 className="text-lg font-bold text-slate-700 mb-1">No responses yet</h3>
-            <p className="text-slate-500 text-sm">
-              Results will appear here once panelists complete <strong>{selectedTest?.name ?? 'this test'}</strong>.
-            </p>
-          </CardContent>
-        </Card>
+        <StageEmptyState
+          icon={Users}
+          headline="No responses yet"
+          body={`Results will appear here once panelists complete ${selectedTest?.name ?? 'this test'}.`}
+          locked
+        />
       ) : (
-        <ConceptResultsPanel test={selectedTest} responses={responses} />
+        <ConceptResultsPanel test={selectedTest} responses={responses} minimumResponses={minimumResponses} />
       )}
     </div>
   );
 }
 
-function ConceptResultsPanel({ test, responses }: { test: ConceptTest; responses: ConceptResponse[] }) {
+function ConceptResultsPanel({ test, responses, minimumResponses }: {
+  test: ConceptTest;
+  responses: ConceptResponse[];
+  minimumResponses: number;
+}) {
   const validImages = test.imageUrls.filter(u => u.trim());
+  const evidenceIsLimited = responses.length < minimumResponses;
 
   return (
     <div className="space-y-4">
-      <Card className="border-2 border-orange-200">
+      <Card className="border border-slate-200">
         <CardContent className="pt-6">
-          <div className="flex items-center gap-3">
-            <Users className="size-8 text-orange-500" />
-            <div>
-              <div className="text-2xl font-bold text-slate-900">{responses.length}</div>
-              <div className="text-sm text-slate-600">Panelist responses</div>
-              <div className="text-xs text-slate-500">of {test.panelSize} invited to {test.name}</div>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <Users className="size-8 text-blue-600" />
+              <div>
+                <div className="text-2xl font-bold text-slate-900">{responses.length}</div>
+                <div className="text-sm text-slate-600">Panelist responses</div>
+                <div className="text-xs text-slate-500">of {test.panelSize} invited to {test.name}</div>
+              </div>
             </div>
+            <DataProvenanceBadge provenance="live" n={responses.length} />
           </div>
         </CardContent>
       </Card>
 
+      {evidenceIsLimited && (
+        <InsightInterpretationBlock
+          tone="warning"
+          finding="Concept feedback is directional, not representative."
+          evidence={`${responses.length} of ${test.panelSize} invited panelists have responded.`}
+          confidence={responses.length === 1 ? 'Low because only one response is available.' : `Limited until at least ${minimumResponses} responses are available.`}
+          action="Collect more concept responses before naming a winning direction or using purchase intent as representative evidence."
+        />
+      )}
+
       <div className="space-y-3">
         {test.questions.map(question => (
-          <QuestionResultCard key={question.id} question={question} responses={responses} images={validImages} />
+          <QuestionResultCard
+            key={question.id}
+            question={question}
+            responses={responses}
+            images={validImages}
+            evidenceIsLimited={evidenceIsLimited}
+          />
         ))}
       </div>
     </div>
@@ -116,11 +143,12 @@ function ConceptResultsPanel({ test, responses }: { test: ConceptTest; responses
 }
 
 function QuestionResultCard({
-  question, responses, images,
+  question, responses, images, evidenceIsLimited,
 }: {
   question: ConceptQuestion;
   responses: ConceptResponse[];
   images: string[];
+  evidenceIsLimited: boolean;
 }) {
   const answered = responses.filter(r => {
     const v = r.answers[question.id];
@@ -150,7 +178,7 @@ function QuestionResultCard({
         ) : question.type === 'ranking' ? (
           <RankingResults answers={answered.map(r => r.answers[question.id] as string[])} options={question.options ?? []} />
         ) : question.type === 'image_choice' ? (
-          <ImageChoiceResults answers={answered.map(r => r.answers[question.id] as string)} images={images} />
+          <ImageChoiceResults answers={answered.map(r => r.answers[question.id] as string)} images={images} evidenceIsLimited={evidenceIsLimited} />
         ) : (
           <OpenTextResults answers={answered.map(r => String(r.answers[question.id]))} />
         )}
@@ -293,7 +321,11 @@ function RankingResults({ answers, options }: { answers: string[][]; options: st
   );
 }
 
-function ImageChoiceResults({ answers, images }: { answers: string[]; images: string[] }) {
+function ImageChoiceResults({ answers, images, evidenceIsLimited }: {
+  answers: string[];
+  images: string[];
+  evidenceIsLimited: boolean;
+}) {
   if (images.length === 0) {
     return <p className="text-xs text-slate-400 italic">No concept visuals were attached to this test.</p>;
   }
@@ -310,7 +342,7 @@ function ImageChoiceResults({ answers, images }: { answers: string[]; images: st
       {winner && winner.count > 0 && (
         <div className="flex items-center gap-2 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 w-fit">
           <Trophy className="size-3.5" />
-          Option {winner.index + 1} is the panel favorite — picked by {winner.count} of {total} ({Math.round((winner.count / total) * 100)}%)
+          Option {winner.index + 1} is the {evidenceIsLimited ? 'current leading direction' : 'panel favorite'}: {winner.count} of {total} selections ({Math.round((winner.count / total) * 100)}%)
         </div>
       )}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

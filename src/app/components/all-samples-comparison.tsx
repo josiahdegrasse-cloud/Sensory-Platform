@@ -5,6 +5,7 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { getSampleColor, SAMPLE_TYPE_LEGEND } from "../utils/sample-colors";
+import { DataProvenanceBadge } from './data-provenance-badge';
 
 interface AllSampleHedonic {
   id: string;
@@ -24,15 +25,25 @@ interface EnhancedSampleLike {
 interface AllSamplesComparisonViewProps {
   allSamplesHedonic: AllSampleHedonic[];
   enhancedSensoryData: EnhancedSampleLike[];
+  usingLiveData: boolean;
+  responseCount: number;
 }
 
-export function AllSamplesComparisonView({ allSamplesHedonic, enhancedSensoryData }: AllSamplesComparisonViewProps) {
+export function AllSamplesComparisonView({
+  allSamplesHedonic,
+  enhancedSensoryData,
+  usingLiveData,
+  responseCount,
+}: AllSamplesComparisonViewProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>All Samples: Hedonic Comparison</CardTitle>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <CardTitle>Project sample comparison</CardTitle>
+          <DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={responseCount} />
+        </div>
         <p className="text-sm text-slate-600">
-          Comparative view of all 14 samples across hedonic dimensions
+          Comparative view of the {enhancedSensoryData.length} samples in the active project across liking dimensions.
         </p>
       </CardHeader>
       <CardContent>
@@ -59,7 +70,7 @@ export function AllSamplesComparisonView({ allSamplesHedonic, enhancedSensoryDat
           ))}
         </div>
 
-        <div className="mt-4 grid grid-cols-7 gap-3">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {enhancedSensoryData.map(sample => {
             const avgScore = (sample.hedonic.overall + sample.hedonic.flavour +
                              sample.hedonic.texture + sample.hedonic.appearance) / 4;

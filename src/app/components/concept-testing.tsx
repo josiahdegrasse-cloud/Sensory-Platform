@@ -231,7 +231,7 @@ export function ConceptTesting() {
         <h2 className="text-3xl font-black text-slate-900">Concept test launched!</h2>
         <p className="text-slate-500 text-lg">
           Your survey has been sent to <strong>{assignedPanelistIds.length > 0 ? assignedPanelistIds.length : panelSize} panelists</strong>.
-          Results will appear in <strong>Analyze Results</strong> as responses come in.
+          Results will appear in <strong>Insights</strong> as responses come in.
         </p>
         <div className="flex items-center justify-center gap-3 pt-4">
           <Button variant="outline" onClick={resetForm}>

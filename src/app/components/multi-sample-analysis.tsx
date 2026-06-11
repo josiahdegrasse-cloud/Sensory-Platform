@@ -3,6 +3,8 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { Layers, Target, Trophy, Heart, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
+import { DataProvenanceBadge } from './data-provenance-badge';
+import { InsightInterpretationBlock } from './insights-ui';
 
 interface MultiSampleProduct {
   id: string;
@@ -33,20 +35,22 @@ interface MultiSampleAnalysisProps {
   multiSampleProducts: MultiSampleProduct[];
   selectedMultiProduct: string;
   setSelectedMultiProduct: (id: string) => void;
+  minimumResponses?: number;
 }
 
 export function MultiSampleAnalysis({
   multiSampleResponses,
   multiSampleProducts,
   selectedMultiProduct,
-  setSelectedMultiProduct
+  setSelectedMultiProduct,
+  minimumResponses = 12,
 }: MultiSampleAnalysisProps) {
   const selectedProduct = multiSampleProducts.find(p => p.id === selectedMultiProduct);
   const productResponses = multiSampleResponses.filter(r => r.productId === selectedMultiProduct);
 
   if (productResponses.length === 0) {
     return (
-      <Card className="border-2 border-slate-200">
+      <Card className="border border-slate-200">
         <CardContent className="pt-12 pb-12 text-center">
           <Layers className="size-16 text-slate-400 mx-auto mb-4" />
           <h3 className="text-xl font-bold text-slate-700 mb-2">No Multi-Sample Data Yet</h3>
@@ -106,6 +110,8 @@ export function MultiSampleAnalysis({
     avgScore: (data.scores.reduce((a: number, b: number) => a + b, 0) / data.count).toFixed(2),
     count: data.count
   })).sort((a, b) => parseFloat(b.avgScore) - parseFloat(a.avgScore));
+  const evidenceIsLimited = productResponses.length < minimumResponses;
+  const leadingSample = hedonicChartData[0];
 
   const exportMultiSampleCSV = () => {
     const headers = ['ResponseID', 'PanelistID', 'ProductID', 'SampleCode', 'Metric', 'Value'];
@@ -138,20 +144,23 @@ export function MultiSampleAnalysis({
   return (
     <div className="space-y-6">
       {/* Product Selector */}
-      <Card className="border-2 border-purple-300">
-        <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50">
+      <Card className="border border-slate-200">
+        <CardHeader className="border-b border-slate-100">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <Layers className="size-5 text-purple-600" />
+                <Layers className="size-5 text-blue-600" />
                 Select Multi-Sample Study
               </CardTitle>
               <p className="text-sm text-slate-600 mt-1">{productResponses.length} panelist responses</p>
             </div>
-            <Button onClick={exportMultiSampleCSV} variant="outline">
-              <Download className="size-4 mr-2" />
-              Export CSV
-            </Button>
+            <div className="flex items-center gap-2">
+              <DataProvenanceBadge provenance="live" n={productResponses.length} />
+              <Button onClick={exportMultiSampleCSV} variant="outline">
+                <Download className="size-4 mr-2" />
+                Export CSV
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="pt-4">
@@ -162,13 +171,13 @@ export function MultiSampleAnalysis({
                 onClick={() => setSelectedMultiProduct(product.id)}
                 className={`p-4 rounded-lg border-2 transition-all text-left ${
                   selectedMultiProduct === product.id
-                    ? 'border-purple-600 bg-purple-50'
-                    : 'border-slate-200 hover:border-purple-300'
+                    ? 'border-blue-600 bg-blue-50'
+                    : 'border-slate-200 hover:border-slate-300'
                 }`}
               >
                 <div className="font-bold text-slate-900">{product.name}</div>
                 <div className="text-xs text-slate-600 mt-1">{product.category}</div>
-                <div className="text-xs text-purple-700 mt-1 font-medium">
+                <div className="text-xs text-blue-700 mt-1 font-medium">
                   {multiSampleResponses.filter(r => r.productId === product.id).length} responses
                 </div>
               </button>
@@ -178,8 +187,18 @@ export function MultiSampleAnalysis({
       </Card>
 
       {/* Discrimination Test Results */}
-      <Card className="border-2 border-amber-300">
-        <CardHeader className="bg-amber-50">
+      {evidenceIsLimited && (
+        <InsightInterpretationBlock
+          tone="warning"
+          finding="The multi-sample results are directional."
+          evidence={`${productResponses.length} completed multi-sample response${productResponses.length === 1 ? '' : 's'} are available.`}
+          confidence="Low until the configured panel threshold is reached."
+          action="Collect more responses before naming a preferred sample or presenting the result as representative."
+        />
+      )}
+
+      <Card className="border border-slate-200">
+        <CardHeader className="border-b border-slate-100">
           <CardTitle className="flex items-center gap-2">
             <Target className="size-5 text-amber-600" />
             Discrimination Test Results
@@ -206,10 +225,10 @@ export function MultiSampleAnalysis({
       </Card>
 
       {/* Preference Ranking */}
-      <Card className="border-2 border-purple-300">
-        <CardHeader className="bg-purple-50">
+      <Card className="border border-slate-200">
+        <CardHeader className="border-b border-slate-100">
           <CardTitle className="flex items-center gap-2">
-            <Trophy className="size-5 text-purple-600" />
+            <Trophy className="size-5 text-blue-600" />
             Preference Ranking Distribution
           </CardTitle>
           <p className="text-sm text-slate-600">How panelists ranked each sample</p>
@@ -235,11 +254,11 @@ export function MultiSampleAnalysis({
               const percentage = ((bestCount / total) * 100).toFixed(1);
               return (
                 <div key={data.sample} className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-center">
-                  <div className="w-12 h-12 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-lg mx-auto mb-2">
+                  <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-lg mx-auto mb-2">
                     {data.sample}
                   </div>
                   <div className="text-sm text-slate-600 mb-1">Ranked #1</div>
-                  <div className="text-2xl font-bold text-purple-900">{percentage}%</div>
+                  <div className="text-2xl font-bold text-blue-900">{percentage}%</div>
                   <div className="text-xs text-slate-500 mt-1">{bestCount}/{total} times</div>
                 </div>
               );
@@ -249,8 +268,8 @@ export function MultiSampleAnalysis({
       </Card>
 
       {/* Average Hedonic Scores */}
-      <Card className="border-2 border-blue-300">
-        <CardHeader className="bg-blue-50">
+      <Card className="border border-slate-200">
+        <CardHeader className="border-b border-slate-100">
           <CardTitle className="flex items-center gap-2">
             <Heart className="size-5 text-blue-600" />
             Average Overall Liking by Sample
@@ -275,6 +294,18 @@ export function MultiSampleAnalysis({
           </div>
         </CardContent>
       </Card>
+
+      {leadingSample && (
+        <InsightInterpretationBlock
+          tone={evidenceIsLimited ? 'warning' : 'info'}
+          finding={evidenceIsLimited
+            ? `${leadingSample.sample} is the current leading direction, not a validated winner.`
+            : `${leadingSample.sample} has the highest average liking score in this study.`}
+          evidence={`${leadingSample.avgScore}/9 average liking across ${leadingSample.count} observations.`}
+          confidence={evidenceIsLimited ? 'Limited because the study has not reached the response threshold.' : 'Moderate; confirm study design and statistical testing before making broad claims.'}
+          action={evidenceIsLimited ? 'Continue response collection.' : 'Review the leading sample alongside discrimination and ranking results.'}
+        />
+      )}
     </div>
   );
 }

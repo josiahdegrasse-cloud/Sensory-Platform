@@ -1,631 +1,506 @@
-import { useState, useEffect, useMemo, type ReactNode } from "react";
-import { Link } from "react-router";
+import { useMemo, useState } from 'react';
+import {
+  AlertCircle, BarChart3, CheckSquare, Download, FlaskConical, Heart,
+  Layers, MessageCircle, Smile, TrendingUp, Users,
+} from 'lucide-react';
 import { useAuth } from '../contexts/auth-context';
-import { useFoodType, sampleMatchesFoodType, matchFoodType } from '../contexts/food-type-context';
-import { Card, CardContent } from "./ui/card";
-import { Button } from "./ui/button";
-import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
+import { useFoodType, sampleMatchesFoodType } from '../contexts/food-type-context';
+import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from '../data/enhanced-sensory';
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "./ui/dropdown-menu";
-import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from "../data/enhanced-sensory";
-import { getSampleColor, SAMPLE_TYPE_LEGEND } from "../utils/sample-colors";
-import { useInstrumentalDataset, useProducts } from "../lib/hooks";
-import { mergeAnalysisProfiles } from "../lib/analysis-dataset";
-import { formatFoodTypeLabel } from "../lib/food-intelligence";
-import { useSurveyData } from "../lib/use-survey-data";
-import { buildSampleCSVRows, buildAllDataCSVRows, downloadCsv } from "../utils/survey-csv-export";
+  useAdminConceptTests,
+  useConceptTestResponses,
+  useDecisionRecords,
+  useInstrumentalDataset,
+  useProducts,
+  useWorkspaceSettings,
+} from '../lib/hooks';
+import { mergeAnalysisProfiles } from '../lib/analysis-dataset';
 import {
-  Users, Heart, Smile, Frown, CheckSquare,
-  TrendingUp, AlertCircle, Download, Layers, FlaskConical, ClipboardList, Megaphone, GitMerge, ChevronDown
-} from "lucide-react";
-import { MultiSampleAnalysis } from "./multi-sample-analysis";
-import { CATATab, IntensityTab, HedonicTab, CommentsTab, EmotionalTab } from "./survey-analysis-tabs";
-import { AllSamplesComparisonView } from "./all-samples-comparison";
-import { ConceptTestAnalysis } from "./concept-test-analysis";
-import { ProjectHeader } from "./project-header";
-import { DataProvenanceBadge } from "./data-provenance-badge";
-import { ANALYSIS_ACCENT } from "../styles/tokens";
+  deriveInsightsEvidenceStrength,
+  deriveInsightsNextAction,
+  filterProjectConceptTests,
+  filterProjectInstrumentSamples,
+  filterProjectProducts,
+} from '../lib/insights';
+import { useProjectStatus } from '../lib/use-project-status';
+import { useSurveyData } from '../lib/use-survey-data';
+import { formatFoodTypeLabel } from '../lib/food-intelligence';
+import { buildAllDataCSVRows, buildSampleCSVRows, downloadCsv } from '../utils/survey-csv-export';
+import { Button } from './ui/button';
+import { Card, CardContent } from './ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from './ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { ProjectHeader } from './project-header';
+import { NextActionCard } from './next-action-card';
+import { DataProvenanceBadge } from './data-provenance-badge';
+import { StageEmptyState } from './stage-empty-state';
+import {
+  DataSourceSummary,
+  EvidenceStrengthCard,
+  InsightInterpretationBlock,
+  InsightsExecutiveSummary,
+  InsightsSectionHeader,
+  InsightsSectionNav,
+  RawDataAppendix,
+} from './insights-ui';
+import { CATATab, CommentsTab, EmotionalTab, HedonicTab, IntensityTab } from './survey-analysis-tabs';
+import { AllSamplesComparisonView } from './all-samples-comparison';
+import { MultiSampleAnalysis } from './multi-sample-analysis';
+import { ConceptTestAnalysis } from './concept-test-analysis';
 
-const RESEARCH_PANEL_N = 14;
-
-const ANALYSIS_TYPES = [
-  { id: 'single' as const, icon: Users,     label: 'Single-Sample Analysis', desc: 'CATA, Intensity, Hedonic, Emotions',        color: ANALYSIS_ACCENT.single },
-  { id: 'multi' as const,  icon: Layers,    label: 'Multi-Sample Analysis',  desc: 'Discrimination, Ranking, Comparison',       color: ANALYSIS_ACCENT.multi },
-  { id: 'concept' as const, icon: Megaphone, label: 'Concept Tests',         desc: 'Appeal, Visual preference, Purchase intent', color: ANALYSIS_ACCENT.concept },
-];
-
-function SectionHeading({ children }: { children: ReactNode }) {
-  return (
-    <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{children}</h2>
-  );
+function buildImportedProfiles(dataset: ReturnType<typeof useInstrumentalDataset>['data']): EnhancedSensoryProfile[] {
+  return (dataset?.eTongueData ?? []).map(sample => {
+    const composition = dataset?.compositionData[sample.sampleId];
+    const compounds = dataset?.gcmsData[sample.sampleId] ?? [];
+    return {
+      sampleId: sample.sampleId,
+      sampleName: sample.sampleName || sample.sampleId,
+      taste: {
+        sourness: sample.sourness, bitterness: sample.bitterness, astringency: 0,
+        umami: sample.umami, saltiness: sample.saltiness, sweetness: sample.sweetness,
+        astringencyAftertaste: 0, umamiAftertaste: sample.umami,
+        bitternessAftertaste: sample.bitterness, richness: sample.umami,
+      },
+      composition: {
+        salt: composition?.saltContent ?? 0, fat: composition?.fat ?? 0,
+        protein: composition?.protein ?? 0,
+        starchDryMatter: Math.max(0, 100 - ((composition?.moisture ?? 0) + (composition?.fat ?? 0) + (composition?.protein ?? 0))),
+      },
+      gcmsOlfactometry: compounds.map((compound, index) => ({
+        retentionTime: index + 1, compound: compound.name, nistProbability: 0,
+        peakArea: compound.concentration, odour: compound.aroma,
+        odourIntensity: compound.threshold > 0 && compound.concentration > compound.threshold ? 5 : Math.min(5, Math.max(1, compound.concentration)),
+        concentration: compound.concentration, threshold: compound.threshold,
+      })),
+      istdRecovery: 0,
+      olfactometryFlowSplit: 'Imported CSV',
+      cata: {},
+      intensity: {},
+      hedonic: { appearance: 0, flavour: 0, texture: 0, overall: 0 },
+      emotions: { positive: 0, negative: 0 },
+    };
+  });
 }
 
 export function SurveyAnalysis() {
   const { user } = useAuth();
-  const { data: allProducts = [] } = useProducts();
-  const { data: instrumentalDataset } = useInstrumentalDataset(user?.role === 'admin');
-  const {
-    liveDataFetchFailed,
-    multiSampleResponses,
-    selectedMultiProduct,
-    setSelectedMultiProduct,
-    liveAggregations,
-    commentsByProduct,
-  } = useSurveyData();
-
   const { foodType, subCategory } = useFoodType();
-  const [selectedSample, setSelectedSample] = useState<string>("S1");
-  const [showAllSamples, setShowAllSamples] = useState(false);
-  const [analysisType, setAnalysisType] = useState<'single' | 'multi' | 'concept'>('single');
-  const importedSensoryData: EnhancedSensoryProfile[] = useMemo(() => (instrumentalDataset?.eTongueData ?? [])
-    .map(sample => {
-      const composition = instrumentalDataset?.compositionData?.[sample.sampleId];
-      const compounds = instrumentalDataset?.gcmsData?.[sample.sampleId] ?? [];
-      return {
-        sampleId: sample.sampleId,
-        sampleName: sample.sampleName || sample.sampleId,
-        taste: {
-          sourness: sample.sourness,
-          bitterness: sample.bitterness,
-          astringency: 0,
-          umami: sample.umami,
-          saltiness: sample.saltiness,
-          sweetness: sample.sweetness,
-          astringencyAftertaste: 0,
-          umamiAftertaste: sample.umami,
-          bitternessAftertaste: sample.bitterness,
-          richness: sample.umami,
-        },
-        composition: {
-          salt: composition?.saltContent ?? 0,
-          fat: composition?.fat ?? 0,
-          protein: composition?.protein ?? 0,
-          starchDryMatter: Math.max(0, 100 - ((composition?.moisture ?? 0) + (composition?.fat ?? 0) + (composition?.protein ?? 0))),
-        },
-        gcmsOlfactometry: compounds.map((compound, index) => ({
-          retentionTime: index + 1,
-          compound: compound.name,
-          nistProbability: 0,
-          peakArea: compound.concentration,
-          odour: compound.aroma,
-          odourIntensity: compound.threshold > 0 && compound.concentration > compound.threshold ? 5 : Math.min(5, Math.max(1, compound.concentration)),
-          concentration: compound.concentration,
-          threshold: compound.threshold,
-        })),
-        istdRecovery: 0,
-        olfactometryFlowSplit: 'Imported CSV',
-        cata: {},
-        intensity: {
-          Sourness: sample.sourness,
-          Bitterness: sample.bitterness,
-          Saltiness: sample.saltiness,
-          Umami: sample.umami,
-          Sweetness: sample.sweetness,
-        },
-        hedonic: { appearance: 0, flavour: 0, texture: 0, overall: 0 },
-        emotions: { positive: 0, negative: 0 },
-      };
-    }), [instrumentalDataset?.compositionData, instrumentalDataset?.eTongueData, instrumentalDataset?.gcmsData]);
-  const allSensoryData = useMemo(
-    () => mergeAnalysisProfiles(ENHANCED_SENSORY_DATA, importedSensoryData),
-    [importedSensoryData],
+  const importBatchId = subCategory?.startsWith('batch:') ? subCategory.replace('batch:', '') : null;
+  const status = useProjectStatus(foodType, importBatchId);
+  const { data: products = [] } = useProducts();
+  const { data: instrumentalDataset } = useInstrumentalDataset(user?.role === 'admin');
+  const { data: settings } = useWorkspaceSettings();
+  const { data: decisions = [] } = useDecisionRecords();
+  const { data: conceptTests = [] } = useAdminConceptTests();
+  const {
+    liveDataFetchFailed, multiSampleResponses, selectedMultiProduct,
+    setSelectedMultiProduct, liveAggregations, commentsByProduct,
+  } = useSurveyData();
+  const [requestedSample, setRequestedSample] = useState('');
+
+  const minimumResponses = settings?.decisionMinResponses ?? 12;
+  const projectInstrumentSamples = useMemo(
+    () => filterProjectInstrumentSamples(instrumentalDataset?.eTongueData ?? [], foodType, importBatchId),
+    [instrumentalDataset?.eTongueData, foodType, importBatchId],
   );
-
-  // Auto-select first sample in filtered set when food type changes
-  useEffect(() => {
-    const filtered = allSensoryData.filter(s => {
-      const importedSample = instrumentalDataset?.eTongueData.find(sample => sample.sampleId === s.sampleId);
-      const importedType = importedSample?.type;
-      const ft = importedType ?? sampleMatchesFoodType(s.sampleId, s.sampleName);
-      if (foodType !== 'all' && ft !== foodType) return false;
-      if (subCategory?.startsWith('batch:')) return importedSample?.importBatchId === subCategory.replace('batch:', '');
-      if (subCategory && !s.sampleName.toLowerCase().includes(subCategory.toLowerCase())) return false;
-      return true;
-    });
-    if (filtered.length > 0 && !filtered.find(s => s.sampleId === selectedSample)) {
-      setSelectedSample(filtered[0].sampleId);
+  const projectSampleIds = useMemo(() => new Set(projectInstrumentSamples.map(sample => sample.sampleId)), [projectInstrumentSamples]);
+  const projectProducts = useMemo(
+    () => filterProjectProducts(products, projectSampleIds, foodType, importBatchId),
+    [products, projectSampleIds, foodType, importBatchId],
+  );
+  const importedProfiles = useMemo(() => buildImportedProfiles(instrumentalDataset), [instrumentalDataset]);
+  const mergedProfiles = useMemo(() => mergeAnalysisProfiles(ENHANCED_SENSORY_DATA, importedProfiles), [importedProfiles]);
+  const projectSamples = useMemo(() => {
+    if (projectInstrumentSamples.length > 0) {
+      return mergedProfiles.filter(profile => projectSampleIds.has(profile.sampleId));
     }
-  }, [allSensoryData, foodType, instrumentalDataset?.eTongueData, selectedSample, subCategory]);
+    if (importBatchId) return [];
+    return mergedProfiles.filter(profile => sampleMatchesFoodType(profile.sampleId, profile.sampleName) === foodType);
+  }, [projectInstrumentSamples.length, projectSampleIds, mergedProfiles, importBatchId, foodType]);
 
-  // All hooks called — safe to guard here
-  if (user?.role !== 'admin') return null;
+  const selectedSample = projectSamples.some(sample => sample.sampleId === requestedSample)
+    ? requestedSample
+    : projectSamples[0]?.sampleId ?? '';
+  const selectedData = projectSamples.find(sample => sample.sampleId === selectedSample);
+  const selectedInstrument = projectInstrumentSamples.find(sample => sample.sampleId === selectedSample);
+  const selectedProduct = projectProducts.find(product => product.sourceSampleId === selectedSample);
+  const matchingLiveData = selectedData ? liveAggregations.find(aggregation =>
+    aggregation.sourceSampleId === selectedData.sampleId ||
+    aggregation.productName.toLowerCase() === selectedData.sampleName.toLowerCase() ||
+    aggregation.productName.toLowerCase().includes(`(${selectedData.sampleId.toLowerCase()})`)
+  ) : undefined;
+  const usingLiveData = Boolean(matchingLiveData);
+  const usingReferenceData = Boolean(selectedData && !selectedInstrument && !matchingLiveData);
+  const liveResponseCount = matchingLiveData?.n ?? 0;
 
-  const filteredSamples = allSensoryData.filter(s => {
-    const importedSample = instrumentalDataset?.eTongueData.find(sample => sample.sampleId === s.sampleId);
-    const importedType = importedSample?.type;
-    const ft = importedType ?? sampleMatchesFoodType(s.sampleId, s.sampleName);
-    if (foodType !== 'all' && ft !== foodType) return false;
-    if (subCategory?.startsWith('batch:')) return importedSample?.importBatchId === subCategory.replace('batch:', '');
-    if (subCategory && !s.sampleName.toLowerCase().includes(subCategory.toLowerCase())) return false;
-    return true;
+  const projectConcepts = useMemo(
+    () => filterProjectConceptTests(conceptTests, { foodType, importBatchId, projectName: status.projectName }),
+    [conceptTests, foodType, importBatchId, status.projectName],
+  );
+  const multiSampleProducts = projectProducts.filter(product => product.isMultiSample);
+  const activeMultiSampleProduct = multiSampleProducts.some(product => product.id === selectedMultiProduct)
+    ? selectedMultiProduct
+    : multiSampleProducts[0]?.id ?? '';
+  const primaryConcept = projectConcepts[0];
+  const { data: primaryConceptResponses = [] } = useConceptTestResponses(primaryConcept?.id);
+  const projectDecisions = decisions.filter(decision =>
+    projectSampleIds.has(decision.sampleId) ||
+    (!importBatchId && sampleMatchesFoodType(decision.sampleId, decision.sampleName) === foodType)
+  );
+  const latestDecision = projectDecisions[0] ?? null;
+  const selectedGcms = selectedData ? instrumentalDataset?.gcmsData[selectedData.sampleId] ?? [] : [];
+  const selectedComposition = selectedData ? instrumentalDataset?.compositionData[selectedData.sampleId] : undefined;
+  const datasetsPresent = [selectedInstrument, selectedGcms.length > 0, selectedComposition].filter(Boolean).length;
+  const strength = deriveInsightsEvidenceStrength({
+    liveResponseCount,
+    minimumResponses,
+    liveDataFetchFailed,
+    usesReferenceData: usingReferenceData,
+    datasetsPresent,
+    hasBlockingWarnings: status.warnings.length > 0,
+  });
+  const nextAction = deriveInsightsNextAction({
+    fallback: status.nextAction,
+    hasInstrumentData: Boolean(selectedInstrument),
+    productCount: selectedProduct ? 1 : 0,
+    assignedPanelistCount: selectedProduct?.assignedPanelistIds?.length ?? 0,
+    liveResponseCount,
+    minimumResponses,
+    decision: latestDecision?.decision ?? null,
+    conceptCount: projectConcepts.length,
+    conceptResponseCount: primaryConceptResponses.length,
+    reportStatus: status.reportStatus,
   });
 
-  const selectedData = filteredSamples.find(s => s.sampleId === selectedSample);
+  if (user?.role !== 'admin') return null;
 
   if (!selectedData) {
     const activeLabel = foodType === 'all' ? 'selected food types' : formatFoodTypeLabel(foodType);
-    const importedSamples = (instrumentalDataset?.eTongueData ?? []).filter(sample =>
-      (foodType === 'all' ? true : sample.type === foodType) &&
-      (subCategory?.startsWith('batch:') ? sample.importBatchId === subCategory.replace('batch:', '') : true)
-    );
-    const activeProducts = allProducts.filter(product => {
-      if (product.status === 'archived') return false;
-      if (foodType === 'all') return true;
-      if (subCategory?.startsWith('batch:')) return product.sourceImportBatchId === subCategory.replace('batch:', '');
-      return matchFoodType(product.category) === foodType;
-    });
-
     return (
       <div className="space-y-6">
         <ProjectHeader />
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Insights</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Understand how instrumental data and panelist perception align for {activeLabel}.
-          </p>
+          <h1 className="text-2xl font-semibold text-slate-950">Insights</h1>
+          <p className="mt-1 text-sm text-slate-600">Interpret panel and instrumental evidence for {activeLabel}.</p>
         </div>
-
-        <Card className="border-dashed">
-          <CardContent className="py-10">
-            <div className="max-w-3xl">
-              <div className="flex items-center gap-3">
-                <div className="flex size-11 items-center justify-center rounded-lg bg-blue-50">
-                  <ClipboardList className="size-5 text-blue-600" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-900">Create questionnaires from the imported {activeLabel} data</h2>
-                  <p className="mt-1 text-sm text-slate-600">
-                    The CSV import is the starting point. Turn those machine samples into questionnaire-ready products, then panelist submissions will populate these charts.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-6 grid grid-cols-3 gap-3">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <div className="text-2xl font-bold text-slate-900">{importedSamples.length}</div>
-                  <div className="text-sm text-slate-500">machine samples</div>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <div className="text-2xl font-bold text-slate-900">{activeProducts.length}</div>
-                  <div className="text-sm text-slate-500">configured products</div>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <div className="text-2xl font-bold text-slate-900">0</div>
-                  <div className="text-sm text-slate-500">completed questionnaires</div>
-                </div>
-              </div>
-
-              <div className="mt-6 flex flex-wrap gap-2">
-                <Button asChild>
-                  <Link to="/admin">
-                    <ClipboardList className="size-4" />
-                    Create questionnaires from your samples
-                  </Link>
-                </Button>
-                <Button asChild variant="outline">
-                  <Link to="/stage1">
-                    <FlaskConical className="size-4" />
-                    Import more machine data
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <StageEmptyState
+          icon={BarChart3}
+          headline={`No analyzable samples for ${activeLabel}`}
+          body="Import a machine dataset or create questionnaires for the active project before reviewing evidence."
+          cta={{ label: 'Import instrumental data', to: '/stage1' }}
+          secondaryCta={{ label: 'Configure questionnaires', to: '/admin' }}
+        />
       </div>
     );
   }
 
-  // Calculate CATA frequencies across all attributes
-  const cataAttributes = Object.entries(selectedData.cata)
-    .map(([attr, count]) => ({
-      id: `cata-${attr}`,
-      attribute: attr,
-      count: count,
-      percentage: (count / RESEARCH_PANEL_N) * 100
-    }))
-    .sort((a, b) => b.count - a.count);
+  const activeCata = matchingLiveData
+    ? Object.entries(matchingLiveData.cata).map(([attribute, count]) => ({
+        id: `cata-${attribute}`, attribute, count, percentage: (count / matchingLiveData.n) * 100,
+      })).sort((a, b) => b.count - a.count)
+    : Object.entries(selectedData.cata).map(([attribute, count]) => ({
+        id: `cata-${attribute}`, attribute, count, percentage: (count / 14) * 100,
+      })).sort((a, b) => b.count - a.count);
+  const activeIntensity = matchingLiveData
+    ? Object.entries(matchingLiveData.intensity).map(([attribute, value]) => ({ id: `intensity-${attribute}`, attribute, value, fullMark: 5 }))
+    : Object.entries(selectedData.intensity).map(([attribute, value]) => ({ id: `intensity-${attribute}`, attribute, value, fullMark: 10 }));
+  const activeHedonic = matchingLiveData
+    ? ['overall', 'appearance', 'aroma', 'flavor', 'texture'].map(category => ({
+        id: `hedonic-${category}`, category: category === 'flavor' ? 'Flavour' : category[0].toUpperCase() + category.slice(1),
+        score: matchingLiveData.hedonic[category] ?? 0, sd: matchingLiveData.hedonicSD[category] ?? 0,
+      }))
+    : [
+        ['Appearance', selectedData.hedonic.appearance], ['Flavour', selectedData.hedonic.flavour],
+        ['Texture', selectedData.hedonic.texture], ['Overall', selectedData.hedonic.overall],
+      ].map(([category, score]) => ({ id: `hedonic-${category}`, category: String(category), score: Number(score), sd: 0.8 }));
+  const activeEmotions = matchingLiveData?.emotions ?? selectedData.emotions;
+  const panelN = matchingLiveData?.n ?? 14;
+  const averageHedonic = activeHedonic.length
+    ? activeHedonic.reduce((sum, item) => sum + item.score, 0) / activeHedonic.length
+    : 0;
+  const averageIntensity = activeIntensity.length
+    ? activeIntensity.reduce((sum, item) => sum + item.value, 0) / activeIntensity.length
+    : 0;
+  const emotionalBalance = activeEmotions.positive - activeEmotions.negative;
+  const strongestHedonic = [...activeHedonic].sort((a, b) => b.score - a.score)[0];
+  const weakestHedonic = [...activeHedonic].sort((a, b) => a.score - b.score)[0];
+  const keyStrength = usingLiveData
+    ? strongestHedonic && strongestHedonic.score > 0
+      ? `${strongestHedonic.category} is the strongest liking dimension at ${strongestHedonic.score.toFixed(1)}/9.`
+      : activeCata[0] ? `${activeCata[0].attribute} is the most-selected descriptor.` : 'No clear sensory strength is established yet.'
+    : 'Live panel evidence has not yet established a client-facing sensory strength.';
+  const keyConcern = !usingLiveData
+    ? 'Collect live panel responses before making product claims.'
+    : weakestHedonic && weakestHedonic.score < 6
+      ? `${weakestHedonic.category} is the lowest liking dimension at ${weakestHedonic.score.toFixed(1)}/9.`
+      : strength.note;
 
-  // Intensity ratings for radar chart
-  const intensityData = Object.entries(selectedData.intensity).map(([key, value]) => ({
-    id: `intensity-${key}`,
-    attribute: key.replace(/([A-Z])/g, ' $1').trim(),
-    value: value,
-    fullMark: 10
-  }));
-
-  // Hedonic scores (sd = 0.8 placeholder for static mock data)
-  const hedonicData = [
-    { id: 'hedonic-appearance', category: "Appearance", score: selectedData.hedonic.appearance, sd: 0.8 },
-    { id: 'hedonic-flavour', category: "Flavour", score: selectedData.hedonic.flavour, sd: 0.8 },
-    { id: 'hedonic-texture', category: "Texture", score: selectedData.hedonic.texture, sd: 0.8 },
-    { id: 'hedonic-overall', category: "Overall", score: selectedData.hedonic.overall, sd: 0.8 }
+  const comparisonProfiles = projectSamples.filter(sample =>
+    liveAggregations.some(aggregation => aggregation.sourceSampleId === sample.sampleId) ||
+    (!projectSampleIds.has(sample.sampleId) && sample.hedonic.overall > 0)
+  );
+  const allSamplesHedonic = comparisonProfiles.map(sample => {
+    const live = liveAggregations.find(aggregation => aggregation.sourceSampleId === sample.sampleId);
+    return {
+      id: sample.sampleId,
+      name: sample.sampleName,
+      overall: live?.hedonic.overall ?? sample.hedonic.overall,
+      flavour: live?.hedonic.flavor ?? sample.hedonic.flavour,
+      texture: live?.hedonic.texture ?? sample.hedonic.texture,
+      appearance: live?.hedonic.appearance ?? sample.hedonic.appearance,
+    };
+  });
+  const showComparison = comparisonProfiles.length > 1 || multiSampleProducts.length > 0;
+  const comments = matchingLiveData ? commentsByProduct[matchingLiveData.productId] ?? [] : [];
+  const sections = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'sensory-evidence', label: 'Sensory evidence' },
+    { id: 'instrumental-evidence', label: 'Instrumental evidence' },
+    ...(showComparison ? [{ id: 'sample-comparison', label: 'Sample comparison' }] : []),
+    { id: 'concept-feedback', label: 'Concept feedback' },
+    { id: 'comments-themes', label: 'Comments' },
+    { id: 'appendix', label: 'Appendix' },
   ];
 
-  // All samples comparison for hedonic overall
-  const allSamplesHedonic = allSensoryData.map(s => ({
-    id: `all-hedonic-${s.sampleId}`,
-    name: s.sampleName,
-    overall: s.hedonic.overall,
-    flavour: s.hedonic.flavour,
-    texture: s.hedonic.texture,
-    appearance: s.hedonic.appearance
-  }));
-
-  // Auto-match: if panelists have submitted responses for this exact product name, use that data
-  const matchingLiveData = liveAggregations.find(
-    a => a.sourceSampleId === selectedData.sampleId ||
-      a.productName.toLowerCase() === selectedData.sampleName.toLowerCase() ||
-      a.productName.toLowerCase().includes(`(${selectedData.sampleId.toLowerCase()})`)
-  );
-  const usingLiveData = !!matchingLiveData;
-
-  const activeCataAttributes = matchingLiveData
-    ? Object.entries(matchingLiveData.cata)
-        .map(([attr, count]) => ({
-          id: `cata-${attr}`,
-          attribute: attr,
-          count,
-          percentage: (count / matchingLiveData.n) * 100,
-        }))
-        .sort((a, b) => b.count - a.count)
-    : cataAttributes;
-
-  const intensityMax = usingLiveData ? 5 : 10;
-  const activeIntensityData = matchingLiveData
-    ? Object.entries(matchingLiveData.intensity).map(([key, value]) => ({
-        id: `intensity-${key}`,
-        attribute: key,
-        value: Number(value),
-        fullMark: 5,
-      }))
-    : intensityData;
-
-  const activeHedonicData = matchingLiveData
-    ? [
-        { id: 'hedonic-overall',    category: 'Overall',    score: matchingLiveData.hedonic['overall'] ?? 0,    sd: matchingLiveData.hedonicSD['overall'] ?? 0 },
-        { id: 'hedonic-appearance', category: 'Appearance', score: matchingLiveData.hedonic['appearance'] ?? 0, sd: matchingLiveData.hedonicSD['appearance'] ?? 0 },
-        { id: 'hedonic-aroma',      category: 'Aroma',      score: matchingLiveData.hedonic['aroma'] ?? 0,      sd: matchingLiveData.hedonicSD['aroma'] ?? 0 },
-        { id: 'hedonic-flavor',     category: 'Flavour',    score: matchingLiveData.hedonic['flavor'] ?? 0,     sd: matchingLiveData.hedonicSD['flavor'] ?? 0 },
-        { id: 'hedonic-texture',    category: 'Texture',    score: matchingLiveData.hedonic['texture'] ?? 0,    sd: matchingLiveData.hedonicSD['texture'] ?? 0 },
-      ]
-    : hedonicData;
-
-  const activeEmotions    = matchingLiveData ? matchingLiveData.emotions : selectedData.emotions;
-  const activePanelistN   = matchingLiveData ? matchingLiveData.n : RESEARCH_PANEL_N;
-  const activeSampleId    = selectedData.sampleId;
-
-  const activeAvgHedonic = (activeHedonicData.reduce((s, d) => s + d.score, 0) / activeHedonicData.length).toFixed(1);
-  const activeAvgIntensity = activeIntensityData.length > 0
-    ? (activeIntensityData.reduce((s, d) => s + d.value, 0) / activeIntensityData.length).toFixed(1)
-    : '0.0';
-  const activeTopCataCount     = activeCataAttributes.length > 0 ? activeCataAttributes[0].count : 0;
-  const activeEmotionalBalance = (activeEmotions.positive - activeEmotions.negative).toFixed(1);
-
   const exportSampleCSV = () => {
-    if (!selectedData) return;
-    const csv = buildSampleCSVRows(selectedData, selectedSample, usingLiveData, activeEmotions);
-    downloadCsv(csv, `sample-${selectedSample}-data-${new Date().toISOString().split('T')[0]}.csv`);
+    downloadCsv(
+      buildSampleCSVRows(selectedData, selectedSample, usingLiveData, activeEmotions),
+      `${selectedData.sampleId.toLowerCase()}-insights-${new Date().toISOString().slice(0, 10)}.csv`,
+    );
   };
-
-  const exportAllDataCSV = () => {
-    const csv = buildAllDataCSVRows(liveAggregations);
-    downloadCsv(csv, `issf-full-export-${new Date().toISOString().split('T')[0]}.csv`);
-  };
-
-  const multiSampleProducts = allProducts.filter(p => {
-    if (!p.isMultiSample) return false;
-    if (foodType === 'all') return true;
-    if (matchFoodType(p.category) !== foodType) return false;
-    if (subCategory?.startsWith('batch:')) return p.sourceImportBatchId === subCategory.replace('batch:', '');
-    if (subCategory && p.category !== subCategory) return false;
-    return true;
-  });
 
   return (
     <div className="space-y-6">
       <ProjectHeader />
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-semibold text-slate-900">Analyze Results</h1>
-            {analysisType === 'single' && (
-              <DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={activePanelistN} />
-            )}
-          </div>
-          <p className="text-sm text-slate-500 mt-1">
-            {analysisType === 'single'
-              ? 'CATA, Intensity, Hedonic, Emotional'
-              : analysisType === 'multi'
-                ? 'Multi-sample comparative evaluations — Discrimination, Ranking, Preferences'
-                : 'Concept test panelist feedback — Appeal, Visual preference, Purchase intent'}
-          </p>
+          <h1 className="text-2xl font-semibold text-slate-950">Insights</h1>
+          <p className="mt-1 max-w-2xl text-sm text-slate-600">Understand what the evidence says, how reliable it is, and what the project should do next.</p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {analysisType === 'single' && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline">
-                  <Download className="size-4 mr-2" />
-                  Export
-                  <ChevronDown className="size-4 ml-1 opacity-60" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={exportSampleCSV}>
-                  Current sample (CSV)
-                </DropdownMenuItem>
-                {user?.role === 'admin' && (
-                  <DropdownMenuItem onClick={exportAllDataCSV}>
-                    All panel data (CSV)
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-          <Button asChild className="bg-emerald-700 text-white hover:bg-emerald-800">
-            <Link to="/decision">
-              <GitMerge className="size-4 mr-2" />
-              Move forward & write report
-            </Link>
-          </Button>
-        </div>
+        <Select value={selectedSample} onValueChange={setRequestedSample}>
+          <SelectTrigger className="w-full bg-white sm:w-72"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {projectSamples.map(sample => <SelectItem key={sample.sampleId} value={sample.sampleId}>{sample.sampleName}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* Step 1 — Analysis type */}
-      <div className="space-y-3">
-        <SectionHeading>Analysis type</SectionHeading>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-4xl">
-          {ANALYSIS_TYPES.map(({ id, icon: Icon, label, desc, color }) => {
-            const isActive = analysisType === id;
-            return (
-              <button
-                key={id}
-                onClick={() => setAnalysisType(id)}
-                aria-pressed={isActive}
-                className="p-4 rounded-lg border-2 transition-all text-left hover:border-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-                style={{
-                  borderColor: isActive ? color : '#e2e8f0',
-                  backgroundColor: isActive ? `${color}12` : 'white',
-                }}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-10 h-10 rounded-lg flex items-center justify-center transition-colors"
-                    style={{ backgroundColor: isActive ? color : '#f1f5f9' }}
-                  >
-                    <Icon className="size-5" style={{ color: isActive ? 'white' : '#64748b' }} />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-slate-900">{label}</div>
-                    <p className="text-xs text-slate-500">{desc}</p>
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <InsightsSectionNav sections={sections} />
+
+      <InsightsExecutiveSummary
+        sampleName={selectedData.sampleName}
+        category={formatFoodTypeLabel(foodType)}
+        projectName={status.projectName}
+        panelResponses={liveResponseCount}
+        conceptResponses={primaryConceptResponses.length}
+        strength={strength}
+        keyStrength={keyStrength}
+        keyConcern={keyConcern}
+        recommendedAction={nextAction.description}
+      />
 
       {liveDataFetchFailed && (
-        <div className="flex items-center gap-2 px-4 py-3 bg-rose-50 border border-rose-300 rounded-lg text-sm">
-          <AlertCircle className="size-4 text-rose-600 shrink-0" />
-          <span className="text-rose-800 font-medium">
-            Could not load live panel responses. Charts are showing <strong>simulated research data only</strong>. Do not export for client use until this is resolved.
-          </span>
+        <div className="flex items-start gap-2 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+          <AlertCircle className="mt-0.5 size-4 shrink-0" />
+          Live panel responses could not be loaded. Any reference charts below are for method orientation only.
         </div>
       )}
 
-      {analysisType === 'single' && usingLiveData && !liveDataFetchFailed && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-300 rounded-lg text-sm">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-emerald-800 font-medium">
-            Showing live panel responses for <strong>{selectedData.sampleName}</strong> (n={matchingLiveData?.n})
-          </span>
-        </div>
-      )}
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <EvidenceStrengthCard strength={strength} />
+        <DataSourceSummary sources={[
+          {
+            label: 'Panel sensory evidence', available: usingLiveData || usingReferenceData,
+            provenance: usingLiveData ? 'live' : 'reference', n: usingLiveData ? liveResponseCount : undefined,
+            detail: usingLiveData ? `${liveResponseCount} live responses matched to this sample.` : 'Reference/demo data is visible only to explain the analysis method.',
+          },
+          {
+            label: 'Instrumental evidence', available: Boolean(selectedInstrument), provenance: 'imported',
+            detail: selectedInstrument ? `${datasetsPresent} of 3 expected instrumental sources are available.` : 'No imported instrument record is linked to this sample.',
+          },
+          {
+            label: 'Concept feedback', available: Boolean(primaryConcept), provenance: primaryConcept ? 'live' : undefined,
+            n: primaryConcept ? primaryConceptResponses.length : undefined,
+            detail: primaryConcept ? `${primaryConcept.name} is linked to this project.` : 'No project-scoped concept test is available.',
+          },
+          {
+            label: 'Administrative decision', available: Boolean(latestDecision), provenance: latestDecision ? 'approved' : undefined,
+            detail: latestDecision ? `${latestDecision.decision} saved at ISSF ${latestDecision.issfScore.toFixed(0)}.` : 'No saved GO / TWEAK / STOP decision exists yet.',
+          },
+        ]} />
+      </div>
 
-      {analysisType === 'single' ? (
-        <>
-          {/* Step 2 — Sample selector */}
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <SectionHeading>Sample ({filteredSamples.length})</SectionHeading>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                {SAMPLE_TYPE_LEGEND
-                  .filter(t => filteredSamples.some(s => getSampleColor(s.sampleName) === t.color))
-                  .map(t => (
-                    <span key={t.label} className="flex items-center gap-1.5 text-xs text-slate-500">
-                      <span className="size-2 rounded-full" style={{ backgroundColor: t.color }} />
-                      {t.label}
-                    </span>
-                  ))}
-              </div>
+      <NextActionCard projectName={selectedData.sampleName} action={nextAction} />
+
+      <section className="space-y-4">
+        <InsightsSectionHeader
+          id="sensory-evidence"
+          icon={Users}
+          title="Sensory evidence"
+          description="Panel perception, liking, descriptors, intensity, and emotional response for the selected sample."
+          action={<DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={usingLiveData ? liveResponseCount : undefined} />}
+        />
+        {!usingLiveData && !usingReferenceData ? (
+          <StageEmptyState icon={Users} headline="No sensory responses yet" body="Assign and send the questionnaire to collect live panel evidence for this sample." cta={{ label: 'Configure survey', to: '/admin' }} />
+        ) : (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                [Heart, 'Average liking', `${averageHedonic.toFixed(1)}/9`],
+                [CheckSquare, 'Top descriptor', activeCata[0]?.attribute ?? 'Not available'],
+                [TrendingUp, 'Average intensity', `${averageIntensity.toFixed(1)}/${usingLiveData ? 5 : 10}`],
+                [Smile, 'Emotional balance', emotionalBalance.toFixed(1)],
+              ].map(([Icon, label, value]) => (
+                <Card key={String(label)} className="border border-slate-200">
+                  <CardContent className="flex items-center gap-3 py-4">
+                    <Icon className="size-5 shrink-0 text-slate-500" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-500">{String(label)}</p>
+                      <p className="mt-0.5 truncate text-lg font-bold text-slate-950">{String(value)}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-                  {filteredSamples.map(sample => {
-                    const typeColor = getSampleColor(sample.sampleName);
-                    const isSelected = selectedSample === sample.sampleId;
-                    return (
-                      <button
-                        key={sample.sampleId}
-                        onClick={() => setSelectedSample(sample.sampleId)}
-                        aria-pressed={isSelected}
-                        className="flex items-center gap-2.5 p-3 rounded-lg border-2 transition-all text-left hover:border-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-                        style={{
-                          borderColor: isSelected ? typeColor : '#e2e8f0',
-                          backgroundColor: isSelected ? `${typeColor}14` : 'white',
-                        }}
-                      >
-                        <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: typeColor }} />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-xs font-semibold text-slate-900 leading-tight">{sample.sampleName}</span>
-                          <span className="text-xs font-semibold" style={{ color: typeColor }}>
-                            {sample.hedonic.overall.toFixed(1)}<span className="text-slate-400 font-normal">/9</span>
-                          </span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Key Metrics */}
-          <div className="grid grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <Heart className="size-8 text-rose-500" />
-                  <div>
-                    <div className="text-2xl font-bold text-slate-900">{activeAvgHedonic}</div>
-                    <div className="text-sm text-slate-600">Avg Hedonic</div>
-                    <div className="text-xs text-slate-500">1-9 scale</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <CheckSquare className="size-8 text-blue-500" />
-                  <div>
-                    <div className="text-2xl font-bold text-slate-900">{activeTopCataCount}/{activePanelistN}</div>
-                    <div className="text-sm text-slate-600">Top CATA</div>
-                    <div className="text-xs text-slate-500">{activeCataAttributes[0]?.attribute || "N/A"}</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <TrendingUp className="size-8 text-purple-500" />
-                  <div>
-                    <div className="text-2xl font-bold text-slate-900">{activeAvgIntensity}</div>
-                    <div className="text-sm text-slate-600">Avg Intensity</div>
-                    <div className="text-xs text-slate-500">0-10 scale</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  {parseFloat(activeEmotionalBalance) >= 0 ? (
-                    <Smile className="size-8 text-emerald-500" />
-                  ) : (
-                    <Frown className="size-8 text-amber-500" />
-                  )}
-                  <div>
-                    <div className="text-2xl font-bold text-slate-900">{activeEmotionalBalance}</div>
-                    <div className="text-sm text-slate-600">Emotion Balance</div>
-                    <div className="text-xs text-slate-500">Pos - Neg</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <SectionHeading>{showAllSamples ? 'Compare all samples' : 'Detailed results'}</SectionHeading>
-              <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-sm" role="group" aria-label="Result view">
-                <button
-                  onClick={() => setShowAllSamples(false)}
-                  aria-pressed={!showAllSamples}
-                  className={`rounded-md px-3 py-1 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${
-                    !showAllSamples ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  This sample
-                </button>
-                <button
-                  onClick={() => setShowAllSamples(true)}
-                  aria-pressed={showAllSamples}
-                  className={`rounded-md px-3 py-1 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${
-                    showAllSamples ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  Compare all
-                </button>
-              </div>
-            </div>
-
-          {!showAllSamples ? (
-            <Tabs defaultValue="cata" className="w-full">
-              <TabsList className="grid w-full grid-cols-5">
-                <TabsTrigger value="cata">CATA Attributes</TabsTrigger>
-                <TabsTrigger value="intensity">Intensity Ratings</TabsTrigger>
-                <TabsTrigger value="hedonic">Hedonic Scores</TabsTrigger>
-                <TabsTrigger value="emotional">Emotional Profile</TabsTrigger>
-                <TabsTrigger value="comments">
-                  Comments
-                  {usingLiveData && matchingLiveData && (commentsByProduct[matchingLiveData.productId]?.length ?? 0) > 0 && (
-                    <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-blue-600 text-white rounded-full">
-                      {commentsByProduct[matchingLiveData.productId].length}
-                    </span>
-                  )}
-                </TabsTrigger>
+            <InsightInterpretationBlock
+              tone={strength.representative ? 'info' : 'warning'}
+              finding={keyStrength}
+              evidence={`${usingLiveData ? liveResponseCount : 0} live panel responses support this view.`}
+              confidence={strength.note}
+              action={nextAction.description}
+            />
+            <Tabs defaultValue="hedonic">
+              <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4">
+                <TabsTrigger value="hedonic">Liking</TabsTrigger>
+                <TabsTrigger value="cata">Descriptors</TabsTrigger>
+                <TabsTrigger value="intensity">Intensity</TabsTrigger>
+                <TabsTrigger value="emotional">Emotional</TabsTrigger>
               </TabsList>
-
-              <CATATab
-                activeCataAttributes={activeCataAttributes}
-                activePanelistN={activePanelistN}
-                usingLiveData={usingLiveData}
-                activeSampleId={activeSampleId}
-              />
-              <IntensityTab
-                activeIntensityData={activeIntensityData}
-                activePanelistN={activePanelistN}
-                usingLiveData={usingLiveData}
-                intensityMax={intensityMax}
-              />
-              <HedonicTab
-                activeHedonicData={activeHedonicData}
-                activeAvgHedonic={activeAvgHedonic}
-                activePanelistN={activePanelistN}
-              />
-              <CommentsTab
-                usingLiveData={usingLiveData}
-                matchingLiveData={matchingLiveData}
-                commentsByProduct={commentsByProduct}
-              />
-              <EmotionalTab
-                activeEmotions={activeEmotions}
-                activeEmotionalBalance={activeEmotionalBalance}
-              />
+              <TabsContent value="hedonic"><HedonicTab activeHedonicData={activeHedonic} activeAvgHedonic={averageHedonic.toFixed(1)} activePanelistN={panelN} usingLiveData={usingLiveData} /></TabsContent>
+              <TabsContent value="cata"><CATATab activeCataAttributes={activeCata} activePanelistN={panelN} usingLiveData={usingLiveData} activeSampleId={selectedData.sampleId} /></TabsContent>
+              <TabsContent value="intensity"><IntensityTab activeIntensityData={activeIntensity} activePanelistN={panelN} usingLiveData={usingLiveData} intensityMax={usingLiveData ? 5 : 10} /></TabsContent>
+              <TabsContent value="emotional"><EmotionalTab activeEmotions={activeEmotions} activeEmotionalBalance={emotionalBalance.toFixed(1)} activePanelistN={panelN} usingLiveData={usingLiveData} /></TabsContent>
             </Tabs>
-          ) : (
-            <AllSamplesComparisonView
-              allSamplesHedonic={allSamplesHedonic}
-              enhancedSensoryData={allSensoryData}
+          </>
+        )}
+      </section>
+
+      <section className="space-y-4">
+        <InsightsSectionHeader id="instrumental-evidence" icon={FlaskConical} title="Instrumental evidence" description="Imported machine measurements remain separate from panel perception and are interpreted only when linked to this sample." action={selectedInstrument && <DataProvenanceBadge provenance="imported" />} />
+        {!selectedInstrument ? (
+          <StageEmptyState icon={FlaskConical} headline="No linked instrumental record" body="Import or link instrument data before making machine-supported claims for this sample." cta={{ label: 'Import data', to: '/stage1' }} />
+        ) : (
+          <>
+            <div className="grid gap-4 lg:grid-cols-3">
+              <MetricList title="E-tongue taste signals" items={[
+                ['Sourness', selectedInstrument.sourness], ['Bitterness', selectedInstrument.bitterness],
+                ['Saltiness', selectedInstrument.saltiness], ['Umami', selectedInstrument.umami], ['Sweetness', selectedInstrument.sweetness],
+              ]} />
+              <MetricList title="Composition" items={selectedComposition ? [
+                ['Protein', `${selectedComposition.protein.toFixed(1)}%`], ['Fat', `${selectedComposition.fat.toFixed(1)}%`],
+                ['Moisture', `${selectedComposition.moisture.toFixed(1)}%`], ['Salt', `${selectedComposition.saltContent.toFixed(2)}%`], ['pH', selectedComposition.pH.toFixed(2)],
+              ] : []} />
+              <MetricList title="Aroma compounds" items={selectedGcms.slice(0, 5).map(compound => [compound.name, `${compound.concentration.toFixed(1)} ppm`])} />
+            </div>
+            <InsightInterpretationBlock
+              finding={usingLiveData ? 'Instrument and panel evidence are both available for review.' : 'Instrumental evidence is available, but live sensory alignment is not yet established.'}
+              evidence={`${datasetsPresent} of 3 expected instrumental sources are linked to this sample.`}
+              confidence={datasetsPresent === 3 ? 'Instrument coverage is complete; interpretation still depends on study design.' : 'Supporting instrument coverage is incomplete.'}
+              action={usingLiveData ? 'Review machine measurements alongside panel findings before the decision stage.' : 'Collect live sensory responses before claiming sensory and instrumental alignment.'}
+            />
+          </>
+        )}
+      </section>
+
+      {showComparison && (
+        <section className="space-y-4">
+          <InsightsSectionHeader id="sample-comparison" icon={Layers} title="Sample comparison" description="Compare only samples and multi-sample studies belonging to the active project." />
+          {comparisonProfiles.length > 1 && (
+            <AllSamplesComparisonView allSamplesHedonic={allSamplesHedonic} enhancedSensoryData={comparisonProfiles} usingLiveData={comparisonProfiles.every(sample => liveAggregations.some(aggregation => aggregation.sourceSampleId === sample.sampleId))} responseCount={liveResponseCount} />
+          )}
+          {multiSampleProducts.length > 0 && (
+            <MultiSampleAnalysis
+              multiSampleResponses={multiSampleResponses}
+              multiSampleProducts={multiSampleProducts}
+              selectedMultiProduct={activeMultiSampleProduct}
+              setSelectedMultiProduct={setSelectedMultiProduct}
+              minimumResponses={minimumResponses}
             />
           )}
-          </div>
-        </>
-      ) : analysisType === 'multi' ? (
-        /* Multi-Sample Analysis Section */
-        <MultiSampleAnalysis
-          multiSampleResponses={multiSampleResponses}
-          multiSampleProducts={multiSampleProducts}
-          selectedMultiProduct={selectedMultiProduct}
-          setSelectedMultiProduct={setSelectedMultiProduct}
-        />
-      ) : (
-        /* Concept Test Analysis Section */
-        <ConceptTestAnalysis />
+        </section>
       )}
+
+      <section className="space-y-4">
+        <InsightsSectionHeader id="concept-feedback" icon={BarChart3} title="Concept feedback" description="Concept appeal, preference, purchase intent, and packaging direction scoped to this project." />
+        <ConceptTestAnalysis projectTests={projectConcepts} minimumResponses={minimumResponses} />
+      </section>
+
+      <section className="space-y-4">
+        <InsightsSectionHeader id="comments-themes" icon={MessageCircle} title="Comments and themes" description="Raw panelist language remains visible alongside clear response coverage." />
+        <CommentsTab usingLiveData={usingLiveData} matchingLiveData={matchingLiveData} commentsByProduct={commentsByProduct} />
+        {comments.length > 0 && (
+          <InsightInterpretationBlock
+            finding={`${comments.length} open-text comment${comments.length === 1 ? '' : 's'} are available for review.`}
+            evidence={`Comments were submitted within ${liveResponseCount} matched live responses.`}
+            confidence={comments.length < 3 ? 'Too few comments to infer a recurring theme.' : 'Qualitative themes should still be reviewed against the raw comments.'}
+            action="Use comments to generate hypotheses, not standalone consumer claims."
+          />
+        )}
+      </section>
+
+      <RawDataAppendix>
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">Method and provenance</h3>
+            <ul className="mt-2 space-y-2 text-sm text-slate-600">
+              <li>Sensory source: {usingLiveData ? `${liveResponseCount} live panel responses` : 'reference/demo profile'}.</li>
+              <li>Instrument sources: {datasetsPresent} of 3 available.</li>
+              <li>Concept responses: {primaryConceptResponses.length}.</li>
+              <li>Configured decision threshold: {minimumResponses} responses.</li>
+              <li>Decision: {latestDecision ? `${latestDecision.decision}, ISSF ${latestDecision.issfScore.toFixed(0)}` : 'not recorded'}.</li>
+            </ul>
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">Exports</h3>
+            <p className="mt-1 text-sm text-slate-600">CSV exports contain raw and aggregated values. Provenance and evidence limitations should accompany any client-facing interpretation.</p>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="mt-3"><Download className="size-4" />Export data</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={exportSampleCSV}>Current sample CSV</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => downloadCsv(buildAllDataCSVRows(liveAggregations), `panel-data-${new Date().toISOString().slice(0, 10)}.csv`)}>All live panel data CSV</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </RawDataAppendix>
     </div>
+  );
+}
+
+function MetricList({ title, items }: { title: string; items: Array<[string, string | number]> }) {
+  return (
+    <Card className="border border-slate-200">
+      <CardContent className="py-4">
+        <h3 className="text-sm font-bold text-slate-900">{title}</h3>
+        {items.length === 0 ? (
+          <p className="mt-3 text-sm text-slate-500">Not available for this sample.</p>
+        ) : (
+          <dl className="mt-3 space-y-2">
+            {items.map(([label, value]) => (
+              <div key={label} className="flex items-center justify-between gap-3 border-t border-slate-100 pt-2 first:border-t-0 first:pt-0">
+                <dt className="text-xs text-slate-500">{label}</dt>
+                <dd className="text-sm font-semibold text-slate-900">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </CardContent>
+    </Card>
   );
 }

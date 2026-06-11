@@ -30,8 +30,8 @@ const MODULES: Module[] = [
   },
   {
     path: "/survey-analysis",
-    label: "Analyze Results",
-    description: "CATA + hedonic scoring analysis across your panelist pool",
+    label: "Insights",
+    description: "Interpret sensory, instrumental, comparison, and concept evidence",
     icon: BarChart3,
   },
   {
