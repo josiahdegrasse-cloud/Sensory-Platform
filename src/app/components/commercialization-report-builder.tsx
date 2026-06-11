@@ -3,6 +3,7 @@ import { CheckCircle2, FileCheck2, FileText, PackageCheck, Sparkles } from 'luci
 import type { GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
 import {
   buildCommercializationSnapshot,
+  getEvidenceStrength,
   type CommercializationReportSnapshot,
   DEFAULT_REPORT_ORGANIZATION_NAME, DEFAULT_REPORT_WORKSPACE_NAME,
 } from '../lib/commercialization-report';
@@ -227,10 +228,10 @@ export function CommercializationReportBuilder({
                 <>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {[
-                      ['GO', snapshot.decision.issfScore.toFixed(1)],
-                      ['Confidence', `${snapshot.decision.confidence.toFixed(0)}%`],
+                      ['Decision', snapshot.decision.outcome],
+                      ['ISSF score', snapshot.decision.issfScore.toFixed(1)],
                       ['Concept panel', String(snapshot.evidence.responseCount)],
-                      ['Purchase intent', snapshot.evidence.purchaseIntent?.toFixed(1) ?? 'N/A'],
+                      ['Evidence strength', getEvidenceStrength(snapshot.evidence.responseCount)],
                     ].map(([label, value]) => (
                       <div key={label} className="rounded-md border border-slate-200 p-3">
                         <div className="text-xs text-slate-500">{label}</div>

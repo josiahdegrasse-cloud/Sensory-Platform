@@ -26,6 +26,7 @@ export interface CommercializationReportSnapshot {
     confidence: number;
     recommendation: string;
     dimensions: GoStopTweakDecision['dimensionScores'];
+    gates?: GoStopTweakDecision['gates'];
     prescriptions: GoStopTweakDecision['prescriptions'];
     methodVersion: string;
     fingerprint: string;
@@ -49,6 +50,39 @@ export interface CommercializationReportSnapshot {
     claimCaution: string;
   };
   generatedAt: string;
+}
+
+export type EvidenceStrength = 'Limited' | 'Directional' | 'Developing' | 'Established';
+
+export function getEvidenceStrength(responseCount: number): EvidenceStrength {
+  if (responseCount < 5) return 'Limited';
+  if (responseCount < 15) return 'Directional';
+  if (responseCount < 30) return 'Developing';
+  return 'Established';
+}
+
+export function getEvidenceStrengthNote(responseCount: number) {
+  if (responseCount === 0) {
+    return 'No concept responses are available. Concept preference and purchase intent have not been validated.';
+  }
+  if (responseCount === 1) {
+    return 'Limited concept evidence: only 1 panelist response is available. Treat concept preference as directional, not representative.';
+  }
+  if (responseCount < 30) {
+    return `Concept evidence is based on ${responseCount} panelist responses. Treat preference and purchase-intent findings as directional until a broader panel is collected.`;
+  }
+  return `Concept evidence includes ${responseCount} panelist responses. Confirm the sample design is representative before making broad market claims.`;
+}
+
+const DIMENSION_LABELS: Record<keyof GoStopTweakDecision['dimensionScores'], string> = {
+  hedonic: 'Overall sensory acceptance',
+  texture: 'Texture performance',
+  cata: 'Panelist-selected sensory descriptors',
+  emotional: 'Positive emotional response indicators',
+};
+
+export function formatDecisionDimension(dimension: keyof GoStopTweakDecision['dimensionScores']) {
+  return DIMENSION_LABELS[dimension];
 }
 
 function questionById(questions: ConceptQuestion[]) {
@@ -124,7 +158,7 @@ export function buildCommercializationSnapshot(input: {
   const strongestDimensions = Object.entries(input.liveDecision.dimensionScores)
     .sort(([, a], [, b]) => b - a)
     .slice(0, 2)
-    .map(([name, score]) => `${name} (${score.toFixed(0)})`);
+    .map(([name, score]) => `${formatDecisionDimension(name as keyof GoStopTweakDecision['dimensionScores'])} (${score.toFixed(0)})`);
   const likedSignals = [
     ...evidence.topSelections.slice(0, 3).map(item => item.option),
     ...strongestDimensions,
@@ -143,6 +177,7 @@ export function buildCommercializationSnapshot(input: {
       confidence: input.liveDecision.confidenceScore,
       recommendation: input.liveDecision.recommendation,
       dimensions: input.liveDecision.dimensionScores,
+      gates: input.liveDecision.gates,
       prescriptions: input.liveDecision.prescriptions,
       methodVersion: input.liveDecision.methodVersion,
       fingerprint: input.liveDecision.decisionFingerprint,
@@ -159,15 +194,15 @@ export function buildCommercializationSnapshot(input: {
     },
     evidence,
     narrative: {
-      executiveSummary: `${input.liveDecision.sampleName} has a confirmed GO decision with an ISSF score of ${input.liveDecision.issfScore.toFixed(1)} and ${input.liveDecision.confidenceScore.toFixed(0)}% confidence. The linked ${input.concept.name} concept was evaluated by ${evidence.responseCount} panelist${evidence.responseCount === 1 ? '' : 's'}.`,
+      executiveSummary: `${input.liveDecision.sampleName} has a confirmed GO recommendation from the saved decision model, with an ISSF score of ${input.liveDecision.issfScore.toFixed(1)}. The linked ${input.concept.name} concept was evaluated by ${evidence.responseCount} panelist${evidence.responseCount === 1 ? '' : 's'}. ${getEvidenceStrengthNote(evidence.responseCount)}`,
       whyLiked: likedSignals.length
-        ? `The strongest evidence supporting launch is ${likedSignals.join(', ')}. These signals combine formulation performance with the language panelists used when evaluating the concept.`
+        ? `The strongest available signals are ${likedSignals.join(', ')}. These findings combine the saved sensory decision dimensions with language selected during concept evaluation.`
         : `The formulation achieved a GO decision through its sensory performance. Additional concept responses will strengthen the consumer-language evidence.`,
       packagingRationale: input.packagingImageUrl
-        ? `The selected packaging expresses the approved concept positioning for ${input.concept.targetMarket || 'the target market'} and should remain the lead visual through buyer review.`
+        ? `The selected packaging expresses the current concept positioning for ${input.concept.targetMarket || 'the target market'} and is the recommended lead visual for the next review round.`
         : 'A packaging visual must be selected before this report can be approved.',
-      launchRecommendation: `Advance the formulation and selected packaging into buyer review, preserving the decision fingerprint ${input.liveDecision.decisionFingerprint}.`,
-      claimCaution: 'Panel findings support this tested concept and panel. Broader consumer or commercial claims require representative validation and legal review.',
+      launchRecommendation: `Advance ${input.liveDecision.sampleName} and the selected packaging into buyer review. This recommendation is tied to the saved decision record for this product, while broader concept validation continues.`,
+      claimCaution: `${getEvidenceStrengthNote(evidence.responseCount)} Broader consumer, nutrition, or commercial claims require representative validation and legal review.`,
     },
     generatedAt: new Date().toISOString(),
   };

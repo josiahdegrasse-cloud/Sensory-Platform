@@ -157,7 +157,7 @@ export function CommercializationReportPage() {
 
   const launchRecommendation = snapshot?.narrative.launchRecommendation ?? (
     focusDecision.decision === 'GO'
-      ? `Advance ${focusDecision.sampleName} and its concept packaging into buyer review, preserving decision fingerprint ${focusDecision.decisionFingerprint}.`
+      ? `Advance ${focusDecision.sampleName} and its concept packaging into buyer review. This recommendation is tied to the saved decision record for this product.`
       : `Address the issues raised in the Decision review before drafting a launch narrative for ${focusDecision.sampleName}.`
   );
   const claimCaution = snapshot?.narrative.claimCaution
