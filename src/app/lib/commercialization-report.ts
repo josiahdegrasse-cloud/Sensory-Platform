@@ -1,6 +1,10 @@
 import type { ConceptQuestion, ConceptResponse, ConceptTest, DecisionRecord } from './database';
 import type { GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
 
+/** Default platform branding shown when no client/tenant profile is configured. */
+export const DEFAULT_REPORT_ORGANIZATION_NAME = 'New Food Innovation';
+export const DEFAULT_REPORT_WORKSPACE_NAME = 'Sensory Analysis Workspace';
+
 export interface ConceptEvidenceSummary {
   responseCount: number;
   scaleMetrics: Array<{ question: string; average: number; count: number }>;

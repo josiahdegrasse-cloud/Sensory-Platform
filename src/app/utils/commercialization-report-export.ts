@@ -17,6 +17,17 @@ async function imageDataUrl(url: string) {
   }
 }
 
+/** Parses a `#rrggbb` / `#rgb` hex color into an RGB tuple, or null if invalid/absent. */
+function hexToRgb(hex?: string | null): [number, number, number] | null {
+  if (!hex) return null;
+  const normalized = hex.trim().replace(/^#/, '');
+  const full = normalized.length === 3
+    ? normalized.split('').map(c => c + c).join('')
+    : normalized;
+  if (!/^[0-9a-f]{6}$/i.test(full)) return null;
+  return [parseInt(full.slice(0, 2), 16), parseInt(full.slice(2, 4), 16), parseInt(full.slice(4, 6), 16)];
+}
+
 export async function downloadCommercializationReportPdf(input: {
   snapshot: CommercializationReportSnapshot;
   organizationName: string;
@@ -24,6 +35,10 @@ export async function downloadCommercializationReportPdf(input: {
   reportFooter?: string;
   version: number;
   status: string;
+  /** Per-tenant branding from WorkspaceSettings; falls back to platform defaults when absent. */
+  logoUrl?: string | null;
+  primaryColor?: string | null;
+  accentColor?: string | null;
 }) {
   const [{ jsPDF }, { default: autoTable }] = await Promise.all([
     import('jspdf'),
@@ -32,19 +47,30 @@ export async function downloadCommercializationReportPdf(input: {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const width = doc.internal.pageSize.getWidth();
   const height = doc.internal.pageSize.getHeight();
-  const packaging = await imageDataUrl(input.snapshot.concept.packagingImageUrl);
+  const [packaging, logo] = await Promise.all([
+    imageDataUrl(input.snapshot.concept.packagingImageUrl),
+    imageDataUrl(input.logoUrl ?? ''),
+  ]);
 
-  doc.setFillColor(15, 23, 42);
+  const headerColor = hexToRgb(input.primaryColor) ?? [15, 23, 42];
+  const accentColor = hexToRgb(input.accentColor) ?? [30, 41, 59];
+
+  doc.setFillColor(...headerColor);
   doc.rect(0, 0, width, 150, 'F');
   doc.setTextColor(255, 255, 255);
+  let textX = 40;
+  if (logo) {
+    doc.addImage(logo, logo.startsWith('data:image/png') ? 'PNG' : 'JPEG', 40, 28, 36, 36, undefined, 'FAST');
+    textX = 88;
+  }
   doc.setFontSize(11);
-  doc.text(input.organizationName, 40, 38);
+  doc.text(input.organizationName, textX, 38);
   doc.setFontSize(24);
-  doc.text('Commercialization Report', 40, 76);
+  doc.text('Commercialization Report', textX, 76);
   doc.setFontSize(16);
-  doc.text(input.snapshot.product.sampleName, 40, 106);
+  doc.text(input.snapshot.product.sampleName, textX, 106);
   doc.setFontSize(9);
-  doc.text(`${input.workspaceName} | Version ${input.version} | ${input.status.toUpperCase()}`, 40, 130);
+  doc.text(`${input.workspaceName} | Version ${input.version} | ${input.status.toUpperCase()}`, textX, 130);
 
   let y = 185;
   if (packaging) {
@@ -67,7 +93,7 @@ export async function downloadCommercializationReportPdf(input: {
       input.snapshot.evidence.responseCount,
       input.snapshot.evidence.purchaseIntent === null ? 'Not measured' : input.snapshot.evidence.purchaseIntent.toFixed(1),
     ]],
-    headStyles: { fillColor: [30, 41, 59] },
+    headStyles: { fillColor: accentColor },
     styles: { fontSize: 9, cellPadding: 7 },
   });
 
@@ -102,7 +128,7 @@ export async function downloadCommercializationReportPdf(input: {
       startY: sectionY + 20,
       head: [['Panelist language', 'Selections', 'Share of panel']],
       body: input.snapshot.evidence.topSelections.map(item => [item.option, item.count, `${item.percentage.toFixed(0)}%`]),
-      headStyles: { fillColor: [51, 65, 85] },
+      headStyles: { fillColor: accentColor },
       styles: { fontSize: 9, cellPadding: 6 },
     });
   }

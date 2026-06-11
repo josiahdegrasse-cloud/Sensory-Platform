@@ -4,6 +4,7 @@ import type { GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
 import {
   buildCommercializationSnapshot,
   type CommercializationReportSnapshot,
+  DEFAULT_REPORT_ORGANIZATION_NAME, DEFAULT_REPORT_WORKSPACE_NAME,
 } from '../lib/commercialization-report';
 import {
   useAdminConceptTests,
@@ -260,11 +261,14 @@ export function CommercializationReportBuilder({
                       disabled={!savedReportId}
                       onClick={() => downloadCommercializationReportPdf({
                         snapshot,
-                        organizationName: settings?.organizationName ?? 'New Food Innovation',
-                        workspaceName: settings?.workspaceName ?? 'Sensory Analysis Workspace',
+                        organizationName: settings?.organizationName ?? DEFAULT_REPORT_ORGANIZATION_NAME,
+                        workspaceName: settings?.workspaceName ?? DEFAULT_REPORT_WORKSPACE_NAME,
                         reportFooter: settings?.reportFooter,
                         version: selectedReport?.version ?? savedVersion,
                         status: selectedReport?.status ?? savedStatus,
+                        logoUrl: settings?.logoUrl,
+                        primaryColor: settings?.primaryColor,
+                        accentColor: settings?.accentColor,
                       })}
                     >
                       <FileText className="size-4" />Download branded PDF
