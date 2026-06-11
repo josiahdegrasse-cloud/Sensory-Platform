@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { Link } from "react-router";
 import { useAuth } from '../contexts/auth-context';
 import { useFoodType, sampleMatchesFoodType, matchFoodType } from '../contexts/food-type-context';
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Card, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import {
@@ -27,13 +27,15 @@ import { CATATab, IntensityTab, HedonicTab, CommentsTab, EmotionalTab } from "./
 import { AllSamplesComparisonView } from "./all-samples-comparison";
 import { ConceptTestAnalysis } from "./concept-test-analysis";
 import { ProjectHeader } from "./project-header";
+import { DataProvenanceBadge } from "./data-provenance-badge";
+import { ANALYSIS_ACCENT } from "../styles/tokens";
 
 const RESEARCH_PANEL_N = 14;
 
 const ANALYSIS_TYPES = [
-  { id: 'single' as const, icon: Users,     label: 'Single-Sample Analysis', desc: 'CATA, Intensity, Hedonic, Emotions',        color: '#2563eb' },
-  { id: 'multi' as const,  icon: Layers,    label: 'Multi-Sample Analysis',  desc: 'Discrimination, Ranking, Comparison',       color: '#7c3aed' },
-  { id: 'concept' as const, icon: Megaphone, label: 'Concept Tests',         desc: 'Appeal, Visual preference, Purchase intent', color: '#ea580c' },
+  { id: 'single' as const, icon: Users,     label: 'Single-Sample Analysis', desc: 'CATA, Intensity, Hedonic, Emotions',        color: ANALYSIS_ACCENT.single },
+  { id: 'multi' as const,  icon: Layers,    label: 'Multi-Sample Analysis',  desc: 'Discrimination, Ranking, Comparison',       color: ANALYSIS_ACCENT.multi },
+  { id: 'concept' as const, icon: Megaphone, label: 'Concept Tests',         desc: 'Appeal, Visual preference, Purchase intent', color: ANALYSIS_ACCENT.concept },
 ];
 
 function SectionHeading({ children }: { children: ReactNode }) {
@@ -329,10 +331,15 @@ export function SurveyAnalysis() {
       <ProjectHeader />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Analyze Results</h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold text-slate-900">Analyze Results</h1>
+            {analysisType === 'single' && (
+              <DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={activePanelistN} />
+            )}
+          </div>
           <p className="text-sm text-slate-500 mt-1">
             {analysisType === 'single'
-              ? `${usingLiveData ? 'Live panel responses' : 'Reference panel'} (n=${activePanelistN}) — CATA, Intensity, Hedonic, Emotional`
+              ? 'CATA, Intensity, Hedonic, Emotional'
               : analysisType === 'multi'
                 ? 'Multi-sample comparative evaluations — Discrimination, Ranking, Preferences'
                 : 'Concept test panelist feedback — Appeal, Visual preference, Purchase intent'}
@@ -379,7 +386,8 @@ export function SurveyAnalysis() {
               <button
                 key={id}
                 onClick={() => setAnalysisType(id)}
-                className="p-4 rounded-lg border-2 transition-all text-left hover:border-slate-300"
+                aria-pressed={isActive}
+                className="p-4 rounded-lg border-2 transition-all text-left hover:border-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                 style={{
                   borderColor: isActive ? color : '#e2e8f0',
                   backgroundColor: isActive ? `${color}12` : 'white',
@@ -448,7 +456,8 @@ export function SurveyAnalysis() {
                       <button
                         key={sample.sampleId}
                         onClick={() => setSelectedSample(sample.sampleId)}
-                        className="flex items-center gap-2.5 p-3 rounded-lg border-2 transition-all text-left hover:border-slate-300"
+                        aria-pressed={isSelected}
+                        className="flex items-center gap-2.5 p-3 rounded-lg border-2 transition-all text-left hover:border-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                         style={{
                           borderColor: isSelected ? typeColor : '#e2e8f0',
                           backgroundColor: isSelected ? `${typeColor}14` : 'white',
@@ -531,10 +540,11 @@ export function SurveyAnalysis() {
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <SectionHeading>{showAllSamples ? 'Compare all samples' : 'Detailed results'}</SectionHeading>
-              <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-sm">
+              <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-sm" role="group" aria-label="Result view">
                 <button
                   onClick={() => setShowAllSamples(false)}
-                  className={`rounded-md px-3 py-1 font-medium transition-colors ${
+                  aria-pressed={!showAllSamples}
+                  className={`rounded-md px-3 py-1 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${
                     !showAllSamples ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
@@ -542,7 +552,8 @@ export function SurveyAnalysis() {
                 </button>
                 <button
                   onClick={() => setShowAllSamples(true)}
-                  className={`rounded-md px-3 py-1 font-medium transition-colors ${
+                  aria-pressed={showAllSamples}
+                  className={`rounded-md px-3 py-1 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${
                     showAllSamples ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >

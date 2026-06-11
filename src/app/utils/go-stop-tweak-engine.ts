@@ -44,6 +44,36 @@ export interface GoStopTweakDecision {
   methodVersion: string;
 }
 
+/*
+ * ── Calibration constants ────────────────────────────────────────────────────
+ *
+ * Everything below is a heuristic calibration of the ISSF screening method,
+ * tuned against the NFI reference dataset (ENHANCED_SENSORY_DATA) and its
+ * trained-panel reference scores. None of these values come from a published
+ * standard; treat them as the method definition itself:
+ *
+ *  • Changing ANY constant changes live GO/STOP/TWEAK calls for every tenant.
+ *  • All current outputs are pinned in go-stop-tweak-engine.pins.test.ts —
+ *    a deliberate re-calibration must update those pins AND bump
+ *    METHOD_VERSION so old decision fingerprints stay distinguishable.
+ *
+ * Key knobs and their intent:
+ *  • METHOD_VERSION — embedded in every decision fingerprint for audit trails.
+ *  • PANEL_N — nominal panel size used to normalize CATA citation counts.
+ *    Matches RESEARCH_PANEL_N for the simulated reference panel (n=14).
+ *  • DEFECT_WORDS / BENEFIT_WORDS — generic CATA lexicon markers, extended per
+ *    food type by getFoodTypeProfile(). Matching is substring-based, so terms
+ *    like "sour" also hit "sourdough" — food-type risk/success markers exist
+ *    to counterbalance this for category-appropriate descriptors.
+ *  • Default thresholds (GO ≥ 76, STOP < 52) — see calculateGoStopTweakDecision;
+ *    overridable per workspace via decision settings.
+ *  • Base blend (0.86 panel / 0.14 instrument) — panel perception dominates;
+ *    the instrument signal nudges rather than decides.
+ *  • Hard-stop floors (hedonic overall < 3.8/9, hedonic dimension < 45/100,
+ *    any failed gate) — quality floors that cannot be averaged away.
+ *  • Gate penalties (off-note −22/−9, QC −12/−5) and ISTD recovery bands
+ *    (85–110% pass, 75–85% watch, <75% fail) — instrument QC discipline.
+ */
 const METHOD_VERSION = 'NFI-GST-1.1';
 const PANEL_N = 14;
 const DEFECT_WORDS = [

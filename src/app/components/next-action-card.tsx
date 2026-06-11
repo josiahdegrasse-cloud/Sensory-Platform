@@ -7,16 +7,24 @@ import type { NextAction } from '../lib/project-status';
 interface NextActionCardProps {
   projectName: string;
   action: NextAction;
+  /** When set, the "Next for …" kicker links to the project's Command Center. */
+  projectPath?: string;
   onNavigate?: () => void;
 }
 
 /** Single, prominent "what should I click next" callout for a project. */
-export function NextActionCard({ projectName, action, onNavigate }: NextActionCardProps) {
+export function NextActionCard({ projectName, action, projectPath, onNavigate }: NextActionCardProps) {
   return (
     <Card className="border border-slate-200 bg-white">
       <CardContent className="py-4 flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Next for {projectName}</div>
+          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+            {projectPath ? (
+              <Link to={projectPath} onClick={onNavigate} className="hover:text-slate-700 transition-colors">
+                Next for {projectName}
+              </Link>
+            ) : <>Next for {projectName}</>}
+          </div>
           <div className="text-sm font-bold text-slate-900 mt-0.5">{action.label}</div>
           <p className="text-xs text-slate-500 mt-0.5">{action.description}</p>
         </div>

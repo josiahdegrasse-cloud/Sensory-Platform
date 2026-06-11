@@ -4,7 +4,7 @@ import { formatFoodTypeLabel } from './food-intelligence';
 import { sampleMatchesFoodType } from '../contexts/food-type-context';
 
 export type WorkflowStageId = 'data' | 'testing' | 'insights' | 'decision' | 'concept' | 'report';
-export type WorkflowStageState = 'complete' | 'current' | 'available' | 'blocked' | 'not-started';
+export type WorkflowStageState = 'complete' | 'current' | 'needs-review' | 'available' | 'blocked' | 'not-started';
 
 /** Semantic status palette shared across workflow chips, badges, cards, and buttons. */
 export type SemanticTone = 'neutral' | 'info' | 'success' | 'warning' | 'critical' | 'creative';
@@ -26,6 +26,11 @@ export interface NextAction {
 
 export type DecisionStatus = 'GO' | 'TWEAK' | 'STOP' | 'Pending' | 'Not started';
 
+/** Qualitative evidence confidence — derived from completeness, never a fake percentage. */
+export type ConfidenceLevel = 'High' | 'Moderate' | 'Low';
+
+export type ReportStatus = 'not-ready' | 'draft' | 'review' | 'approved';
+
 export interface ProjectStatusSummary {
   projectName: string;
   foodTypeLabel: string;
@@ -36,6 +41,17 @@ export interface ProjectStatusSummary {
   issfScore: number | null;
   decisionStatus: DecisionStatus;
   decisionTone: SemanticTone;
+  /** Null until any evidence exists for the project. */
+  confidence: ConfidenceLevel | null;
+  /** Plain-language facts behind the confidence level (shown in a tooltip). */
+  confidenceFactors: string[];
+  /** Instrument dataset completeness: how many of the 3 expected sets are present. */
+  datasetsPresent: number;
+  datasetsExpected: number;
+  /** Name of the launched concept test, when one exists. */
+  conceptName: string | null;
+  reportStatus: ReportStatus;
+  latestReport: CommercializationReportRecord | null;
   stages: WorkflowStageStatus[];
   nextAction: NextAction;
   warnings: string[];
@@ -77,6 +93,7 @@ function tone(state: WorkflowStageState): SemanticTone {
   switch (state) {
     case 'complete': return 'success';
     case 'current': return 'info';
+    case 'needs-review': return 'warning';
     case 'blocked': return 'critical';
     case 'available': return 'neutral';
     default: return 'neutral';
@@ -98,14 +115,13 @@ function pickProjectName(input: ComputeProjectStatusInput): string {
  * decisionMinResponses, etc.) so the header and the underlying pages never
  * disagree about "what's done."
  *
- * Note: CommercializationReportRecord already supports 'review'/'approved'
- * status (see saveCommercializationReport), but no UI flow sets it yet, so
- * the "report" stage treats any saved snapshot as complete. Tighten this to
- * `report.status === 'approved'` once the report page gains an approval step.
+ * The "report" stage follows the report record's real lifecycle: draft is
+ * in-progress, 'review' surfaces as needs-review, and only 'approved'
+ * completes the stage.
  */
 export function computeProjectStatus(input: ComputeProjectStatusInput): ProjectStatusSummary {
   const {
-    foodType, importBatchId, importBatches, instrumentalDataset, products,
+    foodType, importBatchId, instrumentalDataset, products,
     responseCountsBySampleId, decisionRecords, conceptTests, commercializationReports,
     minimumResponses,
   } = input;
@@ -191,41 +207,61 @@ export function computeProjectStatus(input: ComputeProjectStatusInput): ProjectS
   );
   const launchedConcept = projectConcepts.find(concept => Boolean(concept.launchedAt) || concept.status === 'active' || concept.status === 'completed');
   const conceptComplete = Boolean(launchedConcept);
+  // An AI-drafted concept awaiting admin approval turns the stage amber: a
+  // human decision is queued, which is a different signal than "in progress."
+  const conceptInReview = projectConcepts.find(concept => concept.status === 'review');
   const goDecision = latestDecision?.decision === 'GO';
   const conceptState: WorkflowStageState = conceptComplete
     ? 'complete'
-    : goDecision
-      ? 'current'
-      : decisionState === 'complete'
-        ? 'available'
-        : 'blocked';
+    : conceptInReview
+      ? 'needs-review'
+      : goDecision
+        ? 'current'
+        : decisionState === 'complete'
+          ? 'available'
+          : 'blocked';
 
-  // ---- Report stage: a commercialization report draft/export exists ----
+  // ---- Report stage: driven by the latest report record's real status ----
   const projectReports = commercializationReports.filter(report =>
+    report.status !== 'archived' &&
     report.decisionRecordId && projectDecisions.some(decision => decision.id === report.decisionRecordId)
   );
-  const reportComplete = projectReports.length > 0;
+  const latestReport = projectReports[0] ?? null; // fetchCommercializationReports orders by recency
+  const reportStatus: ReportStatus = latestReport
+    ? (latestReport.status as Exclude<CommercializationReportRecord['status'], 'archived'>)
+    : 'not-ready';
+  const reportComplete = reportStatus === 'approved';
   const reportState: WorkflowStageState = reportComplete
     ? 'complete'
-    : conceptState === 'complete'
-      ? 'current'
-      : conceptState === 'current'
-        ? 'available'
-        : 'blocked';
+    : reportStatus === 'review'
+      ? 'needs-review'
+      : reportStatus === 'draft'
+        ? 'current'
+        : conceptState === 'complete'
+          ? 'current'
+          : conceptState === 'current' || conceptState === 'needs-review'
+            ? 'available'
+            : 'blocked';
 
   const stages: WorkflowStageStatus[] = [
     { id: 'data', label: STAGE_LABELS.data, state: dataState, path: STAGE_PATHS.data, detail: dataComplete ? 'All required datasets imported.' : hasEtongue ? 'E-tongue data imported; GC-MS / composition still pending.' : 'No instrumental data imported yet.' },
     { id: 'testing', label: STAGE_LABELS.testing, state: testingState, path: STAGE_PATHS.testing, detail: projectProducts.length === 0 ? 'No survey created for this project yet.' : `${responseCompleted}/${responseTarget} responses collected.` },
     { id: 'insights', label: STAGE_LABELS.insights, state: insightsState, path: STAGE_PATHS.insights, detail: insightsComplete ? 'Survey and instrumental data ready to analyze.' : 'Waiting on enough responses and instrumental data.' },
     { id: 'decision', label: STAGE_LABELS.decision, state: decisionState, path: STAGE_PATHS.decision, detail: latestDecision ? `${latestDecision.decision} recorded at ISSF ${latestDecision.issfScore.toFixed(0)}.` : 'Awaiting a GO / TWEAK / STOP decision.' },
-    { id: 'concept', label: STAGE_LABELS.concept, state: conceptState, path: STAGE_PATHS.concept, detail: launchedConcept ? `${launchedConcept.name} sent to consumers.` : goDecision ? 'GO decision confirmed — ready to build a concept.' : 'Unlocks once a sample gets a GO decision.' },
-    { id: 'report', label: STAGE_LABELS.report, state: reportState, path: STAGE_PATHS.report, detail: reportComplete ? 'Commercialization report drafted.' : 'Unlocks once a concept test is underway.' },
+    { id: 'concept', label: STAGE_LABELS.concept, state: conceptState, path: STAGE_PATHS.concept, detail: launchedConcept ? `${launchedConcept.name} sent to consumers.` : conceptInReview ? `${conceptInReview.name} drafted by AI — awaiting your approval.` : goDecision ? 'GO decision confirmed — ready to build a concept.' : 'Unlocks once a sample gets a GO decision.' },
+    { id: 'report', label: STAGE_LABELS.report, state: reportState, path: STAGE_PATHS.report, detail:
+        reportStatus === 'approved' ? 'Commercialization report approved.'
+        : reportStatus === 'review' ? 'Report drafted — awaiting approval.'
+        : reportStatus === 'draft' ? 'Report draft in progress.'
+        : 'Unlocks once a concept test is underway.' },
   ];
 
   // ---- Roll up an overall status label + tone ----
   let statusLabel = 'Awaiting data';
   let statusTone: SemanticTone = 'neutral';
-  if (reportComplete) { statusLabel = 'Report drafted'; statusTone = 'success'; }
+  if (reportStatus === 'approved') { statusLabel = 'Report approved'; statusTone = 'success'; }
+  else if (reportStatus === 'review') { statusLabel = 'Report in review'; statusTone = 'warning'; }
+  else if (reportStatus === 'draft') { statusLabel = 'Report drafted'; statusTone = 'info'; }
   else if (conceptComplete) { statusLabel = 'Concept testing'; statusTone = 'creative'; }
   else if (latestDecision) { statusLabel = `Decision: ${latestDecision.decision}`; statusTone = latestDecision.decision === 'GO' ? 'success' : latestDecision.decision === 'TWEAK' ? 'warning' : 'critical'; }
   else if (insightsComplete) { statusLabel = 'Ready for decision'; statusTone = 'info'; }
@@ -255,6 +291,10 @@ export function computeProjectStatus(input: ComputeProjectStatusInput): ProjectS
     nextAction = { label: 'Plan the tweak', description: 'Review the recommended adjustments and re-test when ready.', path: '/decision', tone: 'warning' };
   } else if (latestDecision.decision === 'STOP') {
     nextAction = { label: 'Review the STOP rationale', description: 'See why this sample stopped and what to try next.', path: '/decision', tone: 'critical' };
+  } else if (reportStatus === 'review') {
+    nextAction = { label: 'Review the report', description: 'A drafted commercialization report is waiting for your approval.', path: '/report', tone: 'warning' };
+  } else if (reportStatus === 'draft') {
+    nextAction = { label: 'Finish the report draft', description: 'Pick up the commercialization report where you left off.', path: '/report', tone: 'info' };
   } else if (conceptComplete && !reportComplete) {
     nextAction = { label: 'Write the commercialization report', description: 'Concept testing is underway — start drafting the launch report.', path: '/report', tone: 'info' };
   } else if (currentStage) {
@@ -271,6 +311,30 @@ export function computeProjectStatus(input: ComputeProjectStatusInput): ProjectS
     warnings.push('A survey has not been assigned to any panelists yet.');
   }
 
+  // ---- Confidence: a qualitative read on evidence completeness ----
+  // Derived from facts the engine already knows (datasets, response counts,
+  // warnings), never from a model. Null until any evidence exists.
+  const datasetsPresent = [hasEtongue, hasGcms, hasComposition].filter(Boolean).length;
+  const datasetsExpected = 3;
+  let confidence: ConfidenceLevel | null = null;
+  const confidenceFactors: string[] = [];
+  if (hasEtongue) {
+    confidenceFactors.push(`${datasetsPresent} of ${datasetsExpected} instrument datasets imported.`);
+    if (projectProducts.length > 0) {
+      confidenceFactors.push(`${responseCompleted} of ${responseTarget} panel responses collected.`);
+    } else {
+      confidenceFactors.push('No panel survey created yet.');
+    }
+    confidenceFactors.push(...warnings);
+    if (datasetsPresent === datasetsExpected && testingComplete && warnings.length === 0) {
+      confidence = 'High';
+    } else if (datasetsPresent <= 1 || (projectProducts.length > 0 && responseCompleted < responseTarget / 2)) {
+      confidence = 'Low';
+    } else {
+      confidence = 'Moderate';
+    }
+  }
+
   return {
     projectName,
     foodTypeLabel,
@@ -281,6 +345,13 @@ export function computeProjectStatus(input: ComputeProjectStatusInput): ProjectS
     issfScore: latestDecision?.issfScore ?? null,
     decisionStatus,
     decisionTone,
+    confidence,
+    confidenceFactors,
+    datasetsPresent,
+    datasetsExpected,
+    conceptName: launchedConcept?.name ?? null,
+    reportStatus,
+    latestReport,
     stages,
     nextAction,
     warnings,

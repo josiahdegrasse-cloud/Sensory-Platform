@@ -7,7 +7,7 @@ import { Textarea } from './ui/textarea';
 import { Alert, AlertDescription } from './ui/alert';
 import { useAuth } from '../contexts/auth-context';
 import {
-  type ConceptTest, type ConceptQuestion,
+  type ConceptQuestion,
 } from '../lib/database';
 import { useConceptTest, useInsertConceptResponse } from '../lib/hooks';
 import { CheckCircle2, ChevronLeft, ChevronRight, Image as ImageIcon, AlertCircle, Megaphone } from 'lucide-react';

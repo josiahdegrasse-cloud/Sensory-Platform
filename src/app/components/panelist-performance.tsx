@@ -1,7 +1,6 @@
+import { CHART_CHROME, STATUS } from '../styles/tokens';
 import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Badge } from './ui/badge';
-import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip,
@@ -9,7 +8,7 @@ import {
 } from 'recharts';
 import {
   Users, AlertTriangle, ChevronDown, ChevronUp, Activity,
-  Award, Star, Shield, UserCheck, Target, TrendingUp, FlaskConical,
+  Award, Star, Shield, UserCheck, TrendingUp, FlaskConical,
 } from 'lucide-react';
 import {
   computePanelistMetrics, suggestTrainingTier,
@@ -179,9 +178,9 @@ function PanelistDetail({
                 formatter={(v: number, name: string) => [v.toFixed(1), name === 'myMean' ? 'Panelist' : 'Panel avg']}
                 labelFormatter={(l: number) => `Session ${l}`}
               />
-              <ReferenceLine y={5} stroke="#e2e8f0" strokeDasharray="3 3" />
-              <Line type="monotone" dataKey="panelMean" stroke="#94a3b8" strokeWidth={1} dot={false} name="panelMean" />
-              <Line type="monotone" dataKey="myMean" stroke="#3b82f6" strokeWidth={2} dot={{ r: 2 }} name="myMean" />
+              <ReferenceLine y={5} stroke={CHART_CHROME.grid} strokeDasharray="3 3" />
+              <Line type="monotone" dataKey="panelMean" stroke={CHART_CHROME.muted} strokeWidth={1} dot={false} name="panelMean" />
+              <Line type="monotone" dataKey="myMean" stroke={STATUS.info} strokeWidth={2} dot={{ r: 2 }} name="myMean" />
             </LineChart>
           </ResponsiveContainer>
           <div className="flex items-center gap-4 mt-0.5">
@@ -362,7 +361,7 @@ export function PanelistPerformancePanel() {
   const referenceScoresByProduct = useMemo(() => {
     const map: Record<string, Record<string, number>> = {};
     products.filter(p => p.isCalibration && p.referenceScores).forEach(p => {
-      map[p.id] = p.referenceScores as Record<string, number>;
+      map[p.id] = p.referenceScores as unknown as Record<string, number>;
     });
     return map;
   }, [products]);

@@ -100,7 +100,8 @@ export function CommercializationReportBuilder({
         decisionRecordId: confirmedGo.id,
         conceptTestId: selectedConcept.id,
         packagingImageId: snapshot.concept.packagingImageId,
-        title: `${decision.sampleName} commercialization report`,
+        title: (settings?.defaultReportTitle || '{sample} commercialization report')
+          .replace(/\{sample\}/g, decision.sampleName),
         reportSnapshot: snapshot as unknown as Record<string, unknown>,
       });
       setSavedReportId(report.id);

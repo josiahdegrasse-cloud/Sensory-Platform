@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Activity, AlertCircle, Bell, Brain, CheckCircle2, ClipboardCheck, Database,
-  FileText, Lock, Save, Settings, ShieldCheck, UserCheck, UserX, Users,
+  Activity, AlertCircle, Brain, CheckCircle2, ClipboardCheck, Database,
+  Lock, Palette, Save, UserCheck, UserX, Users,
 } from 'lucide-react';
+import { BrandingSettings } from './branding-settings';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -55,6 +56,8 @@ const fallbackSettings: WorkspaceSettings = {
   anonymizePanelistsInReports: true,
   exportFormat: 'xlsx',
   reportFooter: '',
+  reportTone: 'standard',
+  defaultReportTitle: '',
   notifyOnImport: true,
   notifyOnCompletionTarget: true,
   notifyOnGenerationFailure: true,
@@ -208,6 +211,7 @@ export function AdminSettings() {
           <TabsTrigger value="access"><Users className="size-4" />Access</TabsTrigger>
           <TabsTrigger value="automation"><Database className="size-4" />Automation</TabsTrigger>
           <TabsTrigger value="decision"><Brain className="size-4" />Decision</TabsTrigger>
+          <TabsTrigger value="branding"><Palette className="size-4" />Branding</TabsTrigger>
           <TabsTrigger value="audit"><Activity className="size-4" />Audit</TabsTrigger>
         </TabsList>
 
@@ -303,6 +307,10 @@ export function AdminSettings() {
               <NumberField id="min-responses" label="Minimum responses" value={draft.decisionMinResponses} min={1} max={500} onChange={value => updateDraft('decisionMinResponses', value)} />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="branding">
+          <BrandingSettings draft={draft} updateDraft={updateDraft} disabled={settingsLoading} />
         </TabsContent>
 
         <TabsContent value="audit"><AuditLog auditEvents={auditEvents} /></TabsContent>

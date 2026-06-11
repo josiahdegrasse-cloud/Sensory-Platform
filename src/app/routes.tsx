@@ -6,6 +6,7 @@ import { AdminSettings } from "./components/admin-settings";
 import { RouteErrorBoundary } from "./components/route-error-boundary";
 
 const OverviewDashboard = lazy(() => import("./components/overview-dashboard").then(m => ({ default: m.OverviewDashboard })));
+const ProjectCommandCenter = lazy(() => import("./components/project-command-center").then(m => ({ default: m.ProjectCommandCenter })));
 const Stage1Instrumental = lazy(() => import("./components/stage1-instrumental").then(m => ({ default: m.Stage1Instrumental })));
 const SurveyAnalysis = lazy(() => import("./components/survey-analysis").then(m => ({ default: m.SurveyAnalysis })));
 const Stage4Enhanced = lazy(() => import("./components/stage4-enhanced").then(m => ({ default: m.Stage4Enhanced })));
@@ -70,6 +71,8 @@ export const router = createBrowserRouter([
         ),
         children: [
           { index: true, Component: OverviewDashboard },
+          { path: "project", Component: ProjectCommandCenter },
+          { path: "project/:batchId", Component: ProjectCommandCenter },
           { path: "stage1", Component: Stage1Instrumental },
           { path: "survey-analysis", Component: SurveyAnalysis },
           { path: "decision", Component: Stage4Enhanced },

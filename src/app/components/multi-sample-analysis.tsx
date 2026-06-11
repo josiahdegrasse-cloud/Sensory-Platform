@@ -1,3 +1,4 @@
+import { STATUS } from '../styles/tokens';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend } from "recharts";
 import { Layers, Target, Trophy, Heart, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -221,9 +222,9 @@ export function MultiSampleAnalysis({
               <YAxis />
               <RechartsTooltip />
               <Legend />
-              <Bar key="rank-best" dataKey="Best (1st)" fill="#10b981" />
-              <Bar key="rank-middle" dataKey="Middle (2nd)" fill="#f59e0b" />
-              <Bar key="rank-worst" dataKey="Worst (3rd)" fill="#ef4444" />
+              <Bar key="rank-best" dataKey="Best (1st)" fill={STATUS.go} />
+              <Bar key="rank-middle" dataKey="Middle (2nd)" fill={STATUS.tweak} />
+              <Bar key="rank-worst" dataKey="Worst (3rd)" fill={STATUS.stop} />
             </BarChart>
           </ResponsiveContainer>
 

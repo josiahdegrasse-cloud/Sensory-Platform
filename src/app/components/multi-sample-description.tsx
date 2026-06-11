@@ -7,7 +7,6 @@ import { fetchProduct } from '../lib/database';
 import { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle2, Clock, Layers, Target, Trophy, Lock } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
-import { Badge } from './ui/badge';
 
 export function MultiSampleDescription() {
   const { productId } = useParams<{ productId: string }>();

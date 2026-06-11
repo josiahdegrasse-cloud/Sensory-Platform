@@ -1,3 +1,4 @@
+import { STATUS } from '../styles/tokens';
 import { useState, type ReactNode } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -159,11 +160,11 @@ function QuestionResultCard({
 }
 
 function ChartTooltip({ render }: { render: (payload: Record<string, unknown>) => ReactNode }) {
-  return ({ active, payload }: { active?: boolean; payload?: Array<{ payload: Record<string, unknown> }> }) => {
+  return ({ active, payload }: { active?: boolean; payload?: Array<{ payload?: Record<string, unknown> }> }) => {
     if (!active || !payload?.length) return null;
     return (
       <div className="bg-white px-3 py-2 shadow-lg rounded-lg border text-xs">
-        {render(payload[0].payload)}
+        {render(payload[0].payload ?? {})}
       </div>
     );
   };
@@ -279,7 +280,7 @@ function RankingResults({ answers, options }: { answers: string[][]; options: st
             ),
           })}
         />
-        <Bar dataKey="firstPlace" fill="#f59e0b" radius={[0, 3, 3, 0]} isAnimationActive={false}>
+        <Bar dataKey="firstPlace" fill={STATUS.tweak} radius={[0, 3, 3, 0]} isAnimationActive={false}>
           <LabelList
             dataKey="avgRank"
             position="right"

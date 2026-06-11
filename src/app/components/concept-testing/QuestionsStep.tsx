@@ -4,6 +4,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Plus, Trash2, Sparkles, GripVertical } from 'lucide-react';
 import { detectFoodType, getFoodTypeProfile } from '../../lib/food-intelligence';
+import { AIReviewCard, type AIReviewState } from '../ai-review-card';
 import type { ConceptDraft, Question } from './types';
 import { CATEGORY_COLORS, QUESTION_TYPE_LABELS, CATEGORY_BAR_COLORS, QUESTION_SECONDS } from './types';
 import { AI_QUESTION_TEMPLATES } from './questions-data';
@@ -12,15 +13,25 @@ export function QuestionsStep({
   draft,
   questions,
   onChange,
+  reviewState,
+  onReviewStateChange,
 }: {
   draft: ConceptDraft;
   questions: Question[];
   onChange: (qs: Question[]) => void;
+  /** 'none' = hand-built list (no AI involvement to review). Persisted by the parent so a refresh doesn't lose pending-approval status. */
+  reviewState: AIReviewState | 'none';
+  onReviewStateChange: (state: AIReviewState | 'none') => void;
 }) {
   const [generating, setGenerating] = useState(false);
-  const [generated, setGenerated] = useState(false);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const generated = reviewState !== 'none';
+
+  /** Any manual change to an unapproved AI draft marks it as edited. */
+  const markEdited = () => {
+    if (reviewState === 'draft') onReviewStateChange('edited');
+  };
 
   const buildTailoredQuestions = (): Question[] => {
     const detection = detectFoodType(draft.category, draft.name, draft.description);
@@ -88,18 +99,28 @@ export function QuestionsStep({
     setTimeout(() => {
       onChange(buildTailoredQuestions());
       setGenerating(false);
-      setGenerated(true);
+      onReviewStateChange('draft');
     }, 1400);
   };
 
-  const remove = (id: string) => onChange(questions.filter(q => q.id !== id));
+  const handleReject = () => {
+    onChange([]);
+    onReviewStateChange('none');
+  };
+
+  const remove = (id: string) => {
+    markEdited();
+    onChange(questions.filter(q => q.id !== id));
+  };
 
   const addBlank = () => {
+    markEdited();
     const id = `q_custom_${Date.now()}`;
     onChange([...questions, { id, text: '', type: 'scale', required: false, category: 'attributes' }]);
   };
 
   const update = (id: string, field: keyof Question, value: string | boolean) => {
+    markEdited();
     onChange(questions.map(q => q.id === id ? { ...q, [field]: value } : q));
   };
 
@@ -109,6 +130,7 @@ export function QuestionsStep({
       setDragOverIdx(null);
       return;
     }
+    markEdited();
     const reordered = [...questions];
     const [moved] = reordered.splice(draggedIdx, 1);
     reordered.splice(targetIdx, 0, moved);
@@ -126,90 +148,74 @@ export function QuestionsStep({
   const estimatedSeconds = questions.reduce((total, q) => total + QUESTION_SECONDS[q.type], 0);
   const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
 
-  return (
-    <div className="space-y-5">
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900">Design your survey</h2>
-          <p className="text-slate-500 text-sm mt-1">
-            {questions.length} question{questions.length !== 1 ? 's' : ''} — at least 5 recommended.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={addBlank} className="text-slate-700 border-slate-300">
-            <Plus className="size-3.5 mr-1" />Add question
-          </Button>
-          <Button size="sm" onClick={handleGenerate} disabled={generating} className="bg-blue-600 hover:bg-blue-700 text-white">
-            <Sparkles className="size-3.5 mr-1.5" />
-            {generating ? 'Building...' : generated ? 'Rebuild smart survey' : 'Build smart survey'}
-          </Button>
-        </div>
-      </div>
+  // Provenance shown on the AI review card: what the draft was built from,
+  // and where thin inputs forced assumptions.
+  const renderDetection = detectFoodType(draft.category, draft.name, draft.description);
+  const briefBenefits = draft.keyBenefits.split(/[,\n]+/).map(part => part.trim()).filter(Boolean);
+  const validImageCount = draft.marketingImages.filter(u => u.trim()).length;
+  const aiSources = [
+    `Concept brief "${draft.name.trim() || 'Untitled concept'}"`,
+    `${renderDetection.label} category profile`,
+    briefBenefits.length > 0 ? `${briefBenefits.length} key benefit${briefBenefits.length === 1 ? '' : 's'}` : null,
+  ].filter((s): s is string => Boolean(s));
+  const aiWarnings = [
+    !draft.description.trim() && 'The brief has no consumer description — questions lean on category norms.',
+    briefBenefits.length === 0 && 'No key benefits listed in the brief — benefit-motivation questions were omitted.',
+    validImageCount < 2 && 'Fewer than two concept visuals provided — the visual-preference question is optional.',
+  ].filter((w): w is string => Boolean(w));
 
+  const surveyEditor = (
+    <div className="space-y-4">
       {/* Coverage meter */}
-      {questions.length > 0 && (
-        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Survey Coverage</p>
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-              estimatedMinutes <= 20 ? 'bg-emerald-100 text-emerald-700' :
-              estimatedMinutes <= 30 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'
-            }`}>~{estimatedMinutes} min</span>
-          </div>
-          {(Object.keys(CATEGORY_BAR_COLORS) as Question['category'][]).map(cat => {
-            const count = categoryCounts[cat] ?? 0;
-            const width = count === 0 ? 0 : Math.round((count / maxCatCount) * 100);
-            return (
-              <div key={cat} className="flex items-center gap-3">
-                <div className="w-24 text-[10px] font-semibold text-slate-500 capitalize text-right">{cat}</div>
-                <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
-                  {count > 0 && (
-                    <div
-                      className={`h-full rounded-full transition-all duration-300 ${CATEGORY_BAR_COLORS[cat]}`}
-                      style={{ width: `${width}%` }}
-                    />
-                  )}
-                </div>
-                <div className="w-5 text-[10px] font-bold text-center">
-                  {count === 0
-                    ? <span className="text-rose-400">✗</span>
-                    : <span className="text-slate-600">{count}</span>
-                  }
-                </div>
-              </div>
-            );
-          })}
+      <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Survey Coverage</p>
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+            estimatedMinutes <= 20 ? 'bg-emerald-100 text-emerald-700' :
+            estimatedMinutes <= 30 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'
+          }`}>~{estimatedMinutes} min</span>
         </div>
-      )}
-
-      {questions.length === 0 && (
-        <Card className="border-2 border-dashed border-blue-200 bg-blue-50">
-          <CardContent className="py-12 text-center">
-            <Sparkles className="size-10 text-blue-300 mx-auto mb-3" />
-            <p className="text-blue-700 font-semibold">No questions yet</p>
-            <p className="text-blue-500 text-sm mt-1">
-              Click <strong>Build smart survey</strong> to create a tailored questionnaire, or add questions manually.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+        {(Object.keys(CATEGORY_BAR_COLORS) as Question['category'][]).map(cat => {
+          const count = categoryCounts[cat] ?? 0;
+          const width = count === 0 ? 0 : Math.round((count / maxCatCount) * 100);
+          return (
+            <div key={cat} className="flex items-center gap-3">
+              <div className="w-24 text-[10px] font-semibold text-slate-500 capitalize text-right">{cat}</div>
+              <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                {count > 0 && (
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${CATEGORY_BAR_COLORS[cat]}`}
+                    style={{ width: `${width}%` }}
+                  />
+                )}
+              </div>
+              <div className="w-5 text-[10px] font-bold text-center">
+                {count === 0
+                  ? <span className="text-rose-400">✗</span>
+                  : <span className="text-slate-600">{count}</span>
+                }
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       <div className="space-y-2">
         {questions.map((q, i) => (
-          <Card
+          <div
             key={q.id}
             draggable
             onDragStart={() => setDraggedIdx(i)}
             onDragOver={e => { e.preventDefault(); setDragOverIdx(i); }}
             onDrop={() => handleDrop(i)}
             onDragEnd={() => { setDraggedIdx(null); setDragOverIdx(null); }}
-            className={`border transition-all ${
+            className={`rounded-xl border bg-white transition-all ${
               dragOverIdx === i && draggedIdx !== i
                 ? 'border-blue-400 shadow-md bg-blue-50'
                 : 'border-slate-200 hover:border-slate-300'
             } ${draggedIdx === i ? 'opacity-40' : ''}`}
           >
-            <CardContent className="py-3 px-4">
+            <div className="py-3 px-4">
               <div className="flex items-start gap-3">
                 <div className="flex flex-col items-center gap-1 mt-1 text-slate-300 cursor-grab active:cursor-grabbing">
                   <GripVertical className="size-4" />
@@ -238,17 +244,67 @@ export function QuestionsStep({
                   <Trash2 className="size-4" />
                 </button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         ))}
       </div>
 
-      {questions.length > 0 && (
-        <div className="flex justify-center">
-          <Button variant="outline" size="sm" onClick={addBlank} className="text-slate-600">
-            <Plus className="size-3.5 mr-1.5" />Add another question
+      <div className="flex justify-center">
+        <Button variant="outline" size="sm" onClick={addBlank} className="text-slate-600">
+          <Plus className="size-3.5 mr-1.5" />Add another question
+        </Button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">Design your survey</h2>
+          <p className="text-slate-500 text-sm mt-1">
+            {questions.length} question{questions.length !== 1 ? 's' : ''} — at least 5 recommended.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={addBlank} className="text-slate-700 border-slate-300">
+            <Plus className="size-3.5 mr-1" />Add question
+          </Button>
+          <Button size="sm" onClick={handleGenerate} disabled={generating} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Sparkles className="size-3.5 mr-1.5" />
+            {generating ? 'Building...' : generated ? 'Rebuild smart survey' : 'Build smart survey'}
           </Button>
         </div>
+      </div>
+
+      {questions.length === 0 && (
+        <Card className="border-2 border-dashed border-blue-200 bg-blue-50">
+          <CardContent className="py-12 text-center">
+            <Sparkles className="size-10 text-blue-300 mx-auto mb-3" />
+            <p className="text-blue-700 font-semibold">No questions yet</p>
+            <p className="text-blue-500 text-sm mt-1">
+              Click <strong>Build smart survey</strong> to create a tailored questionnaire, or add questions manually.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {questions.length > 0 && (
+        reviewState !== 'none' ? (
+          <AIReviewCard
+            title="AI-drafted survey"
+            sources={aiSources}
+            warnings={reviewState === 'approved' ? [] : aiWarnings}
+            state={reviewState}
+            onRegenerate={handleGenerate}
+            regenerating={generating}
+            onReject={handleReject}
+            onApprove={() => onReviewStateChange('approved')}
+            approveLabel="Approve survey"
+          >
+            {surveyEditor}
+          </AIReviewCard>
+        ) : surveyEditor
       )}
     </div>
   );

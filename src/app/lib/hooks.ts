@@ -16,7 +16,7 @@ import {
   insertTemplate, deleteTemplate, updatePanelistId, updatePanelistTrainingLevel, updatePanelistStatus,
   insertConceptTest, insertConceptResponse,
   insertInstrumentalImport, archiveFoodTypeRecord, restoreFoodTypeRecord, deleteFoodTypeRecord, updateImportBatchStatus, deleteImportBatch,
-  type Template, type ConceptTest, type InstrumentalImportInput, type ConceptGenerationSettings,
+  type ConceptTest, type InstrumentalImportInput, type ConceptGenerationSettings,
   type WorkspaceSettings, type PanelistInfo,
   type CommercializationReportRecord,
 } from './database'
@@ -72,7 +72,7 @@ export function usePanelistReliability() {
 }
 
 export function useAllResponses() {
-  return useQuery({ queryKey: queryKeys.allResponses, queryFn: fetchAllResponses })
+  return useQuery({ queryKey: queryKeys.allResponses, queryFn: () => fetchAllResponses() })
 }
 
 export function useDecisionRecords() {

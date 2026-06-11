@@ -8,7 +8,7 @@ import { useAuth } from '../contexts/auth-context';
 import { DEFAULT_CATA_ATTRIBUTES, ESSENSE25_EMOTIONS, type Product } from '../data/mock-users';
 import { fetchProduct, fetchLatestUserResponse, insertResponse } from '../lib/database';
 import { CATA_DEFINITIONS, INTENSITY_DEFINITIONS, HEDONIC_DEFINITIONS, EMOTION_DEFINITIONS } from '../data/attribute-definitions';
-import { AlertCircle, CheckCircle2, ChevronRight, Download } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
 import { AttributeTooltip } from './attribute-tooltip';
@@ -226,45 +226,6 @@ export function MultiSampleQuestionnaire() {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const exportSessionCSV = () => {
-    const headers = ['SampleCode', 'Attribute', 'Value', 'Type'];
-    const rows: string[] = [headers.join(',')];
-    
-    sampleResponses.forEach(response => {
-      // CATA attributes
-      response.cataAttributes.forEach(attr => {
-        rows.push(`${response.sampleCode},${attr},1,CATA`);
-      });
-      
-      // Intensity ratings
-      Object.entries(response.intensityRatings).forEach(([attr, value]) => {
-        rows.push(`${response.sampleCode},${attr},${value},Intensity`);
-      });
-      
-      // Hedonic scores
-      Object.entries(response.hedonicScores).forEach(([attr, value]) => {
-        rows.push(`${response.sampleCode},Hedonic_${attr},${value},Hedonic`);
-      });
-      
-      // Emotions
-      Object.entries(response.emotions).forEach(([emotion, value]) => {
-        rows.push(`${response.sampleCode},${emotion},${value},Emotion`);
-      });
-    });
-    
-    // Add discrimination and ranking
-    rows.push(`All,Discrimination,${differentSample},Meta`);
-    rows.push(`All,Ranking,"${ranking.join(' > ')}",Meta`);
-    
-    const csvContent = rows.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `session-${user?.panelistId}-${productId}-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
   };
 
   if (!product) {
@@ -809,7 +770,7 @@ export function MultiSampleQuestionnaire() {
         </Card>
 
         {/* Sample responses */}
-        {sampleResponses.map((response, idx) => (
+        {sampleResponses.map((response) => (
           <Card key={response.sampleCode} className="border-2 border-slate-300">
             <CardHeader className="bg-slate-50">
               <div className="flex items-center gap-3">

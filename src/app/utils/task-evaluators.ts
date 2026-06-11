@@ -1,6 +1,6 @@
 // Task-level evaluation functions for escalation decision logic
 
-import { samples, tastAttributes, aromaAttributes, textureAttribute, type SampleData } from '../data/sample-data';
+import { samples, tastAttributes, aromaAttributes, textureAttribute } from '../data/sample-data';
 
 export type TaskStatus = 'PASS' | 'BORDERLINE' | 'FAIL';
 
@@ -268,9 +268,9 @@ export function evaluateEscalation(): EscalationDecision {
   const textureResult = evaluateTextureProxy();
   
   const failedTasks: string[] = [];
-  let reason = '';
-  let recommendation = '';
-  
+  let reason: string;
+  let recommendation: string;
+
   // Decision tree logic
   
   // 1. If Off-Note FAIL → Escalate

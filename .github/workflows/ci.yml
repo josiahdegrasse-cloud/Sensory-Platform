@@ -25,6 +25,12 @@ jobs:
       - name: Install dependencies
         run: npx pnpm@10 install --frozen-lockfile
 
+      - name: Typecheck
+        run: npx pnpm@10 run typecheck
+
+      - name: Lint
+        run: npx pnpm@10 run lint
+
       - name: Test
         run: npx pnpm@10 test
 

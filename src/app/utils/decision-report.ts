@@ -151,8 +151,8 @@ export async function downloadDecisionReportExcel(options: DecisionReportOptions
 
   const decisions = workbook.addWorksheet('Formulation Decisions', {
     views: [{ state: 'frozen', ySplit: 1 }],
-    autoFilter: { from: 'A1', to: 'N1' },
   });
+  decisions.autoFilter = { from: 'A1', to: 'N1' };
   decisions.columns = [
     { header: 'Sample', key: 'sample', width: 28 },
     { header: 'Sample ID', key: 'sampleId', width: 14 },

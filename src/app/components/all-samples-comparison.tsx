@@ -1,3 +1,4 @@
+import { STATUS } from '../styles/tokens';
 import {
   ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis,
   Tooltip as RechartsTooltip, Legend
@@ -43,9 +44,9 @@ export function AllSamplesComparisonView({ allSamplesHedonic, enhancedSensoryDat
             <RechartsTooltip />
             <Legend />
             <Line key="line-overall" type="monotone" dataKey="overall" stroke="#8b5cf6" strokeWidth={2} name="Overall" />
-            <Line key="line-flavour" type="monotone" dataKey="flavour" stroke="#3b82f6" strokeWidth={2} name="Flavour" />
-            <Line key="line-texture" type="monotone" dataKey="texture" stroke="#10b981" strokeWidth={2} name="Texture" />
-            <Line key="line-appearance" type="monotone" dataKey="appearance" stroke="#f59e0b" strokeWidth={2} name="Appearance" />
+            <Line key="line-flavour" type="monotone" dataKey="flavour" stroke={STATUS.info} strokeWidth={2} name="Flavour" />
+            <Line key="line-texture" type="monotone" dataKey="texture" stroke={STATUS.go} strokeWidth={2} name="Texture" />
+            <Line key="line-appearance" type="monotone" dataKey="appearance" stroke={STATUS.tweak} strokeWidth={2} name="Appearance" />
           </LineChart>
         </ResponsiveContainer>
 

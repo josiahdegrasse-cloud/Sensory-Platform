@@ -16,6 +16,7 @@ import {
   useWorkspaceSettings,
 } from '../lib/hooks';
 import type { ConceptDraft, Question, WizardStep } from './concept-testing/types';
+import type { AIReviewState } from './ai-review-card';
 import { ConceptStep } from './concept-testing/ConceptStep';
 import { ImagesStep } from './concept-testing/ImagesStep';
 import { QuestionsStep } from './concept-testing/QuestionsStep';
@@ -48,6 +49,7 @@ const makeEmptyDraft = (promptStyle: ConceptDraft['promptStyle'] = 'balanced'): 
 interface StoredConceptDraft {
   draft: ConceptDraft;
   questions: Question[];
+  questionsReviewState?: AIReviewState | 'none';
   panelSize: number;
   segments: string[];
   assignedPanelistIds: string[];
@@ -62,6 +64,8 @@ export function ConceptTesting() {
   const [step, setStep] = useState<WizardStep>('concept');
   const [draft, setDraft] = useState<ConceptDraft>(() => makeEmptyDraft());
   const [questions, setQuestions] = useState<Question[]>([]);
+  // 'none' = hand-built list (no AI involvement to review).
+  const [questionsReviewState, setQuestionsReviewState] = useState<AIReviewState | 'none'>('none');
   const [panelSize, setPanelSize] = useState(50);
   const [segments, setSegments] = useState<string[]>([]);
   const [assignedPanelistIds, setAssignedPanelistIds] = useState<string[]>([]);
@@ -107,6 +111,7 @@ export function ConceptTesting() {
         if (saved?.draft) {
           setDraft({ ...makeEmptyDraft(saved.draft.promptStyle), ...saved.draft });
           setQuestions(saved.questions ?? []);
+          setQuestionsReviewState(saved.questionsReviewState ?? 'none');
           setSegments(saved.segments ?? []);
           setAssignedPanelistIds(saved.assignedPanelistIds ?? []);
           setPanelSize(saved.panelSize ?? 50);
@@ -151,6 +156,7 @@ export function ConceptTesting() {
       const payload: StoredConceptDraft = {
         draft,
         questions,
+        questionsReviewState,
         panelSize,
         segments,
         assignedPanelistIds,
@@ -159,12 +165,13 @@ export function ConceptTesting() {
       localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
     }, 400);
     return () => window.clearTimeout(timeout);
-  }, [assignedPanelistIds, draft, draftHasWork, panelSize, questions, segments, step]);
+  }, [assignedPanelistIds, draft, draftHasWork, panelSize, questions, questionsReviewState, segments, step]);
 
   const resetForm = () => {
     setStep('concept');
     setDraft(makeEmptyDraft(settings?.promptStyle ?? 'balanced'));
     setQuestions([]);
+    setQuestionsReviewState('none');
     setSegments([]);
     setAssignedPanelistIds([]);
     setPanelSize(workspaceSettings?.defaultPanelSize ?? 50);
@@ -413,7 +420,13 @@ export function ConceptTesting() {
           )}
           {step === 'survey' && (
             <>
-              <QuestionsStep draft={draft} questions={questions} onChange={setQuestions} />
+              <QuestionsStep
+                draft={draft}
+                questions={questions}
+                onChange={setQuestions}
+                reviewState={questionsReviewState}
+                onReviewStateChange={setQuestionsReviewState}
+              />
               <div className="border-t border-slate-100 pt-8">
                 <PanelStep panelSize={panelSize} setPanelSize={setPanelSize} targetSegments={segments} setTargetSegments={setSegments} assignedPanelistIds={assignedPanelistIds} setAssignedPanelistIds={setAssignedPanelistIds} />
               </div>

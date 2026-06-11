@@ -1,7 +1,7 @@
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
-import { CheckCircle2, DollarSign, Target, Star, Package, FolderKanban } from 'lucide-react';
+import { DollarSign, Target, Star, Package, FolderKanban } from 'lucide-react';
 import type { ConceptDraft } from './types';
 import { detectFoodType, getFoodTypeProfile } from '../../lib/food-intelligence';
 

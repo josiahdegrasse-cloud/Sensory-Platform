@@ -32,6 +32,10 @@ export interface WorkspaceSettings {
   anonymizePanelistsInReports: boolean;
   exportFormat: 'xlsx' | 'csv' | 'pdf';
   reportFooter: string;
+  /** Voice for generated report narrative: formal, standard, or energetic. */
+  reportTone: 'formal' | 'standard' | 'energetic';
+  /** Title template for new reports; {sample} expands to the sample name. */
+  defaultReportTitle: string;
   notifyOnImport: boolean;
   notifyOnCompletionTarget: boolean;
   notifyOnGenerationFailure: boolean;
@@ -107,6 +111,8 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     anonymizePanelistsInReports: true,
     exportFormat: 'xlsx',
     reportFooter: '',
+    reportTone: 'standard',
+    defaultReportTitle: '',
     notifyOnImport: true,
     notifyOnCompletionTarget: true,
     notifyOnGenerationFailure: true,
@@ -149,6 +155,8 @@ function toWorkspaceSettings(row: Record<string, unknown>): WorkspaceSettings {
     anonymizePanelistsInReports: Boolean(row.anonymize_panelists_in_reports ?? true),
     exportFormat: ((row.export_format as WorkspaceSettings['exportFormat']) ?? 'xlsx'),
     reportFooter: (row.report_footer as string) ?? '',
+    reportTone: ((row.report_tone as WorkspaceSettings['reportTone']) ?? 'standard'),
+    defaultReportTitle: (row.default_report_title as string) ?? '',
     notifyOnImport: Boolean(row.notify_on_import ?? true),
     notifyOnCompletionTarget: Boolean(row.notify_on_completion_target ?? true),
     notifyOnGenerationFailure: Boolean(row.notify_on_generation_failure ?? true),
@@ -232,6 +240,10 @@ export async function updateWorkspaceSettings(
     anonymize_panelists_in_reports: updates.anonymizePanelistsInReports,
     export_format: updates.exportFormat,
     report_footer: updates.reportFooter.trim(),
+    // jsonb_populate_record ignores keys without a matching column, so these
+    // are safe to send before the report-branding migration has been applied.
+    report_tone: updates.reportTone,
+    default_report_title: updates.defaultReportTitle.trim(),
     notify_on_import: updates.notifyOnImport,
     notify_on_completion_target: updates.notifyOnCompletionTarget,
     notify_on_generation_failure: updates.notifyOnGenerationFailure,

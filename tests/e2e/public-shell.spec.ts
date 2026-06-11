@@ -24,3 +24,23 @@ test('public legal routes remain available without authentication', async ({ pag
   await page.goto('/panelist-consent');
   await expect(page.getByRole('heading', { name: 'Panelist Consent' })).toBeVisible();
 });
+
+test('protected routes redirect to sign-in when unauthenticated', async ({ page }) => {
+  await page.goto('/survey-analysis');
+  // ProtectedRoute sends unauthenticated users back to the sign-in shell.
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+
+  await page.goto('/decision');
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+});
+
+test('unknown routes fall back to the sign-in shell when unauthenticated', async ({ page }) => {
+  // The SPA rewrite serves index.html for any path; the App-level auth gate then
+  // shows sign-in for unauthenticated users rather than blanking or erroring.
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+
+  await page.goto('/this-route-does-not-exist');
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+  expect(errors).toEqual([]);
+});

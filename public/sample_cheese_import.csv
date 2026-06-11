@@ -1,0 +1,11 @@
+sampleId,sampleName,foodType,category,sourness,bitterness,saltiness,umami,sweetness,compound,concentration,aroma,threshold,protein,fat,moisture,pH,saltContent,calciumMg
+C1,Aged Cheddar v1.0,Cheese,Cheddar,3.2,2.4,4.4,4.8,1.4,Butyric acid,6.8,sharp/cheesy,0.24,25.2,33.4,37,5.4,1.8,720
+C2,Triple Crème Brie v2.0,Cheese,Brie,1.6,3.2,2.6,3.8,2.4,Methional,1.4,mushroom/earthy,0.2,20.8,28.6,50,6.9,1.5,180
+C3,Fresh Mozzarella v1.0,Cheese,Mozzarella,2.0,1.0,1.6,2.6,2.0,Lactic acid,8.4,milky/tangy,18,22.4,22.2,52,5.2,0.6,505
+C4,Blue Veined Gorgonzola v1.5,Cheese,Blue,4.6,5.2,4.8,4.4,1.2,2-Heptanone,3.6,blue/musty,0.14,21.0,31.2,42,6.5,3.0,315
+C5,Aged Parmesan v3.0,Cheese,Parmesan,2.8,2.6,4.6,5.6,1.0,Isovaleric acid,5.2,sweaty/savory,0.7,38.4,28.8,30,5.4,1.6,1180
+C6,Smoked Gouda v1.0,Cheese,Gouda,1.8,1.6,3.2,3.6,2.6,Butanedione,2.8,buttery/nutty,0.0001,25.0,28.0,42,5.6,1.8,700
+C7,Brined Feta v2.0,Cheese,Feta,4.4,2.0,5.6,3.0,1.0,Acetic acid,4.6,briny/tangy,6,14.2,21.4,55,4.4,3.5,490
+C8,Cave Aged Swiss v1.0,Cheese,Swiss,1.4,1.2,2.0,3.4,3.4,Propionic acid,7.8,nutty/sweet,2.7,27.0,28.4,38,5.8,1.0,790
+C9,Bloomy Rind Camembert v1.5,Cheese,Camembert,1.8,3.6,2.8,3.6,2.0,1-Octen-3-ol,1.8,mushroom/woody,0.01,20.2,24.6,52,7.0,1.8,190
+C10,Fresh Chèvre v1.0,Cheese,Goat,4.8,1.8,2.2,2.4,1.6,Caproic acid,3.4,goaty/tangy,0.6,18.6,21.0,58,4.6,1.2,140

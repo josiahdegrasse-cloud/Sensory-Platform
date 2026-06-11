@@ -1,3 +1,4 @@
+import { CHART_CHROME, STATUS } from '../styles/tokens';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -126,17 +127,17 @@ export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, 
                     return null;
                   }}
                 />
-                <Bar dataKey="count" fill="#3b82f6" isAnimationActive={false}>
+                <Bar dataKey="count" fill={STATUS.info} isAnimationActive={false}>
                   {dataWithSig.map((entry) => (
                     <Cell
                       key={`cell-${entry.id}`}
-                      fill={entry.sig === "**" ? "#059669" : entry.sig === "*" ? "#3b82f6" : "#94a3b8"}
+                      fill={entry.sig === "**" ? STATUS.goDark : entry.sig === "*" ? STATUS.info : CHART_CHROME.muted}
                     />
                   ))}
                   <LabelList
                     dataKey="sig"
                     position="right"
-                    style={{ fontSize: 13, fontWeight: 700, fill: "#059669" }}
+                    style={{ fontSize: 13, fontWeight: 700, fill: STATUS.goDark }}
                   />
                 </Bar>
               </BarChart>
@@ -270,9 +271,9 @@ interface HedonicTabProps {
 }
 
 function getHedonicColor(score: number): string {
-  if (score >= 7) return "#10b981";
-  if (score >= 5) return "#f59e0b";
-  return "#ef4444";
+  if (score >= 7) return STATUS.go;
+  if (score >= 5) return STATUS.tweak;
+  return STATUS.stop;
 }
 
 export function HedonicTab({ activeHedonicData, activeAvgHedonic, activePanelistN }: HedonicTabProps) {
@@ -318,7 +319,7 @@ export function HedonicTab({ activeHedonicData, activeAvgHedonic, activePanelist
                 }}
               />
               <Bar dataKey="score" radius={[8, 8, 0, 0]}>
-                <ErrorBar dataKey="ci95" width={4} strokeWidth={2} stroke="#475569" />
+                <ErrorBar dataKey="ci95" width={4} strokeWidth={2} stroke={CHART_CHROME.axis} />
                 {dataWithSem.map((entry) => (
                   <Cell key={`hedonic-bar-${entry.id}`} fill={getHedonicColor(entry.score)} />
                 ))}

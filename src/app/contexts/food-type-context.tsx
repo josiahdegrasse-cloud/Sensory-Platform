@@ -112,8 +112,8 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
     const fallbackType = foodTypeRecords.find(record => record.type !== slug && record.status === 'active')?.type ?? '';
     setLocalFoodTypeRecords(prev => {
       const exists = prev.some(record => record.type === slug);
-      if (!exists) return [...prev, { type: slug, status: 'archived' }].sort((a, b) => a.type.localeCompare(b.type));
-      return prev.map(record => record.type === slug ? { ...record, status: 'archived' } : record);
+      if (!exists) return [...prev, { type: slug, status: 'archived' as const }].sort((a, b) => a.type.localeCompare(b.type));
+      return prev.map(record => record.type === slug ? { ...record, status: 'archived' as const } : record);
     });
     setFoodType(current => current === slug ? fallbackType : current);
     setActionError('');
@@ -146,8 +146,8 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
     const fallbackType = foodTypeRecords.find(record => record.type !== slug && record.status === 'active')?.type ?? '';
     setLocalFoodTypeRecords(prev => {
       const exists = prev.some(record => record.type === slug);
-      if (!exists) return [...prev, { type: slug, status: 'deleted' }].sort((a, b) => a.type.localeCompare(b.type));
-      return prev.map(record => record.type === slug ? { ...record, status: 'deleted' } : record);
+      if (!exists) return [...prev, { type: slug, status: 'deleted' as const }].sort((a, b) => a.type.localeCompare(b.type));
+      return prev.map(record => record.type === slug ? { ...record, status: 'deleted' as const } : record);
     });
     setFoodType(current => current === slug ? fallbackType : current);
     setActionError('');

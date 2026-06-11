@@ -43,7 +43,7 @@ describe.skipIf(!CONFIGURED)('RLS tenant isolation', () => {
 
     const a = must('org A insert', await admin.from('organizations').insert(orgA).select().single());
     const b = must('org B insert', await admin.from('organizations').insert(orgB).select().single());
-    ids.orgA = (a as { id: string }).id; ids.orgB = (b as { id: string }).id;
+    ids.orgA = (a as unknown as { id: string }).id; ids.orgB = (b as unknown as { id: string }).id;
 
     // Create confirmed users; handle_new_user seeds their profile with org_id
     // from metadata. Elevate each to admin of their own org.
@@ -64,7 +64,7 @@ describe.skipIf(!CONFIGURED)('RLS tenant isolation', () => {
     // role has no auth.uid() for the trigger to derive from.
     const pa = must('product A insert', await admin.from('products').insert({ name: 'Secret Formula A', category: 'Test', status: 'active', org_id: ids.orgA }).select().single());
     const pb = must('product B insert', await admin.from('products').insert({ name: 'Secret Formula B', category: 'Test', status: 'active', org_id: ids.orgB }).select().single());
-    ids.productA = (pa as { id: string }).id; ids.productB = (pb as { id: string }).id;
+    ids.productA = (pa as unknown as { id: string }).id; ids.productB = (pb as unknown as { id: string }).id;
 
     clientA = createClient(URL!, ANON!, { auth: { persistSession: false, autoRefreshToken: false } });
     clientB = createClient(URL!, ANON!, { auth: { persistSession: false, autoRefreshToken: false } });

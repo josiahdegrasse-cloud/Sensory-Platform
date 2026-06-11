@@ -1,3 +1,4 @@
+import { Link } from 'react-router';
 import { Card, CardContent } from './ui/card';
 import { useFoodType } from '../contexts/food-type-context';
 import { useProjectStatus } from '../lib/use-project-status';
@@ -23,7 +24,11 @@ export function ProjectHeader() {
       <CardContent className="py-4 space-y-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-lg font-bold text-slate-900 truncate">{status.projectName}</h2>
+            <h2 className="text-lg font-bold text-slate-900 truncate">
+              <Link to="/project" className="hover:text-blue-700 transition-colors" title="Open this project's command center">
+                {status.projectName}
+              </Link>
+            </h2>
             <ProjectStatusBadge label={status.statusLabel} tone={status.statusTone} />
           </div>
           <p className="mt-0.5 text-xs text-slate-500">{status.foodTypeLabel}</p>

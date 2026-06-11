@@ -17,17 +17,15 @@ import {
 import {
   Plus, Settings, Trash2, Save, CheckCircle2, FolderOpen, Layers,
   ClipboardList, Users, AlertCircle, Search, Activity, FlaskConical, Archive, RotateCcw,
-  Upload, Database, ShieldCheck,
+  Upload, Database,
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
-import { useAuth } from '../contexts/auth-context';
 import { PanelistPerformancePanel } from './panelist-performance';
 import { formatFoodTypeLabel } from '../lib/food-intelligence';
 
 type AdminTab = 'products' | 'panelists' | 'imports';
 
 export function AdminConfig() {
-  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>('products');
   const { data: products = [] } = useProducts();
   const { data: panelists = [] } = usePanelists();
@@ -103,9 +101,6 @@ export function AdminConfig() {
   const selectedProductStdAttrs = getDefaultCataAttributes(selectedProductCategory);
   const modalStdAttrs = getDefaultCataAttributes(newProductCategory);
 
-  const activeCount = products.filter(p => p.status === 'active').length;
-  const completedCount = products.filter(p => p.status === 'completed').length;
-  const totalSessions = allResponses.length;
   const importedSamples = (instrumentalDataset?.eTongueData ?? []).filter(sample =>
     sample.type === foodType &&
     (!selectedBatchId || sample.importBatchId === selectedBatchId)
@@ -123,7 +118,6 @@ export function AdminConfig() {
     );
   });
 
-  const archivedCount = products.filter(p => p.status === 'archived').length;
   const foodTypeProducts = products.filter(p => matchFoodType(p.category) === foodType);
   const scopedProducts = foodTypeProducts.filter(p => !selectedBatchId || p.sourceImportBatchId === selectedBatchId);
   const scopedActiveCount = scopedProducts.filter(p => p.status === 'active').length;
@@ -189,7 +183,7 @@ export function AdminConfig() {
       .slice(0, 4)
       .forEach(compound => {
         compound.aroma
-          .split(/[\/,]+/)
+          .split(/[/,]+/)
           .map(aroma => aroma.trim())
           .filter(Boolean)
           .forEach(aroma => suggested.push(formatFoodTypeLabel(aroma)));
@@ -957,6 +951,7 @@ export function AdminConfig() {
                   <span className="text-sm font-medium text-slate-800">{p.name}</span>
                   {editingPanelistId === p.id ? (
                     <div className="flex gap-1">
+                      {/* eslint-disable-next-line jsx-a11y/no-autofocus -- inline edit field appears on user action; focusing it is the expected behaviour */}
                       <Input value={panelistIdInput} onChange={e => setPanelistIdInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSavePanelistId(p.id)} className="h-6 text-xs w-24" maxLength={20} autoFocus />
                       <Button size="sm" className="h-6 text-xs px-2 bg-emerald-600 hover:bg-emerald-700" onClick={() => handleSavePanelistId(p.id)}>Save</Button>
                       <Button size="sm" variant="ghost" className="h-6 text-xs px-1" onClick={() => setEditingPanelistId(null)}>×</Button>

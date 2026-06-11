@@ -17,7 +17,6 @@ interface Props {
   branding?: LoginBranding;
 }
 
-const NFI_BLUE = '#6B7890';
 
 function NfiLogoMark({ size = 40 }: { size?: number }) {
   return (

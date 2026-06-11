@@ -8,6 +8,8 @@ import type { ProjectStatusSummary } from '../lib/project-status';
 
 interface ProjectCardProps {
   status: ProjectStatusSummary;
+  /** Command Center path for this project; the card title links to it. */
+  projectPath?: string;
   onOpen?: () => void;
 }
 
@@ -15,14 +17,20 @@ interface ProjectCardProps {
  * Action-oriented summary of a single project / import batch. Answers:
  * what is this, where is it in the workflow, what needs attention, what's next.
  */
-export function ProjectCard({ status, onOpen }: ProjectCardProps) {
+export function ProjectCard({ status, projectPath, onOpen }: ProjectCardProps) {
   return (
     <Card className="border border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm transition-all">
       <CardContent className="py-4 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-sm font-bold text-slate-900 truncate">{status.projectName}</h3>
+              <h3 className="text-sm font-bold text-slate-900 truncate">
+                {projectPath ? (
+                  <Link to={projectPath} onClick={onOpen} className="hover:text-blue-700 transition-colors">
+                    {status.projectName}
+                  </Link>
+                ) : status.projectName}
+              </h3>
               <ProjectStatusBadge label={status.statusLabel} tone={status.statusTone} />
             </div>
             <p className="text-xs text-slate-500 mt-0.5">{status.foodTypeLabel}</p>

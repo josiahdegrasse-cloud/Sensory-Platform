@@ -1,0 +1,9 @@
+sampleId,sampleName,foodType,category,sourness,bitterness,saltiness,umami,sweetness,compound,concentration,aroma,threshold,protein,fat,moisture,pH,saltContent,calciumMg
+YG-001,Greek Style Control,Yogurt,Greek strained,4.2,1.1,0.8,1.4,2.6,Diacetyl,6.5,buttery creamy,2,10.2,4.1,78.4,4.35,0.18,145
+YG-002,High Protein Vanilla,Yogurt,High protein vanilla,3.6,0.9,0.7,1.2,4.1,Vanillin,42,vanilla sweet,8,14.8,2.2,76.1,4.48,0.16,182
+YG-003,Plant Oat Yogurt,Yogurt,Oat cultured,3.1,1.8,0.6,1.0,3.4,2-Pentylfuran,7.4,cereal beany,3,4.6,3.8,83.2,4.62,0.12,96
+YG-004,Strawberry Fruit Yogurt,Yogurt,Strawberry fruit,3.8,0.8,0.5,0.9,4.7,Ethyl butyrate,34,fruity strawberry,6,6.8,2.9,81.0,4.42,0.14,128
+YG-005,Low Sugar Skyr,Yogurt,Low sugar skyr,4.6,1.2,0.9,1.5,1.8,Acetic acid,22,sharp tangy,18,16.2,0.4,77.5,4.22,0.20,205
+YG-006,Coconut Yogurt Alternative,Yogurt,Coconut cultured,2.9,1.5,0.5,0.8,3.9,Delta-octalactone,16,coconut creamy,2,3.2,8.6,82.0,4.72,0.10,88
+YG-007,Lemon Kefir Yogurt,Yogurt,Lemon kefir,4.9,1.0,0.6,1.1,3.0,Citral,19,lemon citrus,4,5.4,1.8,84.5,4.08,0.13,112
+YG-008,Plain Whole Milk Yogurt,Yogurt,Whole milk plain,3.9,0.7,0.8,1.3,2.2,Acetaldehyde,31,fresh cultured,12,7.8,5.2,80.6,4.40,0.17,168

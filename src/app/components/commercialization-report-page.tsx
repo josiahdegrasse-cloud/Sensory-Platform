@@ -29,6 +29,8 @@ import type { SemanticTone } from '../lib/project-status';
 import {
   ReportSection, ReportBrandStrip, ReportCoverHeader, MetricTile, ScoreBars,
 } from './commercialization-report-ui';
+import { ReportApprovalBar } from './report-approval-bar';
+import { StageEmptyState } from './stage-empty-state';
 
 /**
  * The Commercialization Report — the final stage of the project journey.
@@ -134,21 +136,13 @@ export function CommercializationReportPage() {
             The launch-ready document that closes the loop from raw data to a go-to-market decision.
           </p>
         </div>
-        <Card className="border-dashed border-slate-300 bg-slate-50">
-          <CardContent className="py-12 text-center">
-            <FileText className="mx-auto size-9 text-slate-300" />
-            <p className="mt-3 text-sm font-semibold text-slate-700">No decision recorded for {foodTypeLabel} yet</p>
-            <p className="mx-auto mt-1 max-w-md text-xs text-slate-500">
-              The commercialization report is generated from a confirmed decision. Review your insights and record a GO / TWEAK / STOP call first.
-            </p>
-            <Button asChild className="mt-4">
-              <Link to="/decision">
-                <GitMerge className="size-4" />
-                Go to Decision review
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+        <StageEmptyState
+          icon={FileText}
+          locked
+          headline={`No decision recorded for ${foodTypeLabel} yet`}
+          body="The report builds itself from your evidence. It unlocks once a GO / TWEAK / STOP decision is logged — review your insights and make the call first."
+          cta={{ label: 'Go to Decision review', to: '/decision' }}
+        />
       </div>
     );
   }
@@ -226,6 +220,15 @@ export function CommercializationReportPage() {
         timestamp={focusDecision.timestamp}
         draftLabel={savedReport ? `Draft v${savedReport.version} · ${savedReport.status}` : undefined}
       />
+
+      {savedReport && savedReport.status !== 'archived' && (
+        <ReportApprovalBar
+          report={savedReport}
+          blockedReason={sensoryProvenance === 'reference'
+            ? 'This report still uses reference/demo sensory data. Collect live panel responses before approving it as a client deliverable.'
+            : undefined}
+        />
+      )}
 
       {!snapshot && (
         <div className="flex items-start gap-2.5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">

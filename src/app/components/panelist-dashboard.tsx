@@ -2,8 +2,6 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { useAuth } from '../contexts/auth-context';
-import { type Product, type QuestionnaireResponse } from '../data/mock-users';
-import { type ConceptTest, type ConceptResponse } from '../lib/database';
 import { useActiveProducts, useUserResponses, useConceptTestsForPanelist, useConceptResponses } from '../lib/hooks';
 import { CheckCircle2, Clock, ClipboardList, Edit2, Layers, AlertCircle, Megaphone, ImageIcon } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';

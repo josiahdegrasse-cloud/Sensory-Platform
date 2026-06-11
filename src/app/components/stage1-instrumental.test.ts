@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildImportedDataset, mergeInstrumentalData, recogniseColumns, validateImportedDataset } from './stage1-instrumental';
+import { buildImportedDataset, mergeInstrumentalData, recogniseColumns, validateImportedDataset } from './stage1-instrumental-data';
 
 describe('CSV import workflow intelligence', () => {
   it('preserves the built-in cheese and bread machine datasets', () => {
