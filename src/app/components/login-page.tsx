@@ -60,6 +60,11 @@ function mapLoginError(msg: string): string {
   return msg;
 }
 
+// Google OAuth needs one-time console setup (Google Cloud client + Supabase
+// provider). Until that's done, keep the button hidden everywhere by leaving
+// VITE_ENABLE_GOOGLE_SIGNIN unset; set it to 'true' to ship the button.
+const googleSignInEnabled = import.meta.env.VITE_ENABLE_GOOGLE_SIGNIN === 'true';
+
 export function LoginPage({ onSignup, branding }: Props) {
   // A tenant is "branded" once it has its own logo; until then the default NFI
   // look is preserved exactly (accent stays #111 with the #333 hover).
@@ -405,24 +410,26 @@ export function LoginPage({ onSignup, branding }: Props) {
                 <div className="h-px flex-1 bg-slate-200" />
               </div>
 
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleGoogle}
-                disabled={googleLoading}
-                className="w-full h-11 border-slate-200 rounded-lg font-semibold text-sm text-slate-700 hover:bg-slate-50"
-              >
-                <span className="flex items-center gap-2.5">
-                  <GoogleMark />
-                  {googleLoading ? 'Redirecting…' : 'Continue with Google'}
-                </span>
-              </Button>
+              {googleSignInEnabled && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleGoogle}
+                  disabled={googleLoading}
+                  className="mb-3 w-full h-11 border-slate-200 rounded-lg font-semibold text-sm text-slate-700 hover:bg-slate-50"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <GoogleMark />
+                    {googleLoading ? 'Redirecting…' : 'Continue with Google'}
+                  </span>
+                </Button>
+              )}
 
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => { setMagicEmail(email); setMagicMode(true); setError(''); }}
-                className="mt-3 w-full h-11 border-slate-200 rounded-lg font-semibold text-sm text-slate-700 hover:bg-slate-50"
+                className="w-full h-11 border-slate-200 rounded-lg font-semibold text-sm text-slate-700 hover:bg-slate-50"
               >
                 <span className="flex items-center gap-2.5">
                   <Mail className="size-[18px] text-slate-500" />
