@@ -9,3 +9,4 @@ export * from './db/templates';
 export * from './db/panelists';
 export * from './db/workspace';
 export * from './db/concepts';
+export * from './db/notifications';

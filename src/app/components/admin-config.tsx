@@ -22,6 +22,7 @@ import {
 import { Alert, AlertDescription } from './ui/alert';
 import { PanelistPerformancePanel } from './panelist-performance';
 import { formatFoodTypeLabel } from '../lib/food-intelligence';
+import { notifyPanelistsOfSurveys } from '../lib/database';
 import {
   filterAssignablePanelists,
   getAssignmentSummary,
@@ -297,6 +298,10 @@ export function AdminConfig() {
       closeCreateModal();
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
+      const recipientIds = pendingProduct.assignedPanelistIds?.length
+        ? pendingProduct.assignedPanelistIds
+        : activePanelists.map(panelist => panelist.id);
+      void notifyPanelistsOfSurveys(recipientIds, [pendingProduct.name]);
     } catch (err) {
       setMutationError(err instanceof Error ? err.message : 'Failed to create product. Please try again.');
     }
@@ -367,12 +372,14 @@ export function AdminConfig() {
       setMutationError('A selected assignment cannot be empty because an empty product assignment means open to all. Use “Open to all” if that is your intent.');
       return;
     }
-    const next = current.includes(panelistUserId)
-      ? current.filter(id => id !== panelistUserId)
-      : [...current, panelistUserId];
+    const adding = !current.includes(panelistUserId);
+    const next = adding
+      ? [...current, panelistUserId]
+      : current.filter(id => id !== panelistUserId);
     setMutationError('');
     try {
       await updateProductMutation.mutateAsync({ id: productId, updates: { assignedPanelistIds: next } });
+      if (adding) void notifyPanelistsOfSurveys([panelistUserId], [product.name]);
     } catch (err) {
       setMutationError(err instanceof Error ? err.message : 'Failed to update panel assignments.');
     }
@@ -385,6 +392,8 @@ export function AdminConfig() {
         id: productId,
         updates: { assignedPanelistIds: activePanelists.map(panelist => panelist.id) },
       });
+      const product = products.find(p => p.id === productId);
+      if (product) void notifyPanelistsOfSurveys(activePanelists.map(panelist => panelist.id), [product.name]);
     } catch (err) {
       setMutationError(err instanceof Error ? err.message : 'Failed to assign panelists.');
     }
@@ -408,6 +417,10 @@ export function AdminConfig() {
       });
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
+      void notifyPanelistsOfSurveys(
+        activePanelists.map(panelist => panelist.id),
+        readyForAssignmentProducts.map(product => product.name),
+      );
     } catch (err) {
       setMutationError(err instanceof Error ? err.message : 'Failed to assign current surveys.');
     }
@@ -492,6 +505,7 @@ export function AdminConfig() {
     setMutationError('');
     try {
       let firstCreatedId: string | null = null;
+      const createdNames: string[] = [];
       for (const sample of importedSamplesWithoutQuestionnaires) {
         const name = sample.sampleName || sample.sampleId;
         const category = sample.type === 'dairy' || sample.type === 'pbca'
@@ -507,10 +521,13 @@ export function AdminConfig() {
           sourceSampleId: sample.sampleId,
         });
         firstCreatedId = firstCreatedId ?? created.id;
+        createdNames.push(created.name);
       }
       if (firstCreatedId) setSelectedProduct(firstCreatedId);
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
+      // New surveys default to "open to all" — every active panelist is a recipient.
+      void notifyPanelistsOfSurveys(activePanelists.map(panelist => panelist.id), createdNames);
     } catch (err) {
       setMutationError(err instanceof Error ? err.message : 'Failed to create questionnaires from imported samples.');
     }
@@ -607,7 +624,9 @@ export function AdminConfig() {
                 <span>{importedGcmsCount} GC-MS</span>
                 <span>{importedCompositionCount} comp</span>
                 <span>{importedSamplesWithoutQuestionnaires.length === 0 ? 'surveys created' : `${importedSamplesWithoutQuestionnaires.length} surveys missing`}</span>
-                <span>{readyForAssignmentProducts.length} currently open to all</span>
+                <span title="Open to all = every active panelist already sees these surveys, including panelists added later.">
+                  {readyForAssignmentProducts.length} currently open to all
+                </span>
               </div>
             </div>
           </div>
@@ -627,9 +646,10 @@ export function AdminConfig() {
               onClick={handleAssignCurrentScopeToAllPanelists}
               disabled={updateProductAssignmentsMutation.isPending || activePanelists.length === 0 || readyForAssignmentProducts.length === 0}
               className="border-blue-300 text-blue-700 hover:bg-white"
+              title="Locks these surveys to today's active panelists. They're already visible to everyone, but locking the roster means panelists added later won't be expected to complete this batch."
             >
               <Users className="size-4 mr-1.5" />
-              Assign project
+              Lock panel roster
             </Button>
           </div>
         </div>
