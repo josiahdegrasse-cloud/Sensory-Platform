@@ -1,10 +1,11 @@
 import type { ElementType, ReactNode } from 'react';
-import { AlertTriangle, ArrowDown, CheckCircle2, CircleHelp, Database, Radio, ShieldCheck } from 'lucide-react';
+import { Link } from 'react-router';
+import { AlertTriangle, ArrowDown, ArrowRight, CheckCircle2, CircleHelp, Database, Radio, ShieldCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { DataProvenanceBadge, type DataProvenance } from './data-provenance-badge';
-import { ProjectStatusBadge } from './project-status-badge';
+import { ProjectStatusBadge, toneSolidClasses } from './project-status-badge';
 import type { InsightsEvidenceStrength } from '../lib/insights';
-import type { SemanticTone } from '../lib/project-status';
+import type { NextAction, SemanticTone } from '../lib/project-status';
 import { cn } from './ui/utils';
 
 const STRENGTH_TONE: Record<InsightsEvidenceStrength['level'], SemanticTone> = {
@@ -136,7 +137,7 @@ export function InsightsExecutiveSummary({
   strength,
   keyStrength,
   keyConcern,
-  recommendedAction,
+  nextAction,
 }: {
   sampleName: string;
   category: string;
@@ -146,39 +147,40 @@ export function InsightsExecutiveSummary({
   strength: InsightsEvidenceStrength;
   keyStrength: string;
   keyConcern: string;
-  recommendedAction: string;
+  nextAction: NextAction;
 }) {
-  const facts = [
-    ['Product', sampleName],
-    ['Category', category],
-    ['Project', projectName],
-    ['Panel responses', String(panelResponses)],
-    ['Concept responses', String(conceptResponses)],
-  ];
   return (
     <Card id="overview" className="scroll-mt-28 overflow-hidden border border-slate-200 bg-white">
-      <CardHeader className="border-b border-slate-100 bg-slate-950 text-white">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <CardHeader className="border-b border-slate-100">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-300">Insights summary</p>
-            <CardTitle className="mt-1 text-xl text-white">{sampleName}</CardTitle>
+            <p className="text-xs font-semibold text-slate-500">{projectName} · {category}</p>
+            <CardTitle className="mt-1 text-xl text-slate-950">{sampleName}</CardTitle>
+            <p className="mt-1 text-xs text-slate-500">
+              {panelResponses} panel response{panelResponses === 1 ? '' : 's'}
+              {conceptResponses > 0 ? ` · ${conceptResponses} concept response${conceptResponses === 1 ? '' : 's'}` : ''}
+            </p>
           </div>
           <ProjectStatusBadge label={`${strength.level} evidence`} tone={STRENGTH_TONE[strength.level]} />
         </div>
       </CardHeader>
-      <CardContent className="space-y-5 pt-5">
-        <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-5">
-          {facts.map(([label, value]) => (
-            <div key={label}>
-              <dt className="text-xs font-semibold text-slate-500">{label}</dt>
-              <dd className="mt-0.5 text-sm font-bold text-slate-900">{value}</dd>
-            </div>
-          ))}
+      <CardContent className="space-y-4 pt-5">
+        <h3 className="text-sm font-bold text-slate-950">What matters now</h3>
+        <dl className="divide-y divide-slate-100">
+          <SummaryFinding label="Strength" value={keyStrength} tone="success" />
+          <SummaryFinding label="Watch" value={keyConcern} tone="warning" />
         </dl>
-        <div className="grid gap-4 border-t border-slate-100 pt-5 lg:grid-cols-3">
-          <SummaryFinding label="Key sensory strength" value={keyStrength} tone="success" />
-          <SummaryFinding label="Primary concern" value={keyConcern} tone="warning" />
-          <SummaryFinding label="Recommended next action" value={recommendedAction} tone="info" />
+        <div className="flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Next: {nextAction.label}</p>
+            <p className="mt-0.5 text-sm text-blue-950">{nextAction.description}</p>
+          </div>
+          <Link
+            to={nextAction.path}
+            className={cn('flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-colors hover:opacity-90', toneSolidClasses(nextAction.tone))}
+          >
+            Continue <ArrowRight className="size-3.5" aria-hidden />
+          </Link>
         </div>
         {!strength.representative && (
           <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
@@ -197,14 +199,14 @@ function SummaryFinding({ label, value, tone }: {
   tone: 'success' | 'warning' | 'info';
 }) {
   const classes = {
-    success: 'bg-emerald-50 text-emerald-900',
-    warning: 'bg-amber-50 text-amber-900',
-    info: 'bg-blue-50 text-blue-900',
+    success: 'text-emerald-700',
+    warning: 'text-amber-700',
+    info: 'text-blue-700',
   }[tone];
   return (
-    <div className={cn('rounded-lg px-4 py-3', classes)}>
-      <p className="text-xs font-semibold opacity-75">{label}</p>
-      <p className="mt-1 text-sm font-semibold leading-relaxed">{value}</p>
+    <div className="grid gap-1 py-3 sm:grid-cols-[72px_minmax(0,1fr)]">
+      <dt className={cn('text-xs font-bold uppercase tracking-wide', classes)}>{label}</dt>
+      <dd className="text-sm font-medium leading-relaxed text-slate-800">{value}</dd>
     </div>
   );
 }

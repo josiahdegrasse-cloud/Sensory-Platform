@@ -1,7 +1,15 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
-
-type ConceptImageMode = 'packaging' | 'shelf' | 'usage' | 'ingredient' | 'ad';
+import {
+  buildModeSequence,
+  normalizeConceptImageMode,
+  normalizePromptStyle,
+} from '../_shared/concept-image-catalog.ts'
+import {
+  buildConceptImageBrief,
+  buildConceptImagePrompt,
+  type ConceptImageBrief,
+} from '../_shared/concept-image-prompt.ts'
 
 interface GenerateConceptImagesBody {
   conceptTestId?: string;
@@ -11,69 +19,29 @@ interface GenerateConceptImagesBody {
   projectName?: string;
   description?: string;
   targetMarket?: string;
+  targetOccasion?: string;
   pricePoint?: string;
   keyBenefits?: string;
-  mode?: ConceptImageMode;
+  sensoryStrengths?: string | string[];
+  technicalChallenges?: string;
+  forbiddenClaims?: string | string[];
+  visualNotes?: string;
+  evidenceStrength?: string;
+  decisionContext?: string;
+  mode?: string;
   count?: number;
   promptStyle?: string;
+  quality?: string;
+  /** When false, all images use the lead mode instead of spanning distinct modes. */
+  spreadModes?: boolean;
 }
 
 const DEFAULT_IMAGE_COUNT = 4;
 const MAX_IMAGE_COUNT = 4;
-
-const modeDirections: Record<ConceptImageMode, string> = {
-  packaging: 'Flagship hero packshot art-directed like a modern indie-premium snack launch (think bold, minimalist challenger brands): three-quarter front angle on a punchy solid-color studio backdrop, crisp directional key light with a subtle rim light separating the pack from the background, shallow depth of field, saturated true-to-brand color grading, confident oversized logotype and claims with generous breathing room, premium material rendering (matte coatings, foil or embossed accents, glossy film highlights where appropriate) — the kind of single-product hero shot that anchors a billboard or app icon',
-  shelf: 'In-context shelf placement shot styled like a category audit photo from a retail insights deck: product faces forward at eye level among softly blurred adjacent category competitors, realistic store lighting, strong shelf-talker readability, a composition that proves stand-out without looking staged',
-  usage: 'Lifestyle usage photography styled like a finished campaign social post: appetite-appeal food styling under natural window or golden-hour light, candid framing with intentional negative space reserved for copy overlay, authentic textures (steam, condensation, crumb, crunch) where relevant, hands only if they add narrative warmth — energetic and aspirational, never sterile',
-  ingredient: 'Ingredient storytelling flat-lay styled like a benefits page from a brand deck: clean overhead or three-quarter composition with key ingredients arranged in a deliberate visual hierarchy around the product, soft diffused lighting, generous negative space for callout copy, a credible food-science aesthetic rather than clinical or sterile',
-  ad: 'Campaign-ready ad concept styled like a finished social or out-of-home creative for a buzzy modern challenger brand: bold graphic hero composition with the product as the clear focal point against a saturated solid or duotone color block, dramatic but on-brand lighting and color grading, a clean negative-space block reserved for a punchy headline and call-to-action, consistent with high-production-value, design-forward food and beverage advertising',
-};
-
-// Each generation batch spans these distinct angles (in priority order) so the
-// four results read as genuinely different concepts rather than near-duplicate
-// renders of the same shot — matching how a design team would pitch a range of
-// directions, not four takes on one idea.
-const ANGLE_SEQUENCE: ConceptImageMode[] = ['packaging', 'usage', 'shelf', 'ad', 'ingredient'];
-
-function buildAngleSequence(preferredMode: ConceptImageMode, count: number): ConceptImageMode[] {
-  const ordered = [preferredMode, ...ANGLE_SEQUENCE.filter(angle => angle !== preferredMode)];
-  return ordered.slice(0, Math.max(1, count));
-}
-
-const styleDirections: Record<string, string> = {
-  balanced: 'Mainstream food-and-beverage brand system: confident but approachable typography, credible claim placement, a restrained color palette that reads as trustworthy on a crowded shelf',
-  premium: 'Premium brand system: refined serif or modern sans typography, metallic or deep jewel-tone accents, elevated editorial-style photography, generous white space that signals exclusivity and craftsmanship',
-  natural: 'Natural and clean-living brand system: organic textures (kraft paper, linen, raw wood), earthy muted palette, botanical or hand-drawn accents, soft natural light that reinforces a wellness narrative',
-  family: 'Family and everyday brand system: warm saturated palette, rounded friendly typography, energetic composition that signals an easy mealtime win',
-  foodservice: 'Foodservice and B2B brand system: clean professional-kitchen aesthetic, practical portion and format cues, confident utilitarian typography that signals reliability at scale',
-  'clean-label': 'Clean-label and transparency brand system: minimal palette, generous negative space, ingredient-forward visual hierarchy, typography that reads as honest and unembellished',
-};
+const ALLOWED_QUALITIES = new Set(['low', 'medium', 'high', 'auto']);
 
 function clean(value: unknown, fallback = '') {
   return typeof value === 'string' ? value.trim() : fallback;
-}
-
-function buildPrompt(body: GenerateConceptImagesBody, modeOverride?: ConceptImageMode) {
-  const mode = modeOverride ?? body.mode ?? 'packaging';
-  const style = body.promptStyle ?? 'balanced';
-  const benefits = clean(body.keyBenefits);
-  const target = clean(body.targetMarket);
-  const price = clean(body.pricePoint);
-  const details = [
-    `Act as the creative director at a top food-and-beverage marketing agency producing a campaign-grade concept visual for "${clean(body.conceptName, 'a new food product')}".`,
-    clean(body.category) ? `Category: ${clean(body.category)}.` : '',
-    clean(body.description) ? `Concept brief: ${clean(body.description)}.` : '',
-    benefits ? `The image must communicate these consumer benefits visually, without relying on label text: ${benefits}.` : '',
-    target ? `Target audience: ${target} — let color, styling, and composition feel deliberately chosen for them, not generic.` : '',
-    price ? `Price positioning: ${price} — the production value and material rendering should match this price point.` : '',
-    `Art direction: ${modeDirections[mode]}.`,
-    `Brand system: ${styleDirections[style] ?? styleDirections.balanced}.`,
-    'Production bar: this should look like a real launch asset from a buzzy, design-led modern food or snack brand — bold and confident, never generic or "AI stock photo." Favor punchy, deliberate color choices, tactile premium materials, and a composition that would hold up printed large on a billboard or shelf.',
-    'Render at a quality indistinguishable from a finished agency campaign asset: photorealistic, tack-sharp focus on the hero subject, intentional color grading, believable physical material and lighting interactions, and a composition polished enough to run as-is in a consumer concept test.',
-    'Avoid fake nutrition labels, celebrity likenesses, real brand logos, medical claims, watermarks, stock-photo artifacts, generic AI sheen, and unreadable or distorted text.',
-  ].filter(Boolean);
-
-  return details.join(' ').slice(0, 32000);
 }
 
 function decodeBase64Image(dataUrlOrBase64: string) {
@@ -175,15 +143,18 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
     const { data: workspaceSettings } = await serviceClient
       .from('workspace_settings')
-      .select('concept_max_generations_per_concept, concept_monthly_budget_cents, concept_require_approval')
+      .select('concept_max_generations_per_concept, concept_monthly_budget_cents, concept_require_approval, organization_name, report_tone')
       .eq('org_id', orgId)
       .maybeSingle();
 
     const configuredCount = Number(settings?.default_image_count) || DEFAULT_IMAGE_COUNT;
     const configuredMax = Number(settings?.max_images_per_concept) || MAX_IMAGE_COUNT;
     const configuredModel = clean(settings?.default_model, imageModel);
-    const configuredQuality = clean(settings?.default_quality, imageQuality);
-    const configuredStyle = clean(body.promptStyle, clean(settings?.prompt_style, 'balanced'));
+    const requestedQuality = clean(body.quality).toLowerCase();
+    const configuredQuality = ALLOWED_QUALITIES.has(requestedQuality)
+      ? requestedQuality
+      : clean(settings?.default_quality, imageQuality);
+    const configuredStyle = normalizePromptStyle(clean(body.promptStyle, clean(settings?.prompt_style, 'balanced')));
     const costPerImage = Number(settings?.estimated_cost_per_image) || 0.034;
 
     const count = Math.max(1, Math.min(configuredMax, Number(body.count) || configuredCount));
@@ -191,10 +162,43 @@ Deno.serve(async (req: Request) => {
     const quality = configuredQuality;
     const projectName = clean(body.projectName, 'Project 1');
     const foodTypeSlug = clean(body.foodTypeSlug);
-    const primaryMode = body.mode ?? 'packaging';
-    const angles = buildAngleSequence(primaryMode, count);
-    const angledPrompts = angles.map(angle => ({ angle, prompt: buildPrompt({ ...body, promptStyle: configuredStyle }, angle) }));
-    const prompt = angledPrompts[0]?.prompt ?? buildPrompt({ ...body, promptStyle: configuredStyle });
+    const primaryMode = normalizeConceptImageMode(body.mode);
+
+    // Branding comes from the caller's workspace settings, never from the
+    // request body — a tenant cannot generate under another client's name.
+    const brief: ConceptImageBrief = buildConceptImageBrief({
+      clientName: workspaceSettings?.organization_name,
+      brandTone: workspaceSettings?.report_tone,
+      productName: body.conceptName,
+      conceptName: body.conceptName,
+      foodCategory: body.category,
+      conceptPositioning: [clean(body.description), clean(body.pricePoint) ? `priced around ${clean(body.pricePoint)}` : '']
+        .filter(Boolean).join(', '),
+      targetSegments: body.targetMarket,
+      targetOccasion: body.targetOccasion,
+      keyBenefits: body.keyBenefits,
+      sensoryStrengths: body.sensoryStrengths,
+      technicalChallenges: body.technicalChallenges,
+      forbiddenClaims: body.forbiddenClaims,
+      visualNotes: body.visualNotes,
+      evidenceStrength: body.evidenceStrength,
+      decisionContext: body.decisionContext,
+      imageMode: primaryMode,
+      promptStyle: configuredStyle,
+      model,
+      quality,
+      count,
+      conceptTestId: body.conceptTestId,
+      projectName,
+      foodTypeSlug,
+    });
+
+    const angles = buildModeSequence(primaryMode, count, body.spreadModes !== false);
+    const angledPrompts = angles.map(angle => {
+      const built = buildConceptImagePrompt({ ...brief, imageMode: angle });
+      return { angle, prompt: built.prompt, summary: built.summary };
+    });
+    const prompt = angledPrompts[0].prompt;
     const estimatedCost = Number((count * costPerImage).toFixed(4));
     const maxGenerations = Math.max(1, Number(workspaceSettings?.concept_max_generations_per_concept) || 12);
     const settingsBudget = Math.max(0, Number(settings?.monthly_budget) || 0);
@@ -273,6 +277,8 @@ Deno.serve(async (req: Request) => {
           targetMarket: body.targetMarket,
           pricePoint: body.pricePoint,
           keyBenefits: body.keyBenefits,
+          // Full normalized brief for provenance — what the prompts were built from.
+          imageBrief: brief,
         },
       })
       .select()
@@ -283,7 +289,7 @@ Deno.serve(async (req: Request) => {
     // One request per angle (n: 1 each) so every image is art-directed from a
     // genuinely distinct prompt — a single shared prompt with n > 1 just
     // produces near-duplicate renders of the same shot.
-    const angleResponses = await Promise.all(angledPrompts.map(async ({ angle, prompt: anglePrompt }) => {
+    const angleResponses = await Promise.all(angledPrompts.map(async ({ angle, prompt: anglePrompt, summary }) => {
       const res = await fetch('https://api.openai.com/v1/images/generations', {
         method: 'POST',
         headers: {
@@ -300,7 +306,7 @@ Deno.serve(async (req: Request) => {
         }),
       });
       const json = await res.json();
-      return { angle, prompt: anglePrompt, ok: res.ok, status: res.status, json };
+      return { angle, prompt: anglePrompt, summary, ok: res.ok, status: res.status, json };
     }));
 
     const failed = angleResponses.find(r => !r.ok);
@@ -313,9 +319,12 @@ Deno.serve(async (req: Request) => {
       throw new Error(message);
     }
 
-    const imageResults = [] as Array<{ id: string; url: string; storagePath: string; revisedPrompt?: string }>;
+    const imageResults = [] as Array<{
+      id: string; url: string; storagePath: string;
+      mode: string; promptStyle: string; summary: string; revisedPrompt?: string;
+    }>;
     for (let index = 0; index < angleResponses.length; index++) {
-      const { angle, prompt: anglePrompt, json } = angleResponses[index];
+      const { angle, prompt: anglePrompt, summary, json } = angleResponses[index];
       const item = ((json.data ?? [])[0] ?? {}) as { b64_json?: string; url?: string; revised_prompt?: string };
       let signedUrl = '';
       let storagePath = '';
@@ -349,6 +358,8 @@ Deno.serve(async (req: Request) => {
           sort_order: index,
           mode: angle,
           prompt: anglePrompt,
+          prompt_style: configuredStyle,
+          review_status: workspaceSettings?.concept_require_approval ? 'draft' : 'selected',
           model,
           quality,
         })
@@ -365,6 +376,9 @@ Deno.serve(async (req: Request) => {
         id: imageRow.id,
         url: signedUrl,
         storagePath,
+        mode: angle,
+        promptStyle: configuredStyle,
+        summary,
         revisedPrompt: item.revised_prompt,
       });
     }
@@ -380,6 +394,8 @@ Deno.serve(async (req: Request) => {
       model,
       quality,
       promptStyle: configuredStyle,
+      modes: angles,
+      summary: angledPrompts[0].summary,
       estimatedCost,
       prompt,
     }), {

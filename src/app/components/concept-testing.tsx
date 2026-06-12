@@ -33,7 +33,7 @@ const isValidImageUrlLaunch = (u: string) =>
 
 const DRAFT_STORAGE_KEY = 'concept_lab_draft_v1';
 
-const makeEmptyDraft = (promptStyle: ConceptDraft['promptStyle'] = 'balanced'): ConceptDraft => ({
+const makeEmptyDraft = (promptStyle: string = 'balanced'): ConceptDraft => ({
   name: '',
   category: '',
   projectName: 'Project 1',
@@ -41,10 +41,13 @@ const makeEmptyDraft = (promptStyle: ConceptDraft['promptStyle'] = 'balanced'): 
   marketingImages: [],
   marketingImageIds: [],
   targetMarket: '',
+  targetOccasion: '',
   pricePoint: '',
   keyBenefits: '',
   technicalChallenges: '',
   promptStyle,
+  visualNotes: '',
+  forbiddenClaims: '',
   approvalStatus: 'draft',
 });
 
@@ -55,7 +58,16 @@ interface StoredConceptDraft {
   panelSize: number;
   segments: string[];
   assignedPanelistIds: string[];
+  sourceDecision?: SourceDecisionSeed | null;
   savedAt: string;
+}
+
+interface SourceDecisionSeed {
+  id: string;
+  sampleName: string;
+  issfScore: number;
+  confidence: number;
+  timestamp: string;
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -75,7 +87,7 @@ export function ConceptTesting() {
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState('');
   const [draftNotice, setDraftNotice] = useState('');
-  const [sourceDecision, setSourceDecision] = useState<{ id: string; sampleName: string; issfScore: number; confidence: number; timestamp: string } | null>(null);
+  const [sourceDecision, setSourceDecision] = useState<SourceDecisionSeed | null>(null);
   const [reportsExpanded, setReportsExpanded] = useState(false);
   const { data: settings } = useConceptGenerationSettings();
   const { data: workspaceSettings } = useWorkspaceSettings();
@@ -102,6 +114,31 @@ export function ConceptTesting() {
   ), [draft.category, draft.description, draft.marketingImages, draft.name, questions.length]);
 
   useEffect(() => {
+    const seed = (location.state as {
+      conceptSeed?: {
+        name?: string;
+        category?: string;
+        description?: string;
+        sourceDecision?: SourceDecisionSeed;
+      };
+    } | null)?.conceptSeed;
+    if (seed?.name) {
+      setDraft(prev => ({
+        ...makeEmptyDraft(settings?.promptStyle ?? prev.promptStyle),
+        name: seed.name?.trim() || prev.name,
+        category: seed.category?.trim() || prev.category,
+        description: seed.description?.trim() || prev.description,
+      }));
+      setQuestions([]);
+      setQuestionsReviewState('none');
+      setSegments([]);
+      setAssignedPanelistIds([]);
+      setSourceDecision(seed.sourceDecision ?? null);
+      setDraftNotice(`Started from the confirmed GO decision for "${seed.name}". Review the concept before launching.`);
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+      return;
+    }
+
     try {
       const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
       if (raw) {
@@ -113,6 +150,7 @@ export function ConceptTesting() {
           setSegments(saved.segments ?? []);
           setAssignedPanelistIds(saved.assignedPanelistIds ?? []);
           setPanelSize(saved.panelSize ?? 50);
+          setSourceDecision(saved.sourceDecision ?? null);
           setDraftNotice(`Draft restored from ${new Date(saved.savedAt).toLocaleString()}.`);
           return;
         }
@@ -121,24 +159,6 @@ export function ConceptTesting() {
       localStorage.removeItem(DRAFT_STORAGE_KEY);
     }
 
-    const seed = (location.state as {
-      conceptSeed?: {
-        name?: string;
-        category?: string;
-        description?: string;
-        sourceDecision?: { id: string; sampleName: string; issfScore: number; confidence: number; timestamp: string };
-      };
-    } | null)?.conceptSeed;
-    if (seed?.name) {
-      setDraft(prev => ({
-        ...prev,
-        name: seed.name?.trim() || prev.name,
-        category: seed.category?.trim() || prev.category,
-        description: seed.description?.trim() || prev.description,
-      }));
-      setDraftNotice(`Pre-filled from your "${seed.name}" GO decision — review and personalize before launching.`);
-      if (seed.sourceDecision) setSourceDecision(seed.sourceDecision);
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -158,12 +178,13 @@ export function ConceptTesting() {
         panelSize,
         segments,
         assignedPanelistIds,
+        sourceDecision,
         savedAt: new Date().toISOString(),
       };
       localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
     }, 400);
     return () => window.clearTimeout(timeout);
-  }, [assignedPanelistIds, draft, draftHasWork, panelSize, questions, questionsReviewState, segments, step]);
+  }, [assignedPanelistIds, draft, draftHasWork, panelSize, questions, questionsReviewState, segments, sourceDecision, step]);
 
   const resetForm = () => {
     setStep('concept');
@@ -175,6 +196,7 @@ export function ConceptTesting() {
     setPanelSize(workspaceSettings?.defaultPanelSize ?? 50);
     setLaunchError('');
     setDraftNotice('');
+    setSourceDecision(null);
     localStorage.removeItem(DRAFT_STORAGE_KEY);
   };
 
@@ -231,12 +253,15 @@ export function ConceptTesting() {
           Your survey has been sent to <strong>{assignedPanelistIds.length} panelist{assignedPanelistIds.length === 1 ? '' : 's'}</strong>.
           Results will appear in <strong>Insights</strong> as responses come in.
         </p>
-        <div className="flex items-center justify-center gap-3 pt-4">
+        <div className="flex flex-wrap items-center justify-center gap-3 pt-4">
           <Button variant="outline" onClick={resetForm}>
             New concept test
           </Button>
-          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => navigate('/survey-analysis')}>
+          <Button variant="outline" onClick={() => navigate('/survey-analysis')}>
             View responses
+          </Button>
+          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => navigate('/decision')}>
+            Return to decision
           </Button>
         </div>
       </div>
@@ -412,7 +437,7 @@ export function ConceptTesting() {
             <>
               <ConceptStep draft={draft} onChange={setDraft} />
               <div className="border-t border-slate-100 pt-8">
-                <ImagesStep draft={draft} onChange={setDraft} estimatedCostPerImage={settings?.estimatedCostPerImage ?? 0.034} />
+                <ImagesStep draft={draft} onChange={setDraft} settings={settings} />
               </div>
             </>
           )}

@@ -5,6 +5,23 @@ import {
   type CommercializationReportSnapshot,
 } from '../../lib/commercialization-report';
 import type { GoStopTweakDecision } from '../go-stop-tweak-engine';
+import {
+  getConceptImageMode,
+  getPromptStyle,
+} from '../../../../supabase/functions/_shared/concept-image-catalog.ts';
+
+export const AI_VISUAL_DISCLAIMER =
+  'AI-generated concept visualization for directional testing. Final packaging requires design/legal review.';
+
+/** "Packaging mockup · Premium natural" label for an AI-generated report visual, or null. */
+export function packagingProvenanceLabel(snapshot: CommercializationReportSnapshot): string | null {
+  if (!snapshot.concept.packagingImageAiGenerated) return null;
+  const mode = getConceptImageMode(snapshot.concept.packagingImageMode).label;
+  const style = snapshot.concept.packagingImagePromptStyle
+    ? getPromptStyle(snapshot.concept.packagingImagePromptStyle).label
+    : '';
+  return style ? `${mode} · ${style}` : mode;
+}
 
 export interface CommercializationReportPdfInput {
   snapshot: CommercializationReportSnapshot;
@@ -171,6 +188,10 @@ export interface ConceptPackagingSectionData {
   evidenceStrengthLabel: string;
   evidenceStrengthNote: string;
   recommendationItems: string[];
+  /** Mode/style label when the selected visual is AI-generated, else null. */
+  packagingProvenance: string | null;
+  /** AI-visualization disclaimer when the selected visual is AI-generated, else null. */
+  packagingDisclaimer: string | null;
 }
 
 export function buildConceptPackagingSection(input: CommercializationReportPdfInput): ConceptPackagingSectionData {
@@ -193,6 +214,8 @@ export function buildConceptPackagingSection(input: CommercializationReportPdfIn
       `Packaging direction: ${snapshot.narrative.packagingRationale}`,
       `Evidence limitation: ${getEvidenceStrengthNote(snapshot.evidence.responseCount)}`,
     ],
+    packagingProvenance: packagingProvenanceLabel(snapshot),
+    packagingDisclaimer: snapshot.concept.packagingImageAiGenerated ? AI_VISUAL_DISCLAIMER : null,
   };
 }
 
@@ -254,6 +277,9 @@ export function buildRisksNextStepsSection(input: CommercializationReportPdfInpu
       ['Report status', input.status],
       ['Export timestamp', new Date().toISOString()],
       ['Concept response count', String(snapshot.evidence.responseCount)],
+      ...(snapshot.concept.packagingImageAiGenerated
+        ? [['Concept visual provenance', `${packagingProvenanceLabel(snapshot)} — ${AI_VISUAL_DISCLAIMER}`]]
+        : []),
       ['Source data note', 'Technical identifiers are retained here for traceability and are intentionally excluded from the main recommendation.'],
     ],
   };

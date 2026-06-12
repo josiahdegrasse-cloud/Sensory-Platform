@@ -10,10 +10,13 @@ const draft: ConceptDraft = {
   marketingImages: ['https://example.com/concept.png'],
   marketingImageIds: ['image-1'],
   targetMarket: '',
+  targetOccasion: '',
   pricePoint: '',
   keyBenefits: '',
   technicalChallenges: '',
   promptStyle: 'balanced',
+  visualNotes: '',
+  forbiddenClaims: '',
   approvalStatus: 'draft',
 };
 

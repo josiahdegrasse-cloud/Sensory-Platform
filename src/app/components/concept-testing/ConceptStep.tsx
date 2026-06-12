@@ -4,6 +4,7 @@ import { Textarea } from '../ui/textarea';
 import { DollarSign, Target, Star, Package, FolderKanban } from 'lucide-react';
 import type { ConceptDraft } from './types';
 import { detectFoodType, getFoodTypeProfile } from '../../lib/food-intelligence';
+import { PROMPT_STYLES, normalizePromptStyle } from '../../../../supabase/functions/_shared/concept-image-catalog.ts';
 
 export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: ConceptDraft) => void }) {
   const set = (field: keyof ConceptDraft) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -120,19 +121,19 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
             <p className="text-xs text-slate-500 mt-0.5">Choose the tone for generated concept images.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {(['balanced', 'premium', 'natural', 'family', 'foodservice', 'clean-label'] as const).map(style => (
+            {PROMPT_STYLES.map(style => (
               <button
-                key={style}
+                key={style.id}
                 type="button"
-                onClick={() => onChange({ ...draft, promptStyle: style })}
-                aria-pressed={draft.promptStyle === style}
-                className={`rounded-md border px-2.5 py-1.5 text-xs font-medium capitalize transition-colors ${
-                  draft.promptStyle === style
+                onClick={() => onChange({ ...draft, promptStyle: style.id })}
+                aria-pressed={normalizePromptStyle(draft.promptStyle) === style.id}
+                className={`rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                  normalizePromptStyle(draft.promptStyle) === style.id
                     ? 'border-blue-500 bg-blue-50 text-blue-700'
                     : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                 }`}
               >
-                {style.replace('-', ' ')}
+                {style.label}
               </button>
             ))}
           </div>

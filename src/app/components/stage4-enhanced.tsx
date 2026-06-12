@@ -1,25 +1,25 @@
 import { STATUS } from '../styles/tokens';
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFoodType, sampleMatchesFoodType, matchFoodType } from "../contexts/food-type-context";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, Eye, EyeOff, Activity, Award, Zap, ClipboardCheck, GitMerge, Download, FileSpreadsheet, FileText, Megaphone } from "lucide-react";
+import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, Activity, Award, Zap, ClipboardCheck, GitMerge, Download, FileSpreadsheet, FileText, Megaphone, Settings2 } from "lucide-react";
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceArea, ReferenceLine } from "recharts";
 import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from "../data/enhanced-sensory";
 import { DataProvenanceBadge } from "./data-provenance-badge";
-import { METHOD_COMPARISON } from "../data/validation-data";
 import { DecisionLog } from "./decision-log";
 import { useAuth } from "../contexts/auth-context";
 import { insertDecisionRecord } from "../lib/database";
 import { formatFoodTypeLabel } from "../lib/food-intelligence";
-import { queryKeys, useInstrumentalDataset, useProducts, useWorkspaceSettings } from "../lib/hooks";
+import { queryKeys, useDecisionRecords, useInstrumentalDataset, useProducts, useWorkspaceSettings } from "../lib/hooks";
 import { useSurveyData } from "../lib/use-survey-data";
 import { calculateGoStopTweakDecision, type GoStopTweakDecision } from "../utils/go-stop-tweak-engine";
 import { assessSampleWorkflow } from "../lib/workflow-readiness";
 import { downloadDecisionReportExcel, downloadDecisionReportPdf } from "../utils/decision-report";
+import { filterProjectInstrumentSamples } from "../lib/insights";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +28,9 @@ import {
 } from "./ui/dropdown-menu";
 import { CommercializationReportBuilder } from "./commercialization-report-builder";
 import { ProjectHeader } from "./project-header";
+import { DecisionSummaryCard } from "./decision-summary-card";
+import { DecisionReviewDialog } from "./decision-review-dialog";
+import type { DecisionOutcome } from "../utils/go-stop-tweak-engine";
 
 import { IssfGauge, PathToGoPanel } from "./stage4-panels";
 type SampleDecision = GoStopTweakDecision;
@@ -40,24 +43,37 @@ export function Stage4Enhanced() {
   const { data: instrumentalDataset } = useInstrumentalDataset(user?.role === 'admin');
   const { data: products = [] } = useProducts();
   const { data: workspaceSettings } = useWorkspaceSettings();
+  const { data: decisionRecords = [] } = useDecisionRecords();
   const { liveAggregations } = useSurveyData();
+  const selectedBatchId = subCategory?.startsWith('batch:') ? subCategory.replace('batch:', '') : null;
   const [selectedSample, setSelectedSample] = useState<string>("");
   const [showRawData, setShowRawData] = useState(false);
-  const [showQualitative, setShowQualitative] = useState(true);
+  const [showQualitative, setShowQualitative] = useState(false);
   const [showWeightConfig, setShowWeightConfig] = useState(false);
   const [weights, setWeights] = useState({ hedonic: 30, texture: 25, cata: 25, emotional: 15 });
   const [showAuditTrail, setShowAuditTrail] = useState(false);
-  const [auditNote, setAuditNote] = useState("");
   const [logRefreshKey, setLogRefreshKey] = useState(0);
   const [confirmPending, setConfirmPending] = useState(false);
   const [decisionSaving, setDecisionSaving] = useState(false);
   const [decisionError, setDecisionError] = useState("");
-  const [confirmedGoDecision, setConfirmedGoDecision] = useState<SampleDecision | null>(null);
+  const [confirmedDecision, setConfirmedDecision] = useState<SampleDecision | null>(null);
   const [reportError, setReportError] = useState("");
   const [reportExporting, setReportExporting] = useState(false);
   const stopThreshold = workspaceSettings?.decisionStopThreshold ?? 52;
   const goThreshold = workspaceSettings?.decisionGoThreshold ?? 76;
   const minimumResponses = workspaceSettings?.decisionMinResponses ?? 12;
+  const projectInstrumentSamples = useMemo(
+    () => filterProjectInstrumentSamples(
+      instrumentalDataset?.eTongueData ?? [],
+      foodType,
+      selectedBatchId,
+    ),
+    [foodType, instrumentalDataset?.eTongueData, selectedBatchId],
+  );
+  const projectSampleIds = useMemo(
+    () => new Set(projectInstrumentSamples.map(sample => sample.sampleId)),
+    [projectInstrumentSamples],
+  );
   const reportOptions = (decisions: SampleDecision[]) => ({
     foodType: formatFoodTypeLabel(foodType),
     decisions,
@@ -80,8 +96,7 @@ export function Stage4Enhanced() {
     }
   };
   const importedReadiness = useMemo(() => (
-    (instrumentalDataset?.eTongueData ?? [])
-      .filter(sample => sample.type === foodType)
+    projectInstrumentSamples
       .map(sample => {
         const product = products.find(item => item.sourceSampleId === sample.sampleId);
         const aggregation = liveAggregations.find(item => item.sourceSampleId === sample.sampleId);
@@ -94,7 +109,7 @@ export function Stage4Enhanced() {
           hasComposition: Boolean(instrumentalDataset?.compositionData[sample.sampleId]),
         });
       })
-  ), [foodType, instrumentalDataset, liveAggregations, minimumResponses, products]);
+  ), [instrumentalDataset, liveAggregations, minimumResponses, products, projectInstrumentSamples]);
 
   const liveSensoryData = useMemo<EnhancedSensoryProfile[]>(() => {
     const activeTypes = new Set(extraFoodTypes);
@@ -169,28 +184,26 @@ export function Stage4Enhanced() {
   ]);
 
   const filteredSensoryData = liveSensoryData.filter(s => {
-    const importedType = instrumentalDataset?.eTongueData.find(sample => sample.sampleId === s.sampleId)?.type;
-    const ft = importedType ?? sampleMatchesFoodType(s.sampleId, s.sampleName);
+    const importedSample = instrumentalDataset?.eTongueData.find(sample => sample.sampleId === s.sampleId);
+    const ft = importedSample?.type ?? sampleMatchesFoodType(s.sampleId, s.sampleName);
     if (foodType !== 'all' && ft !== foodType) return false;
-    if (subCategory && !s.sampleName.toLowerCase().includes(subCategory.toLowerCase())) return false;
+    if (selectedBatchId && !projectSampleIds.has(s.sampleId)) return false;
+    if (subCategory && !selectedBatchId && !s.sampleName.toLowerCase().includes(subCategory.toLowerCase())) return false;
     return true;
   });
 
-  useEffect(() => {
-    if (filteredSensoryData.length > 0 && !filteredSensoryData.find(s => s.sampleId === selectedSample)) {
-      setSelectedSample(filteredSensoryData[0].sampleId);
-    }
-  }, [filteredSensoryData, selectedSample]);
-
   if (filteredSensoryData.length === 0) {
     const activeLabel = foodType === 'all' ? 'selected food types' : formatFoodTypeLabel(foodType);
-    const importedSamples = (instrumentalDataset?.eTongueData ?? []).filter(sample =>
-      foodType === 'all' ? true : sample.type === foodType
-    );
+    const importedSamples = selectedBatchId
+      ? projectInstrumentSamples
+      : (instrumentalDataset?.eTongueData ?? []).filter(sample => foodType === 'all' || sample.type === foodType);
     const activeProducts = products.filter(product => product.status !== 'archived');
     const productCount = foodType === 'all'
       ? activeProducts.length
-      : activeProducts.filter(product => matchFoodType(product.category) === foodType).length;
+      : activeProducts.filter(product =>
+          matchFoodType(product.category) === foodType &&
+          (!selectedBatchId || product.sourceImportBatchId === selectedBatchId)
+        ).length;
 
     return (
       <div className="space-y-6">
@@ -295,18 +308,34 @@ export function Stage4Enhanced() {
     });
   });
 
-  const selected = sampleDecisions.find(d => d.sampleId === selectedSample);
-  const selectedSensory = liveSensoryData.find(s => s.sampleId === selectedSample);
+  const activeSelectedSample = sampleDecisions.some(decision => decision.sampleId === selectedSample)
+    ? selectedSample
+    : sampleDecisions[0]?.sampleId ?? '';
+  const selected = sampleDecisions.find(d => d.sampleId === activeSelectedSample);
+  const selectedSensory = liveSensoryData.find(s => s.sampleId === activeSelectedSample);
+  const persistedDecisionRecord = selected
+    ? decisionRecords.find(record =>
+        record.sampleId === selected.sampleId &&
+        record.decisionFingerprint === selected.decisionFingerprint
+      )
+    : null;
+  const confirmedDecisionForSelection = selected && (
+    confirmedDecision?.sampleId === selected.sampleId &&
+    confirmedDecision.decisionFingerprint === selected.decisionFingerprint
+      ? confirmedDecision
+      : persistedDecisionRecord
+        ? { ...selected, decision: persistedDecisionRecord.decision }
+        : null
+  );
   // Reference profiles come from the simulated demo dataset; everything else in
   // liveSensoryData is built from imports + live panel aggregations.
-  const selectedIsReference = ENHANCED_SENSORY_DATA.some(p => p.sampleId === selectedSample);
+  const selectedIsReference = ENHANCED_SENSORY_DATA.some(p => p.sampleId === activeSelectedSample);
 
   // Stats
   const stats = {
     go: sampleDecisions.filter(d => d.decision === "GO").length,
     tweak: sampleDecisions.filter(d => d.decision === "TWEAK").length,
     stop: sampleDecisions.filter(d => d.decision === "STOP").length,
-    totalSavings: sampleDecisions.reduce((sum, d) => sum + d.costSavings, 0),
     avgConfidence: Math.round(sampleDecisions.reduce((sum, d) => sum + d.confidenceScore, 0) / sampleDecisions.length),
     lowRisk: sampleDecisions.filter(d => d.riskLevel === "low").length,
   };
@@ -330,12 +359,6 @@ export function Stage4Enhanced() {
         <AlertTriangle className="size-5 text-amber-600" />
       </span>
     );
-  };
-
-  const getDecisionBadge = (decision: string) => {
-    if (decision === "GO") return <Badge className="bg-emerald-600 text-white text-base px-4 py-1">▲ GO</Badge>;
-    if (decision === "STOP") return <Badge className="bg-rose-600 text-white text-base px-4 py-1">■ STOP</Badge>;
-    return <Badge className="bg-amber-600 text-white text-base px-4 py-1">◆ TWEAK</Badge>;
   };
 
   // Scatter data: ISSF Score vs Hedonic
@@ -363,35 +386,9 @@ export function Stage4Enhanced() {
               <DataProvenanceBadge provenance={selectedIsReference ? 'reference' : 'live'} />
             )}
           </div>
-          <p className="text-sm text-slate-500 mt-1">
-            The GO / TWEAK / STOP call for this project — recommendation, evidence, and the final sign-off. Validated against {METHOD_COMPARISON.pearsonR.toFixed(2)} correlation with trained panel (n=127).
-          </p>
+          <p className="text-sm text-slate-500 mt-1">Review the recommendation, confirm the outcome, and move the project forward.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => setShowWeightConfig(!showWeightConfig)} variant="outline" size="sm">
-            {showWeightConfig ? <EyeOff className="size-4 mr-2" /> : <Eye className="size-4 mr-2" />}
-            Score Weights
-          </Button>
-          <Button onClick={() => setShowQualitative(!showQualitative)} variant="outline" size="sm">
-            {showQualitative ? <EyeOff className="size-4 mr-2" /> : <Eye className="size-4 mr-2" />}
-            Panelist Quotes
-          </Button>
-          <Button onClick={() => setShowRawData(!showRawData)} variant="outline" size="sm">
-            {showRawData ? <EyeOff className="size-4 mr-2" /> : <Eye className="size-4 mr-2" />}
-            Raw Data
-          </Button>
-          <Button
-            onClick={() => setConfirmPending(true)}
-            size="sm"
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            <ClipboardCheck className="size-4 mr-2" />
-            Confirm Decision
-          </Button>
-          <Button onClick={() => setShowAuditTrail(v => !v)} variant="outline" size="sm">
-            <ClipboardCheck className="size-4 mr-2" />
-            Audit Trail
-          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" disabled={reportExporting}>
@@ -415,13 +412,13 @@ export function Stage4Enhanced() {
       {reportError && (
         <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{reportError}</p>
       )}
-      {confirmedGoDecision && (
+      {confirmedDecisionForSelection?.decision === 'GO' && (
         <div className="flex flex-col gap-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-3">
             <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-700" />
             <div>
               <p className="font-semibold text-emerald-950">
-                {confirmedGoDecision.sampleName} is confirmed for commercialization.
+                {confirmedDecisionForSelection.sampleName} is confirmed for commercialization.
               </p>
               <p className="mt-1 text-sm text-emerald-800">
                 Build the branded launch report now, or continue into packaging and marketing concept development.
@@ -430,7 +427,7 @@ export function Stage4Enhanced() {
           </div>
           <div className="flex flex-wrap gap-2">
             <CommercializationReportBuilder
-              decision={confirmedGoDecision}
+              decision={confirmedDecisionForSelection}
               foodType={foodType}
               userId={user?.id}
               settings={workspaceSettings}
@@ -440,14 +437,14 @@ export function Stage4Enhanced() {
                 to="/concept-testing"
                 state={{
                   conceptSeed: {
-                    name: confirmedGoDecision.sampleName,
+                    name: confirmedDecisionForSelection.sampleName,
                     category: foodType !== 'all' ? formatFoodTypeLabel(foodType) : undefined,
-                    description: `A new product concept inspired by ${confirmedGoDecision.sampleName}, which received a confirmed GO decision for commercialization.`,
+                    description: `A new product concept inspired by ${confirmedDecisionForSelection.sampleName}, which received a confirmed GO decision for commercialization.`,
                     sourceDecision: {
-                      id: confirmedGoDecision.sampleId,
-                      sampleName: confirmedGoDecision.sampleName,
-                      issfScore: confirmedGoDecision.issfScore,
-                      confidence: confirmedGoDecision.confidenceScore,
+                      id: confirmedDecisionForSelection.sampleId,
+                      sampleName: confirmedDecisionForSelection.sampleName,
+                      issfScore: confirmedDecisionForSelection.issfScore,
+                      confidence: confirmedDecisionForSelection.confidenceScore,
                       timestamp: new Date().toISOString(),
                     },
                   },
@@ -461,8 +458,64 @@ export function Stage4Enhanced() {
         </div>
       )}
 
+      {confirmedDecisionForSelection?.decision === 'TWEAK' && (
+        <div className="flex flex-col gap-4 rounded-lg border border-amber-200 bg-amber-50 p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-700" />
+            <div>
+              <p className="font-semibold text-amber-950">
+                {confirmedDecisionForSelection.sampleName} needs an adjustment before it can advance.
+              </p>
+              <p className="mt-1 text-sm text-amber-800">
+                Make the planned adjustment, then import a retest batch to confirm the change worked.
+              </p>
+            </div>
+          </div>
+          <Button asChild size="sm" className="bg-amber-600 text-white hover:bg-amber-700">
+            <Link to="/stage1">
+              <GitMerge className="size-4" />
+              Import retest data
+            </Link>
+          </Button>
+        </div>
+      )}
 
-      {/* Recommendation — the focal point of this review */}
+      {confirmedDecisionForSelection?.decision === 'STOP' && (
+        <div className="flex flex-col gap-4 rounded-lg border border-rose-200 bg-rose-50 p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-3">
+            <XCircle className="mt-0.5 size-5 shrink-0 text-rose-700" />
+            <div>
+              <p className="font-semibold text-rose-950">
+                {confirmedDecisionForSelection.sampleName} will not advance to commercialization.
+              </p>
+              <p className="mt-1 text-sm text-rose-800">
+                Review the gate failures above, or start a new formulation with imported data.
+              </p>
+            </div>
+          </div>
+          <Button asChild size="sm" variant="outline" className="border-rose-300 text-rose-800 hover:bg-rose-100">
+            <Link to="/stage1">
+              <GitMerge className="size-4" />
+              Start a new formulation
+            </Link>
+          </Button>
+        </div>
+      )}
+
+      {selected && (
+        <DecisionSummaryCard
+          decision={selected}
+          action={(
+            <Button onClick={() => setConfirmPending(true)} className="bg-blue-700 text-white hover:bg-blue-800">
+              <ClipboardCheck className="size-4" />
+              Confirm outcome
+            </Button>
+          )}
+        />
+      )}
+
+
+      {/* Prototype selection and supporting evidence */}
       <div className="grid grid-cols-4 gap-6">
         {/* Sample List */}
         <Card>
@@ -476,7 +529,7 @@ export function Stage4Enhanced() {
                   key={sample.sampleId}
                   onClick={() => setSelectedSample(sample.sampleId)}
                   className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
-                    selectedSample === sample.sampleId
+                    activeSelectedSample === sample.sampleId
                       ? "border-blue-600 bg-blue-50"
                       : "border-slate-200 hover:border-blue-300"
                   }`}
@@ -497,16 +550,20 @@ export function Stage4Enhanced() {
         <div className="col-span-3 space-y-6">
           {selected && selectedSensory && (
             <>
-              <Card className={`border-2 ${
-                selected.decision === "GO" ? "border-emerald-400 bg-emerald-50" :
-                selected.decision === "STOP" ? "border-rose-400 bg-rose-50" :
-                "border-amber-400 bg-amber-50"
-              }`}>
+              <details className="rounded-lg border border-slate-200 bg-white">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500">
+                  <span>
+                    <span className="block text-sm font-bold text-slate-900">Supporting evidence</span>
+                    <span className="mt-0.5 block text-xs text-slate-500">Decision gates, score path, prescriptions, and sensory profile</span>
+                  </span>
+                  <span className="text-xs font-semibold text-blue-700">Review details</span>
+                </summary>
+              <Card className="rounded-none border-x-0 border-b-0">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="text-2xl font-bold text-slate-900">{selected.sampleName}</h2>
-                      <div className="mt-2">{getDecisionBadge(selected.decision)}</div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Supporting evidence</p>
+                      <h2 className="mt-1 text-xl font-bold text-slate-900">{selected.sampleName}</h2>
                     </div>
                     <IssfGauge
                       score={selected.issfScore}
@@ -517,27 +574,6 @@ export function Stage4Enhanced() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="bg-white p-4 rounded-lg border-2 border-slate-200 mb-4">
-                    <h3 className="font-bold text-slate-900 mb-2 flex items-center gap-2">
-                      <Activity className="size-5 text-blue-600" />
-                      Recommendation
-                    </h3>
-                    <p className="text-base text-slate-800 mb-3">{selected.recommendation}</p>
-                    <div className="flex flex-wrap items-center gap-2 text-sm">
-                      <Badge className="bg-blue-600">Timeline: {selected.timeline}</Badge>
-                      <Badge className="bg-emerald-600">Savings: ${(selected.costSavings / 1000).toFixed(0)}k</Badge>
-                      <Badge className={
-                        selected.riskLevel === "low" ? "bg-emerald-600" :
-                        selected.riskLevel === "medium" ? "bg-amber-600" : "bg-rose-600"
-                      }>
-                        Risk: {selected.riskLevel.toUpperCase()}
-                      </Badge>
-                      <Badge variant="outline" className="font-mono text-slate-700">
-                        {selected.methodVersion} · {selected.decisionFingerprint}
-                      </Badge>
-                    </div>
-                  </div>
-
                   <div className="bg-white p-4 rounded-lg border-2 border-slate-200 mb-4">
                     <div className="flex items-center justify-between gap-3 mb-3">
                       <h3 className="font-bold text-slate-900 flex items-center gap-2">
@@ -663,6 +699,7 @@ export function Stage4Enhanced() {
                   </div>
                 </CardContent>
               </Card>
+              </details>
 
               {/* Qualitative Insights */}
               {showQualitative && selectedSensory.trainedPanelReference && (
@@ -723,11 +760,19 @@ export function Stage4Enhanced() {
         </div>
       </div>
 
-      {/* Supporting analytics — batch comparison and score tuning behind the recommendation above */}
-      <div className="pt-2 flex items-center gap-2">
-        <h2 className="text-sm font-bold uppercase tracking-wide text-slate-400">Batch analytics</h2>
-        <span className="text-xs text-slate-400">How this recommendation compares across the batch</span>
-      </div>
+      <details className="rounded-lg border border-slate-200 bg-white">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-4 text-sm font-bold text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500">
+          <Settings2 className="size-4 text-slate-500" />
+          Supporting analysis and method settings
+          <span className="font-normal text-slate-500">Batch comparison, score weights, validation, raw data, and audit history</span>
+        </summary>
+        <div className="space-y-6 border-t border-slate-100 p-5">
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => setShowWeightConfig(!showWeightConfig)} variant="outline" size="sm">Score weights</Button>
+            <Button onClick={() => setShowQualitative(!showQualitative)} variant="outline" size="sm">Validation</Button>
+            <Button onClick={() => setShowRawData(!showRawData)} variant="outline" size="sm">Raw data</Button>
+            <Button onClick={() => setShowAuditTrail(v => !v)} variant="outline" size="sm">Audit trail</Button>
+          </div>
       {/* Weight Configuration */}
       {showWeightConfig && (
         <Card className="border-2 border-blue-200 bg-blue-50">
@@ -844,7 +889,7 @@ export function Stage4Enhanced() {
               </button>
             )}
           </div>
-          <div className="mt-4 grid grid-cols-5 gap-4 text-center">
+          <div className="mt-4 grid grid-cols-2 gap-4 text-center sm:grid-cols-4">
             <div>
               <div className="text-2xl font-bold text-emerald-600">{stats.go}</div>
               <div className="text-xs text-slate-500 mt-0.5">GO</div>
@@ -864,11 +909,6 @@ export function Stage4Enhanced() {
               <div className="text-2xl font-bold text-blue-600">{stats.avgConfidence}%</div>
               <div className="text-xs text-slate-500 mt-0.5">Confidence</div>
               <div className="text-xs text-slate-400">avg certainty</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-emerald-600">${(stats.totalSavings / 1000).toFixed(0)}k</div>
-              <div className="text-xs text-slate-500 mt-0.5">R&D Savings</div>
-              <div className="text-xs text-slate-400">vs full panel</div>
             </div>
           </div>
         </CardContent>
@@ -932,7 +972,7 @@ export function Stage4Enhanced() {
                 style={{ cursor: 'pointer' }}
                 shape={(props: { cx?: number; cy?: number; payload?: SampleDecision & { id?: string; sample?: string } }) => {
                   const { cx, cy, payload } = props as { cx: number; cy: number; payload: SampleDecision & { id?: string; sample?: string } };
-                  const isSelected = payload.sampleId === selectedSample;
+                  const isSelected = payload.sampleId === activeSelectedSample;
                   let color: string = STATUS.go;
                   if (payload.decision === "STOP") color = STATUS.stop;
                   if (payload.decision === "TWEAK") color = STATUS.tweak;
@@ -982,78 +1022,48 @@ export function Stage4Enhanced() {
         </CardContent>
       </Card>
 
-
-      {/* Confirm Decision dialog */}
-      {confirmPending && selected && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full space-y-4">
-            <h2 className="text-lg font-bold text-slate-900">Confirm Decision</h2>
-            <p className="text-sm text-slate-600">
-              You are logging a <strong>{selected.decision}</strong> decision for <strong>{selected.sampleName}</strong>{" "}
-              (ISSF {selected.issfScore.toFixed(1)}, confidence {selected.confidenceScore.toFixed(0)}%) to the audit trail.
-            </p>
-            {decisionError && (
-              <p className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
-                {decisionError}
-              </p>
-            )}
-            <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1">
-                Optional note (rationale, batch ID, etc.)
-              </label>
-              <textarea
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows={3}
-                placeholder="e.g. Approved for pilot batch #2024-11-A after steering review"
-                value={auditNote}
-                onChange={e => setAuditNote(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => { setConfirmPending(false); setAuditNote(""); }}>
-                Cancel
-              </Button>
-              <Button
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-                disabled={decisionSaving || !user?.id}
-                onClick={async () => {
-                  if (!user?.id || decisionSaving) return;
-                  setDecisionSaving(true);
-                  setDecisionError("");
-                  try {
-                    await insertDecisionRecord({
-                      sampleId: selected.sampleId,
-                      sampleName: selected.sampleName,
-                      decision: selected.decision,
-                      issfScore: selected.issfScore,
-                      confidence: selected.confidenceScore,
-                      note: auditNote.trim(),
-                      methodVersion: selected.methodVersion,
-                      decisionFingerprint: selected.decisionFingerprint,
-                      createdBy: user.id,
-                    });
-                    await queryClient.invalidateQueries({ queryKey: queryKeys.decisionRecords });
-                    setLogRefreshKey(k => k + 1);
-                    setShowAuditTrail(true);
-                    setConfirmedGoDecision(selected.decision === "GO" ? selected : null);
-                    setConfirmPending(false);
-                    setAuditNote("");
-                  } catch (error) {
-                    setDecisionError(error instanceof Error ? error.message : "Unable to save this decision.");
-                  } finally {
-                    setDecisionSaving(false);
-                  }
-                }}
-              >
-                {decisionSaving ? "Saving..." : "Log Decision"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Audit trail panel */}
       {showAuditTrail && <DecisionLog refreshKey={logRefreshKey} />}
+        </div>
+      </details>
+
+      <DecisionReviewDialog
+        key={`${selected?.sampleId ?? 'none'}-${confirmPending ? 'open' : 'closed'}`}
+        open={confirmPending}
+        decision={selected ?? null}
+        saving={decisionSaving}
+        error={decisionError}
+        onOpenChange={open => {
+          setConfirmPending(open);
+          if (!open) setDecisionError("");
+        }}
+        onConfirm={async (outcome: DecisionOutcome, note: string) => {
+          if (!selected || !user?.id || decisionSaving) return;
+          setDecisionSaving(true);
+          setDecisionError("");
+          try {
+            await insertDecisionRecord({
+              sampleId: selected.sampleId,
+              sampleName: selected.sampleName,
+              decision: outcome,
+              issfScore: selected.issfScore,
+              confidence: selected.confidenceScore,
+              note,
+              methodVersion: selected.methodVersion,
+              decisionFingerprint: selected.decisionFingerprint,
+              createdBy: user.id,
+            });
+            await queryClient.invalidateQueries({ queryKey: queryKeys.decisionRecords });
+            setLogRefreshKey(key => key + 1);
+            setConfirmedDecision({ ...selected, decision: outcome });
+            setConfirmPending(false);
+          } catch (error) {
+            setDecisionError(error instanceof Error ? error.message : "Unable to save this decision.");
+          } finally {
+            setDecisionSaving(false);
+          }
+        }}
+      />
     </div>
   );
 }

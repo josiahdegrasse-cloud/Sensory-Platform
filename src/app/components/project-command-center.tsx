@@ -8,7 +8,7 @@ import { useFoodType } from '../contexts/food-type-context';
 import { useAuditEvents, useImportBatches, useWorkspaceSettings } from '../lib/hooks';
 import { useProjectStatus } from '../lib/use-project-status';
 import { ProjectStatusBadge, toneTextClasses } from './project-status-badge';
-import { ProjectWorkflowProgress } from './project-workflow-progress';
+import { ProjectJourneyNav } from './project-journey-nav';
 import { NextActionCard } from './next-action-card';
 import { ReportPreviewCard } from './report-preview-card';
 import { DataProvenanceBadge } from './data-provenance-badge';
@@ -204,8 +204,8 @@ export function ProjectCommandCenter() {
       </div>
 
       <Card className="border border-slate-200 bg-white">
-        <CardContent className="py-5">
-          <ProjectWorkflowProgress stages={status.stages} variant="full" showDetails />
+        <CardContent className="py-3">
+          <ProjectJourneyNav stages={status.stages} />
         </CardContent>
       </Card>
 
@@ -219,7 +219,13 @@ export function ProjectCommandCenter() {
               ))}
             </div>
           )}
-          <EvidenceStrip status={status} />
+          <details className="rounded-lg border border-slate-200 bg-white">
+            <summary className="cursor-pointer list-none px-5 py-4 text-sm font-bold text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500">
+              Project evidence at a glance
+              <span className="ml-2 font-normal text-slate-500">Responses, decision, confidence, concepts, and imported data</span>
+            </summary>
+            <div className="border-t border-slate-100"><EvidenceStrip status={status} /></div>
+          </details>
           <RecentActivity events={projectEvents} projectScoped={projectScoped} />
         </div>
         <ReportPreviewCard status={status} />

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  AlertCircle, BarChart3, CheckSquare, Download, FlaskConical, Heart,
+  AlertCircle, BarChart3, CheckSquare, ChevronDown, Download, FlaskConical, Heart,
   Layers, MessageCircle, Smile, TrendingUp, Users,
 } from 'lucide-react';
 import { useAuth } from '../contexts/auth-context';
@@ -34,16 +34,11 @@ import {
 } from './ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { ProjectHeader } from './project-header';
-import { NextActionCard } from './next-action-card';
 import { DataProvenanceBadge } from './data-provenance-badge';
 import { StageEmptyState } from './stage-empty-state';
 import {
-  DataSourceSummary,
-  EvidenceStrengthCard,
-  InsightInterpretationBlock,
   InsightsExecutiveSummary,
   InsightsSectionHeader,
-  InsightsSectionNav,
   RawDataAppendix,
 } from './insights-ui';
 import { CATATab, CommentsTab, EmotionalTab, HedonicTab, IntensityTab } from './survey-analysis-tabs';
@@ -166,7 +161,6 @@ export function SurveyAnalysis() {
     fallback: status.nextAction,
     hasInstrumentData: Boolean(selectedInstrument),
     productCount: selectedProduct ? 1 : 0,
-    assignedPanelistCount: selectedProduct?.assignedPanelistIds?.length ?? 0,
     liveResponseCount,
     minimumResponses,
     decision: latestDecision?.decision ?? null,
@@ -255,16 +249,6 @@ export function SurveyAnalysis() {
   });
   const showComparison = comparisonProfiles.length > 1 || multiSampleProducts.length > 0;
   const comments = matchingLiveData ? commentsByProduct[matchingLiveData.productId] ?? [] : [];
-  const sections = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'sensory-evidence', label: 'Sensory evidence' },
-    { id: 'instrumental-evidence', label: 'Instrumental evidence' },
-    ...(showComparison ? [{ id: 'sample-comparison', label: 'Sample comparison' }] : []),
-    { id: 'concept-feedback', label: 'Concept feedback' },
-    { id: 'comments-themes', label: 'Comments' },
-    { id: 'appendix', label: 'Appendix' },
-  ];
-
   const exportSampleCSV = () => {
     downloadCsv(
       buildSampleCSVRows(selectedData, selectedSample, usingLiveData, activeEmotions),
@@ -289,8 +273,6 @@ export function SurveyAnalysis() {
         </Select>
       </div>
 
-      <InsightsSectionNav sections={sections} />
-
       <InsightsExecutiveSummary
         sampleName={selectedData.sampleName}
         category={formatFoodTypeLabel(foodType)}
@@ -300,7 +282,7 @@ export function SurveyAnalysis() {
         strength={strength}
         keyStrength={keyStrength}
         keyConcern={keyConcern}
-        recommendedAction={nextAction.description}
+        nextAction={nextAction}
       />
 
       {liveDataFetchFailed && (
@@ -309,32 +291,6 @@ export function SurveyAnalysis() {
           Live panel responses could not be loaded. Any reference charts below are for method orientation only.
         </div>
       )}
-
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <EvidenceStrengthCard strength={strength} />
-        <DataSourceSummary sources={[
-          {
-            label: 'Panel sensory evidence', available: usingLiveData || usingReferenceData,
-            provenance: usingLiveData ? 'live' : 'reference', n: usingLiveData ? liveResponseCount : undefined,
-            detail: usingLiveData ? `${liveResponseCount} live responses matched to this sample.` : 'Reference/demo data is visible only to explain the analysis method.',
-          },
-          {
-            label: 'Instrumental evidence', available: Boolean(selectedInstrument), provenance: 'imported',
-            detail: selectedInstrument ? `${datasetsPresent} of 3 expected instrumental sources are available.` : 'No imported instrument record is linked to this sample.',
-          },
-          {
-            label: 'Concept feedback', available: Boolean(primaryConcept), provenance: primaryConcept ? 'live' : undefined,
-            n: primaryConcept ? primaryConceptResponses.length : undefined,
-            detail: primaryConcept ? `${primaryConcept.name} is linked to this project.` : 'No project-scoped concept test is available.',
-          },
-          {
-            label: 'Administrative decision', available: Boolean(latestDecision), provenance: latestDecision ? 'approved' : undefined,
-            detail: latestDecision ? `${latestDecision.decision} saved at ISSF ${latestDecision.issfScore.toFixed(0)}.` : 'No saved GO / TWEAK / STOP decision exists yet.',
-          },
-        ]} />
-      </div>
-
-      <NextActionCard projectName={selectedData.sampleName} action={nextAction} />
 
       <section className="space-y-4">
         <InsightsSectionHeader
@@ -366,13 +322,6 @@ export function SurveyAnalysis() {
                 </Card>
               ))}
             </div>
-            <InsightInterpretationBlock
-              tone={strength.representative ? 'info' : 'warning'}
-              finding={keyStrength}
-              evidence={`${usingLiveData ? liveResponseCount : 0} live panel responses support this view.`}
-              confidence={strength.note}
-              action={nextAction.description}
-            />
             <Tabs defaultValue="hedonic">
               <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4">
                 <TabsTrigger value="hedonic">Liking</TabsTrigger>
@@ -389,6 +338,15 @@ export function SurveyAnalysis() {
         )}
       </section>
 
+      <details className="rounded-lg border border-slate-200 bg-white">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-bold text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500">
+          <span>
+            Explore detailed evidence
+            <span className="ml-2 font-normal text-slate-500">Instrument data, comparisons, concepts, comments, and raw exports</span>
+          </span>
+          <ChevronDown className="size-4 shrink-0 text-slate-500" aria-hidden />
+        </summary>
+        <div className="space-y-8 border-t border-slate-100 p-5">
       <section className="space-y-4">
         <InsightsSectionHeader id="instrumental-evidence" icon={FlaskConical} title="Instrumental evidence" description="Imported machine measurements remain separate from panel perception and are interpreted only when linked to this sample." action={selectedInstrument && <DataProvenanceBadge provenance="imported" />} />
         {!selectedInstrument ? (
@@ -406,12 +364,10 @@ export function SurveyAnalysis() {
               ] : []} />
               <MetricList title="Aroma compounds" items={selectedGcms.slice(0, 5).map(compound => [compound.name, `${compound.concentration.toFixed(1)} ppm`])} />
             </div>
-            <InsightInterpretationBlock
-              finding={usingLiveData ? 'Instrument and panel evidence are both available for review.' : 'Instrumental evidence is available, but live sensory alignment is not yet established.'}
-              evidence={`${datasetsPresent} of 3 expected instrumental sources are linked to this sample.`}
-              confidence={datasetsPresent === 3 ? 'Instrument coverage is complete; interpretation still depends on study design.' : 'Supporting instrument coverage is incomplete.'}
-              action={usingLiveData ? 'Review machine measurements alongside panel findings before the decision stage.' : 'Collect live sensory responses before claiming sensory and instrumental alignment.'}
-            />
+            <p className="text-xs text-slate-500">
+              {datasetsPresent} of 3 expected instrumental sources are linked to this sample.
+              {!usingLiveData && ' Collect live sensory responses before claiming sensory and instrumental alignment.'}
+            </p>
           </>
         )}
       </section>
@@ -443,12 +399,10 @@ export function SurveyAnalysis() {
         <InsightsSectionHeader id="comments-themes" icon={MessageCircle} title="Comments and themes" description="Raw panelist language remains visible alongside clear response coverage." />
         <CommentsTab usingLiveData={usingLiveData} matchingLiveData={matchingLiveData} commentsByProduct={commentsByProduct} />
         {comments.length > 0 && (
-          <InsightInterpretationBlock
-            finding={`${comments.length} open-text comment${comments.length === 1 ? '' : 's'} are available for review.`}
-            evidence={`Comments were submitted within ${liveResponseCount} matched live responses.`}
-            confidence={comments.length < 3 ? 'Too few comments to infer a recurring theme.' : 'Qualitative themes should still be reviewed against the raw comments.'}
-            action="Use comments to generate hypotheses, not standalone consumer claims."
-          />
+          <p className="text-xs text-slate-500">
+            {comments.length} open-text comment{comments.length === 1 ? '' : 's'} from {liveResponseCount} matched live responses.
+            {comments.length < 3 && ' Too few comments to infer a recurring theme — use them to generate hypotheses, not claims.'}
+          </p>
         )}
       </section>
 
@@ -479,6 +433,8 @@ export function SurveyAnalysis() {
           </div>
         </div>
       </RawDataAppendix>
+        </div>
+      </details>
     </div>
   );
 }

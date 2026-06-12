@@ -19,10 +19,16 @@ export interface ConceptDraft {
   marketingImages: string[];
   marketingImageIds: string[];
   targetMarket: string;
+  targetOccasion: string;
   pricePoint: string;
   keyBenefits: string;
   technicalChallenges: string;
-  promptStyle: 'balanced' | 'premium' | 'natural' | 'family' | 'foodservice' | 'clean-label';
+  /** Canonical or legacy prompt style id; normalize via normalizePromptStyle before use. */
+  promptStyle: string;
+  /** Optional free-text art direction passed to image generation. */
+  visualNotes: string;
+  /** Claims that must never appear or be implied in generated images (one per line). */
+  forbiddenClaims: string;
   approvalStatus: 'draft' | 'review' | 'approved';
 }
 

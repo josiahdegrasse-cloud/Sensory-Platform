@@ -135,7 +135,6 @@ export function deriveInsightsNextAction(input: {
   fallback: NextAction;
   hasInstrumentData: boolean;
   productCount: number;
-  assignedPanelistCount: number;
   liveResponseCount: number;
   minimumResponses: number;
   decision?: 'GO' | 'TWEAK' | 'STOP' | null;
@@ -148,9 +147,6 @@ export function deriveInsightsNextAction(input: {
   }
   if (input.productCount === 0) {
     return { label: 'Create the survey', description: 'Turn the imported sample into a panelist questionnaire.', path: '/admin', tone: 'info' };
-  }
-  if (input.assignedPanelistCount === 0) {
-    return { label: 'Assign the survey', description: 'Choose panelists and send the questionnaire.', path: '/admin', tone: 'info' };
   }
   if (input.liveResponseCount < input.minimumResponses) {
     const remaining = Math.max(input.minimumResponses - input.liveResponseCount, 0);

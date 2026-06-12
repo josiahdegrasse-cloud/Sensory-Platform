@@ -40,6 +40,11 @@ export interface CommercializationReportSnapshot {
     keyBenefits: string;
     packagingImageId: string | null;
     packagingImageUrl: string;
+    // Provenance for the selected visual (absent on snapshots saved before the
+    // professional image system, and on manually pasted image URLs).
+    packagingImageMode?: string;
+    packagingImagePromptStyle?: string;
+    packagingImageAiGenerated?: boolean;
   };
   evidence: ConceptEvidenceSummary;
   narrative: {
@@ -150,6 +155,7 @@ export function buildCommercializationSnapshot(input: {
   foodType: string;
   packagingImageId: string | null;
   packagingImageUrl: string;
+  packagingImageMeta?: { mode: string; promptStyle: string } | null;
 }): CommercializationReportSnapshot {
   if (input.decisionRecord.decision !== 'GO' || input.liveDecision.decision !== 'GO') {
     throw new Error('Commercialization reports require a confirmed GO decision.');
@@ -191,6 +197,11 @@ export function buildCommercializationSnapshot(input: {
       keyBenefits: input.concept.keyBenefits,
       packagingImageId: input.packagingImageId,
       packagingImageUrl: input.packagingImageUrl,
+      packagingImageMode: input.packagingImageMeta?.mode,
+      packagingImagePromptStyle: input.packagingImageMeta?.promptStyle,
+      // An image with stored generation metadata is AI-generated; a manually
+      // pasted URL has no metadata and gets no AI provenance note.
+      packagingImageAiGenerated: Boolean(input.packagingImageMeta),
     },
     evidence,
     narrative: {

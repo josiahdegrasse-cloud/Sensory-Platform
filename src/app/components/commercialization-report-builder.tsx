@@ -15,8 +15,9 @@ import {
   useDecisionRecords,
   useUpdateCommercializationReportStatus,
 } from '../lib/hooks';
-import type { WorkspaceSettings } from '../lib/database';
+import { updateConceptImageReviewStatus, type WorkspaceSettings } from '../lib/database';
 import { downloadCommercializationReportPdf } from '../utils/commercialization-report-export';
+import { getConceptImageMode } from '../../../supabase/functions/_shared/concept-image-catalog.ts';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Label } from './ui/label';
@@ -80,6 +81,7 @@ export function CommercializationReportBuilder({
       foodType,
       packagingImageId,
       packagingImageUrl,
+      packagingImageMeta: selectedConcept.imageMeta?.[imageIndex] ?? null,
     }));
     setSavedReportId('');
     setSavedVersion(1);
@@ -108,6 +110,11 @@ export function CommercializationReportBuilder({
       setSavedReportId(report.id);
       setSavedVersion(report.version);
       setSavedStatus(report.status);
+      if (snapshot.concept.packagingImageId) {
+        // Using an image in a saved report promotes it to approved; the report
+        // itself is already saved, so a status failure should not block here.
+        await updateConceptImageReviewStatus([snapshot.concept.packagingImageId], 'approved').catch(() => {});
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to save the report.');
     }
@@ -160,16 +167,33 @@ export function CommercializationReportBuilder({
                   <div>
                     <Label>Packaging direction</Label>
                     <div className="mt-2 grid grid-cols-2 gap-2">
-                      {selectedConcept.imageUrls.map((url, index) => (
-                        <button
-                          type="button"
-                          key={`${url}-${index}`}
-                          onClick={() => { setImageIndex(index); setSnapshot(null); }}
-                          className={`overflow-hidden rounded-md border-2 ${index === imageIndex ? 'border-blue-600' : 'border-slate-200'}`}
-                        >
-                          <img src={url} alt={`Packaging option ${index + 1}`} className="aspect-square w-full object-cover" />
-                        </button>
-                      ))}
+                      {selectedConcept.imageUrls.map((url, index) => {
+                        const meta = selectedConcept.imageMeta?.[index];
+                        return (
+                          <button
+                            type="button"
+                            key={`${url}-${index}`}
+                            onClick={() => { setImageIndex(index); setSnapshot(null); }}
+                            className={`overflow-hidden rounded-md border-2 text-left ${index === imageIndex ? 'border-blue-600' : 'border-slate-200'}`}
+                          >
+                            <div className="relative">
+                              <img
+                                src={url}
+                                alt={meta ? `${getConceptImageMode(meta.mode).label} option ${index + 1}` : `Packaging option ${index + 1}`}
+                                className="aspect-square w-full object-cover"
+                              />
+                              {meta?.reviewStatus === 'approved' && (
+                                <span className="absolute top-1 right-1 rounded bg-emerald-600 px-1 py-0.5 text-[9px] font-bold text-white">APPROVED</span>
+                              )}
+                            </div>
+                            {meta && (
+                              <div className="truncate bg-white px-1.5 py-1 text-[10px] font-medium text-slate-500">
+                                {getConceptImageMode(meta.mode).label} · AI draft
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                   <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">

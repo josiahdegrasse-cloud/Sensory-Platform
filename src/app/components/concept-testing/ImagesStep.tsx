@@ -15,35 +15,33 @@ import {
   AlertDialogTitle,
 } from '../ui/alert-dialog';
 import {
-  CheckCircle2, Image as ImageIcon, Layers3, Loader2, Package,
-  Plus, RefreshCw, Sparkles, Trash2, Utensils,
+  CheckCircle2, ChevronDown, Image as ImageIcon, Loader2,
+  Plus, RefreshCw, Sparkles, Trash2,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { detectFoodType, getFoodTypeProfile } from '../../lib/food-intelligence';
+import type { ConceptGenerationSettings } from '../../lib/db/concepts';
+import {
+  getConceptImageMode,
+  getPromptStyle,
+  normalizePromptStyle,
+} from '../../../../supabase/functions/_shared/concept-image-catalog.ts';
+import {
+  buildConceptImageBrief,
+  buildConceptImagePrompt,
+} from '../../../../supabase/functions/_shared/concept-image-prompt.ts';
 import type { ConceptDraft } from './types';
-
-type ImageMode = 'packaging' | 'shelf' | 'usage' | 'ingredient' | 'ad';
-const CONCEPT_IMAGE_COUNT = 4;
+import { ImageDirectionPanel, type ImageGenerationOptions } from './ImageDirectionPanel';
 
 interface CandidateImage {
   id?: string;
   url: string;
   selected: boolean;
+  mode?: string;
+  promptStyle?: string;
+  summary?: string;
   revisedPrompt?: string;
 }
-
-const IMAGE_MODES: Array<{
-  id: ImageMode;
-  label: string;
-  description: string;
-  icon: typeof Package;
-}> = [
-  { id: 'packaging', label: 'Packaging', description: 'Hero pack shot for concept surveys', icon: Package },
-  { id: 'shelf', label: 'Shelf', description: 'Retail context and category fit', icon: Layers3 },
-  { id: 'usage', label: 'Usage', description: 'Consumer occasion and appetite appeal', icon: Utensils },
-  { id: 'ingredient', label: 'Benefits', description: 'Ingredients, claims, and sensory promise', icon: Sparkles },
-  { id: 'ad', label: 'Ad concept', description: 'Campaign-ready launch visual', icon: ImageIcon },
-];
 
 const isValidImageUrl = (u: string) =>
   u.startsWith('data:image/') || ((): boolean => { try { return new URL(u).protocol === 'https:'; } catch { return false; } })();
@@ -77,17 +75,25 @@ function friendlyGenerationError(message: string) {
 export function ImagesStep({
   draft,
   onChange,
-  estimatedCostPerImage,
+  settings,
 }: {
   draft: ConceptDraft;
   onChange: (d: ConceptDraft) => void;
-  estimatedCostPerImage: number;
+  settings?: ConceptGenerationSettings;
 }) {
-  const [mode, setMode] = useState<ImageMode>('packaging');
+  const maxImages = Math.max(1, settings?.maxImagesPerConcept ?? 4);
+  const estimatedCostPerImage = settings?.estimatedCostPerImage ?? 0.034;
+  const [options, setOptions] = useState<ImageGenerationOptions>(() => ({
+    mode: 'packaging',
+    count: Math.min(settings?.defaultImageCount ?? 4, maxImages),
+    quality: settings?.defaultQuality ?? 'medium',
+    spreadModes: true,
+  }));
   const [aiCandidates, setAiCandidates] = useState<CandidateImage[]>([]);
   const [generating, setGenerating] = useState(false);
   const [generationError, setGenerationError] = useState('');
   const [generationConfirmationOpen, setGenerationConfirmationOpen] = useState(false);
+  const [promptExpanded, setPromptExpanded] = useState(false);
 
   const detection = useMemo(
     () => detectFoodType(draft.category, draft.name, draft.description),
@@ -96,7 +102,37 @@ export function ImagesStep({
   const profile = getFoodTypeProfile(detection.slug);
   const validImages = draft.marketingImages.filter(u => u.trim() && isValidImageUrl(u));
   const canGenerate = !!(draft.name.trim() && draft.category.trim() && draft.description.trim());
-  const estimatedCost = estimatedCostPerImage * CONCEPT_IMAGE_COUNT;
+  const estimatedCost = estimatedCostPerImage * options.count;
+  const styleLabel = getPromptStyle(draft.promptStyle).label;
+
+  // Client-side preview of the brief the server will build. Branding
+  // (organization name, report tone) is applied server-side from workspace
+  // settings, so the preview uses the neutral fallback phrasing.
+  const preview = useMemo(() => {
+    if (!canGenerate) return null;
+    const brief = buildConceptImageBrief({
+      productName: draft.name,
+      conceptName: draft.name,
+      foodCategory: draft.category || detection.label,
+      conceptPositioning: [draft.description, draft.pricePoint ? `priced around ${draft.pricePoint}` : '']
+        .filter(Boolean).join(', '),
+      targetSegments: draft.targetMarket,
+      targetOccasion: draft.targetOccasion,
+      keyBenefits: draft.keyBenefits,
+      sensoryStrengths: profile.successMarkers.slice(0, 6),
+      technicalChallenges: [draft.technicalChallenges, ...profile.riskMarkers.slice(0, 5)].filter(Boolean).join('\n'),
+      forbiddenClaims: draft.forbiddenClaims,
+      visualNotes: draft.visualNotes,
+      imageMode: options.mode,
+      promptStyle: draft.promptStyle,
+      model: settings?.defaultModel,
+      quality: options.quality,
+      count: options.count,
+      projectName: draft.projectName,
+      foodTypeSlug: detection.slug,
+    });
+    return buildConceptImagePrompt(brief);
+  }, [canGenerate, detection.label, detection.slug, draft, options, profile.riskMarkers, profile.successMarkers, settings?.defaultModel]);
 
   const handleGenerate = async () => {
     if (!canGenerate) return;
@@ -113,15 +149,18 @@ export function ImagesStep({
         projectName: draft.projectName,
         description: draft.description,
         targetMarket: draft.targetMarket,
+        targetOccasion: draft.targetOccasion,
         pricePoint: draft.pricePoint,
-        keyBenefits: [
-          draft.keyBenefits,
-          profile.successMarkers.length ? `Desired sensory cues: ${profile.successMarkers.slice(0, 6).join(', ')}` : '',
-          profile.riskMarkers.length ? `Avoid sensory negatives: ${profile.riskMarkers.slice(0, 5).join(', ')}` : '',
-        ].filter(Boolean).join('\n'),
-        mode,
-        promptStyle: draft.promptStyle,
-        count: CONCEPT_IMAGE_COUNT,
+        keyBenefits: draft.keyBenefits,
+        sensoryStrengths: profile.successMarkers.slice(0, 6),
+        technicalChallenges: [draft.technicalChallenges, ...profile.riskMarkers.slice(0, 5)].filter(Boolean).join('\n'),
+        forbiddenClaims: draft.forbiddenClaims,
+        visualNotes: draft.visualNotes,
+        mode: options.mode,
+        promptStyle: normalizePromptStyle(draft.promptStyle),
+        quality: options.quality,
+        count: options.count,
+        spreadModes: options.spreadModes,
       },
     });
 
@@ -141,7 +180,9 @@ export function ImagesStep({
       return;
     }
 
-    const images = (data?.images ?? []) as Array<{ id?: string; url: string; revisedPrompt?: string }>;
+    const images = (data?.images ?? []) as Array<{
+      id?: string; url: string; mode?: string; promptStyle?: string; summary?: string; revisedPrompt?: string;
+    }>;
     setAiCandidates(images.map((image) => ({ ...image, selected: true })));
     if (images.length === 0) {
       setGenerationError('OpenAI returned no images. Try a more specific concept description.');
@@ -150,7 +191,7 @@ export function ImagesStep({
   };
 
   const addSelected = () => {
-    const remainingSlots = Math.max(0, CONCEPT_IMAGE_COUNT - validImages.length);
+    const remainingSlots = Math.max(0, maxImages - validImages.length);
     const selectedCandidates = aiCandidates.filter(c => c.selected && c.url).slice(0, remainingSlots);
     const toAdd = selectedCandidates.map(c => c.url);
     const imageIds = selectedCandidates.map(c => c.id ?? '');
@@ -176,60 +217,39 @@ export function ImagesStep({
     <div className="space-y-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Create concept visuals</h2>
+          <h2 className="text-xl font-bold text-slate-900">Create marketing visuals</h2>
           <p className="text-slate-500 text-sm mt-1 max-w-2xl">
-            Generate OpenAI concept images that match the food type, sensory promise, target consumer, and launch context.
+            Generate professional marketing-ready concept images — packaging, lifestyle, ecommerce, shelf, and more —
+            built from your concept brief, sensory strengths, and claim limits.
           </p>
         </div>
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-          <span className="font-semibold text-slate-800">{CONCEPT_IMAGE_COUNT} visuals</span>
+          <span className="font-semibold text-slate-800">{options.count} visual{options.count > 1 ? 's' : ''}</span>
           <span className="mx-1.5 text-slate-300">/</span>
-          {draft.promptStyle.replace('-', ' ')}
+          {styleLabel}
           <span className="mx-1.5 text-slate-300">/</span>
           {detection.label}
         </div>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
-          <div>
-            <Label className="font-medium">Lead visual direction</Label>
-            <p className="text-xs text-slate-500 mt-1">
-              We generate {CONCEPT_IMAGE_COUNT} genuinely different concepts per batch — packaging hero, lifestyle usage, shelf context, and ad concept — so panelists can compare distinct directions. Pick which one leads the set.
-            </p>
-            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
-              {IMAGE_MODES.map((option) => {
-                const Icon = option.icon;
-                const active = mode === option.id;
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => setMode(option.id)}
-                    aria-label={`${option.label}: ${option.description}`}
-                    aria-pressed={active}
-                    className={`text-left rounded-lg border p-3 transition-all ${
-                      active
-                        ? 'border-blue-500 bg-blue-50 shadow-sm'
-                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Icon className={`size-4 ${active ? 'text-blue-600' : 'text-slate-500'}`} />
-                      <span className="text-sm font-semibold text-slate-900">{option.label}</span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1 leading-snug">{option.description}</p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <ImageDirectionPanel
+            draft={draft}
+            onChange={onChange}
+            options={options}
+            onOptionsChange={setOptions}
+            maxCount={maxImages}
+          />
 
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="font-semibold text-slate-900">OpenAI image generation</p>
+                <p className="font-semibold text-slate-900">AI image generation</p>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Generates {CONCEPT_IMAGE_COUNT} distinct, campaign-quality concepts — each its own angle and prompt — into the {draft.projectName || 'Project 1'} folder.
+                  {options.spreadModes
+                    ? `Generates ${options.count} distinct marketing formats, led by ${getConceptImageMode(options.mode).label.toLowerCase()}`
+                    : `Generates ${options.count} ${getConceptImageMode(options.mode).label.toLowerCase()} variation${options.count > 1 ? 's' : ''}`}
+                  {' '}into the {draft.projectName || 'Project 1'} folder.
                 </p>
               </div>
               <Button
@@ -242,7 +262,7 @@ export function ImagesStep({
                   ? <><Loader2 className="size-4 mr-2 animate-spin" />Generating</>
                   : aiCandidates.length > 0
                     ? <><RefreshCw className="size-4 mr-2" />Regenerate</>
-                    : <><Sparkles className="size-4 mr-2" />Generate {CONCEPT_IMAGE_COUNT} visuals</>}
+                    : <><Sparkles className="size-4 mr-2" />Generate {options.count} visual{options.count > 1 ? 's' : ''}</>}
               </Button>
             </div>
 
@@ -267,45 +287,51 @@ export function ImagesStep({
             <div className="space-y-3">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {generating && aiCandidates.length === 0
-                  ? Array.from({ length: CONCEPT_IMAGE_COUNT }, (_, i) => (
+                  ? Array.from({ length: options.count }, (_, i) => (
                       <div key={i} className="aspect-square rounded-xl border border-blue-100 bg-blue-50 flex flex-col items-center justify-center gap-2">
                         <Loader2 className="size-5 text-blue-500 animate-spin" />
                         <span className="text-xs font-medium text-blue-700">Building visual {i + 1}</span>
                       </div>
                     ))
-                  : aiCandidates.map((candidate, i) => (
-                      <button
-                        key={`${candidate.url}-${i}`}
-                        type="button"
-                        onClick={() => setAiCandidates(prev => prev.map((x, j) => j === i ? { ...x, selected: !x.selected } : x))}
-                        aria-label={`${candidate.selected ? 'Deselect' : 'Select'} generated ${mode} concept option ${i + 1} for ${draft.name}`}
-                        aria-pressed={candidate.selected}
-                        className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${
-                          candidate.selected ? 'border-blue-500 shadow-md' : 'border-slate-200 opacity-60'
-                        }`}
-                      >
-                        <img
-                          src={candidate.url}
-                          alt={`Generated ${mode} concept for ${draft.name}, option ${i + 1}`}
-                          className="h-full w-full object-cover"
-                        />
-                        <span className={`absolute top-2 right-2 flex size-6 items-center justify-center rounded-full border-2 shadow-sm ${
-                          candidate.selected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white/90 border-slate-300 text-transparent'
-                        }`}>
-                          <CheckCircle2 className="size-3.5" />
-                        </span>
-                        <span className="absolute bottom-2 left-2 rounded-md bg-slate-950/75 px-2 py-1 text-xs font-semibold text-white">
-                          Option {i + 1}
-                        </span>
-                      </button>
-                    ))}
+                  : aiCandidates.map((candidate, i) => {
+                      const modeLabel = getConceptImageMode(candidate.mode ?? options.mode).label;
+                      return (
+                        <button
+                          key={`${candidate.url}-${i}`}
+                          type="button"
+                          onClick={() => setAiCandidates(prev => prev.map((x, j) => j === i ? { ...x, selected: !x.selected } : x))}
+                          aria-label={`${candidate.selected ? 'Deselect' : 'Select'} generated ${modeLabel} concept option ${i + 1} for ${draft.name}`}
+                          aria-pressed={candidate.selected}
+                          className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${
+                            candidate.selected ? 'border-blue-500 shadow-md' : 'border-slate-200 opacity-60'
+                          }`}
+                        >
+                          <img
+                            src={candidate.url}
+                            alt={`Generated ${modeLabel} concept for ${draft.name}, option ${i + 1}`}
+                            className="h-full w-full object-cover"
+                          />
+                          <span className={`absolute top-2 right-2 flex size-6 items-center justify-center rounded-full border-2 shadow-sm ${
+                            candidate.selected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white/90 border-slate-300 text-transparent'
+                          }`}>
+                            <CheckCircle2 className="size-3.5" />
+                          </span>
+                          <span className="absolute bottom-2 left-2 rounded-md bg-slate-950/75 px-2 py-1 text-xs font-semibold text-white">
+                            {modeLabel}
+                          </span>
+                        </button>
+                      );
+                    })}
               </div>
 
               {!generating && aiCandidates.length > 0 && (
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2 flex-wrap">
                     <DataProvenanceBadge provenance="ai-draft" n={aiCandidates.length} />
-                    <p className="text-xs text-slate-500">Select the visuals panelists should compare — keep them genuinely distinct so the "best image" question has a real choice to make.</p>
+                    <p className="text-xs text-slate-500">
+                      AI-generated drafts · {styleLabel} · {settings?.defaultModel ?? 'gpt-image-1.5'} ({options.quality}).
+                      Select the visuals panelists should compare.
+                    </p>
                   </div>
                   <div className="flex gap-2">
                     <Button type="button" variant="outline" size="sm" onClick={() => setAiCandidates([])}>
@@ -315,10 +341,10 @@ export function ImagesStep({
                       type="button"
                       size="sm"
                       onClick={addSelected}
-                      disabled={!aiCandidates.some(c => c.selected && c.url) || validImages.length >= CONCEPT_IMAGE_COUNT}
+                      disabled={!aiCandidates.some(c => c.selected && c.url) || validImages.length >= maxImages}
                       className="bg-blue-600 hover:bg-blue-700 text-white"
                     >
-                      Add {Math.min(aiCandidates.filter(c => c.selected && c.url).length, Math.max(0, CONCEPT_IMAGE_COUNT - validImages.length))} to concept
+                      Add {Math.min(aiCandidates.filter(c => c.selected && c.url).length, Math.max(0, maxImages - validImages.length))} to concept
                     </Button>
                   </div>
                 </div>
@@ -406,7 +432,7 @@ export function ImagesStep({
                   <Trash2 className="size-3" />
                 </button>
                 <div className="px-2 py-2 bg-white text-[11px] text-slate-500 text-center font-medium border-t border-slate-100">
-                  Panelist visual {i + 1}
+                  Panelist visual {i + 1} · AI draft
                 </div>
               </div>
             ))}
@@ -415,23 +441,47 @@ export function ImagesStep({
           <StageEmptyState
             icon={ImageIcon}
             headline="No concept visuals yet"
-            body="Panelists need at least one concept visual to answer the visual-preference question. Generate OpenAI visuals above or paste an approved image URL."
+            body="Panelists need at least one concept visual to answer the visual-preference question. Generate AI visuals above or paste an approved image URL."
           />
         )}
       </div>
 
-      <AlertDialog open={generationConfirmationOpen} onOpenChange={setGenerationConfirmationOpen}>
+      <AlertDialog open={generationConfirmationOpen} onOpenChange={(open) => { setGenerationConfirmationOpen(open); if (!open) setPromptExpanded(false); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Generate {CONCEPT_IMAGE_COUNT} concept visuals?</AlertDialogTitle>
+            <AlertDialogTitle>Generate {options.count} concept visual{options.count > 1 ? 's' : ''}?</AlertDialogTitle>
             <AlertDialogDescription>
-              OpenAI will generate {CONCEPT_IMAGE_COUNT} medium-quality images for this concept. Generation begins only after you confirm.
+              Generation begins only after you confirm. Images are AI-generated drafts until you select them for panelists.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {preview && (
+            <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-3 space-y-2">
+              <p className="text-xs font-semibold text-blue-900">Image direction</p>
+              <p className="text-xs text-blue-900/90 leading-snug">{preview.summary}</p>
+              <button
+                type="button"
+                onClick={() => setPromptExpanded(expanded => !expanded)}
+                aria-expanded={promptExpanded}
+                className="flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:text-blue-900"
+              >
+                <ChevronDown className={`size-3 transition-transform ${promptExpanded ? 'rotate-180' : ''}`} />
+                {promptExpanded ? 'Hide full prompt' : 'View full prompt (advanced)'}
+              </button>
+              {promptExpanded && (
+                <p className="text-[11px] text-slate-600 leading-relaxed max-h-40 overflow-y-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2">
+                  {preview.prompt}
+                </p>
+              )}
+            </div>
+          )}
           <dl className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
             <div className="flex items-center justify-between gap-4">
               <dt className="text-slate-600">Images</dt>
-              <dd className="font-semibold text-slate-900">{CONCEPT_IMAGE_COUNT}</dd>
+              <dd className="font-semibold text-slate-900">{options.count}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <dt className="text-slate-600">Model / quality</dt>
+              <dd className="font-semibold text-slate-900">{settings?.defaultModel ?? 'gpt-image-1.5'} · {options.quality}</dd>
             </div>
             <div className="flex items-center justify-between gap-4">
               <dt className="text-slate-600">Estimated cost per image</dt>

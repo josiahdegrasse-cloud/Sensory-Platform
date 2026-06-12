@@ -34,14 +34,22 @@ export function renderConceptPackagingChapter(
   y = paragraph(doc, `Price point: ${data.pricePoint}`, margin, y, copyWidth, { size: 9.5, lineHeight: 13 }) + 8;
 
   if (packaging) {
+    const hasProvenance = Boolean(data.packagingDisclaimer || data.packagingProvenance);
     doc.setFillColor(...SLATE_50);
-    doc.roundedRect(width - 205, 76, 165, 205, 8, 8, 'F');
+    doc.roundedRect(width - 205, 76, 165, hasProvenance ? 240 : 205, 8, 8, 'F');
     doc.addImage(packaging, imageFormat(packaging), width - 192, 89, 139, 139, undefined, 'FAST');
     setText(doc, SLATE_500, 8, 'bold');
     doc.text('SELECTED DIRECTION', width - 122, 251, { align: 'center' });
+    if (data.packagingProvenance) {
+      setText(doc, SLATE_500, 7, 'normal');
+      doc.text(data.packagingProvenance, width - 122, 263, { align: 'center' });
+    }
+    if (data.packagingDisclaimer) {
+      paragraph(doc, data.packagingDisclaimer, width - 192, 276, 139, { color: SLATE_500, size: 6.5, lineHeight: 8.5 });
+    }
   }
 
-  y = Math.max(y, packaging ? 305 : 220);
+  y = Math.max(y, packaging ? (data.packagingDisclaimer || data.packagingProvenance ? 340 : 305) : 220);
   doc.setFillColor(...SLATE_50);
   doc.roundedRect(margin, y, contentWidth, 82, 8, 8, 'F');
   setText(doc, strengthColor, 9, 'bold');

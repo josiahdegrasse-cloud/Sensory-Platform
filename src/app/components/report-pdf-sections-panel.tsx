@@ -235,9 +235,15 @@ export function ReportPdfSectionsPanel({ input }: { input: CommercializationRepo
             </dl>
           </div>
           {packagingUrl && (
-            <div className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-2 text-center">
+            <div className="max-w-36 shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-2 text-center">
               <img src={packagingUrl} alt="Selected packaging direction" className="size-28 rounded object-cover" />
               <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">Selected direction</p>
+              {conceptPackaging.packagingProvenance && (
+                <p className="mt-0.5 text-[10px] text-slate-500">{conceptPackaging.packagingProvenance}</p>
+              )}
+              {conceptPackaging.packagingDisclaimer && (
+                <p className="mt-1 text-[9px] leading-snug text-slate-400">{conceptPackaging.packagingDisclaimer}</p>
+              )}
             </div>
           )}
         </div>

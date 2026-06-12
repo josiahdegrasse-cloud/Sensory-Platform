@@ -2,7 +2,7 @@ import { Card, CardContent } from "./ui/card";
 import { Link } from "react-router";
 import {
   FlaskConical, BarChart3, GitMerge, Settings,
-  Lightbulb, ChevronRight, FolderKanban, Plus, ArrowRight,
+  Lightbulb, ChevronRight, FolderKanban, Plus, ArrowRight, FileText,
 } from "lucide-react";
 import { useFoodType } from "../contexts/food-type-context";
 import { useWorkspaceSettings } from "../lib/hooks";
@@ -45,6 +45,12 @@ const MODULES: Module[] = [
     label: "Concept Testing",
     description: "Send product concepts to consumers — AI-designed surveys, admin-approved",
     icon: Lightbulb,
+  },
+  {
+    path: "/reports",
+    label: "Reports",
+    description: "Review versions, approve deliverables, and download branded PDFs",
+    icon: FileText,
   },
   {
     path: "/admin",
@@ -277,7 +283,7 @@ export function OverviewDashboard() {
           <h2 className="text-lg font-bold text-slate-900">Modules</h2>
           <p className="text-xs text-slate-400">Jump straight to a workflow stage</p>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           {MODULES.map(m => <ModuleCard key={m.path} module={m} />)}
         </div>
       </div>

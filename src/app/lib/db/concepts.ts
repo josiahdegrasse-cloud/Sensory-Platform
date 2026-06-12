@@ -10,6 +10,19 @@ export interface ConceptQuestion {
   category: string;
 }
 
+export type ConceptImageReviewStatus = 'draft' | 'selected' | 'approved' | 'rejected';
+
+/** Admin-facing metadata for a generated concept image (never sent to panelists). */
+export interface ConceptImageMeta {
+  id: string;
+  mode: string;
+  promptStyle: string;
+  model: string;
+  quality: string;
+  reviewStatus: ConceptImageReviewStatus;
+  createdAt: string;
+}
+
 export interface ConceptTest {
   id: string;
   name: string;
@@ -17,6 +30,8 @@ export interface ConceptTest {
   description: string;
   imageUrls: string[];
   imageIds?: string[];
+  /** Populated only on admin fetch paths; aligned by index with imageUrls. */
+  imageMeta?: ConceptImageMeta[];
   targetMarket: string;
   pricePoint: string;
   keyBenefits: string;
@@ -64,7 +79,8 @@ export interface ConceptGenerationSettings {
   defaultModel: string;
   estimatedCostPerImage: number;
   monthlyBudget: number;
-  promptStyle: 'balanced' | 'premium' | 'natural' | 'family' | 'foodservice' | 'clean-label';
+  /** Canonical or legacy prompt style id; normalize via normalizePromptStyle before use. */
+  promptStyle: string;
 }
 
 export interface ConceptImageGeneration {
@@ -95,6 +111,8 @@ export interface ConceptGeneratedImage {
   selectedForPanelists: boolean;
   sortOrder: number;
   mode: string;
+  promptStyle: string;
+  reviewStatus: ConceptImageReviewStatus;
   model: string;
   quality: string;
   performanceSummary: Record<string, unknown>;
@@ -149,21 +167,36 @@ export async function createConceptImageSignedUrl(storagePath: string | null, fa
   return data.signedUrl;
 }
 
-async function hydrateConceptTestImages(test: ConceptTest): Promise<ConceptTest> {
+async function hydrateConceptTestImages(test: ConceptTest, includeMeta = false): Promise<ConceptTest> {
   if (!test.imageIds?.length) return test;
   const { data, error } = await supabase
     .from('concept_images')
-    .select('id, image_url, storage_path, sort_order')
+    .select('*')
     .in('id', test.imageIds)
     .order('sort_order', { ascending: true });
   if (error) throw dbError(error);
-  const imageUrls = (await Promise.all((data ?? []).map(row =>
-    createConceptImageSignedUrl(
+  const rows = (data ?? []) as Record<string, unknown>[];
+  const signed = await Promise.all(rows.map(async row => ({
+    row,
+    url: await createConceptImageSignedUrl(
       (row.storage_path as string) ?? null,
       (row.image_url as string) ?? '',
-    )
-  ))).filter(Boolean);
-  return { ...test, imageUrls };
+    ),
+  })));
+  const visible = signed.filter(entry => entry.url);
+  const imageUrls = visible.map(entry => entry.url);
+  if (!includeMeta) return { ...test, imageUrls };
+  // Metadata stays on admin fetch paths only; panelists get bare image URLs.
+  const imageMeta: ConceptImageMeta[] = visible.map(({ row }) => ({
+    id: row.id as string,
+    mode: (row.mode as string) ?? 'packaging',
+    promptStyle: (row.prompt_style as string) ?? '',
+    model: (row.model as string) ?? '',
+    quality: (row.quality as string) ?? '',
+    reviewStatus: toReviewStatus(row),
+    createdAt: (row.created_at as string) ?? '',
+  }));
+  return { ...test, imageUrls, imageMeta };
 }
 
 export async function insertConceptTest(
@@ -239,7 +272,7 @@ export async function fetchConceptTestsForPanelist(userId: string): Promise<Conc
       return true;
     })
     .map(toConceptTest);
-  return Promise.all(tests.map(hydrateConceptTestImages));
+  return Promise.all(tests.map(test => hydrateConceptTestImages(test)));
 }
 
 export async function fetchConceptTestsForAdmin(): Promise<ConceptTest[]> {
@@ -249,7 +282,7 @@ export async function fetchConceptTestsForAdmin(): Promise<ConceptTest[]> {
     .in('status', ['active', 'completed', 'approved'])
     .order('created_at', { ascending: false });
   if (error) throw dbError(error);
-  return Promise.all((data ?? []).map(row => hydrateConceptTestImages(toConceptTest(row))));
+  return Promise.all((data ?? []).map(row => hydrateConceptTestImages(toConceptTest(row), true)));
 }
 
 export async function insertConceptResponse(
@@ -381,6 +414,15 @@ function defaultConceptSettings(): ConceptGenerationSettings {
   };
 }
 
+// Before the concept_image_metadata migration the review_status column does
+// not exist, so derive a sensible status from the legacy columns.
+function toReviewStatus(row: Record<string, unknown>): ConceptImageReviewStatus {
+  const status = row.review_status as ConceptImageReviewStatus | undefined;
+  if (status === 'draft' || status === 'selected' || status === 'approved' || status === 'rejected') return status;
+  if (row.archived_at) return 'rejected';
+  return row.selected_for_panelists ? 'selected' : 'draft';
+}
+
 function toConceptGeneratedImage(row: Record<string, unknown>): ConceptGeneratedImage {
   return {
     id: row.id as string,
@@ -391,6 +433,8 @@ function toConceptGeneratedImage(row: Record<string, unknown>): ConceptGenerated
     selectedForPanelists: (row.selected_for_panelists as boolean) ?? false,
     sortOrder: (row.sort_order as number) ?? 0,
     mode: (row.mode as string) ?? 'packaging',
+    promptStyle: (row.prompt_style as string) ?? '',
+    reviewStatus: toReviewStatus(row),
     model: (row.model as string) ?? 'gpt-image-1.5',
     quality: (row.quality as string) ?? 'medium',
     performanceSummary: (row.performance_summary as Record<string, unknown>) ?? {},
@@ -574,6 +618,36 @@ export async function fetchConceptProjectSummaries(): Promise<ConceptProjectSumm
   return Array.from(summaries.values()).sort((a, b) => a.label.localeCompare(b.label));
 }
 
+/**
+ * Moves images through the review lifecycle and keeps the legacy
+ * panelist-visibility columns in sync. Tolerates databases that have not run
+ * the concept_image_metadata migration yet by retrying without review_status.
+ */
+export async function updateConceptImageReviewStatus(
+  imageIds: string[],
+  status: ConceptImageReviewStatus,
+): Promise<void> {
+  if (!imageIds.length) return;
+  const legacyPatch = {
+    selected_for_panelists: status === 'selected' || status === 'approved',
+    archived_at: status === 'rejected' ? new Date().toISOString() : null,
+  };
+  const { error } = await supabase
+    .from('concept_images')
+    .update({ ...legacyPatch, review_status: status })
+    .in('id', imageIds);
+  if (!error) return;
+  if (error.message?.includes('review_status')) {
+    const { error: fallbackError } = await supabase
+      .from('concept_images')
+      .update(legacyPatch)
+      .in('id', imageIds);
+    if (fallbackError) throw dbError(fallbackError);
+    return;
+  }
+  throw dbError(error);
+}
+
 export async function linkConceptImagesToConcept(conceptTestId: string, imageIds: string[]): Promise<void> {
   const { data: images, error: fetchError } = await supabase
     .from('concept_images')
@@ -591,6 +665,16 @@ export async function linkConceptImagesToConcept(conceptTestId: string, imageIds
   if (error) {
     if (error.message?.includes('concept_images')) return;
     throw dbError(error);
+  }
+  // Linking to a concept means the admin chose these for panelists; promote
+  // their review status (already-approved images keep their stronger status).
+  const { error: statusError } = await supabase
+    .from('concept_images')
+    .update({ review_status: 'selected' })
+    .in('id', imageIds)
+    .eq('review_status', 'draft');
+  if (statusError && !statusError.message?.includes('review_status')) {
+    throw dbError(statusError);
   }
 
   const generationIds = Array.from(new Set((images ?? []).map(row => row.generation_id as string).filter(Boolean)));

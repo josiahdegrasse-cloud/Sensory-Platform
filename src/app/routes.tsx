@@ -18,6 +18,7 @@ const MultiSampleQuestionnaire = lazy(() => import("./components/multi-sample-qu
 const AdminConfig = lazy(() => import("./components/admin-config").then(m => ({ default: m.AdminConfig })));
 const ConceptTesting = lazy(() => import("./components/concept-testing").then(m => ({ default: m.ConceptTesting })));
 const CommercializationReportPage = lazy(() => import("./components/commercialization-report-page").then(m => ({ default: m.CommercializationReportPage })));
+const ReportsPage = lazy(() => import("./components/reports-page").then(m => ({ default: m.ReportsPage })));
 const ConceptSurvey = lazy(() => import("./components/concept-survey").then(m => ({ default: m.ConceptSurvey })));
 const PrivacyPolicy = lazy(() => import("./components/legal-pages").then(m => ({ default: m.PrivacyPolicy })));
 const TermsOfUse = lazy(() => import("./components/legal-pages").then(m => ({ default: m.TermsOfUse })));
@@ -79,6 +80,7 @@ export const router = createBrowserRouter([
           { path: "admin", Component: AdminConfig },
           { path: "settings", Component: AdminSettings },
           { path: "concept-testing", Component: ConceptTesting },
+          { path: "reports", Component: ReportsPage },
           { path: "report", Component: CommercializationReportPage },
           { path: "commercialization-report", Component: CommercializationReportPage },
         ],
