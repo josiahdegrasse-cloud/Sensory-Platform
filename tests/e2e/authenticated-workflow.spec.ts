@@ -47,8 +47,6 @@ test.describe('authenticated admin workflow', () => {
 
     await page.getByRole('tab', { name: 'Descriptors' }).click();
     await page.getByRole('tab', { name: 'Intensity' }).click();
-    await page.getByRole('tab', { name: 'Instrumental' }).click();
-    await expect(page.getByText(/Instrumental evidence|No linked instrumental record/)).toBeVisible();
     await page.getByRole('tab', { name: 'Comments' }).click();
     await page.getByText('Explore detailed evidence', { exact: false }).click();
     await expect(page.getByText('Concept feedback')).toBeVisible();

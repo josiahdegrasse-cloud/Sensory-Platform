@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
-import { AlertTriangle, CheckCircle2, CircleHelp, FlaskConical, Radio } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, CircleHelp } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
@@ -61,7 +61,6 @@ export function InsightsPrototypeWorkspace({
   likingContent,
   descriptorContent,
   intensityContent,
-  instrumentalContent,
   commentsContent,
 }: {
   prototypes: InsightsPrototypeOption[];
@@ -84,7 +83,6 @@ export function InsightsPrototypeWorkspace({
   likingContent: ReactNode;
   descriptorContent: ReactNode;
   intensityContent: ReactNode;
-  instrumentalContent: ReactNode;
   commentsContent: ReactNode;
 }) {
   const selected = prototypes.find(prototype => prototype.id === selectedId) ?? prototypes[0];
@@ -98,13 +96,13 @@ export function InsightsPrototypeWorkspace({
   const leaderDelta = leader && runnerUp ? leader.score - runnerUp.score : 0;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[15rem_minmax(0,1fr)]">
+    <div className="grid gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
       <aside className="self-start overflow-hidden rounded-xl border border-slate-200 bg-white lg:sticky lg:top-24">
-        <div className="border-b border-slate-100 px-4 py-3">
-          <h2 className="text-sm font-bold text-slate-950">Project prototypes</h2>
+        <div className="border-b border-slate-100 px-4 py-4">
+          <h2 className="text-sm font-semibold text-slate-900">Project prototypes</h2>
           <p className="mt-0.5 text-xs text-slate-500">Select a sample to update the evidence.</p>
         </div>
-        <ul aria-label="Project prototypes">
+        <ul aria-label="Project prototypes" className="space-y-1 p-2">
           {prototypes.map(prototype => {
             const selectedPrototype = prototype.id === selectedId;
             return (
@@ -114,19 +112,21 @@ export function InsightsPrototypeWorkspace({
                   aria-current={selectedPrototype ? 'true' : undefined}
                   onClick={() => onSelect(prototype.id)}
                   className={cn(
-                    'relative block w-full border-b border-slate-100 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-slate-50 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500',
-                    selectedPrototype && 'bg-slate-100 shadow-[inset_3px_0_0_#64748b] hover:bg-slate-100',
+                    'relative block w-full rounded-lg px-3 py-3 text-left transition-colors hover:bg-slate-50 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
+                    selectedPrototype && 'bg-blue-50 ring-1 ring-inset ring-blue-200 hover:bg-blue-50',
                   )}
                 >
-                  <span className="block pr-12 text-sm font-bold text-slate-950">{prototype.name}</span>
-                  <span className="absolute right-4 top-3 text-lg font-bold tabular-nums text-slate-950">
+                  <span className={cn('block pr-12 text-sm font-semibold', selectedPrototype ? 'text-blue-950' : 'text-slate-900')}>
+                    {prototype.name}
+                  </span>
+                  <span className={cn('absolute right-3 top-3 text-lg font-bold tabular-nums', selectedPrototype ? 'text-blue-700' : 'text-slate-900')}>
                     {prototype.score > 0 ? prototype.score.toFixed(1) : '—'}
                   </span>
                   <span className="mt-1 block text-xs text-slate-500">
                     {prototype.responseCount > 0 ? `n=${prototype.responseCount}` : 'No live panel'} · {prototype.evidenceLabel}
                   </span>
                   <span className={cn(
-                    'mt-2 block text-[10px] font-bold uppercase tracking-wide',
+                    'mt-2 block text-[11px] font-semibold',
                     prototype.signalTone === 'success' && 'text-emerald-700',
                     prototype.signalTone === 'warning' && 'text-amber-700',
                     prototype.signalTone === 'neutral' && 'text-slate-500',
@@ -139,8 +139,8 @@ export function InsightsPrototypeWorkspace({
           })}
         </ul>
         {leader && (
-          <div className="border-t border-slate-200 bg-slate-50 px-4 py-3">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Project leader</p>
+          <div className="border-t border-slate-100 bg-slate-50 px-4 py-3">
+            <p className="text-xs font-semibold text-slate-500">Project leader</p>
             <p className="mt-1 text-sm font-bold text-slate-900">{leader.name}</p>
             <p className="mt-0.5 text-xs text-slate-500">
               {leaderDelta > 0 ? `${leaderDelta.toFixed(1)} points above the next sample` : 'No score separation established'}
@@ -150,12 +150,12 @@ export function InsightsPrototypeWorkspace({
       </aside>
 
       <div className="min-w-0">
-        <Card className="overflow-hidden border border-slate-200 bg-white">
-          <CardHeader className="border-b border-slate-100">
+        <Card className="border border-slate-200 bg-white">
+          <CardHeader className="pb-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Selected prototype</p>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
+                <p className="text-xs font-semibold text-slate-500">Selected prototype</p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
                   <CardTitle className="text-2xl text-slate-950">{selected.name}</CardTitle>
                   <ProjectStatusBadge label={`${strength.level} evidence`} tone={STRENGTH_TONE[strength.level]} />
                   <DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={usingLiveData ? panelResponses : undefined} />
@@ -169,21 +169,20 @@ export function InsightsPrototypeWorkspace({
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="grid p-0 md:grid-cols-3">
-            <DecisionFinding label="Decision" value={nextAction.description} emphasis />
-            <DecisionFinding label="Primary strength" value={keyStrength} />
-            <DecisionFinding label="Decision risk" value={keyConcern} last />
+          <CardContent className="grid gap-3 pt-0 md:grid-cols-3">
+            <DecisionFinding label="Decision" value={nextAction.description} emphasis tone="info" />
+            <DecisionFinding label="Primary strength" value={keyStrength} tone="success" />
+            <DecisionFinding label="Decision risk" value={keyConcern} tone="warning" />
           </CardContent>
         </Card>
 
         <Tabs defaultValue="overview" className="mt-4">
-          <TabsList className="h-auto w-full justify-start overflow-x-auto rounded-none border-b border-slate-200 bg-transparent p-0">
-            <TabsTrigger value="overview" className="rounded-none border-b-2 border-transparent px-3 py-2.5 data-[state=active]:border-slate-950 data-[state=active]:bg-transparent data-[state=active]:shadow-none">Decision evidence</TabsTrigger>
-            <TabsTrigger value="liking" className="rounded-none border-b-2 border-transparent px-3 py-2.5 data-[state=active]:border-slate-950 data-[state=active]:bg-transparent data-[state=active]:shadow-none">Liking</TabsTrigger>
-            <TabsTrigger value="descriptors" className="rounded-none border-b-2 border-transparent px-3 py-2.5 data-[state=active]:border-slate-950 data-[state=active]:bg-transparent data-[state=active]:shadow-none">Descriptors</TabsTrigger>
-            <TabsTrigger value="intensity" className="rounded-none border-b-2 border-transparent px-3 py-2.5 data-[state=active]:border-slate-950 data-[state=active]:bg-transparent data-[state=active]:shadow-none">Intensity</TabsTrigger>
-            <TabsTrigger value="instrumental" className="rounded-none border-b-2 border-transparent px-3 py-2.5 data-[state=active]:border-slate-950 data-[state=active]:bg-transparent data-[state=active]:shadow-none">Instrumental</TabsTrigger>
-            <TabsTrigger value="comments" className="rounded-none border-b-2 border-transparent px-3 py-2.5 data-[state=active]:border-slate-950 data-[state=active]:bg-transparent data-[state=active]:shadow-none">Comments</TabsTrigger>
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 sm:grid-cols-5">
+            <TabsTrigger value="overview" className="py-2 data-[state=active]:bg-white data-[state=active]:text-blue-700">Decision evidence</TabsTrigger>
+            <TabsTrigger value="liking" className="py-2 data-[state=active]:bg-white data-[state=active]:text-blue-700">Liking</TabsTrigger>
+            <TabsTrigger value="descriptors" className="py-2 data-[state=active]:bg-white data-[state=active]:text-blue-700">Descriptors</TabsTrigger>
+            <TabsTrigger value="intensity" className="py-2 data-[state=active]:bg-white data-[state=active]:text-blue-700">Intensity</TabsTrigger>
+            <TabsTrigger value="comments" className="py-2 data-[state=active]:bg-white data-[state=active]:text-blue-700">Comments</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="mt-4 space-y-4">
@@ -199,7 +198,7 @@ export function InsightsPrototypeWorkspace({
                       <div key={metric.label} className="grid grid-cols-[5.5rem_minmax(0,1fr)_2rem] items-center gap-3">
                         <span className="text-xs font-medium text-slate-700">{metric.label}</span>
                         <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-                          <div className="h-full rounded-full bg-slate-600" style={{ width: `${Math.min(100, (metric.score / 9) * 100)}%` }} />
+                          <div className="h-full rounded-full bg-blue-600" style={{ width: `${Math.min(100, (metric.score / 9) * 100)}%` }} />
                         </div>
                         <span className="text-right text-xs font-bold tabular-nums text-slate-900">{metric.score.toFixed(1)}</span>
                       </div>
@@ -275,7 +274,6 @@ export function InsightsPrototypeWorkspace({
           <TabsContent value="liking" className="mt-4">{likingContent}</TabsContent>
           <TabsContent value="descriptors" className="mt-4">{descriptorContent}</TabsContent>
           <TabsContent value="intensity" className="mt-4">{intensityContent}</TabsContent>
-          <TabsContent value="instrumental" className="mt-4">{instrumentalContent}</TabsContent>
           <TabsContent value="comments" className="mt-4">{commentsContent}</TabsContent>
         </Tabs>
       </div>
@@ -283,15 +281,20 @@ export function InsightsPrototypeWorkspace({
   );
 }
 
-function DecisionFinding({ label, value, emphasis = false, last = false }: {
+function DecisionFinding({ label, value, emphasis = false, tone }: {
   label: string;
   value: string;
   emphasis?: boolean;
-  last?: boolean;
+  tone: 'info' | 'success' | 'warning';
 }) {
+  const classes = {
+    info: 'border-blue-200 bg-blue-50',
+    success: 'border-emerald-200 bg-emerald-50',
+    warning: 'border-amber-200 bg-amber-50',
+  }[tone];
   return (
-    <div className={cn('p-4 md:border-r md:border-slate-100', last && 'md:border-r-0')}>
-      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
+    <div className={cn('rounded-lg border p-4', classes)}>
+      <p className="text-xs font-semibold text-slate-600">{label}</p>
       <p className={cn('mt-2 leading-relaxed text-slate-800', emphasis ? 'text-base font-bold text-slate-950' : 'text-sm font-medium')}>
         {value}
       </p>
@@ -304,91 +307,6 @@ function OverviewMetric({ label, value }: { label: string; value: string }) {
     <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
       <p className="text-sm font-bold text-slate-950">{value}</p>
       <p className="mt-0.5 text-xs text-slate-500">{label}</p>
-    </div>
-  );
-}
-
-export function InstrumentalEvidencePanel({
-  selectedInstrument,
-  selectedComposition,
-  selectedGcms,
-  datasetsPresent,
-  usingLiveData,
-  onImportPath = '/stage1',
-}: {
-  selectedInstrument?: { sourness: number; bitterness: number; saltiness: number; umami: number; sweetness: number };
-  selectedComposition?: { protein: number; fat: number; moisture: number; saltContent: number; pH: number };
-  selectedGcms: Array<{ name: string; concentration: number }>;
-  datasetsPresent: number;
-  usingLiveData: boolean;
-  onImportPath?: string;
-}) {
-  if (!selectedInstrument) {
-    return (
-      <Card className="border border-slate-200">
-        <CardContent className="flex flex-col items-start gap-3 py-6">
-          <FlaskConical className="size-5 text-slate-400" aria-hidden />
-          <div>
-            <p className="text-sm font-bold text-slate-900">No linked instrumental record</p>
-            <p className="mt-1 text-sm text-slate-500">Import or link machine data before making instrument-supported claims.</p>
-          </div>
-          <Button asChild variant="outline" size="sm"><Link to={onImportPath}>Import data</Link></Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card className="border border-slate-200">
-      <CardHeader>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle className="text-sm">Instrumental evidence</CardTitle>
-            <p className="mt-1 text-xs text-slate-500">Machine measurements linked to the selected prototype.</p>
-          </div>
-          <span className="flex items-center gap-1 text-xs font-semibold text-slate-500"><Radio className="size-3.5" /> {datasetsPresent}/3 sources</span>
-        </div>
-      </CardHeader>
-      <CardContent className="grid gap-4 md:grid-cols-3">
-        <MetricList title="E-tongue taste signals" items={[
-          ['Sourness', selectedInstrument.sourness],
-          ['Bitterness', selectedInstrument.bitterness],
-          ['Saltiness', selectedInstrument.saltiness],
-          ['Umami', selectedInstrument.umami],
-          ['Sweetness', selectedInstrument.sweetness],
-        ]} />
-        <MetricList title="Composition" items={selectedComposition ? [
-          ['Protein', `${selectedComposition.protein.toFixed(1)}%`],
-          ['Fat', `${selectedComposition.fat.toFixed(1)}%`],
-          ['Moisture', `${selectedComposition.moisture.toFixed(1)}%`],
-          ['Salt', `${selectedComposition.saltContent.toFixed(2)}%`],
-          ['pH', selectedComposition.pH.toFixed(2)],
-        ] : []} />
-        <MetricList title="Aroma compounds" items={selectedGcms.slice(0, 5).map(compound => [compound.name, `${compound.concentration.toFixed(1)} ppm`])} />
-        {!usingLiveData && (
-          <p className="text-xs text-amber-800 md:col-span-3">Collect live sensory responses before claiming sensory and instrumental alignment.</p>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function MetricList({ title, items }: { title: string; items: Array<[string, string | number]> }) {
-  return (
-    <div className="rounded-lg border border-slate-200 p-4">
-      <h3 className="text-sm font-bold text-slate-900">{title}</h3>
-      {items.length === 0 ? (
-        <p className="mt-3 text-sm text-slate-500">Not available for this sample.</p>
-      ) : (
-        <dl className="mt-3 space-y-2">
-          {items.map(([label, value]) => (
-            <div key={label} className="flex items-center justify-between gap-3 border-t border-slate-100 pt-2 first:border-t-0 first:pt-0">
-              <dt className="text-xs text-slate-500">{label}</dt>
-              <dd className="text-sm font-semibold text-slate-900">{value}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
     </div>
   );
 }

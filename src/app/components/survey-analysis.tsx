@@ -41,7 +41,6 @@ import { MultiSampleAnalysis } from './multi-sample-analysis';
 import { ConceptTestAnalysis } from './concept-test-analysis';
 import {
   InsightsPrototypeWorkspace,
-  InstrumentalEvidencePanel,
   type InsightsPrototypeOption,
 } from './insights-prototype-workspace';
 
@@ -363,15 +362,6 @@ export function SurveyAnalysis() {
         likingContent={<HedonicTab activeHedonicData={activeHedonic} activeAvgHedonic={averageHedonic.toFixed(1)} activePanelistN={panelN} usingLiveData={usingLiveData} />}
         descriptorContent={<CATATab activeCataAttributes={activeCata} activePanelistN={panelN} usingLiveData={usingLiveData} activeSampleId={selectedData.sampleId} />}
         intensityContent={<IntensityTab activeIntensityData={activeIntensity} activePanelistN={panelN} usingLiveData={usingLiveData} intensityMax={usingLiveData ? 5 : 10} />}
-        instrumentalContent={(
-          <InstrumentalEvidencePanel
-            selectedInstrument={selectedInstrument}
-            selectedComposition={selectedComposition}
-            selectedGcms={selectedGcms}
-            datasetsPresent={datasetsPresent}
-            usingLiveData={usingLiveData}
-          />
-        )}
         commentsContent={<CommentsTab usingLiveData={usingLiveData} matchingLiveData={matchingLiveData} commentsByProduct={commentsByProduct} />}
       />
 
