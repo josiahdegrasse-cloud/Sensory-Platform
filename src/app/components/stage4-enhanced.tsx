@@ -5,7 +5,7 @@ import { useFoodType, sampleMatchesFoodType, matchFoodType } from "../contexts/f
 import { Card, CardContent } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { AlertTriangle, Check, CheckCircle2, ChevronRight, ClipboardCheck, Download, FileSpreadsheet, FileText, GitMerge, Megaphone, ShieldCheck, X, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, FileText, GitMerge, Megaphone, XCircle } from "lucide-react";
 import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from "../data/enhanced-sensory";
 import { DataProvenanceBadge } from "./data-provenance-badge";
 import { DecisionLog } from "./decision-log";
@@ -26,8 +26,8 @@ import {
 } from "./ui/dropdown-menu";
 import { CommercializationReportBuilder } from "./commercialization-report-builder";
 import { ProjectHeader } from "./project-header";
-import { DecisionSummaryCard } from "./decision-summary-card";
 import { DecisionReviewDialog } from "./decision-review-dialog";
+import { DecisionReviewWorkspace } from "./decision-review-workspace";
 import type { DecisionOutcome } from "../utils/go-stop-tweak-engine";
 type SampleDecision = GoStopTweakDecision;
 
@@ -450,145 +450,17 @@ export function Stage4Enhanced() {
         </div>
       )}
 
-      <section aria-labelledby="prototype-selection-heading">
-        <div className="mb-3 flex items-end justify-between gap-4">
-          <div>
-            <h2 id="prototype-selection-heading" className="text-sm font-semibold text-slate-900">Choose a prototype</h2>
-            <p className="mt-0.5 text-xs text-slate-500">Review one recommendation at a time.</p>
-          </div>
-          <span className="text-xs text-slate-500">{sampleDecisions.length} ready for review</span>
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          {sampleDecisions.map(sample => {
-            const selectedSampleIsActive = activeSelectedSample === sample.sampleId;
-            const outcomeClass = sample.decision === 'GO'
-              ? 'bg-emerald-50 text-emerald-700'
-              : sample.decision === 'STOP'
-                ? 'bg-rose-50 text-rose-700'
-                : 'bg-amber-50 text-amber-700';
-            return (
-              <button
-                key={sample.sampleId}
-                type="button"
-                onClick={() => setSelectedSample(sample.sampleId)}
-                aria-pressed={selectedSampleIsActive}
-                className={`min-w-[220px] rounded-lg border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                  selectedSampleIsActive
-                    ? 'border-blue-600 bg-blue-50'
-                    : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <span className="line-clamp-2 text-sm font-semibold text-slate-900">{sample.sampleName}</span>
-                  <Badge className={`${outcomeClass} shrink-0 border-0 shadow-none`}>{sample.decision}</Badge>
-                </div>
-                <div className="mt-2 flex items-center gap-3 text-xs text-slate-600">
-                  <span>ISSF {sample.issfScore.toFixed(0)}</span>
-                  <span>{sample.confidenceScore.toFixed(0)}% confidence</span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
       {selected && (
         <>
-          <DecisionSummaryCard decision={selected} />
-
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <Card>
-              <CardContent className="p-0">
-                <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-                      <ShieldCheck className="size-5 text-slate-600" aria-hidden />
-                      Decision criteria
-                    </h2>
-                    <p className="mt-1 text-sm text-slate-600">The recommendation follows these score, confidence, and hard-gate checks.</p>
-                  </div>
-                  <span className="text-xs text-slate-500">Hard failures override the score</span>
-                </div>
-
-                <div className="divide-y divide-slate-100">
-                  {[
-                    {
-                      id: 'score',
-                      label: 'ISSF score',
-                      status: selected.issfScore >= goThreshold ? 'pass' : selected.issfScore < stopThreshold ? 'fail' : 'watch',
-                      detail: `${selected.issfScore.toFixed(1)}/100. GO requires ${goThreshold}; STOP begins below ${stopThreshold}.`,
-                    },
-                    {
-                      id: 'confidence',
-                      label: 'Evidence confidence',
-                      status: selected.confidenceScore >= 72 ? 'pass' : 'watch',
-                      detail: `${selected.confidenceScore.toFixed(0)}%. A GO recommendation requires at least 72%.`,
-                    },
-                    ...selected.gates,
-                  ].map(gate => {
-                    const GateIcon = gate.status === 'pass' ? Check : gate.status === 'fail' ? X : AlertTriangle;
-                    const statusClass = gate.status === 'pass'
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : gate.status === 'fail'
-                        ? 'bg-rose-50 text-rose-700'
-                        : 'bg-amber-50 text-amber-700';
-                    return (
-                      <div key={gate.id} className="grid gap-3 px-5 py-4 sm:grid-cols-[24px_minmax(0,1fr)_auto] sm:items-start">
-                        <span className={`flex size-6 items-center justify-center rounded-full ${statusClass}`}>
-                          <GateIcon className="size-3.5" aria-hidden />
-                        </span>
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">{gate.label}</p>
-                          <p className="mt-1 text-sm text-slate-600">{gate.detail}</p>
-                        </div>
-                        <Badge className={`${statusClass} w-fit border-0 shadow-none`}>{gate.status.toUpperCase()}</Badge>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-
-            <aside className="space-y-4">
-              <div className="rounded-lg border border-slate-200 bg-white p-5">
-                <h2 className="text-base font-semibold text-slate-900">Confirm the outcome</h2>
-                <p className="mt-2 text-sm text-slate-600">
-                  Save the recommendation or record an intentional override. Confirmation creates the audit record.
-                </p>
-                <Button onClick={() => setConfirmPending(true)} className="mt-5 w-full bg-blue-700 text-white hover:bg-blue-800">
-                  <ClipboardCheck className="size-4" />
-                  Confirm {selected.decision}
-                </Button>
-                {confirmedDecisionForSelection && (
-                  <p className="mt-3 flex items-center gap-2 text-xs font-medium text-emerald-700">
-                    <CheckCircle2 className="size-4" aria-hidden />
-                    {confirmedDecisionForSelection.decision} saved for this evidence version
-                  </p>
-                )}
-              </div>
-
-              {selected.prescriptions.length > 0 && selected.decision !== 'GO' && (
-                <div className="rounded-lg border border-slate-200 bg-white p-5">
-                  <h2 className="text-base font-semibold text-slate-900">
-                    {selected.decision === 'STOP' ? 'Required before reconsideration' : 'Required adjustment'}
-                  </h2>
-                  <div className="mt-4 space-y-4">
-                    {selected.prescriptions.slice(0, 2).map(prescription => (
-                      <div key={`${prescription.priority}-${prescription.target}`}>
-                        <div className="flex items-start gap-2">
-                          <ChevronRight className="mt-0.5 size-4 shrink-0 text-slate-400" aria-hidden />
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900">{prescription.target}</p>
-                            <p className="mt-1 text-xs leading-5 text-slate-600">{prescription.action}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </aside>
-          </div>
+          <DecisionReviewWorkspace
+            decisions={sampleDecisions}
+            selected={selected}
+            stopThreshold={stopThreshold}
+            goThreshold={goThreshold}
+            confirmedDecision={confirmedDecisionForSelection ?? null}
+            onSelect={setSelectedSample}
+            onConfirm={() => setConfirmPending(true)}
+          />
 
           <details className="rounded-lg border border-slate-200 bg-white">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500">

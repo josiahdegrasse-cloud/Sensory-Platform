@@ -24,8 +24,10 @@ test.describe('authenticated admin workflow', () => {
 
     await page.getByRole('link', { name: 'Final Decision' }).click();
     await expect(page.getByRole('heading', { name: /Decision Review|Final Decision/ })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Decision criteria' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Confirm the outcome' })).toBeVisible();
+    await expect(page.getByRole('complementary', { name: 'Prototype selection' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Decisive evidence' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /What (changes|protects) this decision\?/ })).toBeVisible();
+    await expect(page.getByText('Decision threshold')).toBeVisible();
     await expect(page.getByText('ISSF Score vs. Hedonic Liking')).toHaveCount(0);
 
     await page.getByRole('link', { name: 'Concept Testing' }).click();
