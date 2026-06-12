@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  AlertCircle, BarChart3, CheckSquare, ChevronDown, Download, FlaskConical, Heart,
-  Layers, MessageCircle, Smile, TrendingUp, Users,
+  AlertCircle, BarChart3, ChevronDown, Download, Layers, MessageCircle,
 } from 'lucide-react';
 import { useAuth } from '../contexts/auth-context';
 import { useFoodType, sampleMatchesFoodType } from '../contexts/food-type-context';
@@ -27,24 +26,24 @@ import { useSurveyData } from '../lib/use-survey-data';
 import { formatFoodTypeLabel } from '../lib/food-intelligence';
 import { buildAllDataCSVRows, buildSampleCSVRows, downloadCsv } from '../utils/survey-csv-export';
 import { Button } from './ui/button';
-import { Card, CardContent } from './ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { ProjectHeader } from './project-header';
-import { DataProvenanceBadge } from './data-provenance-badge';
 import { StageEmptyState } from './stage-empty-state';
 import {
-  InsightsExecutiveSummary,
   InsightsSectionHeader,
   RawDataAppendix,
 } from './insights-ui';
-import { CATATab, CommentsTab, EmotionalTab, HedonicTab, IntensityTab } from './survey-analysis-tabs';
+import { CATATab, CommentsTab, HedonicTab, IntensityTab } from './survey-analysis-tabs';
 import { AllSamplesComparisonView } from './all-samples-comparison';
 import { MultiSampleAnalysis } from './multi-sample-analysis';
 import { ConceptTestAnalysis } from './concept-test-analysis';
+import {
+  InsightsPrototypeWorkspace,
+  InstrumentalEvidencePanel,
+  type InsightsPrototypeOption,
+} from './insights-prototype-workspace';
 
 function buildImportedProfiles(dataset: ReturnType<typeof useInstrumentalDataset>['data']): EnhancedSensoryProfile[] {
   return (dataset?.eTongueData ?? []).map(sample => {
@@ -249,6 +248,79 @@ export function SurveyAnalysis() {
   });
   const showComparison = comparisonProfiles.length > 1 || multiSampleProducts.length > 0;
   const comments = matchingLiveData ? commentsByProduct[matchingLiveData.productId] ?? [] : [];
+  const prototypeScores = projectSamples.map(sample => {
+    const live = liveAggregations.find(aggregation =>
+      aggregation.sourceSampleId === sample.sampleId ||
+      aggregation.productName.toLowerCase() === sample.sampleName.toLowerCase() ||
+      aggregation.productName.toLowerCase().includes(`(${sample.sampleId.toLowerCase()})`)
+    );
+    return {
+      sample,
+      live,
+      score: live?.hedonic.overall ?? sample.hedonic.overall ?? 0,
+    };
+  });
+  const rankedPrototypeIds = [...prototypeScores]
+    .filter(item => (item.live?.n ?? 0) >= minimumResponses && item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map(item => item.sample.sampleId);
+  const prototypeOptions: InsightsPrototypeOption[] = prototypeScores.map(({ sample, live, score }) => {
+    const responseCount = live?.n ?? 0;
+    const isLeader = rankedPrototypeIds[0] === sample.sampleId;
+    const hasInstrument = projectSampleIds.has(sample.sampleId);
+    const evidenceLabel = responseCount >= minimumResponses
+      ? 'Strong evidence'
+      : responseCount > 0
+        ? 'Limited evidence'
+        : hasInstrument
+          ? 'Instrument only'
+          : 'Reference profile';
+    return {
+      id: sample.sampleId,
+      name: sample.sampleName,
+      score,
+      responseCount,
+      evidenceLabel,
+      signalLabel: isLeader
+        ? 'Leading prototype'
+        : responseCount > 0 && responseCount < minimumResponses
+          ? 'Needs more responses'
+          : responseCount === 0
+            ? 'No live decision signal'
+            : 'Review evidence',
+      signalTone: isLeader ? 'success' : responseCount < minimumResponses ? 'warning' : 'neutral',
+    };
+  });
+  const overviewEvidence = [
+    {
+      label: 'Panel coverage',
+      detail: liveResponseCount >= minimumResponses
+        ? `${liveResponseCount} responses exceeds the configured minimum of ${minimumResponses}.`
+        : `${liveResponseCount} of ${minimumResponses} required responses are available.`,
+      value: liveResponseCount >= minimumResponses ? 'Complete' : `${liveResponseCount}/${minimumResponses}`,
+      complete: liveResponseCount >= minimumResponses,
+      warning: liveResponseCount > 0 && liveResponseCount < minimumResponses,
+    },
+    {
+      label: 'Sensory preference',
+      detail: usingLiveData ? keyStrength : 'No live panel preference has been established for this prototype.',
+      value: usingLiveData ? strength.level : 'Pending',
+      complete: usingLiveData,
+    },
+    {
+      label: 'Instrumental data',
+      detail: `${datasetsPresent} of 3 expected machine sources are linked to this prototype.`,
+      value: `${datasetsPresent}/3`,
+      complete: datasetsPresent === 3,
+    },
+    {
+      label: 'Open decision risk',
+      detail: keyConcern,
+      value: strength.representative ? 'Review' : 'Open',
+      complete: strength.representative,
+      warning: true,
+    },
+  ];
   const exportSampleCSV = () => {
     downloadCsv(
       buildSampleCSVRows(selectedData, selectedSample, usingLiveData, activeEmotions),
@@ -260,29 +332,47 @@ export function SurveyAnalysis() {
     <div className="space-y-6">
       <ProjectHeader />
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-950">Insights</h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-600">Understand what the evidence says, how reliable it is, and what the project should do next.</p>
+          <p className="mt-1 max-w-2xl text-sm text-slate-600">Keep every prototype visible while investigating one in depth.</p>
         </div>
-        <Select value={selectedSample} onValueChange={setRequestedSample}>
-          <SelectTrigger className="w-full bg-white sm:w-72"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {projectSamples.map(sample => <SelectItem key={sample.sampleId} value={sample.sampleId}>{sample.sampleName}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <p className="text-xs font-semibold text-slate-500">
+          {projectSamples.length} prototype{projectSamples.length === 1 ? '' : 's'} · {prototypeOptions.reduce((total, prototype) => total + prototype.responseCount, 0)} live responses
+        </p>
       </div>
 
-      <InsightsExecutiveSummary
-        sampleName={selectedData.sampleName}
-        category={formatFoodTypeLabel(foodType)}
-        projectName={status.projectName}
+      <InsightsPrototypeWorkspace
+        prototypes={prototypeOptions}
+        selectedId={selectedSample}
+        onSelect={setRequestedSample}
         panelResponses={liveResponseCount}
-        conceptResponses={primaryConceptResponses.length}
+        instrumentSources={datasetsPresent}
+        usingLiveData={usingLiveData}
         strength={strength}
         keyStrength={keyStrength}
         keyConcern={keyConcern}
         nextAction={nextAction}
+        likingMetrics={activeHedonic.map(item => ({ label: item.category, score: item.score }))}
+        descriptors={activeCata.map(item => ({ label: item.attribute, percentage: item.percentage }))}
+        emotionalBalance={emotionalBalance}
+        averageIntensity={averageIntensity}
+        intensityMax={usingLiveData ? 5 : 10}
+        comments={comments}
+        overviewEvidence={overviewEvidence}
+        likingContent={<HedonicTab activeHedonicData={activeHedonic} activeAvgHedonic={averageHedonic.toFixed(1)} activePanelistN={panelN} usingLiveData={usingLiveData} />}
+        descriptorContent={<CATATab activeCataAttributes={activeCata} activePanelistN={panelN} usingLiveData={usingLiveData} activeSampleId={selectedData.sampleId} />}
+        intensityContent={<IntensityTab activeIntensityData={activeIntensity} activePanelistN={panelN} usingLiveData={usingLiveData} intensityMax={usingLiveData ? 5 : 10} />}
+        instrumentalContent={(
+          <InstrumentalEvidencePanel
+            selectedInstrument={selectedInstrument}
+            selectedComposition={selectedComposition}
+            selectedGcms={selectedGcms}
+            datasetsPresent={datasetsPresent}
+            usingLiveData={usingLiveData}
+          />
+        )}
+        commentsContent={<CommentsTab usingLiveData={usingLiveData} matchingLiveData={matchingLiveData} commentsByProduct={commentsByProduct} />}
       />
 
       {liveDataFetchFailed && (
@@ -292,86 +382,15 @@ export function SurveyAnalysis() {
         </div>
       )}
 
-      <section className="space-y-4">
-        <InsightsSectionHeader
-          id="sensory-evidence"
-          icon={Users}
-          title="Sensory evidence"
-          description="Panel perception, liking, descriptors, intensity, and emotional response for the selected sample."
-          action={<DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={usingLiveData ? liveResponseCount : undefined} />}
-        />
-        {!usingLiveData && !usingReferenceData ? (
-          <StageEmptyState icon={Users} headline="No sensory responses yet" body="Assign and send the questionnaire to collect live panel evidence for this sample." cta={{ label: 'Configure survey', to: '/admin' }} />
-        ) : (
-          <>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                [Heart, 'Average liking', `${averageHedonic.toFixed(1)}/9`],
-                [CheckSquare, 'Top descriptor', activeCata[0]?.attribute ?? 'Not available'],
-                [TrendingUp, 'Average intensity', `${averageIntensity.toFixed(1)}/${usingLiveData ? 5 : 10}`],
-                [Smile, 'Emotional balance', emotionalBalance.toFixed(1)],
-              ].map(([Icon, label, value]) => (
-                <Card key={String(label)} className="border border-slate-200">
-                  <CardContent className="flex items-center gap-3 py-4">
-                    <Icon className="size-5 shrink-0 text-slate-500" />
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-slate-500">{String(label)}</p>
-                      <p className="mt-0.5 truncate text-lg font-bold text-slate-950">{String(value)}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-            <Tabs defaultValue="hedonic">
-              <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4">
-                <TabsTrigger value="hedonic">Liking</TabsTrigger>
-                <TabsTrigger value="cata">Descriptors</TabsTrigger>
-                <TabsTrigger value="intensity">Intensity</TabsTrigger>
-                <TabsTrigger value="emotional">Emotional</TabsTrigger>
-              </TabsList>
-              <TabsContent value="hedonic"><HedonicTab activeHedonicData={activeHedonic} activeAvgHedonic={averageHedonic.toFixed(1)} activePanelistN={panelN} usingLiveData={usingLiveData} /></TabsContent>
-              <TabsContent value="cata"><CATATab activeCataAttributes={activeCata} activePanelistN={panelN} usingLiveData={usingLiveData} activeSampleId={selectedData.sampleId} /></TabsContent>
-              <TabsContent value="intensity"><IntensityTab activeIntensityData={activeIntensity} activePanelistN={panelN} usingLiveData={usingLiveData} intensityMax={usingLiveData ? 5 : 10} /></TabsContent>
-              <TabsContent value="emotional"><EmotionalTab activeEmotions={activeEmotions} activeEmotionalBalance={emotionalBalance.toFixed(1)} activePanelistN={panelN} usingLiveData={usingLiveData} /></TabsContent>
-            </Tabs>
-          </>
-        )}
-      </section>
-
       <details className="rounded-lg border border-slate-200 bg-white">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-bold text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500">
           <span>
             Explore detailed evidence
-            <span className="ml-2 font-normal text-slate-500">Instrument data, comparisons, concepts, comments, and raw exports</span>
+            <span className="ml-2 font-normal text-slate-500">Comparisons, concepts, method notes, and raw exports</span>
           </span>
           <ChevronDown className="size-4 shrink-0 text-slate-500" aria-hidden />
         </summary>
         <div className="space-y-8 border-t border-slate-100 p-5">
-      <section className="space-y-4">
-        <InsightsSectionHeader id="instrumental-evidence" icon={FlaskConical} title="Instrumental evidence" description="Imported machine measurements remain separate from panel perception and are interpreted only when linked to this sample." action={selectedInstrument && <DataProvenanceBadge provenance="imported" />} />
-        {!selectedInstrument ? (
-          <StageEmptyState icon={FlaskConical} headline="No linked instrumental record" body="Import or link instrument data before making machine-supported claims for this sample." cta={{ label: 'Import data', to: '/stage1' }} />
-        ) : (
-          <>
-            <div className="grid gap-4 lg:grid-cols-3">
-              <MetricList title="E-tongue taste signals" items={[
-                ['Sourness', selectedInstrument.sourness], ['Bitterness', selectedInstrument.bitterness],
-                ['Saltiness', selectedInstrument.saltiness], ['Umami', selectedInstrument.umami], ['Sweetness', selectedInstrument.sweetness],
-              ]} />
-              <MetricList title="Composition" items={selectedComposition ? [
-                ['Protein', `${selectedComposition.protein.toFixed(1)}%`], ['Fat', `${selectedComposition.fat.toFixed(1)}%`],
-                ['Moisture', `${selectedComposition.moisture.toFixed(1)}%`], ['Salt', `${selectedComposition.saltContent.toFixed(2)}%`], ['pH', selectedComposition.pH.toFixed(2)],
-              ] : []} />
-              <MetricList title="Aroma compounds" items={selectedGcms.slice(0, 5).map(compound => [compound.name, `${compound.concentration.toFixed(1)} ppm`])} />
-            </div>
-            <p className="text-xs text-slate-500">
-              {datasetsPresent} of 3 expected instrumental sources are linked to this sample.
-              {!usingLiveData && ' Collect live sensory responses before claiming sensory and instrumental alignment.'}
-            </p>
-          </>
-        )}
-      </section>
-
       {showComparison && (
         <section className="space-y-4">
           <InsightsSectionHeader id="sample-comparison" icon={Layers} title="Sample comparison" description="Compare only samples and multi-sample studies belonging to the active project." />
@@ -436,27 +455,5 @@ export function SurveyAnalysis() {
         </div>
       </details>
     </div>
-  );
-}
-
-function MetricList({ title, items }: { title: string; items: Array<[string, string | number]> }) {
-  return (
-    <Card className="border border-slate-200">
-      <CardContent className="py-4">
-        <h3 className="text-sm font-bold text-slate-900">{title}</h3>
-        {items.length === 0 ? (
-          <p className="mt-3 text-sm text-slate-500">Not available for this sample.</p>
-        ) : (
-          <dl className="mt-3 space-y-2">
-            {items.map(([label, value]) => (
-              <div key={label} className="flex items-center justify-between gap-3 border-t border-slate-100 pt-2 first:border-t-0 first:pt-0">
-                <dt className="text-xs text-slate-500">{label}</dt>
-                <dd className="text-sm font-semibold text-slate-900">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
-      </CardContent>
-    </Card>
   );
 }

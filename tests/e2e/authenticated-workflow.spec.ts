@@ -32,7 +32,7 @@ test.describe('authenticated admin workflow', () => {
     await expect(page.getByRole('heading', { name: 'Reports' })).toBeVisible();
   });
 
-  test('insights screen marks provenance and exposes detailed evidence', async ({ page }) => {
+  test('insights screen keeps prototypes visible and exposes decision evidence', async ({ page }) => {
     await page.goto('/');
     await page.getByLabel('Email address').fill(email!);
     await page.getByLabel('Password').fill(password!);
@@ -40,16 +40,17 @@ test.describe('authenticated admin workflow', () => {
 
     await page.goto('/survey-analysis');
     await expect(page.getByRole('heading', { name: 'Insights' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Project prototypes' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Decision evidence' })).toBeVisible();
 
-    // The provenance badge must always disclose whether the charts are backed by
-    // live panel responses or the simulated reference dataset.
     await expect(page.getByText(/Live panel data|Reference data/).first()).toBeVisible();
 
     await page.getByRole('tab', { name: 'Descriptors' }).click();
     await page.getByRole('tab', { name: 'Intensity' }).click();
-    await page.getByRole('tab', { name: 'Emotional' }).click();
+    await page.getByRole('tab', { name: 'Instrumental' }).click();
+    await expect(page.getByText(/Instrumental evidence|No linked instrumental record/)).toBeVisible();
+    await page.getByRole('tab', { name: 'Comments' }).click();
     await page.getByText('Explore detailed evidence', { exact: false }).click();
-    await expect(page.getByText('Instrumental evidence')).toBeVisible();
     await expect(page.getByText('Concept feedback')).toBeVisible();
     await expect(page.getByText(/Live panel data|Reference data/).first()).toBeVisible();
   });
