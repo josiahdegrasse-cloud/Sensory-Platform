@@ -5,6 +5,10 @@ const migrationPath = new URL(
   '../../../supabase/migrations/20260611190000_fix_tenant_instrumental_import.sql',
   import.meta.url,
 );
+const reimportMigrationPath = new URL(
+  '../../../supabase/migrations/20260611193000_reimport_deleted_instrumental_project.sql',
+  import.meta.url,
+);
 
 describe('tenant-safe instrumental import migration', () => {
   const sql = readFileSync(migrationPath, 'utf8');
@@ -24,5 +28,11 @@ describe('tenant-safe instrumental import migration', () => {
   it('keeps import idempotency isolated per organization', () => {
     expect(sql).toContain('ON public.import_batches(org_id, idempotency_key)');
     expect(sql).toContain('WHERE idempotency_key IS NOT NULL');
+  });
+
+  it('allows deleted projects to be imported again without disabling active retry protection', () => {
+    const reimportSql = readFileSync(reimportMigrationPath, 'utf8');
+    expect(reimportSql).toContain("AND b.status = 'active'");
+    expect(reimportSql).toContain("WHERE idempotency_key IS NOT NULL AND status = 'active'");
   });
 });

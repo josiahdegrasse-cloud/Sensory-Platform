@@ -115,7 +115,8 @@ function CategorySidebar() {
           {allTypes.map(ft => {
             const active = foodType === ft;
             const projects = projectBatchesByType[ft] ?? [];
-            const hasProjects = projects.length > 0;
+            const singleProject = projects.length === 1 ? projects[0] : null;
+            const hasMultipleProjects = projects.length > 1;
             const expanded = expandedTypes[ft] ?? active;
             return (
               <div key={ft}>
@@ -123,7 +124,7 @@ function CategorySidebar() {
                   className="group flex items-center rounded-lg transition-colors"
                   style={btnStyle(active)}
                 >
-                  {hasProjects && (
+                  {hasMultipleProjects && (
                     <button
                       type="button"
                       title={`${expanded ? 'Collapse' : 'Expand'} ${label(ft)} projects`}
@@ -134,8 +135,9 @@ function CategorySidebar() {
                     </button>
                   )}
                   <button
-                    onClick={() => setSelection(ft, null)}
-                    className={`min-w-0 flex-1 text-left py-1.5 text-sm ${hasProjects ? 'px-1' : 'px-2.5'}`}
+                    onClick={() => setSelection(ft, singleProject ? `batch:${singleProject.id}` : null)}
+                    title={singleProject?.fileName}
+                    className={`min-w-0 flex-1 text-left py-1.5 text-sm ${hasMultipleProjects ? 'px-1' : 'px-2.5'}`}
                   >
                     <span className="block truncate">{label(ft)}</span>
                   </button>
@@ -158,7 +160,7 @@ function CategorySidebar() {
                     </button>
                   </div>
                 </div>
-                {hasProjects && expanded && (
+                {hasMultipleProjects && expanded && (
                   <div className="ml-5 mt-0.5 space-y-0.5 border-l border-slate-100 pl-2">
                     {projects.map((project, index) => (
                       <div

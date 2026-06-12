@@ -20,6 +20,17 @@ export function mergeFoodTypeRecords(
   return [...recordsByType.values()].sort((a, b) => a.type.localeCompare(b.type));
 }
 
+export function registerActiveFoodTypes(
+  records: LocalFoodTypeRecord[],
+  types: string[],
+): LocalFoodTypeRecord[] {
+  const recordsByType = new Map(records.map(record => [record.type, record]));
+  types.map(slugifyFoodType).forEach(type => {
+    recordsByType.set(type, { type, status: 'active' });
+  });
+  return [...recordsByType.values()].sort((a, b) => a.type.localeCompare(b.type));
+}
+
 interface FoodTypeContextValue {
   foodType: FoodType;
   subCategory: string | null;
@@ -97,13 +108,7 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
   };
 
   const registerFoodTypes = useCallback((types: string[]) => {
-    setLocalFoodTypeRecords(prev => {
-      const recordsByType = new Map(prev.map(record => [record.type, record]));
-      types.map(slugifyFoodType).forEach(type => {
-        if (!recordsByType.has(type)) recordsByType.set(type, { type, status: 'active' });
-      });
-      return [...recordsByType.values()].sort((a, b) => a.type.localeCompare(b.type));
-    });
+    setLocalFoodTypeRecords(prev => registerActiveFoodTypes(prev, types));
   }, []);
 
   const archiveFoodType = useCallback((type: string) => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchFoodType, mergeFoodTypeRecords, sampleMatchesFoodType } from './food-type-context';
+import { matchFoodType, mergeFoodTypeRecords, registerActiveFoodTypes, sampleMatchesFoodType } from './food-type-context';
 
 describe('food type matching', () => {
   it('classifies meat categories and M-prefixed samples as meat', () => {
@@ -38,5 +38,12 @@ describe('food type matching', () => {
       { type: 'bread', status: 'active' },
       { type: 'cheese', status: 'deleted' },
     ]);
+  });
+
+  it('reactivates a locally deleted type when imported data registers it again', () => {
+    expect(registerActiveFoodTypes(
+      [{ type: 'meat', status: 'deleted' }],
+      ['Meat'],
+    )).toEqual([{ type: 'meat', status: 'active' }]);
   });
 });
