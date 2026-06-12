@@ -4,6 +4,7 @@ import {
   Lock, Palette, Save, UserCheck, UserX, Users,
 } from 'lucide-react';
 import { BrandingSettings } from './branding-settings';
+import { OrgEmailDomainsCard } from './org-email-domains-card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -252,13 +253,16 @@ export function AdminSettings() {
 
         <TabsContent value="access">
           <div className="grid gap-4 xl:grid-cols-[0.9fr_1.4fr]">
-            <Card className="border-slate-200 shadow-sm">
-              <CardHeader><CardTitle className="text-lg">Panelist access rules</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                <ToggleRow title="Allow self signup" detail="Show the create-account option on the sign-in page." checked={draft.allowSelfSignup} onChange={checked => updateDraft('allowSelfSignup', checked)} />
-                <ToggleRow title="Require panelist consent" detail="Gate questionnaires until consent is accepted." checked={draft.requirePanelistConsent} onChange={checked => updateDraft('requirePanelistConsent', checked)} />
-              </CardContent>
-            </Card>
+            <div className="space-y-4">
+              <Card className="border-slate-200 shadow-sm">
+                <CardHeader><CardTitle className="text-lg">Panelist access rules</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <ToggleRow title="Allow self signup" detail="Show the create-account option on the sign-in page." checked={draft.allowSelfSignup} onChange={checked => updateDraft('allowSelfSignup', checked)} />
+                  <ToggleRow title="Require panelist consent" detail="Gate questionnaires until consent is accepted." checked={draft.requirePanelistConsent} onChange={checked => updateDraft('requirePanelistConsent', checked)} />
+                </CardContent>
+              </Card>
+              <OrgEmailDomainsCard />
+            </div>
             <PanelistTable panelists={panelists} updating={updatePanelistStatus.isPending} onToggleStatus={togglePanelistStatus} />
           </div>
         </TabsContent>

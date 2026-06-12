@@ -17,6 +17,8 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<string | null>;
+  loginWithGoogle: () => Promise<string | null>;
+  loginWithMagicLink: (email: string) => Promise<string | null>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<string | null>;
   updatePassword: (newPassword: string) => Promise<string | null>;
@@ -24,27 +26,47 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isPasswordRecovery: boolean;
   loading: boolean;
+  /** Why the last session was rejected (deactivated account, no workspace). Shown on the login page. */
+  authNotice: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-async function loadProfile(supabaseUser: SupabaseUser): Promise<User | null> {
+interface ProfileResult {
+  profile: User | null;
+  blockedMessage: string | null;
+}
+
+async function loadProfile(supabaseUser: SupabaseUser): Promise<ProfileResult> {
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
     .eq('id', supabaseUser.id)
     .single();
-  if (error || !data) return null;
-  if (data.status && data.status !== 'active') return null;
+  if (error || !data) return { profile: null, blockedMessage: null };
+  if (data.status && data.status !== 'active') {
+    return { profile: null, blockedMessage: 'This account has been deactivated. Contact your study administrator.' };
+  }
+  // org_id === null means the account isn't linked to any company workspace
+  // (RLS would show it nothing anyway). undefined = pre-multi-tenancy DB; allow.
+  if (data.org_id === null) {
+    return {
+      profile: null,
+      blockedMessage: 'This account isn’t linked to a company workspace yet. Sign in with your company email address, or ask your administrator for an invite.',
+    };
+  }
   return {
-    id: supabaseUser.id,
-    email: supabaseUser.email ?? '',
-    role: data.role as 'admin' | 'panelist',
-    name: data.name ?? supabaseUser.email ?? '',
-    panelistId: data.panelist_id ?? undefined,
-    status: data.status ?? 'active',
-    consentAcceptedAt: data.consent_accepted_at ?? null,
-    consentVersion: data.consent_version ?? null,
+    profile: {
+      id: supabaseUser.id,
+      email: supabaseUser.email ?? '',
+      role: data.role as 'admin' | 'panelist',
+      name: data.name ?? supabaseUser.email ?? '',
+      panelistId: data.panelist_id ?? undefined,
+      status: data.status ?? 'active',
+      consentAcceptedAt: data.consent_accepted_at ?? null,
+      consentVersion: data.consent_version ?? null,
+    },
+    blockedMessage: null,
   };
 }
 
@@ -53,6 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionUser, setSessionUser] = useState<SupabaseUser | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
   const isPasswordRecoveryRef = useRef(false);
 
   // Step 1: listen for auth changes — sync only, no async db calls inside handler
@@ -87,9 +110,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
-    loadProfile(sessionUser).then(profile => {
+    loadProfile(sessionUser).then(({ profile, blockedMessage }) => {
       if (!profile) {
         setUser(null);
+        if (blockedMessage) setAuthNotice(blockedMessage);
         void supabase.auth.signOut();
       } else {
         setUser(profile);
@@ -101,8 +125,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [sessionUser]);
 
   const login = async (email: string, password: string): Promise<string | null> => {
+    setAuthNotice(null);
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return error.message;
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Unknown error';
+    }
+  };
+
+  const loginWithGoogle = async (): Promise<string | null> => {
+    setAuthNotice(null);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: import.meta.env.VITE_APP_URL ?? window.location.origin,
+        },
+      });
+      if (error) return error.message;
+      return null; // browser is redirecting to Google
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Unknown error';
+    }
+  };
+
+  const loginWithMagicLink = async (email: string): Promise<string | null> => {
+    setAuthNotice(null);
+    try {
+      // Sign-in only (no account creation): signup must go through the signup
+      // page or Google so the consent + company-domain checks always apply.
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: false,
+          emailRedirectTo: import.meta.env.VITE_APP_URL ?? window.location.origin,
+        },
+      });
       if (error) return error.message;
       return null;
     } catch (err) {
@@ -155,7 +215,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, resetPassword, updatePassword, acceptConsent, isAuthenticated: !!user, isPasswordRecovery, loading }}>
+    <AuthContext.Provider value={{ user, login, loginWithGoogle, loginWithMagicLink, logout, resetPassword, updatePassword, acceptConsent, isAuthenticated: !!user, isPasswordRecovery, loading, authNotice }}>
       {children}
     </AuthContext.Provider>
   );

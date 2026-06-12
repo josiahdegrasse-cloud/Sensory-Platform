@@ -1,5 +1,6 @@
 import { supabase } from '../supabase';
 import { dbError, insertAuditEvent } from './shared';
+import { validateCompanyDomain } from '../company-email';
 
 export interface WorkspaceSettings {
   workspaceName: string;
@@ -280,6 +281,75 @@ export async function updateWorkspaceSettings(
   });
 
   return toWorkspaceSettings(row);
+}
+
+export interface OrgEmailDomain {
+  domain: string;
+  createdAt: string;
+}
+
+// Domains this organization owns; signups from these email domains auto-join
+// the org (RLS scopes reads to the caller's org, writes to its admins).
+export async function fetchOrgEmailDomains(): Promise<OrgEmailDomain[]> {
+  const { data, error } = await supabase
+    .from('org_email_domains')
+    .select('domain, created_at')
+    .order('domain');
+  if (error) {
+    if (/org_email_domains|schema cache|does not exist/i.test(error.message ?? '')) return [];
+    throw dbError(error);
+  }
+  return (data ?? []).map(row => ({
+    domain: row.domain as string,
+    createdAt: row.created_at as string,
+  }));
+}
+
+export async function addOrgEmailDomain(input: string, actorId?: string | null): Promise<string> {
+  const result = validateCompanyDomain(input);
+  if ('error' in result) throw new Error(result.error);
+
+  const { error } = await supabase.from('org_email_domains').insert({ domain: result.domain });
+  if (error) {
+    if (/duplicate key|already exists/i.test(error.message ?? '')) {
+      throw new Error(`${result.domain} is already registered — a domain can only belong to one workspace.`);
+    }
+    throw dbError(error);
+  }
+
+  await insertAuditEvent({
+    actorId: actorId ?? null,
+    eventType: 'org_email_domain_added',
+    entityType: 'org_email_domain',
+    entityId: result.domain,
+    metadata: { domain: result.domain },
+  });
+  return result.domain;
+}
+
+export async function removeOrgEmailDomain(domain: string, actorId?: string | null): Promise<void> {
+  const { error } = await supabase.from('org_email_domains').delete().eq('domain', domain);
+  if (error) throw dbError(error);
+
+  await insertAuditEvent({
+    actorId: actorId ?? null,
+    eventType: 'org_email_domain_removed',
+    entityType: 'org_email_domain',
+    entityId: domain,
+    metadata: { domain },
+  });
+}
+
+// Anonymous pre-signup check: is this email's domain registered to a company
+// workspace? Fails open when the migration hasn't been applied yet so signup
+// keeps working against older databases.
+export async function emailDomainHasWorkspace(email: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('email_domain_has_workspace', { p_email: email });
+  if (error) {
+    if (/email_domain_has_workspace|schema cache|does not exist/i.test(error.message ?? '')) return true;
+    throw dbError(error);
+  }
+  return Boolean(data);
 }
 
 export async function fetchAuditEvents(limit = 80): Promise<AuditEventRecord[]> {

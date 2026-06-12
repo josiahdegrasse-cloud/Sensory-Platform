@@ -12,6 +12,7 @@ import {
   fetchWorkspaceSettings, updateWorkspaceSettings, fetchAuditEvents,
   fetchDecisionRecords,
   fetchPublicWorkspaceConfig,
+  fetchOrgEmailDomains, addOrgEmailDomain, removeOrgEmailDomain,
   insertProduct, updateProduct, updateProductAssignments, deleteProduct,
   insertTemplate, deleteTemplate, updatePanelistId, updatePanelistTrainingLevel, updatePanelistStatus,
   insertConceptTest, insertConceptResponse,
@@ -47,6 +48,7 @@ export const queryKeys = {
   importBatches: ['importBatches'] as const,
   workspaceSettings: ['workspaceSettings'] as const,
   publicWorkspaceConfig: ['publicWorkspaceConfig'] as const,
+  orgEmailDomains: ['orgEmailDomains'] as const,
   auditEvents: ['auditEvents'] as const,
   decisionRecords: ['decisionRecords'] as const,
 }
@@ -141,6 +143,28 @@ export function useUpdateCommercializationReportStatus() {
     mutationFn: (input: { id: string; status: CommercializationReportRecord['status']; actorId: string }) =>
       updateCommercializationReportStatus(input),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.commercializationReports }),
+  })
+}
+
+export function useOrgEmailDomains() {
+  return useQuery({ queryKey: queryKeys.orgEmailDomains, queryFn: fetchOrgEmailDomains })
+}
+
+export function useAddOrgEmailDomain() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { domain: string; actorId?: string | null }) =>
+      addOrgEmailDomain(input.domain, input.actorId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.orgEmailDomains }),
+  })
+}
+
+export function useRemoveOrgEmailDomain() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { domain: string; actorId?: string | null }) =>
+      removeOrgEmailDomain(input.domain, input.actorId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.orgEmailDomains }),
   })
 }
 

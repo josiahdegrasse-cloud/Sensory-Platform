@@ -6,7 +6,7 @@ import { Label } from './ui/label';
 import { supabase } from '../lib/supabase';
 import { AlertCircle, CheckCircle2, FlaskConical } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
-import { CURRENT_CONSENT_VERSION } from '../lib/database';
+import { CURRENT_CONSENT_VERSION, emailDomainHasWorkspace } from '../lib/database';
 
 interface Props {
   onBack: () => void;
@@ -50,6 +50,20 @@ export function SignupPage({ onBack }: Props) {
     const pwError = validatePassword(password);
     if (pwError) { setError(pwError); return; }
     setLoading(true);
+
+    // Strict company-email policy: the email's domain must be registered to a
+    // workspace, otherwise the account would be created org-less and unusable.
+    try {
+      const domainRecognized = await emailDomainHasWorkspace(email);
+      if (!domainRecognized) {
+        setError("This email domain isn't linked to a company workspace. Sign up with your company email address, or ask your study administrator for an invite.");
+        setLoading(false);
+        return;
+      }
+    } catch {
+      // Network/db hiccup: let signup proceed; the sign-in guard still blocks
+      // org-less accounts from entering the app.
+    }
 
     const consentAcceptedAt = new Date().toISOString();
     const consentUserAgent = typeof navigator !== 'undefined' ? navigator.userAgent : null;
