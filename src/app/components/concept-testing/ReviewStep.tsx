@@ -1,5 +1,6 @@
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -22,6 +23,7 @@ export function ReviewStep({
   segments,
   assignedPanelistIds,
   onEditConcept,
+  onEditVisuals,
   onEditSurvey,
 }: {
   draft: ConceptDraft;
@@ -30,6 +32,7 @@ export function ReviewStep({
   segments: string[];
   assignedPanelistIds: string[];
   onEditConcept: () => void;
+  onEditVisuals: () => void;
   onEditSurvey: () => void;
 }) {
   const { data: panelists = [] } = usePanelists();
@@ -63,10 +66,10 @@ export function ReviewStep({
                       <span className="text-sm text-amber-950"><strong>{item.label}:</strong> {item.detail}</span>
                       <button
                         type="button"
-                        onClick={item.fixStep === 'concept' ? onEditConcept : onEditSurvey}
+                        onClick={item.fixStep === 'concept' ? onEditConcept : item.fixStep === 'visuals' ? onEditVisuals : onEditSurvey}
                         className="shrink-0 text-left text-xs font-semibold text-blue-700 hover:text-blue-900"
                       >
-                        Edit {item.fixStep === 'concept' ? 'concept' : 'survey and panel'}
+                        Edit {item.fixStep === 'concept' ? 'concept' : item.fixStep === 'visuals' ? 'visuals' : 'survey and panel'}
                       </button>
                     </li>
                   ))}
@@ -103,90 +106,99 @@ export function ReviewStep({
         </CardContent>
       </Card>
 
-      <Card className="border border-slate-200">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm font-bold text-slate-700">
-            <FolderKanban className="size-4" aria-hidden />
-            Concept brief
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <div className="text-xs font-semibold text-slate-500">Project</div>
-            <div className="text-sm font-semibold text-slate-900">{draft.projectName || '(project not named)'}</div>
-          </div>
-          <div>
-            <div className="text-xs font-semibold text-slate-500">Concept test</div>
-            <div className="text-base font-bold text-slate-900">{draft.name || '(concept not named)'}</div>
-          </div>
-          <div className="text-xs text-slate-500 mt-0.5">{draft.category}</div>
-          {draft.description && <p className="text-sm text-slate-700 mt-2">{draft.description}</p>}
-          <div className="flex flex-wrap gap-3 text-xs text-slate-600">
-            {draft.targetMarket && <span><strong>Target:</strong> {draft.targetMarket}</span>}
-            {draft.pricePoint && <span><strong>Price:</strong> {draft.pricePoint}</span>}
-            {draft.keyBenefits && <span><strong>Benefits:</strong> {draft.keyBenefits}</span>}
-            {selectedImages.length > 0 && (
-              <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                <CheckCircle2 className="size-3.5" aria-hidden />
-                {selectedImages.length} concept visual{selectedImages.length !== 1 ? 's' : ''}
-              </span>
+      <Accordion type="multiple" className="rounded-lg border border-slate-200 px-4">
+        <AccordionItem value="concept">
+          <AccordionTrigger>
+            <span className="flex items-center gap-2">
+              <FolderKanban className="size-4 text-slate-500" aria-hidden />
+              Concept brief
+              <span className="font-normal text-slate-500">{draft.name || 'Untitled'}</span>
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div><p className="text-xs font-semibold text-slate-500">Project</p><p className="text-sm text-slate-900">{draft.projectName || '(project not named)'}</p></div>
+              <div><p className="text-xs font-semibold text-slate-500">Category</p><p className="text-sm text-slate-900">{draft.category || '(category not set)'}</p></div>
+            </div>
+            {draft.description && <p className="text-sm text-slate-700">{draft.description}</p>}
+            <div className="flex flex-wrap gap-3 text-xs text-slate-600">
+              {draft.targetMarket && <span><strong>Target:</strong> {draft.targetMarket}</span>}
+              {draft.pricePoint && <span><strong>Price:</strong> {draft.pricePoint}</span>}
+              {draft.keyBenefits && <span><strong>Benefits:</strong> {draft.keyBenefits}</span>}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="visuals">
+          <AccordionTrigger>
+            <span className="flex items-center gap-2">
+              <ImageIcon className="size-4 text-slate-500" aria-hidden />
+              Visuals
+              <span className="font-normal text-slate-500">{selectedImages.length} selected</span>
+            </span>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {selectedImages.map((image, index) => (
+                <img key={`${image}-${index}`} src={image} alt={`Selected concept visual ${index + 1}`} className="aspect-square w-full rounded-lg border border-slate-200 object-cover" />
+              ))}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="survey">
+          <AccordionTrigger>
+            <span className="flex items-center gap-2">
+              <FileText className="size-4 text-slate-500" aria-hidden />
+              Survey
+              <span className="font-normal text-slate-500">{questions.length} questions, {estimatedDuration}</span>
+            </span>
+          </AccordionTrigger>
+          <AccordionContent>
+            <ol className="space-y-1.5">
+              {questions.map((q, i) => (
+                <li key={q.id} className="flex items-start gap-2 text-sm">
+                  <span className="text-slate-400 font-bold w-5 flex-shrink-0">{i + 1}.</span>
+                  <span className="text-slate-700 line-clamp-1">{q.text || <em className="text-slate-400">Empty question</em>}</span>
+                  <span className={`ml-auto flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${CATEGORY_COLORS[q.category]}`}>{q.category}</span>
+                </li>
+              ))}
+            </ol>
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="panel">
+          <AccordionTrigger>
+            <span className="flex items-center gap-2">
+              <Users className="size-4 text-slate-500" aria-hidden />
+              Panel
+              <span className="font-normal text-slate-500">{assignedPanelistIds.length} assigned</span>
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="space-y-3">
+            {assignedPanelists.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {assignedPanelists.map((name, index) => (
+                  <Badge key={`${assignedPanelistIds[index]}-${name}`} variant="outline">{name}</Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-amber-700">No panelists assigned. The test cannot launch.</p>
             )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border border-slate-200">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-bold text-slate-700">Survey questions ({questions.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ol className="space-y-1.5">
-            {questions.map((q, i) => (
-              <li key={q.id} className="flex items-start gap-2 text-sm">
-                <span className="text-slate-400 font-bold w-5 flex-shrink-0">{i + 1}.</span>
-                <span className="text-slate-700 line-clamp-1">{q.text || <em className="text-slate-400">Empty question</em>}</span>
-                <span className={`ml-auto flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${CATEGORY_COLORS[q.category]}`}>{q.category}</span>
-              </li>
-            ))}
-          </ol>
-        </CardContent>
-      </Card>
-
-      <Card className="border border-slate-200">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-bold text-slate-700">Assigned panelists ({assignedPanelistIds.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {assignedPanelists.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {assignedPanelists.map((name, index) => (
-                <Badge key={`${assignedPanelistIds[index]}-${name}`} variant="outline">{name}</Badge>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-amber-700">No panelists assigned. The test cannot launch.</p>
-          )}
-          <p className="mt-3 text-xs text-slate-500">
-            Target panel size: {panelSize}. Access is limited to the named panelists above.
-          </p>
-        </CardContent>
-      </Card>
-
-      {segments.length > 0 && (
-        <Card className="border border-slate-200">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-bold text-slate-700">Target segments</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {segments.map(s => (
-                <Badge key={s} variant="outline" className="text-xs">{s}</Badge>
-              ))}
-            </div>
-            <p className="mt-3 text-xs text-slate-500">Used to guide this test and shown in this setup summary. These segment choices are not saved after launch.</p>
-          </CardContent>
-        </Card>
-      )}
+            <p className="text-xs text-slate-500">Target panel size: {panelSize}. Access is limited to the named panelists above.</p>
+            {segments.length > 0 && (
+              <>
+                <p className="text-xs font-semibold text-slate-600">Segments noted for setup</p>
+                <div className="flex flex-wrap gap-2">
+                  {segments.map(s => (
+                    <Badge key={s} variant="outline" className="text-xs">{s}</Badge>
+                  ))}
+                </div>
+              </>
+            )}
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </div>
   );
 }

@@ -2,17 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
-import { Badge } from './ui/badge';
 import {
-  Lightbulb, ChevronRight, ChevronLeft, Send, CheckCircle2, Image as ImageIcon,
-  ListChecks, Users, AlertTriangle, FileCheck2, ChevronDown, Gauge,
+  Lightbulb, ChevronRight, ChevronLeft, Send, CheckCircle2,
+  AlertTriangle, Gauge, Circle,
 } from 'lucide-react';
 import { insertConceptTest } from '../lib/database';
 import { detectFoodType } from '../lib/food-intelligence';
 import {
   useConceptGenerationSettings,
   useConceptLabDiagnostics,
-  useCommercializationReports,
   usePanelists,
   useWorkspaceSettings,
 } from '../lib/hooks';
@@ -87,22 +85,20 @@ export function ConceptTesting() {
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState('');
   const [draftNotice, setDraftNotice] = useState('');
+  const [saveState, setSaveState] = useState<'idle' | 'saved'>('idle');
   const [sourceDecision, setSourceDecision] = useState<SourceDecisionSeed | null>(null);
-  const [reportsExpanded, setReportsExpanded] = useState(false);
   const { data: settings } = useConceptGenerationSettings();
   const { data: workspaceSettings } = useWorkspaceSettings();
   const { data: diagnostics } = useConceptLabDiagnostics();
-  const { data: commercializationReports = [] } = useCommercializationReports();
 
-  const STEPS: WizardStep[] = ['concept', 'survey', 'review'];
+  const STEPS: WizardStep[] = ['concept', 'visuals', 'survey', 'review'];
   const stepIndex = STEPS.indexOf(step);
 
   const detection = detectFoodType(draft.category, draft.name, draft.description);
-  const validImageCount = draft.marketingImages.filter(u => u.trim()).length;
   const readinessItems = getConceptReadiness({ draft, questions, assignedPanelistIds, panelists });
-  const readyCount = readinessItems.filter(item => item.ready).length;
   const launchReady = readinessItems.every(item => item.ready);
   const conceptStepReady = readinessItems.filter(item => item.fixStep === 'concept').every(item => item.ready);
+  const visualsStepReady = readinessItems.filter(item => item.fixStep === 'visuals').every(item => item.ready);
   const surveyStepReady = readinessItems.filter(item => item.fixStep === 'survey').every(item => item.ready);
   const setupWarnings = diagnostics?.messages ?? [];
   const draftHasWork = useMemo(() => (
@@ -182,6 +178,7 @@ export function ConceptTesting() {
         savedAt: new Date().toISOString(),
       };
       localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
+      setSaveState('saved');
     }, 400);
     return () => window.clearTimeout(timeout);
   }, [assignedPanelistIds, draft, draftHasWork, panelSize, questions, questionsReviewState, segments, sourceDecision, step]);
@@ -196,6 +193,7 @@ export function ConceptTesting() {
     setPanelSize(workspaceSettings?.defaultPanelSize ?? 50);
     setLaunchError('');
     setDraftNotice('');
+    setSaveState('idle');
     setSourceDecision(null);
     localStorage.removeItem(DRAFT_STORAGE_KEY);
   };
@@ -269,80 +267,23 @@ export function ConceptTesting() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="mx-auto max-w-5xl space-y-5 pb-24">
       <ProjectHeader />
-      {/* Page header */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-blue-600 flex items-center justify-center">
-              <Lightbulb className="size-5 text-white" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-semibold text-slate-900">Concept Lab</h1>
-                <Badge className="bg-slate-900 text-white text-xs font-bold">Pro</Badge>
-              </div>
-              <p className="text-slate-500 text-sm">
-                Build food concepts, generate visuals, create panel surveys, and launch consumer validation.
-              </p>
-            </div>
+      <div className="flex flex-col gap-3 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-lg bg-slate-900">
+            <Lightbulb className="size-5 text-white" />
           </div>
-
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:w-[560px]">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-              <div className="flex items-center gap-1.5 text-xs text-slate-500"><ImageIcon className="size-3.5" /> Visuals</div>
-              <p className="text-lg font-bold text-slate-900">{validImageCount}/4</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-              <div className="flex items-center gap-1.5 text-xs text-slate-500"><ListChecks className="size-3.5" /> Questions</div>
-              <p className="text-lg font-bold text-slate-900">{questions.length}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-              <div className="flex items-center gap-1.5 text-xs text-slate-500"><Users className="size-3.5" /> Panel</div>
-              <p className="text-lg font-bold text-slate-900">{assignedPanelistIds.length || panelSize}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-              <div className="flex items-center gap-1.5 text-xs text-slate-500"><FileCheck2 className="size-3.5" /> Reports</div>
-              <p className="text-lg font-bold text-slate-900">{commercializationReports.length}</p>
-            </div>
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Concept Lab</h1>
+            <p className="text-sm text-slate-500">Prepare and launch one consumer concept test.</p>
           </div>
         </div>
+        <p className="flex items-center gap-1.5 text-xs text-slate-500" aria-live="polite">
+          <CheckCircle2 className={`size-3.5 ${saveState === 'saved' ? 'text-emerald-600' : 'text-slate-400'}`} />
+          {saveState === 'saved' ? 'Draft saved' : 'Draft saves automatically'}
+        </p>
       </div>
-
-      {commercializationReports.length > 0 && (
-        <section className="rounded-lg border border-slate-200 bg-white">
-          <button
-            type="button"
-            onClick={() => setReportsExpanded(prev => !prev)}
-            className="flex w-full items-center justify-between gap-3 px-4 py-3"
-          >
-            <div className="text-left">
-              <h2 className="text-sm font-semibold text-slate-900">Commercialization reports</h2>
-              <p className="text-xs text-slate-500">GO-approved formulation and packaging handoffs.</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">{commercializationReports.filter(report => report.status === 'approved').length} approved</Badge>
-              <ChevronDown className={`size-4 text-slate-400 transition-transform ${reportsExpanded ? 'rotate-180' : ''}`} />
-            </div>
-          </button>
-          {reportsExpanded && (
-            <div className="divide-y divide-slate-100 border-t border-slate-100">
-              {commercializationReports.slice(0, 5).map(report => (
-                <div key={report.id} className="flex items-center justify-between gap-4 px-4 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">{report.title}</p>
-                    <p className="text-xs text-slate-500">Version {report.version} · {new Date(report.updatedAt).toLocaleDateString()}</p>
-                  </div>
-                  <Badge className={report.status === 'approved' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}>
-                    {report.status}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
 
       {setupWarnings.length > 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -389,57 +330,43 @@ export function ConceptTesting() {
         </div>
       )}
 
-      {/* Step progress */}
-      <div className="flex items-center gap-0">
+      <nav aria-label="Concept test progress" className="grid grid-cols-4 gap-2">
         {STEPS.map((s, i) => {
           const done = i < stepIndex;
           const active = s === step;
           const labels: Record<WizardStep, string> = {
-            concept: '1. Concept & visuals', survey: '2. Survey & panel', review: '3. Review', launched: '',
+            concept: 'Concept', visuals: 'Visuals', survey: 'Survey & panel', review: 'Review', launched: '',
           };
           return (
-            <div key={s} className="flex items-center flex-1">
-              <div className={`flex-1 flex items-center justify-center py-2 px-3 text-xs font-semibold transition-all ${
-                done    ? 'bg-emerald-600 text-white' :
-                active  ? 'bg-blue-600 text-white' :
-                          'bg-slate-100 text-slate-400'
-              } ${i === 0 ? 'rounded-l-lg' : ''} ${i === STEPS.length - 1 ? 'rounded-r-lg' : ''}`}>
-                {done ? <CheckCircle2 className="size-3.5 mr-1" /> : null}
-                {labels[s]}
-              </div>
-              {i < STEPS.length - 1 && <div className="w-0.5 h-9 bg-white" />}
-            </div>
+            <button
+              key={s}
+              type="button"
+              onClick={() => i <= stepIndex && setStep(s)}
+              disabled={i > stepIndex}
+              aria-current={active ? 'step' : undefined}
+              className={`flex min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-xs font-semibold transition-colors sm:px-3 ${
+                active
+                  ? 'border-slate-900 bg-slate-900 text-white'
+                  : done
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                    : 'border-slate-200 bg-white text-slate-400'
+              }`}
+            >
+              {done ? <CheckCircle2 className="size-3.5 shrink-0" /> : <Circle className="size-3.5 shrink-0" />}
+              <span className="truncate"><span className="hidden sm:inline">{i + 1}. </span>{labels[s]}</span>
+            </button>
           );
         })}
-      </div>
-
-      {/* Launch readiness strip */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3">
-        <span className="text-xs font-semibold text-slate-500 mr-1">Launch readiness ({readyCount}/{readinessItems.length})</span>
-        {readinessItems.map(item => (
-          <span
-            key={item.label}
-            title={item.detail}
-            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
-              item.ready ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-50 text-slate-500 border border-slate-200'
-            }`}
-          >
-            <CheckCircle2 className="size-3.5" />
-            {item.label}
-          </span>
-        ))}
-      </div>
+      </nav>
 
       {/* Step content */}
-      <Card className="border border-slate-200 shadow-sm">
-        <CardContent className="pt-6 pb-6 space-y-8">
+      <Card className="border border-slate-200 shadow-none">
+        <CardContent className="space-y-8 py-6">
           {step === 'concept' && (
-            <>
-              <ConceptStep draft={draft} onChange={setDraft} />
-              <div className="border-t border-slate-100 pt-8">
-                <ImagesStep draft={draft} onChange={setDraft} settings={settings} />
-              </div>
-            </>
+            <ConceptStep draft={draft} onChange={setDraft} />
+          )}
+          {step === 'visuals' && (
+            <ImagesStep draft={draft} onChange={setDraft} settings={settings} />
           )}
           {step === 'survey' && (
             <>
@@ -463,6 +390,7 @@ export function ConceptTesting() {
               segments={segments}
               assignedPanelistIds={assignedPanelistIds}
               onEditConcept={() => setStep('concept')}
+              onEditVisuals={() => setStep('visuals')}
               onEditSurvey={() => setStep('survey')}
             />
           )}
@@ -473,45 +401,48 @@ export function ConceptTesting() {
         <p className="text-sm text-rose-600 font-medium text-center">{launchError}</p>
       )}
 
-      {/* Navigation */}
-      <div className="flex items-center justify-between">
-        <Button
-          variant="outline"
-          onClick={() => setStep(STEPS[stepIndex - 1])}
-          disabled={stepIndex === 0}
-          className="gap-1.5"
-        >
-          <ChevronLeft className="size-4" /> Back
-        </Button>
-
-        {step === 'review' ? (
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:px-6 lg:left-64">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
           <Button
-            onClick={handleLaunch}
-            disabled={launching || !launchReady}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 px-8"
+            variant="outline"
+            onClick={() => setStep(STEPS[stepIndex - 1])}
+            disabled={stepIndex === 0}
+            className="gap-1.5"
           >
-            <Send className="size-4" />
-            {launching ? 'Launching…' : 'Launch concept test'}
+            <ChevronLeft className="size-4" /> Back
           </Button>
-        ) : (
-          <div className="flex flex-col items-end gap-1.5">
-            <Button
-              onClick={() => setStep(STEPS[stepIndex + 1])}
-              disabled={step === 'concept' ? !conceptStepReady : !surveyStepReady}
-              className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
-            >
-              Continue <ChevronRight className="size-4" />
-            </Button>
-            {((step === 'concept' && !conceptStepReady) || (step === 'survey' && !surveyStepReady)) && (
-              <p className="max-w-sm text-right text-xs text-amber-700">
-                {readinessItems
-                  .filter(item => !item.ready && item.fixStep === step)
-                  .map(item => item.detail)
-                  .join(' ')}
-              </p>
+
+          <div className="flex min-w-0 flex-col items-end gap-1">
+            {step === 'review' ? (
+              <Button
+                onClick={handleLaunch}
+                disabled={launching || !launchReady}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 px-8"
+              >
+                <Send className="size-4" />
+                {launching ? 'Launching…' : 'Launch concept test'}
+              </Button>
+            ) : (
+              <>
+                <Button
+                  onClick={() => setStep(STEPS[stepIndex + 1])}
+                  disabled={step === 'concept' ? !conceptStepReady : step === 'visuals' ? !visualsStepReady : !surveyStepReady}
+                  className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
+                >
+                  Continue <ChevronRight className="size-4" />
+                </Button>
+                {((step === 'concept' && !conceptStepReady) || (step === 'visuals' && !visualsStepReady) || (step === 'survey' && !surveyStepReady)) && (
+                  <p className="hidden max-w-md text-right text-xs text-amber-700 sm:block">
+                    {readinessItems
+                      .filter(item => !item.ready && item.fixStep === step)
+                      .map(item => item.detail)
+                      .join(' ')}
+                  </p>
+                )}
+              </>
             )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

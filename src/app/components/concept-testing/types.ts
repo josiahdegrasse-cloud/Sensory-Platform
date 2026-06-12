@@ -32,7 +32,7 @@ export interface ConceptDraft {
   approvalStatus: 'draft' | 'review' | 'approved';
 }
 
-export type WizardStep = 'concept' | 'survey' | 'review' | 'launched';
+export type WizardStep = 'concept' | 'visuals' | 'survey' | 'review' | 'launched';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

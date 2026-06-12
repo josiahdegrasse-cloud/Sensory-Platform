@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { StageEmptyState } from '../stage-empty-state';
 import { DataProvenanceBadge } from '../data-provenance-badge';
 import {
@@ -94,6 +95,7 @@ export function ImagesStep({
   const [generationError, setGenerationError] = useState('');
   const [generationConfirmationOpen, setGenerationConfirmationOpen] = useState(false);
   const [promptExpanded, setPromptExpanded] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
 
   const detection = useMemo(
     () => detectFoodType(draft.category, draft.name, draft.description),
@@ -215,20 +217,12 @@ export function ImagesStep({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <div>
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Create marketing visuals</h2>
-          <p className="text-slate-500 text-sm mt-1 max-w-2xl">
-            Generate professional marketing-ready concept images — packaging, lifestyle, ecommerce, shelf, and more —
-            built from your concept brief, sensory strengths, and claim limits.
+          <h2 className="text-xl font-bold text-slate-900">Choose concept visuals</h2>
+          <p className="mt-1 max-w-2xl text-sm text-slate-500">
+            Generate a focused set or add approved images. Panelists will see only the selected visuals.
           </p>
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-          <span className="font-semibold text-slate-800">{options.count} visual{options.count > 1 ? 's' : ''}</span>
-          <span className="mx-1.5 text-slate-300">/</span>
-          {styleLabel}
-          <span className="mx-1.5 text-slate-300">/</span>
-          {detection.label}
         </div>
       </div>
 
@@ -353,66 +347,16 @@ export function ImagesStep({
           )}
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-        Prompt context: {profile.successMarkers.slice(0, 4).join(', ')}
-        {profile.riskMarkers.length > 0 && ` · avoids ${profile.riskMarkers.slice(0, 3).join(', ')}`}
-      </div>
-
       <div className="space-y-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <Label className="font-medium flex items-center gap-1.5">
-            <ImageIcon className="size-3.5" /> Concept image library
+            <ImageIcon className="size-3.5" /> Selected visuals
             {validImages.length > 0 && (
-              <span className="text-xs font-normal text-slate-400">({validImages.length} selected for panelists)</span>
+              <span className="text-xs font-normal text-slate-400">({validImages.length} for panelists)</span>
             )}
           </Label>
-          <div className="flex items-center gap-2">
-            {validImages.length > 0 && <DataProvenanceBadge provenance="approved" n={validImages.length} />}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onChange({
-                ...draft,
-                marketingImages: [...draft.marketingImages, ''],
-                marketingImageIds: [...draft.marketingImageIds, ''],
-              })}
-              className="w-fit text-slate-600 text-xs h-8"
-            >
-              <Plus className="size-3 mr-1" /> Add URL manually
-            </Button>
-          </div>
+          {validImages.length > 0 && <DataProvenanceBadge provenance="approved" n={validImages.length} />}
         </div>
-
-        {draft.marketingImages.map((url, i) => (
-          url.startsWith('data:') ? null : (
-            <div key={i} className="space-y-1">
-              <div className="flex gap-2 items-center">
-                <Input
-                  value={url}
-                  onChange={(e) => {
-                    const next = [...draft.marketingImages];
-                    next[i] = e.target.value;
-                    onChange({ ...draft, marketingImages: next });
-                  }}
-                  placeholder="https://... (paste a URL)"
-                  className="flex-1 text-xs"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeImage(i)}
-                  className="text-slate-300 hover:text-rose-500 flex-shrink-0"
-                  aria-label={`Remove concept image URL ${i + 1}`}
-                >
-                  <Trash2 className="size-4" />
-                </button>
-              </div>
-              {url.trim() && !isValidImageUrl(url) && (
-                <p className="text-xs text-rose-500 pl-1">URL must start with https://</p>
-              )}
-            </div>
-          )
-        ))}
 
         {validImages.length > 0 ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -444,6 +388,57 @@ export function ImagesStep({
             body="Panelists need at least one concept visual to answer the visual-preference question. Generate AI visuals above or paste an approved image URL."
           />
         )}
+
+        <Collapsible open={manualOpen} onOpenChange={setManualOpen} className="rounded-lg border border-slate-200">
+          <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left">
+            <span className="text-xs font-semibold text-slate-700">Add an approved image URL</span>
+            <ChevronDown className={`size-3.5 text-slate-500 transition-transform ${manualOpen ? 'rotate-180' : ''}`} />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-3 border-t border-slate-200 p-3">
+            {draft.marketingImages.map((url, i) => (
+              url.startsWith('data:') ? null : (
+                <div key={i} className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={url}
+                      onChange={(e) => {
+                        const next = [...draft.marketingImages];
+                        next[i] = e.target.value;
+                        onChange({ ...draft, marketingImages: next });
+                      }}
+                      placeholder="https://..."
+                      className="flex-1 text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(i)}
+                      className="shrink-0 text-slate-300 hover:text-rose-500"
+                      aria-label={`Remove concept image URL ${i + 1}`}
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
+                  {url.trim() && !isValidImageUrl(url) && (
+                    <p className="pl-1 text-xs text-rose-500">URL must start with https://</p>
+                  )}
+                </div>
+              )
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onChange({
+                ...draft,
+                marketingImages: [...draft.marketingImages, ''],
+                marketingImageIds: [...draft.marketingImageIds, ''],
+              })}
+              className="h-8 w-fit text-xs text-slate-600"
+            >
+              <Plus className="mr-1 size-3" /> Add URL
+            </Button>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
 
       <AlertDialog open={generationConfirmationOpen} onOpenChange={(open) => { setGenerationConfirmationOpen(open); if (!open) setPromptExpanded(false); }}>

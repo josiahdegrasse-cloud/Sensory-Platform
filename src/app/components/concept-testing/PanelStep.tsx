@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { Card, CardContent } from '../ui/card';
 import { Label } from '../ui/label';
-import { Users, UserCheck } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
+import { ChevronDown, Users, UserCheck } from 'lucide-react';
 import { usePanelists } from '../../lib/hooks';
 import { filterAssignablePanelists, getAssignmentSummary } from '../../lib/assignments';
 
@@ -19,6 +21,7 @@ export function PanelStep({
   assignedPanelistIds: string[];
   setAssignedPanelistIds: (ids: string[]) => void;
 }) {
+  const [panelSetupOpen, setPanelSetupOpen] = useState(false);
   const { data: panelists = [] } = usePanelists();
   const registeredPanelists = filterAssignablePanelists(panelists);
   const assignment = getAssignmentSummary('concept', { assignedPanelistIds }, panelists);
@@ -44,53 +47,6 @@ export function PanelStep({
       <div>
         <h2 className="text-xl font-bold text-slate-900">Target your panel</h2>
         <p className="text-slate-500 text-sm mt-1">Choose who receives this concept test.</p>
-      </div>
-
-      <Card className="border-2 border-blue-200">
-        <CardContent className="pt-5 pb-5">
-          <div className="flex items-center justify-between mb-3">
-            <div className="font-bold text-slate-900">Panel size</div>
-            <div className="text-2xl font-black text-blue-600">{panelSize}</div>
-          </div>
-          <input
-            type="range"
-            aria-label="Target panel size"
-            min={10}
-            max={100}
-            step={5}
-            value={panelSize}
-            onChange={e => setPanelSize(Number(e.target.value))}
-            className="w-full accent-blue-600"
-          />
-          <div className="flex justify-between text-xs text-slate-400 mt-1">
-            <span>10 panelists</span>
-            <span>100 panelists</span>
-          </div>
-          <p className="text-xs text-slate-500 mt-3">
-            We recommend <strong>50–100 respondents</strong> for statistically reliable purchase intent signals.
-          </p>
-        </CardContent>
-      </Card>
-
-      <div>
-        <Label className="font-medium text-sm mb-3 block">Consumer segments to note</Label>
-        <div className="flex flex-wrap gap-2">
-          {segments.map(seg => (
-            <button
-              key={seg}
-              type="button"
-              onClick={() => toggle(seg)}
-              aria-pressed={targetSegments.includes(seg)}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
-                targetSegments.includes(seg)
-                  ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
-                  : 'border-slate-300 text-slate-600 hover:border-blue-400 hover:text-blue-700'
-              }`}
-            >
-              {seg}
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className="space-y-3">
@@ -140,19 +96,68 @@ export function PanelStep({
         )}
       </div>
 
-      <Card className="border border-amber-200 bg-amber-50">
-        <CardContent className="py-4 px-4">
-          <div className="flex gap-2">
-            <Users className="size-4 text-amber-600 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-semibold text-amber-800">How assignment works</p>
-              <p className="text-xs text-amber-700 mt-0.5">
-                Selected panelists will see this concept test in their dashboard alongside food evaluations. Segment choices guide this setup and appear in the review summary, but they are not saved after launch.
-              </p>
+      <Collapsible open={panelSetupOpen} onOpenChange={setPanelSetupOpen} className="rounded-lg border border-slate-200">
+        <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Panel guidance and segments</p>
+            <p className="mt-0.5 text-xs text-slate-500">Target size {panelSize}{targetSegments.length > 0 ? `, ${targetSegments.length} segment${targetSegments.length === 1 ? '' : 's'}` : ''}</p>
+          </div>
+          <ChevronDown className={`size-4 text-slate-500 transition-transform ${panelSetupOpen ? 'rotate-180' : ''}`} />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-5 border-t border-slate-200 p-4">
+          <Card className="border border-slate-200 shadow-none">
+            <CardContent className="py-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="font-semibold text-slate-900">Target panel size</div>
+                <div className="text-lg font-bold text-slate-900">{panelSize}</div>
+              </div>
+              <input
+                type="range"
+                aria-label="Target panel size"
+                min={10}
+                max={100}
+                step={5}
+                value={panelSize}
+                onChange={e => setPanelSize(Number(e.target.value))}
+                className="w-full accent-blue-600"
+              />
+              <div className="mt-1 flex justify-between text-xs text-slate-400">
+                <span>10</span>
+                <span>100</span>
+              </div>
+              <p className="mt-3 text-xs text-slate-500">50–100 responses are recommended for stronger purchase-intent signals.</p>
+            </CardContent>
+          </Card>
+
+          <div>
+            <Label className="mb-3 block text-sm font-medium">Consumer segments to note</Label>
+            <div className="flex flex-wrap gap-2">
+              {segments.map(seg => (
+                <button
+                  key={seg}
+                  type="button"
+                  onClick={() => toggle(seg)}
+                  aria-pressed={targetSegments.includes(seg)}
+                  className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                    targetSegments.includes(seg)
+                      ? 'border-blue-600 bg-blue-600 text-white'
+                      : 'border-slate-300 text-slate-600 hover:border-blue-400 hover:text-blue-700'
+                  }`}
+                >
+                  {seg}
+                </button>
+              ))}
             </div>
           </div>
-        </CardContent>
-      </Card>
+
+          <div className="flex gap-2 rounded-md bg-slate-50 p-3">
+            <Users className="mt-0.5 size-4 shrink-0 text-slate-500" />
+            <p className="text-xs text-slate-600">
+              Assigned panelists receive the test in their dashboard. Segment choices guide setup but are not saved after launch.
+            </p>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }

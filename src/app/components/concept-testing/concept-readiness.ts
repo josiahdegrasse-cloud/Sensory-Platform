@@ -39,7 +39,7 @@ export function getConceptReadiness({
       id: 'project',
       label: 'Project',
       ready: projectReady,
-      detail: projectReady ? draft.projectName.trim() : 'Add a project name in Concept & visuals.',
+      detail: projectReady ? draft.projectName.trim() : 'Add a project name in Concept.',
       fixStep: 'concept',
     },
     {
@@ -48,7 +48,7 @@ export function getConceptReadiness({
       ready: missingBriefFields.length === 0,
       detail: missingBriefFields.length === 0
         ? 'Name, category, and description are ready.'
-        : `Add ${missingBriefFields.join(', ')} in Concept & visuals.`,
+        : `Add ${missingBriefFields.join(', ')} in Concept.`,
       fixStep: 'concept',
     },
     {
@@ -58,7 +58,7 @@ export function getConceptReadiness({
       detail: validImageCount > 0
         ? `${validImageCount} visual${validImageCount === 1 ? '' : 's'} selected.`
         : 'Select or add at least one concept visual.',
-      fixStep: 'concept',
+      fixStep: 'visuals',
     },
     {
       id: 'questions',

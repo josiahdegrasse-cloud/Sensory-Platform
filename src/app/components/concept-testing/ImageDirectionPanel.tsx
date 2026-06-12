@@ -7,8 +7,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '../ui/select';
 import {
-  Briefcase, ChevronDown, Image as ImageIcon, LayoutGrid, Layers3,
-  Megaphone, Package, ShoppingCart, Sparkles, Utensils,
+  ChevronDown,
 } from 'lucide-react';
 import {
   CONCEPT_IMAGE_MODES,
@@ -17,17 +16,6 @@ import {
   type ConceptImageMode,
 } from '../../../../supabase/functions/_shared/concept-image-catalog.ts';
 import type { ConceptDraft } from './types';
-
-const MODE_ICONS: Record<ConceptImageMode, typeof Package> = {
-  packaging: Package,
-  lifestyle: Utensils,
-  ecommerce: ShoppingCart,
-  shelf: Layers3,
-  social_ad: Megaphone,
-  ingredient_benefit: Sparkles,
-  buyer_presentation: Briefcase,
-  concept_board: LayoutGrid,
-};
 
 export interface ImageGenerationOptions {
   mode: ConceptImageMode;
@@ -60,32 +48,17 @@ export function ImageDirectionPanel({
           Each batch spans genuinely different marketing formats — pick which one leads the set, or switch off
           “span formats” below to get variations of a single format.
         </p>
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          {CONCEPT_IMAGE_MODES.map((option) => {
-            const Icon = MODE_ICONS[option.id] ?? ImageIcon;
-            const active = options.mode === option.id;
-            return (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => onOptionsChange({ ...options, mode: option.id })}
-                aria-label={`${option.label}: ${option.purpose}`}
-                aria-pressed={active}
-                className={`text-left rounded-lg border p-3 transition-all ${
-                  active
-                    ? 'border-blue-500 bg-blue-50 shadow-sm'
-                    : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Icon className={`size-4 shrink-0 ${active ? 'text-blue-600' : 'text-slate-500'}`} />
-                  <span className="text-sm font-semibold text-slate-900">{option.label}</span>
-                </div>
-                <p className="text-xs text-slate-500 mt-1 leading-snug">{option.purpose}</p>
-              </button>
-            );
-          })}
-        </div>
+        <Select value={options.mode} onValueChange={(value: ConceptImageMode) => onOptionsChange({ ...options, mode: value })}>
+          <SelectTrigger className="mt-3 w-full sm:max-w-sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {CONCEPT_IMAGE_MODES.map(option => (
+              <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="mt-2 text-xs text-slate-500">
+          {CONCEPT_IMAGE_MODES.find(option => option.id === options.mode)?.purpose}
+        </p>
       </div>
 
       <button
@@ -95,7 +68,7 @@ export function ImageDirectionPanel({
         className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900"
       >
         <ChevronDown className={`size-3.5 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
-        Art direction {advancedOpen ? '' : '— style, count, occasion, claim limits'}
+        Advanced image settings {advancedOpen ? '' : '— style, count, quality, and claim limits'}
       </button>
 
       {advancedOpen && (

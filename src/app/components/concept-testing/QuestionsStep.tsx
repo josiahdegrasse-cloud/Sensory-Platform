@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { ChevronDown, ChevronUp, Plus, Trash2, FileText, GripVertical } from 'lucide-react';
 import { detectFoodType, getFoodTypeProfile } from '../../lib/food-intelligence';
 import { AIReviewCard, type AIReviewState } from '../ai-review-card';
@@ -41,6 +42,8 @@ export function QuestionsStep({
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState<'regenerate' | 'reject' | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [coverageOpen, setCoverageOpen] = useState(false);
   const generated = reviewState !== 'none';
   const validImageCount = draft.marketingImages.filter(u => u.trim()).length;
 
@@ -212,14 +215,15 @@ export function QuestionsStep({
 
   const surveyEditor = (
     <div className="space-y-4">
-      {/* Coverage meter */}
-      <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
-        <div className="flex items-center justify-between mb-1">
-          <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Survey Coverage</p>
-          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
-            {estimatedDuration}
-          </span>
-        </div>
+      <Collapsible open={coverageOpen} onOpenChange={setCoverageOpen} className="rounded-lg border border-slate-200 bg-slate-50">
+        <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Survey coverage</p>
+            <p className="text-xs text-slate-500">{questions.length} questions, about {estimatedDuration}</p>
+          </div>
+          <ChevronDown className={`size-4 text-slate-500 transition-transform ${coverageOpen ? 'rotate-180' : ''}`} />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-2.5 border-t border-slate-200 px-4 py-3">
         {(Object.keys(CATEGORY_BAR_COLORS) as Question['category'][]).map(cat => {
           const count = categoryCounts[cat] ?? 0;
           const width = count === 0 ? 0 : Math.round((count / maxCatCount) * 100);
@@ -243,13 +247,14 @@ export function QuestionsStep({
             </div>
           );
         })}
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       <div className="space-y-2">
         {questions.map((q, i) => (
           <div
             key={q.id}
-            draggable
+            draggable={editing}
             onDragStart={() => setDraggedIdx(i)}
             onDragOver={e => { e.preventDefault(); setDragOverIdx(i); }}
             onDrop={() => handleDrop(i)}
@@ -263,9 +268,9 @@ export function QuestionsStep({
             <div className="py-3 px-4">
               <div className="flex items-start gap-3">
                 <div className="mt-0.5 flex flex-col items-center gap-0.5 text-slate-300">
-                  <GripVertical className="size-4 cursor-grab active:cursor-grabbing" aria-hidden />
+                  {editing && <GripVertical className="size-4 cursor-grab active:cursor-grabbing" aria-hidden />}
                   <span className="text-[11px] font-bold text-slate-400">{i + 1}</span>
-                  <button
+                  {editing && <button
                     type="button"
                     onClick={() => moveQuestion(i, i - 1)}
                     disabled={i === 0}
@@ -273,8 +278,8 @@ export function QuestionsStep({
                     aria-label={`Move question ${i + 1} up`}
                   >
                     <ChevronUp className="size-3.5" aria-hidden />
-                  </button>
-                  <button
+                  </button>}
+                  {editing && <button
                     type="button"
                     onClick={() => moveQuestion(i, i + 1)}
                     disabled={i === questions.length - 1}
@@ -282,12 +287,13 @@ export function QuestionsStep({
                     aria-label={`Move question ${i + 1} down`}
                   >
                     <ChevronDown className="size-3.5" aria-hidden />
-                  </button>
+                  </button>}
                 </div>
                 <div className="flex-1 min-w-0">
                   <Input
                     value={q.text}
                     onChange={e => update(q.id, 'text', e.target.value)}
+                    readOnly={!editing}
                     placeholder="Question text…"
                     className="border-0 px-0 py-0 h-auto text-sm font-medium text-slate-900 focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-slate-400"
                   />
@@ -303,41 +309,48 @@ export function QuestionsStep({
                     )}
                   </div>
                 </div>
-                <button
+                {editing && <button
                   type="button"
                   onClick={() => remove(q.id)}
                   className="mt-1 text-slate-300 hover:text-rose-500 transition-colors flex-shrink-0"
                   aria-label={`Delete question ${i + 1}`}
                 >
                   <Trash2 className="size-4" aria-hidden />
-                </button>
+                </button>}
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="flex justify-center">
+      {editing && <div className="flex justify-center">
         <Button variant="outline" size="sm" onClick={addBlank} className="text-slate-600">
           <Plus className="size-3.5 mr-1.5" />Add another question
         </Button>
-      </div>
+      </div>}
     </div>
   );
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-xl font-bold text-slate-900">Design your survey</h2>
           <p className="text-slate-500 text-sm mt-1">
             {questions.length} question{questions.length !== 1 ? 's' : ''} — at least 5 recommended.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={addBlank} className="text-slate-700 border-slate-300">
-            <Plus className="size-3.5 mr-1" />Add question
-          </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {questions.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setEditing(value => !value)} className="text-slate-700 border-slate-300">
+              {editing ? 'Finish editing' : 'Edit survey'}
+            </Button>
+          )}
+          {questions.length === 0 && (
+            <Button variant="outline" size="sm" onClick={() => { addBlank(); setEditing(true); }} className="text-slate-700 border-slate-300">
+              <Plus className="size-3.5 mr-1" />Add question
+            </Button>
+          )}
           <Button size="sm" onClick={requestRegenerate} className="bg-blue-600 hover:bg-blue-700 text-white">
             <FileText className="size-3.5 mr-1.5" />
             {generated ? 'Rebuild draft survey' : 'Build draft survey'}
