@@ -307,10 +307,6 @@ export function computeProjectStatus(input: ComputeProjectStatusInput): ProjectS
   const warnings: string[] = [];
   if (hasEtongue && !hasGcms) warnings.push('GC-MS data missing — aroma risk confidence will be reduced.');
   if (hasEtongue && !hasComposition) warnings.push('Composition data missing — formulation confidence will be reduced.');
-  if (projectProducts.some(product => (product.assignedPanelistIds?.length ?? 0) === 0)) {
-    warnings.push('A survey has not been assigned to any panelists yet.');
-  }
-
   // ---- Confidence: a qualitative read on evidence completeness ----
   // Derived from facts the engine already knows (datasets, response counts,
   // warnings), never from a model. Null until any evidence exists.

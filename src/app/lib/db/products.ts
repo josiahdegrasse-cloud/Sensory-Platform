@@ -102,6 +102,20 @@ export async function updateProduct(
   return toProduct(data);
 }
 
+export async function updateProductAssignments(
+  productIds: string[],
+  assignedPanelistIds: string[],
+): Promise<Product[]> {
+  if (productIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('products')
+    .update({ assigned_panelist_ids: assignedPanelistIds })
+    .in('id', productIds)
+    .select();
+  if (error) throw dbError(error);
+  return (data ?? []).map(toProduct);
+}
+
 export async function deleteProduct(id: string): Promise<void> {
   const { error } = await supabase.from('products').delete().eq('id', id);
   if (error) throw dbError(error);

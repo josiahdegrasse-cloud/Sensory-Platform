@@ -55,7 +55,3 @@ export const CATEGORY_BAR_COLORS: Record<Question['category'], string> = {
   demographics: 'bg-slate-500',
   usage:        'bg-rose-500',
 };
-
-export const QUESTION_SECONDS: Record<QuestionType, number> = {
-  scale: 25, multiple_choice: 35, open_text: 90, ranking: 45, image_choice: 30,
-};

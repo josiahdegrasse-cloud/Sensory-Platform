@@ -140,7 +140,7 @@ function toConceptTest(row: Record<string, unknown>): ConceptTest {
   };
 }
 
-async function createConceptImageSignedUrl(storagePath: string | null, fallback: string): Promise<string> {
+export async function createConceptImageSignedUrl(storagePath: string | null, fallback: string): Promise<string> {
   if (!storagePath) return fallback;
   const { data, error } = await supabase.storage
     .from('concept-images')

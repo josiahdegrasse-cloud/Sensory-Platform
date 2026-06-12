@@ -1,8 +1,19 @@
 import { useMemo, useState } from 'react';
 import { Button } from '../ui/button';
-import { Card, CardContent } from '../ui/card';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { StageEmptyState } from '../stage-empty-state';
+import { DataProvenanceBadge } from '../data-provenance-badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../ui/alert-dialog';
 import {
   CheckCircle2, Image as ImageIcon, Layers3, Loader2, Package,
   Plus, RefreshCw, Sparkles, Trash2, Utensils,
@@ -76,6 +87,7 @@ export function ImagesStep({
   const [aiCandidates, setAiCandidates] = useState<CandidateImage[]>([]);
   const [generating, setGenerating] = useState(false);
   const [generationError, setGenerationError] = useState('');
+  const [generationConfirmationOpen, setGenerationConfirmationOpen] = useState(false);
 
   const detection = useMemo(
     () => detectFoodType(draft.category, draft.name, draft.description),
@@ -88,8 +100,7 @@ export function ImagesStep({
 
   const handleGenerate = async () => {
     if (!canGenerate) return;
-    const confirmed = window.confirm(`Generate ${CONCEPT_IMAGE_COUNT} medium-quality visuals? Estimated OpenAI cost is about $${estimatedCost.toFixed(2)}.`);
-    if (!confirmed) return;
+    setGenerationConfirmationOpen(false);
     setGenerating(true);
     setGenerationError('');
     setAiCandidates([]);
@@ -194,6 +205,8 @@ export function ImagesStep({
                     key={option.id}
                     type="button"
                     onClick={() => setMode(option.id)}
+                    aria-label={`${option.label}: ${option.description}`}
+                    aria-pressed={active}
                     className={`text-left rounded-lg border p-3 transition-all ${
                       active
                         ? 'border-blue-500 bg-blue-50 shadow-sm'
@@ -221,7 +234,7 @@ export function ImagesStep({
               </div>
               <Button
                 type="button"
-                onClick={handleGenerate}
+                onClick={() => setGenerationConfirmationOpen(true)}
                 disabled={!canGenerate || generating}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
               >
@@ -265,11 +278,17 @@ export function ImagesStep({
                         key={`${candidate.url}-${i}`}
                         type="button"
                         onClick={() => setAiCandidates(prev => prev.map((x, j) => j === i ? { ...x, selected: !x.selected } : x))}
+                        aria-label={`${candidate.selected ? 'Deselect' : 'Select'} generated ${mode} concept option ${i + 1} for ${draft.name}`}
+                        aria-pressed={candidate.selected}
                         className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${
                           candidate.selected ? 'border-blue-500 shadow-md' : 'border-slate-200 opacity-60'
                         }`}
                       >
-                        <img src={candidate.url} alt={`Generated concept ${i + 1}`} className="h-full w-full object-cover" />
+                        <img
+                          src={candidate.url}
+                          alt={`Generated ${mode} concept for ${draft.name}, option ${i + 1}`}
+                          className="h-full w-full object-cover"
+                        />
                         <span className={`absolute top-2 right-2 flex size-6 items-center justify-center rounded-full border-2 shadow-sm ${
                           candidate.selected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white/90 border-slate-300 text-transparent'
                         }`}>
@@ -284,7 +303,10 @@ export function ImagesStep({
 
               {!generating && aiCandidates.length > 0 && (
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-xs text-slate-500">Select the visuals panelists should compare — keep them genuinely distinct so the "best image" question has a real choice to make.</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <DataProvenanceBadge provenance="ai-draft" n={aiCandidates.length} />
+                    <p className="text-xs text-slate-500">Select the visuals panelists should compare — keep them genuinely distinct so the "best image" question has a real choice to make.</p>
+                  </div>
                   <div className="flex gap-2">
                     <Button type="button" variant="outline" size="sm" onClick={() => setAiCandidates([])}>
                       Discard
@@ -318,19 +340,22 @@ export function ImagesStep({
               <span className="text-xs font-normal text-slate-400">({validImages.length} selected for panelists)</span>
             )}
           </Label>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => onChange({
-              ...draft,
-              marketingImages: [...draft.marketingImages, ''],
-              marketingImageIds: [...draft.marketingImageIds, ''],
-            })}
-            className="w-fit text-slate-600 text-xs h-8"
-          >
-            <Plus className="size-3 mr-1" /> Add URL manually
-          </Button>
+          <div className="flex items-center gap-2">
+            {validImages.length > 0 && <DataProvenanceBadge provenance="approved" n={validImages.length} />}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onChange({
+                ...draft,
+                marketingImages: [...draft.marketingImages, ''],
+                marketingImageIds: [...draft.marketingImageIds, ''],
+              })}
+              className="w-fit text-slate-600 text-xs h-8"
+            >
+              <Plus className="size-3 mr-1" /> Add URL manually
+            </Button>
+          </div>
         </div>
 
         {draft.marketingImages.map((url, i) => (
@@ -347,7 +372,12 @@ export function ImagesStep({
                   placeholder="https://... (paste a URL)"
                   className="flex-1 text-xs"
                 />
-                <button type="button" onClick={() => removeImage(i)} className="text-slate-300 hover:text-rose-500 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => removeImage(i)}
+                  className="text-slate-300 hover:text-rose-500 flex-shrink-0"
+                  aria-label={`Remove concept image URL ${i + 1}`}
+                >
                   <Trash2 className="size-4" />
                 </button>
               </div>
@@ -362,7 +392,11 @@ export function ImagesStep({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {validImages.map((url, i) => (
               <div key={`${url}-${i}`} className="rounded-xl overflow-hidden border border-slate-200 shadow-sm group relative bg-white">
-                <img src={url} alt={`Marketing concept ${i + 1}`} className="w-full aspect-square object-cover" />
+                <img
+                  src={url}
+                  alt={`Approved concept visual for ${draft.name || 'this concept'}, option ${i + 1}`}
+                  className="w-full aspect-square object-cover"
+                />
                 <button
                   type="button"
                   onClick={() => removeImage(draft.marketingImages.indexOf(url))}
@@ -378,15 +412,45 @@ export function ImagesStep({
             ))}
           </div>
         ) : (
-          <Card className="border-2 border-dashed border-slate-200">
-            <CardContent className="py-10 text-center">
-              <ImageIcon className="size-8 text-slate-300 mx-auto mb-2" />
-              <p className="text-slate-500 text-sm font-medium">No concept visuals yet</p>
-              <p className="text-slate-400 text-xs mt-1">Generate OpenAI visuals or paste an approved image URL.</p>
-            </CardContent>
-          </Card>
+          <StageEmptyState
+            icon={ImageIcon}
+            headline="No concept visuals yet"
+            body="Panelists need at least one concept visual to answer the visual-preference question. Generate OpenAI visuals above or paste an approved image URL."
+          />
         )}
       </div>
+
+      <AlertDialog open={generationConfirmationOpen} onOpenChange={setGenerationConfirmationOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Generate {CONCEPT_IMAGE_COUNT} concept visuals?</AlertDialogTitle>
+            <AlertDialogDescription>
+              OpenAI will generate {CONCEPT_IMAGE_COUNT} medium-quality images for this concept. Generation begins only after you confirm.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <dl className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
+            <div className="flex items-center justify-between gap-4">
+              <dt className="text-slate-600">Images</dt>
+              <dd className="font-semibold text-slate-900">{CONCEPT_IMAGE_COUNT}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <dt className="text-slate-600">Estimated cost per image</dt>
+              <dd className="font-semibold text-slate-900">${estimatedCostPerImage.toFixed(3)}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-4 border-t border-slate-200 pt-2">
+              <dt className="font-semibold text-slate-800">Estimated total</dt>
+              <dd className="font-bold text-slate-950">${estimatedCost.toFixed(2)}</dd>
+            </div>
+          </dl>
+          <p className="text-xs text-slate-500">This is an estimate based on the workspace setting. Actual OpenAI billing may vary.</p>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
+            <AlertDialogAction type="button" onClick={handleGenerate} className="bg-blue-600 hover:bg-blue-700">
+              Generate visuals
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

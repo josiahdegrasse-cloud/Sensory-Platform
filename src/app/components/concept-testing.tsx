@@ -13,6 +13,7 @@ import {
   useConceptGenerationSettings,
   useConceptLabDiagnostics,
   useCommercializationReports,
+  usePanelists,
   useWorkspaceSettings,
 } from '../lib/hooks';
 import type { ConceptDraft, Question, WizardStep } from './concept-testing/types';
@@ -22,6 +23,7 @@ import { ImagesStep } from './concept-testing/ImagesStep';
 import { QuestionsStep } from './concept-testing/QuestionsStep';
 import { PanelStep } from './concept-testing/PanelStep';
 import { ReviewStep } from './concept-testing/ReviewStep';
+import { getConceptReadiness } from './concept-testing/concept-readiness';
 import { ProjectHeader } from './project-header';
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
@@ -64,11 +66,12 @@ export function ConceptTesting() {
   const [step, setStep] = useState<WizardStep>('concept');
   const [draft, setDraft] = useState<ConceptDraft>(() => makeEmptyDraft());
   const [questions, setQuestions] = useState<Question[]>([]);
-  // 'none' = hand-built list (no AI involvement to review).
+  // 'none' = hand-built list with no generated draft to review.
   const [questionsReviewState, setQuestionsReviewState] = useState<AIReviewState | 'none'>('none');
   const [panelSize, setPanelSize] = useState(50);
   const [segments, setSegments] = useState<string[]>([]);
   const [assignedPanelistIds, setAssignedPanelistIds] = useState<string[]>([]);
+  const { data: panelists = [] } = usePanelists();
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState('');
   const [draftNotice, setDraftNotice] = useState('');
@@ -82,18 +85,13 @@ export function ConceptTesting() {
   const STEPS: WizardStep[] = ['concept', 'survey', 'review'];
   const stepIndex = STEPS.indexOf(step);
 
-  const conceptValid = draft.name.trim() && draft.category.trim() && draft.description.trim();
   const detection = detectFoodType(draft.category, draft.name, draft.description);
   const validImageCount = draft.marketingImages.filter(u => u.trim()).length;
-  const visualReady = validImageCount >= 1;
-  const questionReady = questions.length >= 5;
-  const readinessItems = [
-    { label: 'Concept brief', ready: !!conceptValid, detail: conceptValid ? 'Name, category, and description are ready.' : 'Add name, category, and consumer-facing description.' },
-    { label: 'Concept visuals', ready: visualReady, detail: validImageCount === 0 ? 'Add at least one concept visual.' : `${validImageCount} visual${validImageCount !== 1 ? 's' : ''} added.` },
-    { label: 'Survey questions', ready: questionReady, detail: questions.length === 0 ? 'Generate a tailored questionnaire.' : `${questions.length} question${questions.length !== 1 ? 's' : ''} in the survey.` },
-  ];
+  const readinessItems = getConceptReadiness({ draft, questions, assignedPanelistIds, panelists });
   const readyCount = readinessItems.filter(item => item.ready).length;
   const launchReady = readinessItems.every(item => item.ready);
+  const conceptStepReady = readinessItems.filter(item => item.fixStep === 'concept').every(item => item.ready);
+  const surveyStepReady = readinessItems.filter(item => item.fixStep === 'survey').every(item => item.ready);
   const setupWarnings = diagnostics?.messages ?? [];
   const draftHasWork = useMemo(() => (
     draft.name.trim()
@@ -230,7 +228,7 @@ export function ConceptTesting() {
         </div>
         <h2 className="text-3xl font-black text-slate-900">Concept test launched!</h2>
         <p className="text-slate-500 text-lg">
-          Your survey has been sent to <strong>{assignedPanelistIds.length > 0 ? assignedPanelistIds.length : panelSize} panelists</strong>.
+          Your survey has been sent to <strong>{assignedPanelistIds.length} panelist{assignedPanelistIds.length === 1 ? '' : 's'}</strong>.
           Results will appear in <strong>Insights</strong> as responses come in.
         </p>
         <div className="flex items-center justify-center gap-3 pt-4">
@@ -433,7 +431,15 @@ export function ConceptTesting() {
             </>
           )}
           {step === 'review' && (
-            <ReviewStep draft={draft} questions={questions} panelSize={panelSize} segments={segments} assignedPanelistIds={assignedPanelistIds} />
+            <ReviewStep
+              draft={draft}
+              questions={questions}
+              panelSize={panelSize}
+              segments={segments}
+              assignedPanelistIds={assignedPanelistIds}
+              onEditConcept={() => setStep('concept')}
+              onEditSurvey={() => setStep('survey')}
+            />
           )}
         </CardContent>
       </Card>
@@ -463,13 +469,23 @@ export function ConceptTesting() {
             {launching ? 'Launching…' : 'Launch concept test'}
           </Button>
         ) : (
-          <Button
-            onClick={() => setStep(STEPS[stepIndex + 1])}
-            disabled={step === 'concept' && !conceptValid}
-            className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
-          >
-            Continue <ChevronRight className="size-4" />
-          </Button>
+          <div className="flex flex-col items-end gap-1.5">
+            <Button
+              onClick={() => setStep(STEPS[stepIndex + 1])}
+              disabled={step === 'concept' ? !conceptStepReady : !surveyStepReady}
+              className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
+            >
+              Continue <ChevronRight className="size-4" />
+            </Button>
+            {((step === 'concept' && !conceptStepReady) || (step === 'survey' && !surveyStepReady)) && (
+              <p className="max-w-sm text-right text-xs text-amber-700">
+                {readinessItems
+                  .filter(item => !item.ready && item.fixStep === step)
+                  .map(item => item.detail)
+                  .join(' ')}
+              </p>
+            )}
+          </div>
         )}
       </div>
     </div>

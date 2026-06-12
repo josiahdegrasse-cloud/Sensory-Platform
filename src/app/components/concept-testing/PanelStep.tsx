@@ -2,6 +2,7 @@ import { Card, CardContent } from '../ui/card';
 import { Label } from '../ui/label';
 import { Users, UserCheck } from 'lucide-react';
 import { usePanelists } from '../../lib/hooks';
+import { filterAssignablePanelists, getAssignmentSummary } from '../../lib/assignments';
 
 export function PanelStep({
   panelSize,
@@ -19,7 +20,8 @@ export function PanelStep({
   setAssignedPanelistIds: (ids: string[]) => void;
 }) {
   const { data: panelists = [] } = usePanelists();
-  const registeredPanelists = panelists;
+  const registeredPanelists = filterAssignablePanelists(panelists);
+  const assignment = getAssignmentSummary('concept', { assignedPanelistIds }, panelists);
 
   const segments = ['Everyday consumers', 'Health-conscious', 'Vegan / plant-based', 'Flexitarian', 'Foodservice buyers', 'Retail buyers', 'Seniors 55+', 'Parents with children', 'Young adults 18–34'];
 
@@ -52,6 +54,7 @@ export function PanelStep({
           </div>
           <input
             type="range"
+            aria-label="Target panel size"
             min={10}
             max={100}
             step={5}
@@ -75,7 +78,9 @@ export function PanelStep({
           {segments.map(seg => (
             <button
               key={seg}
+              type="button"
               onClick={() => toggle(seg)}
+              aria-pressed={targetSegments.includes(seg)}
               className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
                 targetSegments.includes(seg)
                   ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
@@ -93,7 +98,7 @@ export function PanelStep({
           <UserCheck className="size-3.5" /> Assign to registered panelists
         </Label>
         <p className="text-xs text-slate-500 -mt-1">
-          Select specific panelists. If nobody is selected, every active panelist can see this concept test.
+          Assign at least one registered panelist. Only assigned panelists can access this concept test.
         </p>
         {registeredPanelists.length === 0 ? (
           <p className="text-sm text-slate-400 italic">No registered panelists found.</p>
@@ -125,7 +130,12 @@ export function PanelStep({
         )}
         {assignedPanelistIds.length > 0 && (
           <p className="text-xs font-semibold text-blue-600">
-            {assignedPanelistIds.length} panelist{assignedPanelistIds.length !== 1 ? 's' : ''} will receive this concept test
+            {assignment.activeAssignedIds.length} active panelist{assignment.activeAssignedIds.length !== 1 ? 's' : ''} will receive this concept test
+          </p>
+        )}
+        {assignment.inactiveAssignedIds.length > 0 && (
+          <p className="text-xs font-medium text-amber-700">
+            {assignment.inactiveAssignedIds.length} saved selection{assignment.inactiveAssignedIds.length === 1 ? '' : 's'} belong to inactive or archived panelists and will not be available for new assignment.
           </p>
         )}
       </div>
@@ -137,7 +147,7 @@ export function PanelStep({
             <div>
               <p className="text-sm font-semibold text-amber-800">How assignment works</p>
               <p className="text-xs text-amber-700 mt-0.5">
-                Selected panelists will see this concept test in their dashboard alongside food evaluations. Segment tags are saved as planning notes; named assignments control access today.
+                Selected panelists will see this concept test in their dashboard alongside food evaluations. Segment choices guide this setup and appear in the review summary, but they are not saved after launch.
               </p>
             </div>
           </div>

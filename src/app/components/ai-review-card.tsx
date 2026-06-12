@@ -2,15 +2,15 @@ import type { ReactNode } from 'react';
 import { RefreshCw, X, Check, AlertTriangle } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
-import { DataProvenanceBadge } from './data-provenance-badge';
+import { DataProvenanceBadge, type DataProvenance } from './data-provenance-badge';
 import type { ConfidenceLevel } from '../lib/project-status';
 
 export type AIReviewState = 'draft' | 'edited' | 'approved';
 
 interface AIReviewCardProps {
-  /** What the AI produced, e.g. "Survey questions" or "Detected food category". */
+  /** What the generator produced, e.g. "Survey questions" or "Detected food category". */
   title: string;
-  /** Plain-language inputs the AI worked from. Always shown — it's the trust feature. */
+  /** Plain-language inputs the generator used. Always shown as a trust feature. */
   sources: string[];
   /** Optional qualitative confidence with the facts behind it. */
   confidence?: ConfidenceLevel | null;
@@ -22,28 +22,32 @@ interface AIReviewCardProps {
   approvedDetail?: string;
   onRegenerate?: () => void;
   regenerating?: boolean;
+  regenerateLabel?: string;
   onReject?: () => void;
   onApprove?: () => void;
   approveLabel?: string;
+  draftProvenance?: Extract<DataProvenance, 'ai-draft' | 'template-draft'>;
   /** The generated content, editable in place — editing is the primary interaction. */
   children: ReactNode;
   className?: string;
 }
 
 /**
- * The platform's single pattern for AI output awaiting a human decision:
+ * The platform's review pattern for generated output awaiting a human decision:
  * provenance header, the data it used, warnings, the content itself
  * (editable in place), and a fixed Regenerate / Reject / Approve action row.
- * AI output is born a draft and stays visibly a draft until approved.
+ * Generated output stays visibly a draft until approved.
  */
 export function AIReviewCard({
   title, sources, confidence, confidenceBasis, warnings = [],
   state, approvedDetail, onRegenerate, regenerating, onReject, onApprove,
-  approveLabel = 'Approve', children, className,
+  regenerateLabel = 'Regenerate', approveLabel = 'Approve',
+  draftProvenance = 'ai-draft', children, className,
 }: AIReviewCardProps) {
   const approved = state === 'approved';
+  const draftBorder = draftProvenance === 'template-draft' ? 'border-blue-200' : 'border-violet-200';
   return (
-    <Card className={`border ${approved ? 'border-slate-200' : 'border-violet-200'} bg-white ${className ?? ''}`}>
+    <Card className={`border ${approved ? 'border-slate-200' : draftBorder} bg-white ${className ?? ''}`}>
       <CardContent className="py-4 space-y-3">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="min-w-0">
@@ -52,7 +56,7 @@ export function AIReviewCard({
               {approved ? (
                 <DataProvenanceBadge provenance="approved" detail={approvedDetail} />
               ) : (
-                <DataProvenanceBadge provenance="ai-draft" detail={state === 'edited' ? 'edited' : undefined} />
+                <DataProvenanceBadge provenance={draftProvenance} detail={state === 'edited' ? 'edited' : undefined} />
               )}
               {confidence && (
                 <span
@@ -84,7 +88,7 @@ export function AIReviewCard({
               {onRegenerate && (
                 <Button variant="ghost" size="sm" onClick={onRegenerate} disabled={regenerating} className="text-slate-600">
                   <RefreshCw className={`size-3.5 mr-1.5 ${regenerating ? 'animate-spin' : ''}`} aria-hidden />
-                  {regenerating ? 'Regenerating…' : 'Regenerate'}
+                  {regenerating ? 'Rebuilding…' : regenerateLabel}
                 </Button>
               )}
               {onReject && (

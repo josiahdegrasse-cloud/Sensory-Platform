@@ -1,13 +1,28 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Plus, Trash2, Sparkles, GripVertical } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Trash2, FileText, GripVertical } from 'lucide-react';
 import { detectFoodType, getFoodTypeProfile } from '../../lib/food-intelligence';
 import { AIReviewCard, type AIReviewState } from '../ai-review-card';
 import type { ConceptDraft, Question } from './types';
-import { CATEGORY_COLORS, QUESTION_TYPE_LABELS, CATEGORY_BAR_COLORS, QUESTION_SECONDS } from './types';
-import { AI_QUESTION_TEMPLATES } from './questions-data';
+import { CATEGORY_COLORS, QUESTION_TYPE_LABELS, CATEGORY_BAR_COLORS } from './types';
+import { AI_QUESTION_TEMPLATES as QUESTION_TEMPLATES } from './questions-data';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../ui/alert-dialog';
+import {
+  estimateSurveySeconds,
+  formatSurveyDuration,
+  selectBalancedQuestions,
+} from './survey-utils';
 
 export function QuestionsStep({
   draft,
@@ -19,18 +34,33 @@ export function QuestionsStep({
   draft: ConceptDraft;
   questions: Question[];
   onChange: (qs: Question[]) => void;
-  /** 'none' = hand-built list (no AI involvement to review). Persisted by the parent so a refresh doesn't lose pending-approval status. */
+  /** 'none' = hand-built list. Persisted by the parent so a refresh does not lose pending-approval status. */
   reviewState: AIReviewState | 'none';
   onReviewStateChange: (state: AIReviewState | 'none') => void;
 }) {
-  const [generating, setGenerating] = useState(false);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [pendingConfirmation, setPendingConfirmation] = useState<'regenerate' | 'reject' | null>(null);
   const generated = reviewState !== 'none';
+  const validImageCount = draft.marketingImages.filter(u => u.trim()).length;
 
-  /** Any manual change to an unapproved AI draft marks it as edited. */
+  useEffect(() => {
+    const imageChoiceRequired = validImageCount > 1;
+    if (!questions.some(question =>
+      question.type === 'image_choice' && question.required !== imageChoiceRequired
+    )) return;
+
+    onChange(questions.map(question =>
+      question.type === 'image_choice'
+        ? { ...question, required: imageChoiceRequired }
+        : question
+    ));
+    if (reviewState === 'approved') onReviewStateChange('edited');
+  }, [onChange, onReviewStateChange, questions, reviewState, validImageCount]);
+
+  /** Any manual change to a generated survey returns it to edited review state. */
   const markEdited = () => {
-    if (reviewState === 'draft') onReviewStateChange('edited');
+    if (reviewState !== 'none' && reviewState !== 'edited') onReviewStateChange('edited');
   };
 
   const buildTailoredQuestions = (): Question[] => {
@@ -87,25 +117,33 @@ export function QuestionsStep({
       { id: 'q_tailored_open_3', text: 'What would you change to make this concept stronger?', type: 'open_text', required: false, category: 'attributes' },
     ];
 
-    const unique = new Map<string, Question>();
-    [...tailored, ...AI_QUESTION_TEMPLATES].forEach((question) => {
-      if (!unique.has(question.text)) unique.set(question.text, question);
-    });
-    return Array.from(unique.values()).slice(0, 24);
+    return selectBalancedQuestions(tailored, QUESTION_TEMPLATES);
   };
 
-  const handleGenerate = () => {
-    setGenerating(true);
-    setTimeout(() => {
-      onChange(buildTailoredQuestions());
-      setGenerating(false);
-      onReviewStateChange('draft');
-    }, 1400);
+  const generateDraft = () => {
+    onChange(buildTailoredQuestions());
+    onReviewStateChange('draft');
   };
 
-  const handleReject = () => {
+  const rejectDraft = () => {
     onChange([]);
     onReviewStateChange('none');
+  };
+
+  const requestRegenerate = () => {
+    if (reviewState === 'edited') {
+      setPendingConfirmation('regenerate');
+      return;
+    }
+    generateDraft();
+  };
+
+  const requestReject = () => {
+    if (reviewState === 'edited') {
+      setPendingConfirmation('reject');
+      return;
+    }
+    rejectDraft();
   };
 
   const remove = (id: string) => {
@@ -139,26 +177,34 @@ export function QuestionsStep({
     setDragOverIdx(null);
   };
 
+  const moveQuestion = (fromIndex: number, toIndex: number) => {
+    if (toIndex < 0 || toIndex >= questions.length || fromIndex === toIndex) return;
+    markEdited();
+    const reordered = [...questions];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+    onChange(reordered);
+  };
+
   // Coverage & time
   const categoryCounts = questions.reduce<Partial<Record<Question['category'], number>>>((acc, q) => {
     acc[q.category] = (acc[q.category] ?? 0) + 1;
     return acc;
   }, {});
   const maxCatCount = Math.max(1, ...Object.values(categoryCounts).filter((v): v is number => v !== undefined));
-  const estimatedSeconds = questions.reduce((total, q) => total + QUESTION_SECONDS[q.type], 0);
-  const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
+  const estimatedSeconds = estimateSurveySeconds(questions);
+  const estimatedDuration = formatSurveyDuration(estimatedSeconds);
 
-  // Provenance shown on the AI review card: what the draft was built from,
+  // Provenance shown on the review card: what the deterministic draft used,
   // and where thin inputs forced assumptions.
   const renderDetection = detectFoodType(draft.category, draft.name, draft.description);
   const briefBenefits = draft.keyBenefits.split(/[,\n]+/).map(part => part.trim()).filter(Boolean);
-  const validImageCount = draft.marketingImages.filter(u => u.trim()).length;
-  const aiSources = [
+  const draftSources = [
     `Concept brief "${draft.name.trim() || 'Untitled concept'}"`,
     `${renderDetection.label} category profile`,
     briefBenefits.length > 0 ? `${briefBenefits.length} key benefit${briefBenefits.length === 1 ? '' : 's'}` : null,
   ].filter((s): s is string => Boolean(s));
-  const aiWarnings = [
+  const draftWarnings = [
     !draft.description.trim() && 'The brief has no consumer description — questions lean on category norms.',
     briefBenefits.length === 0 && 'No key benefits listed in the brief — benefit-motivation questions were omitted.',
     validImageCount < 2 && 'Fewer than two concept visuals provided — the visual-preference question is optional.',
@@ -170,10 +216,9 @@ export function QuestionsStep({
       <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
         <div className="flex items-center justify-between mb-1">
           <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Survey Coverage</p>
-          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-            estimatedMinutes <= 20 ? 'bg-emerald-100 text-emerald-700' :
-            estimatedMinutes <= 30 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'
-          }`}>~{estimatedMinutes} min</span>
+          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
+            {estimatedDuration}
+          </span>
         </div>
         {(Object.keys(CATEGORY_BAR_COLORS) as Question['category'][]).map(cat => {
           const count = categoryCounts[cat] ?? 0;
@@ -217,9 +262,27 @@ export function QuestionsStep({
           >
             <div className="py-3 px-4">
               <div className="flex items-start gap-3">
-                <div className="flex flex-col items-center gap-1 mt-1 text-slate-300 cursor-grab active:cursor-grabbing">
-                  <GripVertical className="size-4" />
+                <div className="mt-0.5 flex flex-col items-center gap-0.5 text-slate-300">
+                  <GripVertical className="size-4 cursor-grab active:cursor-grabbing" aria-hidden />
                   <span className="text-[11px] font-bold text-slate-400">{i + 1}</span>
+                  <button
+                    type="button"
+                    onClick={() => moveQuestion(i, i - 1)}
+                    disabled={i === 0}
+                    className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-30"
+                    aria-label={`Move question ${i + 1} up`}
+                  >
+                    <ChevronUp className="size-3.5" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveQuestion(i, i + 1)}
+                    disabled={i === questions.length - 1}
+                    className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-30"
+                    aria-label={`Move question ${i + 1} down`}
+                  >
+                    <ChevronDown className="size-3.5" aria-hidden />
+                  </button>
                 </div>
                 <div className="flex-1 min-w-0">
                   <Input
@@ -240,8 +303,13 @@ export function QuestionsStep({
                     )}
                   </div>
                 </div>
-                <button onClick={() => remove(q.id)} className="mt-1 text-slate-300 hover:text-rose-500 transition-colors flex-shrink-0">
-                  <Trash2 className="size-4" />
+                <button
+                  type="button"
+                  onClick={() => remove(q.id)}
+                  className="mt-1 text-slate-300 hover:text-rose-500 transition-colors flex-shrink-0"
+                  aria-label={`Delete question ${i + 1}`}
+                >
+                  <Trash2 className="size-4" aria-hidden />
                 </button>
               </div>
             </div>
@@ -270,9 +338,9 @@ export function QuestionsStep({
           <Button variant="outline" size="sm" onClick={addBlank} className="text-slate-700 border-slate-300">
             <Plus className="size-3.5 mr-1" />Add question
           </Button>
-          <Button size="sm" onClick={handleGenerate} disabled={generating} className="bg-blue-600 hover:bg-blue-700 text-white">
-            <Sparkles className="size-3.5 mr-1.5" />
-            {generating ? 'Building...' : generated ? 'Rebuild smart survey' : 'Build smart survey'}
+          <Button size="sm" onClick={requestRegenerate} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <FileText className="size-3.5 mr-1.5" />
+            {generated ? 'Rebuild draft survey' : 'Build draft survey'}
           </Button>
         </div>
       </div>
@@ -280,10 +348,10 @@ export function QuestionsStep({
       {questions.length === 0 && (
         <Card className="border-2 border-dashed border-blue-200 bg-blue-50">
           <CardContent className="py-12 text-center">
-            <Sparkles className="size-10 text-blue-300 mx-auto mb-3" />
+            <FileText className="size-10 text-blue-300 mx-auto mb-3" />
             <p className="text-blue-700 font-semibold">No questions yet</p>
             <p className="text-blue-500 text-sm mt-1">
-              Click <strong>Build smart survey</strong> to create a tailored questionnaire, or add questions manually.
+              Build a deterministic draft from your concept brief and category templates, or add questions manually.
             </p>
           </CardContent>
         </Card>
@@ -292,13 +360,14 @@ export function QuestionsStep({
       {questions.length > 0 && (
         reviewState !== 'none' ? (
           <AIReviewCard
-            title="AI-drafted survey"
-            sources={aiSources}
-            warnings={reviewState === 'approved' ? [] : aiWarnings}
+            title="Draft survey from your concept brief"
+            sources={draftSources}
+            warnings={reviewState === 'approved' ? [] : draftWarnings}
             state={reviewState}
-            onRegenerate={handleGenerate}
-            regenerating={generating}
-            onReject={handleReject}
+            onRegenerate={requestRegenerate}
+            regenerateLabel="Rebuild draft"
+            draftProvenance="template-draft"
+            onReject={requestReject}
             onApprove={() => onReviewStateChange('approved')}
             approveLabel="Approve survey"
           >
@@ -306,6 +375,35 @@ export function QuestionsStep({
           </AIReviewCard>
         ) : surveyEditor
       )}
+
+      <AlertDialog open={pendingConfirmation !== null} onOpenChange={open => !open && setPendingConfirmation(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingConfirmation === 'reject' ? 'Discard edited survey?' : 'Rebuild edited survey?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingConfirmation === 'reject'
+                ? 'Your edited questions will be removed. This action cannot be undone.'
+                : 'Rebuilding replaces your edited questions with a new deterministic draft from the current concept brief and category templates.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              className={pendingConfirmation === 'reject' ? 'bg-rose-600 hover:bg-rose-700' : ''}
+              onClick={() => {
+                if (pendingConfirmation === 'reject') rejectDraft();
+                if (pendingConfirmation === 'regenerate') generateDraft();
+                setPendingConfirmation(null);
+              }}
+            >
+              {pendingConfirmation === 'reject' ? 'Discard survey' : 'Rebuild survey'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

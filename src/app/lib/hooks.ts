@@ -12,7 +12,7 @@ import {
   fetchWorkspaceSettings, updateWorkspaceSettings, fetchAuditEvents,
   fetchDecisionRecords,
   fetchPublicWorkspaceConfig,
-  insertProduct, updateProduct, deleteProduct,
+  insertProduct, updateProduct, updateProductAssignments, deleteProduct,
   insertTemplate, deleteTemplate, updatePanelistId, updatePanelistTrainingLevel, updatePanelistStatus,
   insertConceptTest, insertConceptResponse,
   insertInstrumentalImport, archiveFoodTypeRecord, restoreFoodTypeRecord, deleteFoodTypeRecord, updateImportBatchStatus, deleteImportBatch,
@@ -208,6 +208,18 @@ export function useUpdateProduct() {
   return useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<Omit<Product, 'id' | 'createdDate'>> }) =>
       updateProduct(id, updates),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.products })
+      qc.invalidateQueries({ queryKey: queryKeys.activeProducts })
+    },
+  })
+}
+
+export function useUpdateProductAssignments() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ productIds, assignedPanelistIds }: { productIds: string[]; assignedPanelistIds: string[] }) =>
+      updateProductAssignments(productIds, assignedPanelistIds),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.products })
       qc.invalidateQueries({ queryKey: queryKeys.activeProducts })
@@ -437,4 +449,3 @@ export function useImportBatches(enabled = true) {
     refetchOnMount: 'always',
   })
 }
-

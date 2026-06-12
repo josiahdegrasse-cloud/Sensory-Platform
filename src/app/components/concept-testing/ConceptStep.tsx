@@ -86,6 +86,7 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
           </div>
           <button
             type="button"
+            aria-label={`Add suggested ${detection.label.toLowerCase()} cues to key consumer benefits`}
             onClick={() => {
               const additions = profile.successMarkers.slice(0, 4).join(', ');
               onChange({
@@ -124,6 +125,7 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
                 key={style}
                 type="button"
                 onClick={() => onChange({ ...draft, promptStyle: style })}
+                aria-pressed={draft.promptStyle === style}
                 className={`rounded-md border px-2.5 py-1.5 text-xs font-medium capitalize transition-colors ${
                   draft.promptStyle === style
                     ? 'border-blue-500 bg-blue-50 text-blue-700'

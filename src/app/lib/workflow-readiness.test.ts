@@ -49,6 +49,31 @@ describe('workflow readiness', () => {
     expect(readiness.stages.every(stage => stage.state === 'complete')).toBe(true);
   });
 
+  it('treats an open product survey as assigned under legacy product semantics', () => {
+    const readiness = assessSampleWorkflow({
+      sample,
+      product: {
+        id: 'product-open',
+        name: 'Open Burger Survey',
+        category: 'Meat',
+        status: 'active',
+        customAttributes: [],
+        assignedPanelistIds: [],
+        createdDate: '2026-06-06',
+      },
+      responseCount: 0,
+      minimumResponses: 12,
+      hasGcms: true,
+      hasComposition: true,
+    });
+
+    expect(readiness.blockers).not.toContain('Assign the questionnaire to panelists.');
+    expect(readiness.stages.find(stage => stage.id === 'assignment')).toMatchObject({
+      state: 'complete',
+      detail: 'Open to all active panelists.',
+    });
+  });
+
   it('detects duplicate samples and orphaned surveys', () => {
     const issues = findDataIntegrityIssues({
       dataset: { eTongueData: [sample, sample], gcmsData: {}, compositionData: {} },

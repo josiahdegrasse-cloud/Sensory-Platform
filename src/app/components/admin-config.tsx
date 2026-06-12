@@ -10,7 +10,7 @@ import { type Product, DEFAULT_CATA_ATTRIBUTES, getDefaultCataAttributes } from 
 import { useFoodType, matchFoodType } from '../contexts/food-type-context';
 import {
   useProducts, usePanelists,
-  useInsertProduct, useUpdateProduct, useDeleteProduct,
+  useInsertProduct, useUpdateProduct, useUpdateProductAssignments, useDeleteProduct,
   useUpdatePanelistId, useAllResponses, useImportBatches,
   useInstrumentalDataset, useUpdateImportBatchStatus, useDeleteImportBatch,
 } from '../lib/hooks';
@@ -22,6 +22,12 @@ import {
 import { Alert, AlertDescription } from './ui/alert';
 import { PanelistPerformancePanel } from './panelist-performance';
 import { formatFoodTypeLabel } from '../lib/food-intelligence';
+import {
+  filterAssignablePanelists,
+  getAssignmentSummary,
+  getProductAssignmentMode,
+} from '../lib/assignments';
+import { SurveyConfigurationSheet } from './survey-configuration-sheet';
 
 type AdminTab = 'products' | 'panelists' | 'imports';
 
@@ -35,6 +41,7 @@ export function AdminConfig() {
 
   const insertProductMutation = useInsertProduct();
   const updateProductMutation = useUpdateProduct();
+  const updateProductAssignmentsMutation = useUpdateProductAssignments();
   const deleteProductMutation = useDeleteProduct();
   const updatePanelistIdMutation = useUpdatePanelistId();
   const updateImportBatchStatusMutation = useUpdateImportBatchStatus();
@@ -98,8 +105,10 @@ export function AdminConfig() {
 
   // Category-aware attribute sets for the sidebar editor and create modal
   const selectedProductCategory = products.find(p => p.id === selectedProduct)?.category ?? '';
+  const selectedProductRecord = products.find(p => p.id === selectedProduct) ?? null;
   const selectedProductStdAttrs = getDefaultCataAttributes(selectedProductCategory);
   const modalStdAttrs = getDefaultCataAttributes(newProductCategory);
+  const activePanelists = filterAssignablePanelists(panelists);
 
   const importedSamples = (instrumentalDataset?.eTongueData ?? []).filter(sample =>
     sample.type === foodType &&
@@ -157,10 +166,10 @@ export function AdminConfig() {
     if (product.status === 'completed') {
       return { label: 'Complete', className: 'bg-slate-100 text-slate-700 border-slate-200' };
     }
-    if ((product.assignedPanelistIds?.length ?? 0) > 0) {
+    if (getProductAssignmentMode(product) === 'selected') {
       return { label: 'Assigned', className: 'bg-blue-100 text-blue-700 border-blue-200' };
     }
-    return { label: 'Ready to assign', className: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
+    return { label: 'Open to all', className: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
   };
   const getSmartAttributesForSample = (sample: NonNullable<typeof instrumentalDataset>['eTongueData'][number]) => {
     const base = getDefaultCataAttributes(sample.type || sample.category || currentFoodTypeLabel);
@@ -198,7 +207,7 @@ export function AdminConfig() {
   };
   const readyForAssignmentProducts = scopedProducts.filter(product =>
     product.status === 'active' &&
-    (product.assignedPanelistIds?.length ?? 0) === 0
+    getProductAssignmentMode(product) === 'open'
   );
   const selectedProject = selectedBatchId ? importBatches.find(batch => batch.id === selectedBatchId) : null;
   const recoverableImportCount = importBatches.filter(batch => batch.status !== 'active').length;
@@ -354,6 +363,10 @@ export function AdminConfig() {
     const product = products.find(p => p.id === productId);
     if (!product) return;
     const current = product.assignedPanelistIds ?? [];
+    if (current.length === 1 && current[0] === panelistUserId) {
+      setMutationError('A selected assignment cannot be empty because an empty product assignment means open to all. Use “Open to all” if that is your intent.');
+      return;
+    }
     const next = current.includes(panelistUserId)
       ? current.filter(id => id !== panelistUserId)
       : [...current, panelistUserId];
@@ -370,7 +383,7 @@ export function AdminConfig() {
     try {
       await updateProductMutation.mutateAsync({
         id: productId,
-        updates: { assignedPanelistIds: panelists.map(panelist => panelist.id) },
+        updates: { assignedPanelistIds: activePanelists.map(panelist => panelist.id) },
       });
     } catch (err) {
       setMutationError(err instanceof Error ? err.message : 'Failed to assign panelists.');
@@ -389,12 +402,10 @@ export function AdminConfig() {
   const handleAssignCurrentScopeToAllPanelists = async () => {
     setMutationError('');
     try {
-      for (const product of readyForAssignmentProducts) {
-        await updateProductMutation.mutateAsync({
-          id: product.id,
-          updates: { assignedPanelistIds: panelists.map(panelist => panelist.id) },
-        });
-      }
+      await updateProductAssignmentsMutation.mutateAsync({
+        productIds: readyForAssignmentProducts.map(product => product.id),
+        assignedPanelistIds: activePanelists.map(panelist => panelist.id),
+      });
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
@@ -568,8 +579,8 @@ export function AdminConfig() {
         <div className="w-px h-4 bg-slate-200" />
         <div className="flex items-center gap-2">
           <Users className="size-3.5 text-slate-400" />
-          <span className="text-sm font-bold text-slate-900">{panelists.length}</span>
-          <span className="text-sm text-slate-500">panelist{panelists.length !== 1 ? 's' : ''}</span>
+          <span className="text-sm font-bold text-slate-900">{activePanelists.length}</span>
+          <span className="text-sm text-slate-500">active panelist{activePanelists.length !== 1 ? 's' : ''}</span>
         </div>
         <div className="w-px h-4 bg-slate-200" />
         <div className="flex items-center gap-2">
@@ -596,7 +607,7 @@ export function AdminConfig() {
                 <span>{importedGcmsCount} GC-MS</span>
                 <span>{importedCompositionCount} comp</span>
                 <span>{importedSamplesWithoutQuestionnaires.length === 0 ? 'surveys created' : `${importedSamplesWithoutQuestionnaires.length} surveys missing`}</span>
-                <span>{readyForAssignmentProducts.length} ready to assign</span>
+                <span>{readyForAssignmentProducts.length} currently open to all</span>
               </div>
             </div>
           </div>
@@ -614,7 +625,7 @@ export function AdminConfig() {
             <Button
               variant="outline"
               onClick={handleAssignCurrentScopeToAllPanelists}
-              disabled={updateProductMutation.isPending || panelists.length === 0 || readyForAssignmentProducts.length === 0}
+              disabled={updateProductAssignmentsMutation.isPending || activePanelists.length === 0 || readyForAssignmentProducts.length === 0}
               className="border-blue-300 text-blue-700 hover:bg-white"
             >
               <Users className="size-4 mr-1.5" />
@@ -687,8 +698,8 @@ export function AdminConfig() {
                   </p>
                 </div>
               ) : productProjectGroups.map((group, groupIndex) => {
-                const assignedCount = group.products.filter(product => (product.assignedPanelistIds?.length ?? 0) > 0).length;
-                const readyCount = group.products.filter(product => product.status === 'active' && (product.assignedPanelistIds?.length ?? 0) === 0).length;
+                const assignedCount = group.products.filter(product => getProductAssignmentMode(product) === 'selected').length;
+                const openCount = group.products.filter(product => product.status === 'active' && getProductAssignmentMode(product) === 'open').length;
                 const completedProjectCount = group.products.filter(product => product.status === 'completed').length;
                 const archivedProjectCount = group.products.filter(product => product.status === 'archived').length;
                 return (
@@ -705,7 +716,7 @@ export function AdminConfig() {
                         <h2 className="truncate text-base font-semibold text-slate-900">{group.label}</h2>
                         <div className="mt-1 flex flex-wrap gap-1.5 text-[11px]">
                           <span className="rounded-full bg-white px-2 py-0.5 font-semibold text-slate-600 ring-1 ring-slate-200">{group.products.length} sample{group.products.length === 1 ? '' : 's'}</span>
-                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700 ring-1 ring-emerald-200">{readyCount} ready</span>
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700 ring-1 ring-emerald-200">{openCount} open to all</span>
                           <span className="rounded-full bg-blue-50 px-2 py-0.5 font-semibold text-blue-700 ring-1 ring-blue-200">{assignedCount} assigned</span>
                           <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-600 ring-1 ring-slate-200">{completedProjectCount} complete</span>
                           {archivedProjectCount > 0 && (
@@ -715,7 +726,7 @@ export function AdminConfig() {
                       </div>
                     </div>
                     <Badge variant="outline" className="shrink-0 text-xs">
-                      {readyCount > 0 ? 'Needs assignment' : 'Configured'}
+                      {openCount > 0 ? 'Open access included' : 'Selected assignments'}
                     </Badge>
                   </div>
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -746,9 +757,7 @@ export function AdminConfig() {
                                 </div>
                                 <div className="text-xs text-slate-500 mt-0.5">{product.category}</div>
                                 <div className="text-[11px] text-slate-400 mt-0.5">
-                                  {(product.assignedPanelistIds?.length ?? 0) > 0
-                                    ? `${product.assignedPanelistIds?.length} assigned`
-                                    : 'Open to all panelists'}
+                                  {getAssignmentSummary('product', product, panelists).label}
                                 </div>
                               </button>
                               <Badge variant="outline" className={`text-[10px] px-1.5 py-0.5 flex-shrink-0 ${workflowStatus.className}`}>
@@ -805,124 +814,36 @@ export function AdminConfig() {
               })}
             </div>
 
-          {/* Attribute config panel */}
-          <div className="border-t border-slate-100 p-5 space-y-4">
-              {!selectedProduct ? (
-                <div className="flex flex-col items-center justify-center h-full py-20 text-slate-400 text-center">
-                  <Settings className="size-10 mb-3 opacity-30" />
-                  <p className="text-sm font-medium">Select a survey to configure</p>
-                  <p className="text-xs mt-1 max-w-[220px]">Choose a {currentFoodTypeLabel.toLowerCase()} survey to tune attributes and assign panelists</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-0.5">Configuring</p>
-                    <div className="font-bold text-slate-900 flex items-center gap-2">
-                      {products.find(p => p.id === selectedProduct)?.name}
-                      {products.find(p => p.id === selectedProduct)?.isMultiSample && (
-                        <Badge className="bg-purple-600 text-xs"><Layers className="size-3 mr-1" />Multi</Badge>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <div className="flex items-center justify-between gap-3 mb-3">
-                      <div>
-                        <Label className="text-xs font-bold text-slate-700">Panel Assignments</Label>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          {(products.find(p => p.id === selectedProduct)?.assignedPanelistIds?.length ?? 0) > 0
-                            ? `${products.find(p => p.id === selectedProduct)?.assignedPanelistIds?.length} panelist${(products.find(p => p.id === selectedProduct)?.assignedPanelistIds?.length ?? 0) === 1 ? '' : 's'} will receive this survey`
-                            : 'No specific assignments means all active panelists can see it.'}
-                        </p>
-                      </div>
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleAssignAllPanelists(selectedProduct)}>
-                          Assign all
-                        </Button>
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleClearPanelAssignments(selectedProduct)}>
-                          Open to all
-                        </Button>
-                      </div>
-                    </div>
-                    {panelists.length === 0 ? (
-                      <p className="text-xs text-slate-500">No panelists are registered yet.</p>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-                        {panelists.map(panelist => {
-                          const assignedIds = products.find(p => p.id === selectedProduct)?.assignedPanelistIds ?? [];
-                          return (
-                            <label key={panelist.id} className="flex items-center gap-2 rounded border border-slate-200 bg-white px-2 py-1.5 text-xs">
-                              <Checkbox
-                                checked={assignedIds.includes(panelist.id)}
-                                onCheckedChange={() => handleToggleSurveyAssignment(selectedProduct, panelist.id)}
-                              />
-                              <span className="min-w-0 flex-1 truncate">
-                                {panelist.name}
-                                <span className="ml-1 text-slate-400">{panelist.panelistId ?? 'no ID'}</span>
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-slate-700">Add Attribute</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="e.g., Smoky, Herbal"
-                        value={newAttribute}
-                        onChange={e => setNewAttribute(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleAddCustomAttribute()}
-                        className="text-sm"
-                      />
-                      <Button size="sm" onClick={handleAddCustomAttribute} className="bg-blue-600 hover:bg-blue-700 flex-shrink-0">
-                        <Plus className="size-4" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <Label className="text-xs font-bold text-slate-700">Attributes ({customAttributes.length})</Label>
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" className="text-xs h-6 px-2" onClick={() => setCustomAttributes(selectedProductStdAttrs)}>Reset</Button>
-                        <Button size="sm" variant="ghost" className="text-xs h-6 px-2" onClick={() => setCustomAttributes([])}>Clear</Button>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1.5 max-h-52 overflow-y-auto p-2 bg-slate-50 rounded-lg border border-slate-200">
-                      {selectedProductStdAttrs.map(attr => (
-                        <div key={attr} className="flex items-center gap-1.5 p-1.5 bg-white rounded border border-slate-200">
-                          <Checkbox id={`rp-${attr}`} checked={customAttributes.includes(attr)} onCheckedChange={() => handleToggleAttribute(attr)} />
-                          <Label htmlFor={`rp-${attr}`} className="text-xs cursor-pointer">{attr}</Label>
-                        </div>
-                      ))}
-                      {customAttributes.filter(attr => !selectedProductStdAttrs.includes(attr)).map(attr => (
-                        <div key={attr} className="flex items-center gap-1.5 p-1.5 bg-purple-50 rounded border border-purple-300">
-                          <Checkbox id={`rp-${attr}`} checked disabled />
-                          <Label htmlFor={`rp-${attr}`} className="text-xs font-medium text-purple-900 flex-1">{attr}</Label>
-                          <button onClick={() => handleRemoveAttribute(attr)} className="text-rose-500 hover:text-rose-700"><Trash2 className="size-3" /></button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <Button
-                    onClick={handleSaveAttributes}
-                    className="w-full"
-                    style={{ background: 'var(--brand)' }}
-                    onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(0.92)')}
-                    onMouseLeave={e => (e.currentTarget.style.filter = '')}
-                  >
-                    <Save className="size-4 mr-2" />Save Attributes
-                  </Button>
-
-                </div>
-              )}
-          </div>
         </div>
       </div>
+
+      <SurveyConfigurationSheet
+        product={selectedProductRecord}
+        panelists={activePanelists}
+        standardAttributes={selectedProductStdAttrs}
+        customAttributes={customAttributes}
+        newAttribute={newAttribute}
+        onOpenChange={open => {
+          if (!open) setSelectedProduct(null);
+        }}
+        onNewAttributeChange={setNewAttribute}
+        onAddAttribute={handleAddCustomAttribute}
+        onRemoveAttribute={handleRemoveAttribute}
+        onToggleAttribute={handleToggleAttribute}
+        onResetAttributes={() => setCustomAttributes(selectedProductStdAttrs)}
+        onClearAttributes={() => setCustomAttributes([])}
+        onSaveAttributes={handleSaveAttributes}
+        onTogglePanelist={panelistId => {
+          if (selectedProduct) void handleToggleSurveyAssignment(selectedProduct, panelistId);
+        }}
+        onAssignAll={() => {
+          if (selectedProduct) void handleAssignAllPanelists(selectedProduct);
+        }}
+        onOpenToAll={() => {
+          if (selectedProduct) void handleClearPanelAssignments(selectedProduct);
+        }}
+        saving={updateProductMutation.isPending}
+      />
 
       </> /* end products tab */}
 

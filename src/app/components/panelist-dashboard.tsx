@@ -6,6 +6,7 @@ import { useActiveProducts, useUserResponses, useConceptTestsForPanelist, useCon
 import { CheckCircle2, Clock, ClipboardList, Edit2, Layers, AlertCircle, Megaphone, ImageIcon } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Link } from 'react-router';
+import { isPanelistAssignedToProduct } from '../lib/assignments';
 
 export function PanelistDashboard() {
   const { user } = useAuth();
@@ -20,10 +21,7 @@ export function PanelistDashboard() {
     ? 'Unable to load questionnaires. Please check your connection and refresh the page.'
     : ''
 
-  const assignedProducts = products.filter(product => {
-    const assignedIds = product.assignedPanelistIds ?? [];
-    return assignedIds.length === 0 || assignedIds.includes(userId);
-  });
+  const assignedProducts = products.filter(product => isPanelistAssignedToProduct(product, userId));
   const completedProductIds = userResponses.map(r => r.productId);
   const availableProducts = assignedProducts.filter(p => !completedProductIds.includes(p.id) && p.status !== 'completed');
   const completedProductsList = assignedProducts.filter(p => completedProductIds.includes(p.id));

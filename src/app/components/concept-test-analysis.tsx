@@ -1,4 +1,3 @@
-import { STATUS } from '../styles/tokens';
 import { useState, type ReactNode } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -12,6 +11,8 @@ import { useAdminConceptTests, useConceptTestResponses } from '../lib/hooks';
 import type { ConceptTest, ConceptQuestion, ConceptResponse } from '../lib/database';
 import { Megaphone, Trophy, MessageSquare, Users } from 'lucide-react';
 import { InsightInterpretationBlock } from './insights-ui';
+
+const CONCEPT_ACCENT = '#2563eb';
 
 export function ConceptTestAnalysis({ projectTests, minimumResponses = 12 }: {
   projectTests?: ConceptTest[];
@@ -198,6 +199,15 @@ function ChartTooltip({ render }: { render: (payload: Record<string, unknown>) =
   };
 }
 
+function LeadingOptionBadge({ label, detail }: { label: string; detail: string }) {
+  return (
+    <Badge className="border border-blue-200 bg-blue-50 text-blue-800">
+      <Trophy className="size-3" aria-hidden />
+      {label}: {detail}
+    </Badge>
+  );
+}
+
 function ScaleResults({ values }: { values: number[] }) {
   const avg = values.reduce((s, v) => s + v, 0) / values.length;
   const data = [1, 2, 3, 4, 5, 6, 7, 8, 9].map(rating => ({
@@ -207,7 +217,7 @@ function ScaleResults({ values }: { values: number[] }) {
   return (
     <div className="space-y-2">
       <div className="flex items-baseline gap-2">
-        <span className="text-2xl font-bold text-orange-600">{avg.toFixed(1)}</span>
+        <span className="text-2xl font-bold text-blue-700">{avg.toFixed(1)}</span>
         <span className="text-xs text-slate-500">average · {values.length} rating{values.length !== 1 ? 's' : ''} (1–9 scale)</span>
       </div>
       <ResponsiveContainer width="100%" height={150}>
@@ -225,7 +235,7 @@ function ScaleResults({ values }: { values: number[] }) {
               ),
             })}
           />
-          <Bar dataKey="count" fill="#fb923c" radius={[3, 3, 0, 0]} isAnimationActive={false} />
+          <Bar dataKey="count" fill={CONCEPT_ACCENT} radius={[3, 3, 0, 0]} isAnimationActive={false} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -245,27 +255,31 @@ function ChoiceResults({ answers }: { answers: (string | string[])[] }) {
   const data = Array.from(tally.entries())
     .map(([opt, count]) => ({ opt, count, pct: Math.round((count / Math.max(1, total)) * 100) }))
     .sort((a, b) => b.count - a.count);
+  const leading = data[0];
   return (
-    <ResponsiveContainer width="100%" height={Math.max(80, data.length * 36)}>
-      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 44, left: 8, bottom: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-        <XAxis type="number" hide />
-        <YAxis type="category" dataKey="opt" width={150} tick={{ fontSize: 11 }} tickLine={false} />
-        <RechartsTooltip
-          content={ChartTooltip({
-            render: d => (
-              <>
-                <p className="font-semibold text-slate-900">{String(d.opt)}</p>
-                <p className="text-slate-600">{String(d.count)} pick{Number(d.count) !== 1 ? 's' : ''} ({String(d.pct)}%)</p>
-              </>
-            ),
-          })}
-        />
-        <Bar dataKey="count" fill="#fb923c" radius={[0, 3, 3, 0]} isAnimationActive={false}>
-          <LabelList dataKey="pct" position="right" formatter={(v: number) => `${v}%`} style={{ fontSize: 11, fill: '#475569', fontWeight: 600 }} />
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
+    <div className="space-y-3">
+      {leading && <LeadingOptionBadge label="Leading response" detail={`${leading.opt} (${leading.pct}%)`} />}
+      <ResponsiveContainer width="100%" height={Math.max(80, data.length * 36)}>
+        <BarChart data={data} layout="vertical" margin={{ top: 4, right: 44, left: 8, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+          <XAxis type="number" hide />
+          <YAxis type="category" dataKey="opt" width={150} tick={{ fontSize: 11 }} tickLine={false} />
+          <RechartsTooltip
+            content={ChartTooltip({
+              render: d => (
+                <>
+                  <p className="font-semibold text-slate-900">{String(d.opt)}</p>
+                  <p className="text-slate-600">{String(d.count)} pick{Number(d.count) !== 1 ? 's' : ''} ({String(d.pct)}%)</p>
+                </>
+              ),
+            })}
+          />
+          <Bar dataKey="count" fill={CONCEPT_ACCENT} radius={[0, 3, 3, 0]} isAnimationActive={false}>
+            <LabelList dataKey="pct" position="right" formatter={(v: number) => `${v}%`} style={{ fontSize: 11, fill: '#475569', fontWeight: 600 }} />
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
@@ -290,34 +304,40 @@ function RankingResults({ answers, options }: { answers: string[][]; options: st
       };
     })
     .sort((a, b) => b.firstPlace - a.firstPlace);
+  const leading = data[0];
   return (
-    <ResponsiveContainer width="100%" height={Math.max(80, data.length * 36)}>
-      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 80, left: 8, bottom: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-        <XAxis type="number" allowDecimals={false} hide />
-        <YAxis type="category" dataKey="opt" width={150} tick={{ fontSize: 11 }} tickLine={false} />
-        <RechartsTooltip
-          content={ChartTooltip({
-            render: d => (
-              <>
-                <p className="font-semibold text-slate-900">{String(d.opt)}</p>
-                <p className="text-slate-600">
-                  {String(d.firstPlace)} first-place pick{Number(d.firstPlace) !== 1 ? 's' : ''} · avg rank {d.avgRank != null ? String(d.avgRank) : '—'}
-                </p>
-              </>
-            ),
-          })}
-        />
-        <Bar dataKey="firstPlace" fill={STATUS.tweak} radius={[0, 3, 3, 0]} isAnimationActive={false}>
-          <LabelList
-            dataKey="avgRank"
-            position="right"
-            formatter={(v: number | null) => v != null ? `avg rank ${v}` : ''}
-            style={{ fontSize: 11, fill: '#475569', fontWeight: 600 }}
+    <div className="space-y-3">
+      {leading && leading.firstPlace > 0 && (
+        <LeadingOptionBadge label="Most first-place selections" detail={`${leading.opt} (${leading.firstPlace})`} />
+      )}
+      <ResponsiveContainer width="100%" height={Math.max(80, data.length * 36)}>
+        <BarChart data={data} layout="vertical" margin={{ top: 4, right: 80, left: 8, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+          <XAxis type="number" allowDecimals={false} hide />
+          <YAxis type="category" dataKey="opt" width={150} tick={{ fontSize: 11 }} tickLine={false} />
+          <RechartsTooltip
+            content={ChartTooltip({
+              render: d => (
+                <>
+                  <p className="font-semibold text-slate-900">{String(d.opt)}</p>
+                  <p className="text-slate-600">
+                    {String(d.firstPlace)} first-place pick{Number(d.firstPlace) !== 1 ? 's' : ''} · avg rank {d.avgRank != null ? String(d.avgRank) : '—'}
+                  </p>
+                </>
+              ),
+            })}
           />
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
+          <Bar dataKey="firstPlace" fill={CONCEPT_ACCENT} radius={[0, 3, 3, 0]} isAnimationActive={false}>
+            <LabelList
+              dataKey="avgRank"
+              position="right"
+              formatter={(v: number | null) => v != null ? `avg rank ${v}` : ''}
+              style={{ fontSize: 11, fill: '#475569', fontWeight: 600 }}
+            />
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
@@ -340,21 +360,21 @@ function ImageChoiceResults({ answers, images, evidenceIsLimited }: {
   return (
     <div className="space-y-3">
       {winner && winner.count > 0 && (
-        <div className="flex items-center gap-2 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 w-fit">
-          <Trophy className="size-3.5" />
-          Option {winner.index + 1} is the {evidenceIsLimited ? 'current leading direction' : 'panel favorite'}: {winner.count} of {total} selections ({Math.round((winner.count / total) * 100)}%)
-        </div>
+        <LeadingOptionBadge
+          label={evidenceIsLimited ? 'Current leading direction' : 'Leading visual'}
+          detail={`Option ${winner.index + 1}, ${winner.count} of ${total} selections (${Math.round((winner.count / total) * 100)}%)`}
+        />
       )}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {entries.map(({ url, index, count }) => {
           const pct = total > 0 ? Math.round((count / total) * 100) : 0;
           const isWinner = !!winner && url === winner.url && count > 0;
           return (
-            <div key={`${url}-${index}`} className={`relative rounded-lg overflow-hidden border-2 ${isWinner ? 'border-amber-400 shadow-md' : 'border-slate-200'}`}>
-              <img src={url} alt={`Concept visual ${index + 1}`} className="w-full aspect-square object-cover" />
+            <div key={`${url}-${index}`} className={`relative rounded-lg overflow-hidden border-2 ${isWinner ? 'border-blue-500 shadow-md' : 'border-slate-200'}`}>
+              <img src={url} alt={`Concept test visual option ${index + 1}`} className="w-full aspect-square object-cover" />
               {isWinner && (
-                <span className="absolute top-1.5 right-1.5 flex items-center justify-center rounded-full bg-amber-400 p-1 text-white shadow-sm">
-                  <Trophy className="size-3" />
+                <span className="absolute top-1.5 right-1.5 flex items-center justify-center rounded-full bg-blue-600 p-1 text-white shadow-sm" aria-label="Leading visual">
+                  <Trophy className="size-3" aria-hidden />
                 </span>
               )}
               <div className="absolute inset-x-0 bottom-0 bg-slate-950/75 px-1.5 py-1">
@@ -363,7 +383,7 @@ function ImageChoiceResults({ answers, images, evidenceIsLimited }: {
                   <span>{count} vote{count !== 1 ? 's' : ''} ({pct}%)</span>
                 </div>
                 <div className="mt-1 h-1 bg-white/25 rounded-full overflow-hidden">
-                  <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
+                  <div className="h-full bg-blue-500 rounded-full" style={{ width: `${pct}%` }} />
                 </div>
               </div>
             </div>

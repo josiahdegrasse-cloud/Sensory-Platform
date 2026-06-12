@@ -1,5 +1,6 @@
 import type { Product } from '../data/mock-users';
 import type { ImportBatchRecord, InstrumentalDataset } from './database';
+import { getProductAssignmentMode } from './assignments';
 
 export type WorkflowStageState = 'complete' | 'current' | 'blocked';
 
@@ -32,17 +33,17 @@ export function assessSampleWorkflow(input: {
   hasComposition: boolean;
 }): SampleWorkflowReadiness {
   const { sample, product, responseCount, minimumResponses, hasGcms, hasComposition } = input;
+  const assignmentMode = product ? getProductAssignmentMode(product) : null;
   const assignedCount = product?.assignedPanelistIds?.length ?? 0;
   const blockers: string[] = [];
   if (!product) blockers.push('Create a questionnaire for this sample.');
-  if (product && assignedCount === 0) blockers.push('Assign the questionnaire to panelists.');
   if (product && responseCount < minimumResponses) {
     blockers.push(`${minimumResponses - responseCount} more completed response${minimumResponses - responseCount === 1 ? '' : 's'} required.`);
   }
   if (!hasGcms) blockers.push('GC-MS data is missing; aroma risk confidence will be reduced.');
   if (!hasComposition) blockers.push('Composition data is missing; formulation confidence will be reduced.');
 
-  const decisionReady = Boolean(product) && assignedCount > 0 && responseCount >= minimumResponses;
+  const decisionReady = Boolean(product) && responseCount >= minimumResponses;
   return {
     sampleId: sample.sampleId,
     sampleName: sample.sampleName || sample.sampleId,
@@ -60,13 +61,17 @@ export function assessSampleWorkflow(input: {
       {
         id: 'assignment',
         label: 'Assignment',
-        state: assignedCount > 0 ? 'complete' : product ? 'current' : 'blocked',
-        detail: assignedCount > 0 ? `${assignedCount} panelist${assignedCount === 1 ? '' : 's'} assigned.` : 'No panelists assigned.',
+        state: product ? 'complete' : 'blocked',
+        detail: !product
+          ? 'Create the questionnaire first.'
+          : assignmentMode === 'open'
+            ? 'Open to all active panelists.'
+            : `${assignedCount} selected panelist${assignedCount === 1 ? '' : 's'} assigned.`,
       },
       {
         id: 'responses',
         label: 'Responses',
-        state: responseCount >= minimumResponses ? 'complete' : assignedCount > 0 ? 'current' : 'blocked',
+        state: responseCount >= minimumResponses ? 'complete' : product ? 'current' : 'blocked',
         detail: `${responseCount}/${minimumResponses} completed.`,
       },
       {
