@@ -191,7 +191,7 @@ export interface ImportBatchRecord {
 }
 
 export async function fetchImportBatches(): Promise<ImportBatchRecord[]> {
-  const { data, error } = await supabase
+  const richResult = await supabase
     .from('import_batches')
     .select(`
       id, file_name, row_count, recognized_columns, ignored_columns,
@@ -203,10 +203,24 @@ export async function fetchImportBatches(): Promise<ImportBatchRecord[]> {
     .order('imported_at', { ascending: false })
     .limit(100);
 
-  if (error && isMissingFoodImportSchema(dbError(error))) return [];
-  if (error) throw dbError(error);
+  let rows = richResult.data as Record<string, unknown>[] | null;
+  if (richResult.error) {
+    const fallbackResult = await supabase
+      .from('import_batches')
+      .select(`
+        id, file_name, row_count, recognized_columns, ignored_columns,
+        detection_confidence, status, imported_by, imported_at,
+        food_types(slug, label)
+      `)
+      .order('imported_at', { ascending: false })
+      .limit(100);
 
-  return ((data ?? []) as Record<string, unknown>[]).map(row => {
+    if (fallbackResult.error && isMissingFoodImportSchema(dbError(fallbackResult.error))) return [];
+    if (fallbackResult.error) throw dbError(fallbackResult.error);
+    rows = fallbackResult.data as Record<string, unknown>[] | null;
+  }
+
+  return (rows ?? []).map(row => {
     const ft = row.food_types as { slug?: string; label?: string } | null;
     const profile = row.profiles as { name?: string } | null;
     const countArr = row.instrumental_samples as { count?: number }[] | null;
@@ -223,7 +237,7 @@ export async function fetchImportBatches(): Promise<ImportBatchRecord[]> {
       importedBy: (row.imported_by as string) ?? null,
       importedByName: profile?.name ?? null,
       createdAt: row.imported_at as string,
-      sampleCount: countArr?.[0]?.count ?? 0,
+      sampleCount: countArr?.[0]?.count ?? Number(row.row_count ?? 0),
     };
   });
 }
