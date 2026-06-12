@@ -126,6 +126,7 @@ export function CommercializationReportPage() {
         logoUrl: workspaceSettings?.logoUrl,
         primaryColor: workspaceSettings?.primaryColor,
         accentColor: workspaceSettings?.accentColor,
+        reportTemplate: workspaceSettings?.reportTemplate,
       });
     } catch (error) {
       setExportError(error instanceof Error ? error.message : 'Unable to export the report.');
@@ -223,6 +224,7 @@ export function CommercializationReportPage() {
     logoUrl: workspaceSettings?.logoUrl,
     primaryColor: workspaceSettings?.primaryColor,
     accentColor: workspaceSettings?.accentColor,
+    reportTemplate: workspaceSettings?.reportTemplate,
   } : null;
 
   return (

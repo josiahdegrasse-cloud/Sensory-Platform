@@ -14,6 +14,14 @@ export const GREEN: Rgb = [5, 150, 105];
 export const AMBER: Rgb = [180, 83, 9];
 export const ROSE: Rgb = [190, 18, 60];
 
+// "Editorial sage" template — cream/sage masthead palette.
+export const CREAM: Rgb = [247, 244, 236];
+export const CREAM_LINE: Rgb = [237, 232, 220];
+export const SAGE: Rgb = [124, 154, 137];
+export const SAGE_DARK: Rgb = [82, 108, 95];
+export const CHARCOAL: Rgb = [42, 53, 48];
+export const BODY_SAGE: Rgb = [101, 117, 108];
+
 /** Shared layout/branding context passed to every PDF section renderer. */
 export interface PdfContext {
   doc: PdfDocument;
@@ -25,6 +33,8 @@ export interface PdfContext {
   accent: Rgb;
   organizationName: string;
   productName: string;
+  /** PDF layout: navy/blue editorial (default) or the cream/sage masthead. */
+  template?: 'standard' | 'editorial-sage';
 }
 
 export function hexToRgb(hex?: string | null): Rgb | null {
@@ -107,13 +117,17 @@ export function sectionTitle(ctx: PdfContext, title: string, y: number) {
   return y + 29;
 }
 
-export function labelValue(doc: PdfDocument, label: string, value: string, x: number, y: number, width: number) {
-  doc.setDrawColor(...SLATE_200);
+export function labelValue(ctx: PdfContext, label: string, value: string, x: number, y: number, width: number) {
+  const { doc, template } = ctx;
+  const lineColor = template === 'editorial-sage' ? CREAM_LINE : SLATE_200;
+  const labelColor = template === 'editorial-sage' ? BODY_SAGE : SLATE_500;
+  const valueColor = template === 'editorial-sage' ? CHARCOAL : SLATE_950;
+  doc.setDrawColor(...lineColor);
   doc.setLineWidth(0.7);
   doc.line(x, y, x + width, y);
-  setText(doc, SLATE_500, 7.5, 'bold');
+  setText(doc, labelColor, 7.5, 'bold');
   doc.text(label, x, y + 15);
-  setDisplayText(doc, SLATE_950, 13, 'bold');
+  setDisplayText(doc, valueColor, 13, 'bold');
   const lines = doc.splitTextToSize(value, width - 4) as string[];
   doc.text(lines.slice(0, 2), x, y + 35, { lineHeightFactor: 1.05 });
 }
@@ -130,12 +144,16 @@ export function bulletList(doc: PdfDocument, items: string[], x: number, y: numb
 }
 
 function pageHeader(ctx: PdfContext) {
-  const { doc, width, organizationName, productName, margin, primary } = ctx;
+  const { doc, width, height, organizationName, productName, margin, primary, template } = ctx;
+  if (template === 'editorial-sage') {
+    doc.setFillColor(...CREAM);
+    doc.rect(0, 0, width, height, 'F');
+  }
   setText(doc, primary, 7.5, 'bold');
   doc.text(organizationName, margin, 26);
-  setText(doc, SLATE_500, 7.5);
+  setText(doc, template === 'editorial-sage' ? BODY_SAGE : SLATE_500, 7.5);
   doc.text(productName, width - margin, 26, { align: 'right' });
-  doc.setDrawColor(...SLATE_200);
+  doc.setDrawColor(...(template === 'editorial-sage' ? CREAM_LINE : SLATE_200));
   doc.setLineWidth(0.5);
   doc.line(margin, 35, width - margin, 35);
 }
@@ -152,8 +170,18 @@ export function addContentPage(ctx: PdfContext) {
  * a restrained color field, clear section label, and large publication title.
  */
 export function chapterBanner(ctx: PdfContext, chapter: string, title: string, y: number) {
-  const { doc, width, margin, primary, accent } = ctx;
+  const { doc, width, margin, primary, accent, template } = ctx;
   const bannerWidth = width - margin * 2;
+  if (template === 'editorial-sage') {
+    doc.setFillColor(...accent);
+    doc.roundedRect(margin, y, bannerWidth, 100, 14, 14, 'F');
+    setText(doc, CREAM, 8, 'bold');
+    doc.text(chapter, margin + 26, y + 30);
+    setDisplayText(doc, CREAM, 22, 'bold');
+    const sageLines = doc.splitTextToSize(title, bannerWidth - 52) as string[];
+    doc.text(sageLines.slice(0, 2), margin + 26, y + 60, { lineHeightFactor: 1.05 });
+    return y + 132;
+  }
   doc.setFillColor(...lighten(primary, 0.08));
   doc.rect(margin, y, bannerWidth, 104, 'F');
   doc.setFillColor(...accent);
@@ -170,7 +198,21 @@ export function chapterBanner(ctx: PdfContext, chapter: string, title: string, y
  * Branded footer applied to every page with a quiet publication-style folio.
  */
 export function renderFooter(ctx: PdfContext, page: number, reportFooter?: string) {
-  const { doc, width, height, margin, primary } = ctx;
+  const { doc, width, height, margin, primary, accent, template } = ctx;
+  if (template === 'editorial-sage') {
+    setText(doc, BODY_SAGE, 7);
+    doc.text(reportFooter || 'Confidential commercialization report', margin, height - 19);
+    const label = String(page).padStart(2, '0');
+    const pillWidth = 30;
+    const pillHeight = 17;
+    const pillX = width - margin - pillWidth;
+    const pillY = height - 28;
+    doc.setFillColor(...accent);
+    doc.roundedRect(pillX, pillY, pillWidth, pillHeight, pillHeight / 2, pillHeight / 2, 'F');
+    setText(doc, CREAM, 8, 'bold');
+    doc.text(label, pillX + pillWidth / 2, pillY + 12, { align: 'center' });
+    return;
+  }
   doc.setDrawColor(...SLATE_200);
   doc.setLineWidth(0.5);
   doc.line(margin, height - 34, width - margin, height - 34);

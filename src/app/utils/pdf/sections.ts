@@ -33,6 +33,8 @@ export interface CommercializationReportPdfInput {
   logoUrl?: string | null;
   primaryColor?: string | null;
   accentColor?: string | null;
+  /** PDF layout: navy/blue editorial (default) or the NFI cream/sage masthead. */
+  reportTemplate?: 'standard' | 'editorial-sage';
 }
 
 export type EvidenceStrengthTone = 'established' | 'limited' | 'accent';

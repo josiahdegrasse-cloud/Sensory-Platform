@@ -38,7 +38,7 @@ export function renderExecutiveSummaryChapter(
   y = sectionTitle(ctx, 'Product and evidence snapshot', y);
   const tileWidth = (contentWidth - 16) / 3;
   data.snapshotTiles.forEach(([label, value], index) => {
-    labelValue(doc, label, value, margin + (index % 3) * (tileWidth + 8), y + Math.floor(index / 3) * 62, tileWidth);
+    labelValue(ctx, label, value, margin + (index % 3) * (tileWidth + 8), y + Math.floor(index / 3) * 62, tileWidth);
   });
   y += 137;
 

@@ -82,4 +82,55 @@ describe('commercialization report filename', () => {
 
     expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(7);
   });
+
+  it('builds the editorial-sage masthead layout without error', async () => {
+    const { doc } = await buildCommercializationReportPdf({
+      organizationName: 'New Food Innovation',
+      workspaceName: 'Sensory Workspace',
+      version: 1,
+      status: 'draft',
+      reportTemplate: 'editorial-sage',
+      snapshot: {
+        product: { sampleId: 'sample-1', sampleName: 'Coconut Cheddar', foodType: 'Cheese' },
+        decision: {
+          recordId: 'decision-1',
+          outcome: 'GO',
+          issfScore: 82,
+          confidence: 84,
+          recommendation: 'Advance to buyer review.',
+          dimensions: { hedonic: 84, texture: 78, cata: 81, emotional: 75 },
+          prescriptions: [],
+          methodVersion: 'issf-1.0',
+          fingerprint: 'fingerprint-1',
+        },
+        concept: {
+          id: 'concept-1',
+          name: 'Everyday plant cheddar',
+          description: 'A familiar everyday cheese alternative.',
+          targetMarket: 'Flexitarian households',
+          pricePoint: '$5.99',
+          keyBenefits: 'Familiar flavor and versatile use',
+          packagingImageId: null,
+          packagingImageUrl: '',
+        },
+        evidence: {
+          responseCount: 24,
+          scaleMetrics: [],
+          topSelections: [],
+          comments: [],
+          purchaseIntent: 6.8,
+        },
+        narrative: {
+          executiveSummary: 'The tested product has a confirmed GO recommendation.',
+          whyLiked: 'Panelists responded to the familiar flavor and texture.',
+          packagingRationale: 'The selected direction communicates everyday versatility.',
+          launchRecommendation: 'Advance the product and selected packaging to buyer review.',
+          claimCaution: 'Treat panel findings as directional until broader validation is complete.',
+        },
+        generatedAt: '2026-06-11T14:30:00.000Z',
+      },
+    });
+
+    expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(7);
+  });
 });

@@ -65,10 +65,10 @@ export function renderProductEvidenceChapter(
   y = paragraph(doc, data.instrumentalNote, margin, y + 19, contentWidth, { size: 9.5, lineHeight: 13 }) + 20;
 
   y = sectionTitle(ctx, 'Decision rationale', y);
-  labelValue(doc, data.decisionTiles[0][0], data.decisionTiles[0][1], margin, y, 112);
-  labelValue(doc, data.decisionTiles[1][0], data.decisionTiles[1][1], 160, y, 112);
-  labelValue(doc, data.decisionTiles[2][0], data.decisionTiles[2][1], 280, y, 132);
-  labelValue(doc, data.decisionTiles[3][0], data.decisionTiles[3][1], 420, y, 135);
+  labelValue(ctx, data.decisionTiles[0][0], data.decisionTiles[0][1], margin, y, 112);
+  labelValue(ctx, data.decisionTiles[1][0], data.decisionTiles[1][1], 160, y, 112);
+  labelValue(ctx, data.decisionTiles[2][0], data.decisionTiles[2][1], 280, y, 132);
+  labelValue(ctx, data.decisionTiles[3][0], data.decisionTiles[3][1], 420, y, 135);
   y += 72;
   y = paragraph(doc, data.decisionRecommendation, margin, y, contentWidth, {
     color: SLATE_950,

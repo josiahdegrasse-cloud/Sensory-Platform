@@ -37,6 +37,8 @@ export interface WorkspaceSettings {
   reportTone: 'formal' | 'standard' | 'energetic';
   /** Title template for new reports; {sample} expands to the sample name. */
   defaultReportTitle: string;
+  /** PDF layout for commercialization reports: navy/blue editorial or NFI cream/sage masthead. */
+  reportTemplate: 'standard' | 'editorial-sage';
   notifyOnImport: boolean;
   notifyOnCompletionTarget: boolean;
   notifyOnGenerationFailure: boolean;
@@ -114,6 +116,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     reportFooter: '',
     reportTone: 'standard',
     defaultReportTitle: '',
+    reportTemplate: 'standard',
     notifyOnImport: true,
     notifyOnCompletionTarget: true,
     notifyOnGenerationFailure: true,
@@ -158,6 +161,7 @@ function toWorkspaceSettings(row: Record<string, unknown>): WorkspaceSettings {
     reportFooter: (row.report_footer as string) ?? '',
     reportTone: ((row.report_tone as WorkspaceSettings['reportTone']) ?? 'standard'),
     defaultReportTitle: (row.default_report_title as string) ?? '',
+    reportTemplate: ((row.report_template as WorkspaceSettings['reportTemplate']) ?? 'standard'),
     notifyOnImport: Boolean(row.notify_on_import ?? true),
     notifyOnCompletionTarget: Boolean(row.notify_on_completion_target ?? true),
     notifyOnGenerationFailure: Boolean(row.notify_on_generation_failure ?? true),
@@ -245,6 +249,7 @@ export async function updateWorkspaceSettings(
     // are safe to send before the report-branding migration has been applied.
     report_tone: updates.reportTone,
     default_report_title: updates.defaultReportTitle.trim(),
+    report_template: updates.reportTemplate,
     notify_on_import: updates.notifyOnImport,
     notify_on_completion_target: updates.notifyOnCompletionTarget,
     notify_on_generation_failure: updates.notifyOnGenerationFailure,

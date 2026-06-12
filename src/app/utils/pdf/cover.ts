@@ -1,6 +1,11 @@
 import {
   AMBER,
+  BODY_SAGE,
+  CHARCOAL,
+  CREAM,
+  CREAM_LINE,
   GREEN,
+  SAGE_DARK,
   SLATE_50,
   SLATE_200,
   SLATE_500,
@@ -23,6 +28,10 @@ export interface CoverImages {
 
 /** Renders the title/decision/recommendation cover page (page 1, no header). */
 export function renderCoverPage(ctx: PdfContext, data: CoverSectionData, images: CoverImages) {
+  if (ctx.template === 'editorial-sage') {
+    renderEditorialCoverPage(ctx, data, images);
+    return;
+  }
   const { doc, width, height, margin, primary, accent } = ctx;
   const strengthColor: Rgb = data.strengthTone === 'established' ? GREEN : data.strengthTone === 'limited' ? AMBER : accent;
 
@@ -87,4 +96,71 @@ export function renderCoverPage(ctx: PdfContext, data: CoverSectionData, images:
     size: 8.5,
     lineHeight: 12,
   });
+}
+
+/**
+ * Masthead-style cover: cream background, logo top-left, large publication
+ * title, sage accent rule, hero packaging image, and a decision/recommendation
+ * block — modeled on New Food Innovation's branded report cover.
+ */
+function renderEditorialCoverPage(ctx: PdfContext, data: CoverSectionData, images: CoverImages) {
+  const { doc, width, height, margin, accent } = ctx;
+  const contentRight = width - margin;
+  const strengthColor: Rgb = data.strengthTone === 'established' ? GREEN : data.strengthTone === 'limited' ? AMBER : accent;
+
+  doc.setFillColor(...CREAM);
+  doc.rect(0, 0, width, height, 'F');
+
+  if (images.logo) {
+    doc.addImage(images.logo, imageFormat(images.logo), margin, margin, 84, 48, undefined, 'FAST');
+  }
+  setText(doc, SAGE_DARK, 9, 'bold');
+  doc.text('COMMERCIALIZATION REPORT', contentRight, margin + 18, { align: 'right' });
+  setText(doc, BODY_SAGE, 8.5);
+  doc.text(data.foodType, contentRight, margin + 34, { align: 'right' });
+
+  const titleY = margin + 110;
+  setDisplayText(doc, CHARCOAL, 32, 'bold');
+  const titleLines = doc.splitTextToSize(data.sampleName, width - margin * 2) as string[];
+  doc.text(titleLines.slice(0, 2), margin, titleY, { lineHeightFactor: 1.05 });
+  const titleBottom = titleY + Math.min(titleLines.length, 2) * 36;
+
+  setDisplayText(doc, BODY_SAGE, 14, 'normal');
+  doc.text('Commercialization report', margin, titleBottom + 14);
+
+  doc.setDrawColor(...accent);
+  doc.setLineWidth(3);
+  doc.line(margin, titleBottom + 32, margin + 76, titleBottom + 32);
+
+  let blockBottom = titleBottom + 32;
+  if (images.packaging) {
+    const imageHeight = 220;
+    doc.addImage(images.packaging, imageFormat(images.packaging), margin, titleBottom + 50, width - margin * 2, imageHeight, undefined, 'FAST');
+    setText(doc, BODY_SAGE, 7, 'bold');
+    doc.text('SELECTED CONCEPT DIRECTION', margin, titleBottom + 50 + imageHeight + 16);
+    blockBottom = titleBottom + 50 + imageHeight + 16;
+  }
+
+  const decisionY = blockBottom + 28;
+  setText(doc, strengthColor, 9, 'bold');
+  doc.text(`${data.decisionOutcome} · ${data.strengthLabel}`, margin, decisionY);
+  const recommendationBottom = paragraph(doc, data.recommendedPath, margin, decisionY + 24, width - margin * 2, {
+    color: CHARCOAL,
+    size: 12.5,
+    weight: 'bold',
+    lineHeight: 17,
+  });
+
+  doc.setDrawColor(...CREAM_LINE);
+  doc.setLineWidth(0.7);
+  doc.line(margin, recommendationBottom + 12, contentRight, recommendationBottom + 12);
+  paragraph(doc, data.evidenceStrengthNote, margin, recommendationBottom + 32, width - margin * 2, {
+    color: BODY_SAGE,
+    size: 8.5,
+    lineHeight: 12,
+  });
+
+  setText(doc, BODY_SAGE, 8);
+  doc.text(`${data.organizationName} · ${data.workspaceName}`, margin, height - 30);
+  doc.text(`${data.generatedLabel} · Version ${data.version} · ${data.status}`, contentRight, height - 30, { align: 'right' });
 }

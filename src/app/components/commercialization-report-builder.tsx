@@ -295,6 +295,7 @@ export function CommercializationReportBuilder({
                         logoUrl: settings?.logoUrl,
                         primaryColor: settings?.primaryColor,
                         accentColor: settings?.accentColor,
+                        reportTemplate: settings?.reportTemplate,
                       })}
                     >
                       <FileText className="size-4" />Download branded PDF

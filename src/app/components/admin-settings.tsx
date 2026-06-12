@@ -59,6 +59,7 @@ const fallbackSettings: WorkspaceSettings = {
   reportFooter: '',
   reportTone: 'standard',
   defaultReportTitle: '',
+  reportTemplate: 'standard',
   notifyOnImport: true,
   notifyOnCompletionTarget: true,
   notifyOnGenerationFailure: true,

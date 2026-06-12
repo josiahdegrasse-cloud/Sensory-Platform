@@ -1,5 +1,7 @@
 import {
+  CHARCOAL,
   DEFAULT_ACCENT,
+  SAGE,
   SLATE_950,
   addContentPage,
   chapterBanner,
@@ -70,8 +72,9 @@ export async function buildCommercializationReportPdf(input: CommercializationRe
     import('jspdf-autotable'),
   ]);
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-  const primary: Rgb = hexToRgb(input.primaryColor) ?? SLATE_950;
-  const accent: Rgb = hexToRgb(input.accentColor) ?? DEFAULT_ACCENT;
+  const template = input.reportTemplate ?? 'standard';
+  const primary: Rgb = template === 'editorial-sage' ? CHARCOAL : hexToRgb(input.primaryColor) ?? SLATE_950;
+  const accent: Rgb = template === 'editorial-sage' ? SAGE : hexToRgb(input.accentColor) ?? DEFAULT_ACCENT;
   const ctx: PdfContext = {
     doc,
     width: doc.internal.pageSize.getWidth(),
@@ -82,6 +85,7 @@ export async function buildCommercializationReportPdf(input: CommercializationRe
     accent,
     organizationName: input.organizationName || 'Food Platform',
     productName: input.snapshot.product.sampleName,
+    template,
   };
 
   const [packaging, logo] = await Promise.all([

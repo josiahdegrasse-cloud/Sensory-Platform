@@ -133,6 +133,17 @@ export function BrandingSettings({ draft, updateDraft, disabled }: {
             </Select>
           </div>
           <div className="space-y-2">
+            <Label>PDF layout</Label>
+            <Select value={draft.reportTemplate} onValueChange={value => updateDraft('reportTemplate', value as WorkspaceSettings['reportTemplate'])}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="standard">Standard — navy/blue editorial layout</SelectItem>
+                <SelectItem value="editorial-sage">Editorial sage — cream masthead with sage banners</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-slate-500">Controls the cover, section banners, and footer style of the commercialization report PDF.</p>
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="report-footer">Report footer</Label>
             <Input
               id="report-footer"
