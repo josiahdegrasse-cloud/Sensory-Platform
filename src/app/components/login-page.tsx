@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useAuth } from '../contexts/auth-context';
-import { AlertCircle, CheckCircle2, ChevronRight, Mail } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 
 export interface LoginBranding {
@@ -78,13 +78,7 @@ export function LoginPage({ onSignup, branding }: Props) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const { login, loginWithGoogle, loginWithMagicLink, resetPassword, authNotice } = useAuth();
-
-  const [magicMode, setMagicMode] = useState(false);
-  const [magicEmail, setMagicEmail] = useState('');
-  const [magicSent, setMagicSent] = useState(false);
-  const [magicLoading, setMagicLoading] = useState(false);
-  const [magicError, setMagicError] = useState('');
+  const { login, loginWithGoogle, resetPassword, authNotice } = useAuth();
 
   const [resetMode, setResetMode] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
@@ -109,19 +103,6 @@ export function LoginPage({ onSignup, branding }: Props) {
     if (errorMessage) {
       setError(mapLoginError(errorMessage));
       setGoogleLoading(false);
-    }
-  };
-
-  const handleMagic = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMagicError('');
-    setMagicLoading(true);
-    const errorMessage = await loginWithMagicLink(magicEmail);
-    setMagicLoading(false);
-    if (errorMessage) {
-      setMagicError(mapLoginError(errorMessage));
-    } else {
-      setMagicSent(true);
     }
   };
 
@@ -271,61 +252,6 @@ export function LoginPage({ onSignup, branding }: Props) {
                 </form>
               )}
             </>
-          ) : magicMode ? (
-            <>
-              <button
-                type="button"
-                onClick={() => { setMagicMode(false); setMagicSent(false); setMagicError(''); }}
-                className="text-xs text-slate-400 hover:text-slate-700 transition-colors mb-6"
-              >
-                ← Back to sign in
-              </button>
-              <div className="mb-8">
-                <h2 className="text-2xl font-bold text-slate-900">Email me a sign-in link</h2>
-                <p className="text-slate-500 text-sm mt-1">No password needed — we'll send a one-time link to your inbox</p>
-              </div>
-              {magicSent ? (
-                <Alert className="py-2.5 border-green-200 bg-green-50">
-                  <CheckCircle2 className="size-4 text-green-600" />
-                  <AlertDescription className="text-xs text-green-700">
-                    Check your email — your sign-in link is on its way. You can close this tab.
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                <form onSubmit={handleMagic} className="space-y-5">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="magic-email" className="text-slate-700 font-medium text-sm">
-                      Email address
-                    </Label>
-                    <Input
-                      id="magic-email"
-                      type="email"
-                      placeholder="you@company.com"
-                      value={magicEmail}
-                      onChange={(e) => setMagicEmail(e.target.value)}
-                      className="h-11 border-slate-200 rounded-lg"
-                      required
-                    />
-                  </div>
-                  {magicError && (
-                    <Alert variant="destructive" className="py-2.5">
-                      <AlertCircle className="size-4" />
-                      <AlertDescription className="text-xs">{magicError}</AlertDescription>
-                    </Alert>
-                  )}
-                  <Button
-                    type="submit"
-                    className="w-full h-11 text-white font-semibold text-sm rounded-lg transition-colors"
-                    style={{ background: accent }}
-                    onMouseEnter={e => (e.currentTarget.style.background = accentHover)}
-                    onMouseLeave={e => (e.currentTarget.style.background = accent)}
-                    disabled={magicLoading}
-                  >
-                    {magicLoading ? 'Sending…' : 'Send sign-in link'}
-                  </Button>
-                </form>
-              )}
-            </>
           ) : (
             <>
               <div className="mb-8">
@@ -404,38 +330,27 @@ export function LoginPage({ onSignup, branding }: Props) {
                 </Button>
               </form>
 
-              <div className="my-5 flex items-center gap-3">
-                <div className="h-px flex-1 bg-slate-200" />
-                <span className="text-xs uppercase tracking-wide text-slate-400">or</span>
-                <div className="h-px flex-1 bg-slate-200" />
-              </div>
-
               {googleSignInEnabled && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleGoogle}
-                  disabled={googleLoading}
-                  className="mb-3 w-full h-11 border-slate-200 rounded-lg font-semibold text-sm text-slate-700 hover:bg-slate-50"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <GoogleMark />
-                    {googleLoading ? 'Redirecting…' : 'Continue with Google'}
-                  </span>
-                </Button>
+                <>
+                  <div className="my-5 flex items-center gap-3">
+                    <div className="h-px flex-1 bg-slate-200" />
+                    <span className="text-xs uppercase tracking-wide text-slate-400">or</span>
+                    <div className="h-px flex-1 bg-slate-200" />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleGoogle}
+                    disabled={googleLoading}
+                    className="w-full h-11 border-slate-200 rounded-lg font-semibold text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <GoogleMark />
+                      {googleLoading ? 'Redirecting…' : 'Continue with Google'}
+                    </span>
+                  </Button>
+                </>
               )}
-
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => { setMagicEmail(email); setMagicMode(true); setError(''); }}
-                className="w-full h-11 border-slate-200 rounded-lg font-semibold text-sm text-slate-700 hover:bg-slate-50"
-              >
-                <span className="flex items-center gap-2.5">
-                  <Mail className="size-[18px] text-slate-500" />
-                  Email me a sign-in link
-                </span>
-              </Button>
 
               <div className="mt-6 pt-6 border-t border-slate-100 text-center">
                 {onSignup ? (

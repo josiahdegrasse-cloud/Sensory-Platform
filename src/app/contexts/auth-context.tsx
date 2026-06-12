@@ -18,7 +18,6 @@ interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<string | null>;
   loginWithGoogle: () => Promise<string | null>;
-  loginWithMagicLink: (email: string) => Promise<string | null>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<string | null>;
   updatePassword: (newPassword: string) => Promise<string | null>;
@@ -151,25 +150,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const loginWithMagicLink = async (email: string): Promise<string | null> => {
-    setAuthNotice(null);
-    try {
-      // Sign-in only (no account creation): signup must go through the signup
-      // page or Google so the consent + company-domain checks always apply.
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          shouldCreateUser: false,
-          emailRedirectTo: import.meta.env.VITE_APP_URL ?? window.location.origin,
-        },
-      });
-      if (error) return error.message;
-      return null;
-    } catch (err) {
-      return err instanceof Error ? err.message : 'Unknown error';
-    }
-  };
-
   const logout = async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -215,7 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, loginWithGoogle, loginWithMagicLink, logout, resetPassword, updatePassword, acceptConsent, isAuthenticated: !!user, isPasswordRecovery, loading, authNotice }}>
+    <AuthContext.Provider value={{ user, login, loginWithGoogle, logout, resetPassword, updatePassword, acceptConsent, isAuthenticated: !!user, isPasswordRecovery, loading, authNotice }}>
       {children}
     </AuthContext.Provider>
   );
