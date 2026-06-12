@@ -98,32 +98,32 @@ export async function buildCommercializationReportPdf(input: CommercializationRe
 
   // Chapter 1: Executive summary and evidence confidence
   let y = addContentPage(ctx);
-  y = chapterBanner(ctx, 'Chapter 1', 'Executive summary and evidence confidence', y);
+  y = chapterBanner(ctx, 'Section 1', 'Executive summary and evidence confidence', y);
   chapterPages.push(doc.getNumberOfPages());
   renderExecutiveSummaryChapter(ctx, buildExecutiveSummarySection(input), autoTable, y);
 
   // Chapter 2: Product evidence and decision rationale
   y = addContentPage(ctx);
-  y = chapterBanner(ctx, 'Chapter 2', 'Product evidence and decision rationale', y);
+  y = chapterBanner(ctx, 'Section 2', 'Product evidence and decision rationale', y);
   chapterPages.push(doc.getNumberOfPages());
   renderProductEvidenceChapter(ctx, buildProductEvidenceSection(input), autoTable, y);
 
   // Chapter 3: Concept, packaging, and market direction
   y = addContentPage(ctx);
-  y = chapterBanner(ctx, 'Chapter 3', 'Concept, packaging, and market direction', y);
+  y = chapterBanner(ctx, 'Section 3', 'Concept, packaging, and market direction', y);
   chapterPages.push(doc.getNumberOfPages());
   renderConceptPackagingChapter(ctx, buildConceptPackagingSection(input), packaging, y);
 
   // Chapter 4: Commercialization risks and next actions (also covers the appendix entry)
   y = addContentPage(ctx);
-  y = chapterBanner(ctx, 'Chapter 4', 'Commercialization risks and next actions', y);
+  y = chapterBanner(ctx, 'Section 4', 'Commercialization risks and next actions', y);
   chapterPages.push(doc.getNumberOfPages());
   renderRisksNextStepsChapter(ctx, buildRisksNextStepsSection(input), autoTable, y);
   chapterPages.push(chapterPages[chapterPages.length - 1]);
 
   // Closing note
   y = addContentPage(ctx);
-  y = chapterBanner(ctx, 'Closing note', 'A report built for review, decision, and handoff', y);
+  y = chapterBanner(ctx, 'About this report', 'Sources, review status, and distribution', y);
   renderClosingPage(ctx, buildClosingSection(input), y);
 
   patchTocPageNumbers(ctx, tocLayout, chapterPages);

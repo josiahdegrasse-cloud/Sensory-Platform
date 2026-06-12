@@ -3,7 +3,7 @@ import {
   WHITE,
   bulletList,
   paragraph,
-  setText,
+  setDisplayText,
   type PdfContext,
 } from './theme';
 import type { ClosingSectionData } from './sections';
@@ -12,19 +12,19 @@ import type { ClosingSectionData } from './sections';
 export function renderClosingPage(ctx: PdfContext, data: ClosingSectionData, startY: number) {
   const { doc, margin, contentWidth, primary, accent } = ctx;
   let y = startY;
-  setText(doc, SLATE_950, 16, 'bold');
+  setDisplayText(doc, SLATE_950, 22, 'bold');
   doc.text(data.organizationName, margin, y);
-  y = paragraph(doc, data.intro, margin, y + 26, contentWidth, { size: 11, lineHeight: 16 }) + 28;
+  y = paragraph(doc, data.intro, margin, y + 33, 390, { size: 11, lineHeight: 16 }) + 34;
 
-  setText(doc, SLATE_950, 12, 'bold');
+  setDisplayText(doc, SLATE_950, 14, 'bold');
   doc.text('Evidence and source notes', margin, y);
   y = bulletList(doc, data.sourceNotes, margin, y + 22, contentWidth, accent) + 18;
 
   doc.setFillColor(...primary);
-  doc.roundedRect(margin, y, contentWidth, 110, 8, 8, 'F');
-  setText(doc, WHITE, 13, 'bold');
-  doc.text('Final distribution check', margin + 16, y + 28);
-  paragraph(doc, data.distributionMessage, margin + 16, y + 52, contentWidth - 32, {
+  doc.rect(margin, y, contentWidth, 110, 'F');
+  setDisplayText(doc, WHITE, 14, 'bold');
+  doc.text('Distribution status', margin + 18, y + 29);
+  paragraph(doc, data.distributionMessage, margin + 18, y + 55, contentWidth - 36, {
     color: WHITE,
     size: 10,
     lineHeight: 15,

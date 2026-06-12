@@ -77,6 +77,12 @@ export function setText(doc: PdfDocument, color: Rgb, size: number, weight: 'nor
   doc.setFontSize(size);
 }
 
+export function setDisplayText(doc: PdfDocument, color: Rgb, size: number, weight: 'normal' | 'bold' = 'bold') {
+  doc.setTextColor(...color);
+  doc.setFont('times', weight);
+  doc.setFontSize(size);
+}
+
 export function paragraph(doc: PdfDocument, text: string, x: number, y: number, maxWidth: number, options?: {
   color?: Rgb;
   size?: number;
@@ -92,94 +98,84 @@ export function paragraph(doc: PdfDocument, text: string, x: number, y: number, 
 }
 
 export function sectionTitle(ctx: PdfContext, title: string, y: number) {
-  const { doc, margin, accent } = ctx;
-  doc.setFillColor(...accent);
-  doc.roundedRect(margin, y - 13, 5, 22, 2, 2, 'F');
-  setText(doc, SLATE_950, 16, 'bold');
-  doc.text(title, margin + 16, y + 3);
-  return y + 24;
+  const { doc, margin, contentWidth, primary } = ctx;
+  setDisplayText(doc, primary, 17, 'bold');
+  doc.text(title, margin, y);
+  doc.setDrawColor(...primary);
+  doc.setLineWidth(1.2);
+  doc.line(margin, y + 8, margin + contentWidth, y + 8);
+  return y + 29;
 }
 
 export function labelValue(doc: PdfDocument, label: string, value: string, x: number, y: number, width: number) {
-  doc.setFillColor(...SLATE_50);
   doc.setDrawColor(...SLATE_200);
-  doc.roundedRect(x, y, width, 54, 6, 6, 'FD');
+  doc.setLineWidth(0.7);
+  doc.line(x, y, x + width, y);
   setText(doc, SLATE_500, 7.5, 'bold');
-  doc.text(label.toUpperCase(), x + 10, y + 16);
-  setText(doc, SLATE_950, 12, 'bold');
-  const lines = doc.splitTextToSize(value, width - 20) as string[];
-  doc.text(lines.slice(0, 2), x + 10, y + 35);
+  doc.text(label, x, y + 15);
+  setDisplayText(doc, SLATE_950, 13, 'bold');
+  const lines = doc.splitTextToSize(value, width - 4) as string[];
+  doc.text(lines.slice(0, 2), x, y + 35, { lineHeightFactor: 1.05 });
 }
 
 export function bulletList(doc: PdfDocument, items: string[], x: number, y: number, maxWidth: number, accent: Rgb) {
   let nextY = y;
   items.filter(Boolean).forEach(item => {
-    doc.setFillColor(...accent);
-    doc.circle(x + 3, nextY - 3, 2.2, 'F');
-    nextY = paragraph(doc, item, x + 13, nextY, maxWidth - 13, { size: 9.5, lineHeight: 13 }) + 7;
+    doc.setDrawColor(...accent);
+    doc.setLineWidth(1.4);
+    doc.line(x, nextY - 4, x + 9, nextY - 4);
+    nextY = paragraph(doc, item, x + 17, nextY, maxWidth - 17, { size: 9.5, lineHeight: 13 }) + 8;
   });
   return nextY;
 }
 
 function pageHeader(ctx: PdfContext) {
-  const { doc, width, organizationName, productName, accent } = ctx;
-  doc.setFillColor(...accent);
-  doc.rect(0, 0, width, 5, 'F');
-  setText(doc, SLATE_500, 8, 'bold');
-  doc.text(organizationName, 40, 25);
-  setText(doc, SLATE_500, 8);
-  doc.text(productName, width - 40, 25, { align: 'right' });
+  const { doc, width, organizationName, productName, margin, primary } = ctx;
+  setText(doc, primary, 7.5, 'bold');
+  doc.text(organizationName, margin, 26);
+  setText(doc, SLATE_500, 7.5);
+  doc.text(productName, width - margin, 26, { align: 'right' });
+  doc.setDrawColor(...SLATE_200);
+  doc.setLineWidth(0.5);
+  doc.line(margin, 35, width - margin, 35);
 }
 
 /** Starts a new page with the standard branded header and returns the starting content y. */
 export function addContentPage(ctx: PdfContext) {
   ctx.doc.addPage();
   pageHeader(ctx);
-  return 58;
+  return 64;
 }
 
 /**
- * Editorial chapter banner: accent-bordered color block with an eyebrow
- * chapter label and a large title, plus a soft decorative tint that echoes
- * the photo-led section headers of print-style reports.
+ * Editorial chapter opener inspired by authored food-industry reports:
+ * a restrained color field, clear section label, and large publication title.
  */
 export function chapterBanner(ctx: PdfContext, chapter: string, title: string, y: number) {
-  const { doc, width, primary, accent } = ctx;
-  const bannerWidth = width - 80;
-  doc.setFillColor(...primary);
-  doc.roundedRect(40, y, bannerWidth, 86, 8, 8, 'F');
-  const tint = lighten(primary, 0.14);
-  doc.setFillColor(...tint);
-  doc.roundedRect(40 + bannerWidth - 150, y, 150, 86, 8, 8, 'F');
-  doc.setFillColor(...primary);
-  doc.rect(40 + bannerWidth - 150, y, 8, 86, 'F');
+  const { doc, width, margin, primary, accent } = ctx;
+  const bannerWidth = width - margin * 2;
+  doc.setFillColor(...lighten(primary, 0.08));
+  doc.rect(margin, y, bannerWidth, 104, 'F');
   doc.setFillColor(...accent);
-  doc.roundedRect(40, y, 8, 86, 4, 4, 'F');
-  doc.setFillColor(...accent);
-  doc.roundedRect(64, y + 16, 86, 16, 8, 8, 'F');
-  setText(doc, WHITE, 8.5, 'bold');
-  doc.text(chapter.toUpperCase(), 64 + 43, y + 27, { align: 'center' });
-  setText(doc, WHITE, 20, 'bold');
-  const lines = doc.splitTextToSize(title, width - 144) as string[];
-  doc.text(lines.slice(0, 2), 64, y + 58, { lineHeightFactor: 1.1 });
-  return y + 112;
+  doc.rect(margin, y, 12, 104, 'F');
+  setText(doc, WHITE, 8, 'bold');
+  doc.text(chapter, margin + 29, y + 28);
+  setDisplayText(doc, WHITE, 23, 'bold');
+  const lines = doc.splitTextToSize(title, bannerWidth - 58) as string[];
+  doc.text(lines.slice(0, 2), margin + 29, y + 60, { lineHeightFactor: 1.05 });
+  return y + 135;
 }
 
 /**
- * Branded footer applied to every page: report footer copy on the left and a
- * rounded "Page N" pill on the right, matching the badge-style pagination
- * used in client-facing print reports.
+ * Branded footer applied to every page with a quiet publication-style folio.
  */
 export function renderFooter(ctx: PdfContext, page: number, reportFooter?: string) {
-  const { doc, width, height, margin, accent } = ctx;
-  setText(doc, SLATE_500, 7.5);
-  doc.text(reportFooter || 'Confidential commercialization report', margin, height - 21);
-  const pillHeight = 22;
-  const pillWidth = 60;
-  const pillX = width - margin - pillWidth;
-  const pillY = height - 21 - pillHeight / 2 - 6;
-  doc.setFillColor(...accent);
-  doc.roundedRect(pillX, pillY, pillWidth, pillHeight, pillHeight / 2, pillHeight / 2, 'F');
-  setText(doc, WHITE, 9, 'bold');
-  doc.text(`Page ${page}`, pillX + pillWidth / 2, pillY + pillHeight / 2 + 3, { align: 'center' });
+  const { doc, width, height, margin, primary } = ctx;
+  doc.setDrawColor(...SLATE_200);
+  doc.setLineWidth(0.5);
+  doc.line(margin, height - 34, width - margin, height - 34);
+  setText(doc, SLATE_500, 7);
+  doc.text(reportFooter || 'Confidential commercialization report', margin, height - 19);
+  setText(doc, primary, 8, 'bold');
+  doc.text(String(page).padStart(2, '0'), width - margin, height - 19, { align: 'right' });
 }
