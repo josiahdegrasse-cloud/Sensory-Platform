@@ -29,6 +29,12 @@ const MODULES: Module[] = [
     icon: FlaskConical,
   },
   {
+    path: "/admin",
+    label: "Configure",
+    description: "Create products, customize attributes, and manage your panel",
+    icon: Settings,
+  },
+  {
     path: "/survey-analysis",
     label: "Insights",
     description: "Interpret sensory, instrumental, comparison, and concept evidence",
@@ -43,7 +49,7 @@ const MODULES: Module[] = [
   {
     path: "/concept-testing",
     label: "Concept Testing",
-    description: "Send product concepts to consumers — AI-designed surveys, admin-approved",
+    description: "Send product concepts to consumers, with AI-designed surveys and admin approval",
     icon: Lightbulb,
   },
   {
@@ -51,12 +57,6 @@ const MODULES: Module[] = [
     label: "Reports",
     description: "Review versions, approve deliverables, and download branded PDFs",
     icon: FileText,
-  },
-  {
-    path: "/admin",
-    label: "Configure",
-    description: "Create products, customize attributes, and manage your panel",
-    icon: Settings,
   },
 ];
 
@@ -199,7 +199,12 @@ function ActiveProjects() {
   const projects = useProjectStatusList();
 
   if (projects.length === 0) {
-    return <ActiveProjectsEmptyState />;
+    return (
+      <div>
+        <ProjectSectionHeader count={0} />
+        <ActiveProjectsEmptyState />
+      </div>
+    );
   }
 
   const open = (entry: ProjectStatusListEntry) =>
@@ -215,6 +220,7 @@ function ActiveProjects() {
 
   return (
     <div className="space-y-5">
+      <ProjectSectionHeader count={projects.length} />
       <AttentionRail entries={attention} onOpen={open} />
       {sorted.length > 8 ? (
         <ProjectTable entries={sorted} onOpen={open} />
@@ -234,12 +240,24 @@ function ActiveProjects() {
   );
 }
 
+function ProjectSectionHeader({ count }: { count: number }) {
+  return (
+    <div className="mb-4 flex items-center justify-between gap-4">
+      <h2 className="text-lg font-bold text-slate-900">Live projects</h2>
+      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+        <span className={`size-2 rounded-full ${count > 0 ? 'bg-emerald-500' : 'bg-slate-300'}`} aria-hidden />
+        {count} live
+      </span>
+    </div>
+  );
+}
+
 function ActiveProjectsEmptyState() {
   return (
     <StageEmptyState
       icon={FolderKanban}
-      headline="No active projects yet"
-      body="Import an instrumental dataset to start your first project — the journey from raw data to a commercialization report begins there."
+      headline="No live projects yet"
+      body="Import an instrumental dataset to start your first project and begin the workflow."
       cta={{ label: 'Import data', to: '/stage1' }}
     />
   );
@@ -269,13 +287,7 @@ export function OverviewDashboard() {
       </div>
 
       {/* Active projects — the action-oriented home view */}
-      <div>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-900">Your projects</h2>
-          <p className="text-xs text-slate-400">What's in motion, what needs attention, what to click next</p>
-        </div>
-        <ActiveProjects />
-      </div>
+      <ActiveProjects />
 
       {/* Module grid — secondary navigation, kept for direct access */}
       <div>
