@@ -1,13 +1,11 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router';
 import { AlertTriangle, CheckCircle2, CircleHelp } from 'lucide-react';
-import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { ProjectStatusBadge } from './project-status-badge';
 import { DataProvenanceBadge } from './data-provenance-badge';
 import type { InsightsEvidenceStrength } from '../lib/insights';
-import type { NextAction, SemanticTone } from '../lib/project-status';
+import type { SemanticTone } from '../lib/project-status';
 import { cn } from './ui/utils';
 
 const STRENGTH_TONE: Record<InsightsEvidenceStrength['level'], SemanticTone> = {
@@ -50,7 +48,6 @@ export function InsightsPrototypeWorkspace({
   strength,
   keyStrength,
   keyConcern,
-  nextAction,
   likingMetrics,
   descriptors,
   emotionalBalance,
@@ -72,7 +69,6 @@ export function InsightsPrototypeWorkspace({
   strength: InsightsEvidenceStrength;
   keyStrength: string;
   keyConcern: string;
-  nextAction: NextAction;
   likingMetrics: LikingMetric[];
   descriptors: Array<{ label: string; percentage: number }>;
   emotionalBalance: number;
@@ -91,7 +87,7 @@ export function InsightsPrototypeWorkspace({
   const rankedLivePrototypes = prototypes
     .filter(prototype => prototype.responseCount > 0)
     .sort((a, b) => b.score - a.score);
-  const leader = prototypes.find(prototype => prototype.signalLabel === 'Leading prototype');
+  const leader = prototypes.find(prototype => prototype.signalLabel === 'Highest current liking');
   const runnerUp = rankedLivePrototypes.find(prototype => prototype.id !== leader?.id);
   const leaderDelta = leader && runnerUp ? leader.score - runnerUp.score : 0;
 
@@ -140,7 +136,7 @@ export function InsightsPrototypeWorkspace({
         </ul>
         {leader && (
           <div className="border-t border-slate-100 bg-slate-50 px-4 py-3">
-            <p className="text-xs font-semibold text-slate-500">Project leader</p>
+            <p className="text-xs font-semibold text-slate-500">Highest current liking</p>
             <p className="mt-1 text-sm font-bold text-slate-900">{leader.name}</p>
             <p className="mt-0.5 text-xs text-slate-500">
               {leaderDelta > 0 ? `${leaderDelta.toFixed(1)} points above the next sample` : 'No score separation established'}
@@ -164,21 +160,18 @@ export function InsightsPrototypeWorkspace({
                   {panelResponses} panel response{panelResponses === 1 ? '' : 's'} · {instrumentSources} of 3 instrument sources linked
                 </p>
               </div>
-              <Button asChild size="sm">
-                <Link to={nextAction.path}>{nextAction.label}</Link>
-              </Button>
             </div>
           </CardHeader>
           <CardContent className="grid gap-3 pt-0 md:grid-cols-3">
-            <DecisionFinding label="Decision" value={nextAction.description} emphasis tone="info" />
-            <DecisionFinding label="Primary strength" value={keyStrength} tone="success" />
-            <DecisionFinding label="Decision risk" value={keyConcern} tone="warning" />
+            <EvidenceFinding label="Evidence status" value={strength.note} emphasis tone="info" />
+            <EvidenceFinding label="Strongest observed signal" value={keyStrength} tone="success" />
+            <EvidenceFinding label="Evidence gap" value={keyConcern} tone="warning" />
           </CardContent>
         </Card>
 
         <Tabs defaultValue="overview" className="mt-4">
           <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 sm:grid-cols-5">
-            <TabsTrigger value="overview" className="py-2 data-[state=active]:bg-white data-[state=active]:text-blue-700">Decision evidence</TabsTrigger>
+            <TabsTrigger value="overview" className="py-2 data-[state=active]:bg-white data-[state=active]:text-blue-700">Evidence summary</TabsTrigger>
             <TabsTrigger value="liking" className="py-2 data-[state=active]:bg-white data-[state=active]:text-blue-700">Liking</TabsTrigger>
             <TabsTrigger value="descriptors" className="py-2 data-[state=active]:bg-white data-[state=active]:text-blue-700">Descriptors</TabsTrigger>
             <TabsTrigger value="intensity" className="py-2 data-[state=active]:bg-white data-[state=active]:text-blue-700">Intensity</TabsTrigger>
@@ -214,7 +207,7 @@ export function InsightsPrototypeWorkspace({
 
               <Card className="border border-slate-200">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Evidence behind the recommendation</CardTitle>
+                  <CardTitle className="text-sm">Evidence completeness</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="divide-y divide-slate-100">
@@ -281,7 +274,7 @@ export function InsightsPrototypeWorkspace({
   );
 }
 
-function DecisionFinding({ label, value, emphasis = false, tone }: {
+function EvidenceFinding({ label, value, emphasis = false, tone }: {
   label: string;
   value: string;
   emphasis?: boolean;

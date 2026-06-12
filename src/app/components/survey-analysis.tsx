@@ -16,7 +16,6 @@ import {
 import { mergeAnalysisProfiles } from '../lib/analysis-dataset';
 import {
   deriveInsightsEvidenceStrength,
-  deriveInsightsNextAction,
   filterProjectConceptTests,
   filterProjectInstrumentSamples,
   filterProjectProducts,
@@ -119,7 +118,6 @@ export function SurveyAnalysis() {
     : projectSamples[0]?.sampleId ?? '';
   const selectedData = projectSamples.find(sample => sample.sampleId === selectedSample);
   const selectedInstrument = projectInstrumentSamples.find(sample => sample.sampleId === selectedSample);
-  const selectedProduct = projectProducts.find(product => product.sourceSampleId === selectedSample);
   const matchingLiveData = selectedData ? liveAggregations.find(aggregation =>
     aggregation.sourceSampleId === selectedData.sampleId ||
     aggregation.productName.toLowerCase() === selectedData.sampleName.toLowerCase() ||
@@ -155,18 +153,6 @@ export function SurveyAnalysis() {
     datasetsPresent,
     hasBlockingWarnings: status.warnings.length > 0,
   });
-  const nextAction = deriveInsightsNextAction({
-    fallback: status.nextAction,
-    hasInstrumentData: Boolean(selectedInstrument),
-    productCount: selectedProduct ? 1 : 0,
-    liveResponseCount,
-    minimumResponses,
-    decision: latestDecision?.decision ?? null,
-    conceptCount: projectConcepts.length,
-    conceptResponseCount: primaryConceptResponses.length,
-    reportStatus: status.reportStatus,
-  });
-
   if (user?.role !== 'admin') return null;
 
   if (!selectedData) {
@@ -181,8 +167,8 @@ export function SurveyAnalysis() {
         <StageEmptyState
           icon={BarChart3}
           headline={`No analyzable samples for ${activeLabel}`}
-          body="Import a machine dataset or create questionnaires for the active project before reviewing evidence."
-          cta={{ label: 'Import instrumental data', to: '/stage1' }}
+          body="This project does not have panel or reference evidence available to interpret yet."
+          cta={{ label: 'Open project overview', to: '/project' }}
           secondaryCta={{ label: 'Configure questionnaires', to: '/admin' }}
         />
       </div>
@@ -281,12 +267,12 @@ export function SurveyAnalysis() {
       responseCount,
       evidenceLabel,
       signalLabel: isLeader
-        ? 'Leading prototype'
+        ? 'Highest current liking'
         : responseCount > 0 && responseCount < minimumResponses
           ? 'Needs more responses'
           : responseCount === 0
-            ? 'No live decision signal'
-            : 'Review evidence',
+            ? 'No live panel evidence'
+            : 'Panel evidence available',
       signalTone: isLeader ? 'success' : responseCount < minimumResponses ? 'warning' : 'neutral',
     };
   });
@@ -313,9 +299,9 @@ export function SurveyAnalysis() {
       complete: datasetsPresent === 3,
     },
     {
-      label: 'Open decision risk',
+      label: 'Evidence limitation',
       detail: keyConcern,
-      value: strength.representative ? 'Review' : 'Open',
+      value: strength.representative ? 'Qualified' : 'Open',
       complete: strength.representative,
       warning: true,
     },
@@ -351,7 +337,6 @@ export function SurveyAnalysis() {
         strength={strength}
         keyStrength={keyStrength}
         keyConcern={keyConcern}
-        nextAction={nextAction}
         likingMetrics={activeHedonic.map(item => ({ label: item.category, score: item.score }))}
         descriptors={activeCata.map(item => ({ label: item.attribute, percentage: item.percentage }))}
         emotionalBalance={emotionalBalance}
