@@ -15,6 +15,7 @@ import { formatFoodTypeLabel } from '../lib/food-intelligence';
 import {
   summarizeConceptResponses, type CommercializationReportSnapshot,
   DEFAULT_REPORT_ORGANIZATION_NAME, DEFAULT_REPORT_WORKSPACE_NAME,
+  resolveReportLogoUrl,
 } from '../lib/commercialization-report';
 import { downloadCommercializationReportPdf } from '../utils/commercialization-report-export';
 import type { SemanticTone } from '../lib/project-status';
@@ -123,7 +124,10 @@ export function CommercializationReportPage() {
         reportFooter: workspaceSettings?.reportFooter,
         version: savedReport?.version ?? 1,
         status: savedReport?.status ?? 'draft',
-        logoUrl: workspaceSettings?.logoUrl,
+        logoUrl: resolveReportLogoUrl(
+          workspaceSettings?.organizationName ?? DEFAULT_REPORT_ORGANIZATION_NAME,
+          workspaceSettings?.logoUrl,
+        ),
         primaryColor: workspaceSettings?.primaryColor,
         accentColor: workspaceSettings?.accentColor,
         reportTemplate: workspaceSettings?.reportTemplate,
@@ -221,7 +225,10 @@ export function CommercializationReportPage() {
     reportFooter: workspaceSettings?.reportFooter,
     version: savedReport.version,
     status: savedReport.status,
-    logoUrl: workspaceSettings?.logoUrl,
+    logoUrl: resolveReportLogoUrl(
+      workspaceSettings?.organizationName ?? DEFAULT_REPORT_ORGANIZATION_NAME,
+      workspaceSettings?.logoUrl,
+    ),
     primaryColor: workspaceSettings?.primaryColor,
     accentColor: workspaceSettings?.accentColor,
     reportTemplate: workspaceSettings?.reportTemplate,

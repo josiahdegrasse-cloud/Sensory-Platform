@@ -3,6 +3,7 @@ import {
   formatDecisionDimension,
   getEvidenceStrength,
   getEvidenceStrengthNote,
+  resolveReportLogoUrl,
   summarizeConceptResponses,
 } from './commercialization-report';
 
@@ -35,5 +36,12 @@ describe('commercialization report evidence', () => {
   it('uses client-facing labels for decision dimensions', () => {
     expect(formatDecisionDimension('cata')).toBe('Panelist-selected sensory descriptors');
     expect(formatDecisionDimension('emotional')).toBe('Positive emotional response indicators');
+  });
+
+  it('uses the NFI logo only as the default for the NFI workspace', () => {
+    expect(resolveReportLogoUrl('New Food Innovation')).toBe('/new_foodinnovation_ltd_logo.jpg');
+    expect(resolveReportLogoUrl('Client Foods')).toBeNull();
+    expect(resolveReportLogoUrl('Client Foods', 'https://example.com/logo.png'))
+      .toBe('https://example.com/logo.png');
   });
 });

@@ -4,6 +4,17 @@ import type { GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
 /** Default platform branding shown when no client/tenant profile is configured. */
 export const DEFAULT_REPORT_ORGANIZATION_NAME = 'New Food Innovation';
 export const DEFAULT_REPORT_WORKSPACE_NAME = 'Sensory Analysis Workspace';
+export const DEFAULT_REPORT_LOGO_URL = '/new_foodinnovation_ltd_logo.jpg';
+
+export function resolveReportLogoUrl(
+  organizationName: string,
+  logoUrl?: string | null,
+) {
+  if (logoUrl) return logoUrl;
+  return organizationName === DEFAULT_REPORT_ORGANIZATION_NAME
+    ? DEFAULT_REPORT_LOGO_URL
+    : null;
+}
 
 export interface ConceptEvidenceSummary {
   responseCount: number;

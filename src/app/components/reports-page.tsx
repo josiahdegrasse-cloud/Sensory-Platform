@@ -18,6 +18,7 @@ import {
 } from '../lib/hooks';
 import {
   DEFAULT_REPORT_ORGANIZATION_NAME, DEFAULT_REPORT_WORKSPACE_NAME,
+  resolveReportLogoUrl,
 } from '../lib/commercialization-report';
 import { buildReportLibrary, filterReportLibrary } from '../lib/report-library';
 import { downloadCommercializationReportPdf } from '../utils/commercialization-report-export';
@@ -85,9 +86,13 @@ export function ReportsPage() {
         reportFooter: settings?.reportFooter,
         version: entry.latest.version,
         status: entry.latest.status,
-        logoUrl: settings?.logoUrl,
+        logoUrl: resolveReportLogoUrl(
+          settings?.organizationName ?? DEFAULT_REPORT_ORGANIZATION_NAME,
+          settings?.logoUrl,
+        ),
         primaryColor: settings?.primaryColor,
         accentColor: settings?.accentColor,
+        reportTemplate: settings?.reportTemplate,
       });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to export the report.');

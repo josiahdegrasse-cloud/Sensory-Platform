@@ -77,7 +77,7 @@ export async function buildCommercializationReportPdf(input: CommercializationRe
     import('jspdf-autotable'),
   ]);
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-  const template = input.reportTemplate ?? 'standard';
+  const template = input.reportTemplate ?? 'editorial-sage';
   const primary: Rgb = template === 'editorial-sage' ? CHARCOAL : hexToRgb(input.primaryColor) ?? SLATE_950;
   const accent: Rgb = template === 'editorial-sage' ? SAGE : hexToRgb(input.accentColor) ?? DEFAULT_ACCENT;
   const ctx: PdfContext = {

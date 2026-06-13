@@ -6,6 +6,7 @@ import {
   getEvidenceStrength,
   type CommercializationReportSnapshot,
   DEFAULT_REPORT_ORGANIZATION_NAME, DEFAULT_REPORT_WORKSPACE_NAME,
+  resolveReportLogoUrl,
 } from '../lib/commercialization-report';
 import {
   useAdminConceptTests,
@@ -292,7 +293,10 @@ export function CommercializationReportBuilder({
                         reportFooter: settings?.reportFooter,
                         version: selectedReport?.version ?? savedVersion,
                         status: selectedReport?.status ?? savedStatus,
-                        logoUrl: settings?.logoUrl,
+                        logoUrl: resolveReportLogoUrl(
+                          settings?.organizationName ?? DEFAULT_REPORT_ORGANIZATION_NAME,
+                          settings?.logoUrl,
+                        ),
                         primaryColor: settings?.primaryColor,
                         accentColor: settings?.accentColor,
                         reportTemplate: settings?.reportTemplate,

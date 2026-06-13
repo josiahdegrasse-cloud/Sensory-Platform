@@ -59,7 +59,7 @@ const fallbackSettings: WorkspaceSettings = {
   reportFooter: '',
   reportTone: 'standard',
   defaultReportTitle: '',
-  reportTemplate: 'standard',
+  reportTemplate: 'editorial-sage',
   notifyOnImport: true,
   notifyOnCompletionTarget: true,
   notifyOnGenerationFailure: true,
