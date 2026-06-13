@@ -1,0 +1,92 @@
+{
+  "iteration": 1,
+  "generatedAt": "2026-06-13T00:20:35.985Z",
+  "pdf": "commercialization-readiness-iteration-1.pdf",
+  "scores": {
+    "A": 5,
+    "B": 5,
+    "C": 3,
+    "D": 3,
+    "E": 5,
+    "F": 5,
+    "G": 5,
+    "H": 3
+  },
+  "checks": [
+    {
+      "id": "page-count",
+      "passed": true,
+      "detail": "Expected 8 pages; generated 8."
+    },
+    {
+      "id": "required-headings",
+      "passed": true,
+      "detail": "Each required heading must appear on its intended page."
+    },
+    {
+      "id": "cover-decision",
+      "passed": true,
+      "detail": "Cover identifies the product, decision, readiness, and next action."
+    },
+    {
+      "id": "memo-structure",
+      "passed": true,
+      "detail": "Executive summary uses the required business memo structure."
+    },
+    {
+      "id": "flow",
+      "passed": true,
+      "detail": "Report follows decision, evidence, insight, direction, plan, risk, and source flow."
+    },
+    {
+      "id": "commercial-actions",
+      "passed": true,
+      "detail": "Insights and plan pages translate evidence into named actions."
+    },
+    {
+      "id": "score-interpretation",
+      "passed": false,
+      "detail": "Every major score has a nearby business implication."
+    },
+    {
+      "id": "concept-strategy",
+      "passed": true,
+      "detail": "Concept page connects packaging to strategy and labels the visual as directional."
+    },
+    {
+      "id": "scanability",
+      "passed": true,
+      "detail": "Page word counts: 84, 138, 177, 334, 181, 196, 223, 108."
+    },
+    {
+      "id": "appendix-discipline",
+      "passed": true,
+      "detail": "Technical identifiers appear in the appendix and not the commercial body."
+    },
+    {
+      "id": "specific-language",
+      "passed": true,
+      "detail": "Forbidden generic interpretation phrases are absent."
+    },
+    {
+      "id": "warning-repetition",
+      "passed": false,
+      "detail": "Repeated caveats: treat preference and purchase-intent findings as directional until a broader panel is collected. | final packaging requires design, claims, and legal approval."
+    }
+  ],
+  "pageWordCounts": [
+    84,
+    138,
+    177,
+    334,
+    181,
+    196,
+    223,
+    108
+  ],
+  "weaknesses": [
+    "Every major score has a nearby business implication.",
+    "Repeated caveats: treat preference and purchase-intent findings as directional until a broader panel is collected. | final packaging requires design, claims, and legal approval."
+  ],
+  "passed": false
+}

@@ -33,7 +33,7 @@ describe('commercialization report filename', () => {
     })).toBe('new-food-innovation-sample-s4-commercialization-report-go-2026-06-11-r3.pdf');
   });
 
-  it('builds an editorial multi-page report with guide and closing pages', async () => {
+  it('builds the complete eight-page commercialization readiness report', async () => {
     const { doc } = await buildCommercializationReportPdf({
       organizationName: 'New Food Innovation',
       workspaceName: 'Sensory Workspace',
@@ -80,7 +80,7 @@ describe('commercialization report filename', () => {
       },
     });
 
-    expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(7);
+    expect(doc.getNumberOfPages()).toBe(8);
   });
 
   it('builds the editorial-sage masthead layout without error', async () => {
@@ -131,6 +131,6 @@ describe('commercialization report filename', () => {
       },
     });
 
-    expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(7);
+    expect(doc.getNumberOfPages()).toBe(8);
   });
 });

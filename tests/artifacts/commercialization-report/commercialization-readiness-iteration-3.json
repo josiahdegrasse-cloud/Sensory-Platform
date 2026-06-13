@@ -1,0 +1,89 @@
+{
+  "iteration": 3,
+  "generatedAt": "2026-06-13T00:26:38.424Z",
+  "pdf": "commercialization-readiness-iteration-3.pdf",
+  "scores": {
+    "A": 5,
+    "B": 5,
+    "C": 5,
+    "D": 5,
+    "E": 5,
+    "F": 5,
+    "G": 5,
+    "H": 5
+  },
+  "checks": [
+    {
+      "id": "page-count",
+      "passed": true,
+      "detail": "Expected 8 pages; generated 8."
+    },
+    {
+      "id": "required-headings",
+      "passed": true,
+      "detail": "Each required heading must appear on its intended page."
+    },
+    {
+      "id": "cover-decision",
+      "passed": true,
+      "detail": "Cover identifies the product, decision, readiness, and next action."
+    },
+    {
+      "id": "memo-structure",
+      "passed": true,
+      "detail": "Executive summary uses the required business memo structure."
+    },
+    {
+      "id": "flow",
+      "passed": true,
+      "detail": "Report follows decision, evidence, insight, direction, plan, risk, and source flow."
+    },
+    {
+      "id": "commercial-actions",
+      "passed": true,
+      "detail": "Insights and plan pages translate evidence into named actions."
+    },
+    {
+      "id": "score-interpretation",
+      "passed": true,
+      "detail": "Every major score has a nearby business implication."
+    },
+    {
+      "id": "concept-strategy",
+      "passed": true,
+      "detail": "Concept page connects packaging to strategy and labels the visual as directional."
+    },
+    {
+      "id": "scanability",
+      "passed": true,
+      "detail": "Page word counts: 84, 138, 177, 319, 181, 196, 223, 107."
+    },
+    {
+      "id": "appendix-discipline",
+      "passed": true,
+      "detail": "Technical identifiers appear in the appendix and not the commercial body."
+    },
+    {
+      "id": "specific-language",
+      "passed": true,
+      "detail": "Forbidden generic interpretation phrases are absent."
+    },
+    {
+      "id": "warning-repetition",
+      "passed": true,
+      "detail": "No repeated caveat sentence detected."
+    }
+  ],
+  "pageWordCounts": [
+    84,
+    138,
+    177,
+    319,
+    181,
+    196,
+    223,
+    107
+  ],
+  "weaknesses": [],
+  "passed": true
+}

@@ -62,6 +62,7 @@ export function lighten([r, g, b]: Rgb, amount: number): Rgb {
 
 export async function imageDataUrl(url: string) {
   if (!url) return null;
+  if (url.startsWith('data:image/')) return url;
   try {
     const response = await fetch(url);
     if (!response.ok) return null;

@@ -4,7 +4,6 @@ import {
   SAGE,
   SLATE_950,
   addContentPage,
-  chapterBanner,
   hexToRgb,
   imageDataUrl,
   renderFooter,
@@ -12,22 +11,28 @@ import {
   type Rgb,
 } from './pdf/theme';
 import {
-  TOC_ENTRIES,
-  buildClosingSection,
-  buildConceptPackagingSection,
-  buildCoverData,
-  buildExecutiveSummarySection,
-  buildProductEvidenceSection,
-  buildRisksNextStepsSection,
+  buildAppendix,
+  buildCommercialInsights,
+  buildCommercializationPlan,
+  buildConceptPackaging,
+  buildDecisionSnapshot,
+  buildExecutiveReadout,
+  buildPerformanceDashboard,
+  buildRisks,
   type CommercializationReportPdfInput,
 } from './pdf/sections';
-import { renderCoverPage } from './pdf/cover';
-import { patchTocPageNumbers, renderTocPage } from './pdf/toc';
-import { renderExecutiveSummaryChapter } from './pdf/chapters/executive-summary';
-import { renderProductEvidenceChapter } from './pdf/chapters/product-evidence';
-import { renderConceptPackagingChapter } from './pdf/chapters/concept-packaging';
-import { renderRisksNextStepsChapter } from './pdf/chapters/risks-next-steps';
-import { renderClosingPage } from './pdf/closing';
+import {
+  renderCommercialInsightsPage,
+  renderDecisionSnapshotPage,
+  renderExecutiveReadoutPage,
+  renderPerformanceDashboardPage,
+} from './pdf/pages/decision-pages';
+import {
+  renderAppendixPage,
+  renderCommercializationPlanPage,
+  renderConceptPackagingPage,
+  renderRisksPage,
+} from './pdf/pages/action-pages';
 
 export type { CommercializationReportPdfInput } from './pdf/sections';
 
@@ -93,44 +98,28 @@ export async function buildCommercializationReportPdf(input: CommercializationRe
     imageDataUrl(input.logoUrl ?? ''),
   ]);
 
-  // Cover
-  renderCoverPage(ctx, buildCoverData(input), { packaging, logo });
+  renderDecisionSnapshotPage(ctx, buildDecisionSnapshot(input), { packaging, logo });
 
-  // Contents and reading guide (page numbers are patched in once chapter pages are known)
-  const tocLayout = renderTocPage(ctx, TOC_ENTRIES);
-  const chapterPages: number[] = [];
+  addContentPage(ctx);
+  renderExecutiveReadoutPage(ctx, buildExecutiveReadout(input));
 
-  // Chapter 1: Executive summary and evidence confidence
-  let y = addContentPage(ctx);
-  y = chapterBanner(ctx, 'Section 1', 'Executive summary and evidence confidence', y);
-  chapterPages.push(doc.getNumberOfPages());
-  renderExecutiveSummaryChapter(ctx, buildExecutiveSummarySection(input), autoTable, y);
+  addContentPage(ctx);
+  renderPerformanceDashboardPage(ctx, buildPerformanceDashboard(input));
 
-  // Chapter 2: Product evidence and decision rationale
-  y = addContentPage(ctx);
-  y = chapterBanner(ctx, 'Section 2', 'Product evidence and decision rationale', y);
-  chapterPages.push(doc.getNumberOfPages());
-  renderProductEvidenceChapter(ctx, buildProductEvidenceSection(input), autoTable, y);
+  addContentPage(ctx);
+  renderCommercialInsightsPage(ctx, buildCommercialInsights(input));
 
-  // Chapter 3: Concept, packaging, and market direction
-  y = addContentPage(ctx);
-  y = chapterBanner(ctx, 'Section 3', 'Concept, packaging, and market direction', y);
-  chapterPages.push(doc.getNumberOfPages());
-  renderConceptPackagingChapter(ctx, buildConceptPackagingSection(input), packaging, y);
+  addContentPage(ctx);
+  renderConceptPackagingPage(ctx, buildConceptPackaging(input), packaging);
 
-  // Chapter 4: Commercialization risks and next actions (also covers the appendix entry)
-  y = addContentPage(ctx);
-  y = chapterBanner(ctx, 'Section 4', 'Commercialization risks and next actions', y);
-  chapterPages.push(doc.getNumberOfPages());
-  renderRisksNextStepsChapter(ctx, buildRisksNextStepsSection(input), autoTable, y);
-  chapterPages.push(chapterPages[chapterPages.length - 1]);
+  addContentPage(ctx);
+  renderCommercializationPlanPage(ctx, buildCommercializationPlan(input), autoTable);
 
-  // Closing note
-  y = addContentPage(ctx);
-  y = chapterBanner(ctx, 'About this report', 'Sources, review status, and distribution', y);
-  renderClosingPage(ctx, buildClosingSection(input), y);
+  addContentPage(ctx);
+  renderRisksPage(ctx, buildRisks(input), autoTable);
 
-  patchTocPageNumbers(ctx, tocLayout, chapterPages);
+  addContentPage(ctx);
+  renderAppendixPage(ctx, buildAppendix(input), autoTable);
 
   const pageCount = doc.getNumberOfPages();
   for (let page = 1; page <= pageCount; page += 1) {
