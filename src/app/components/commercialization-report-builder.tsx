@@ -20,7 +20,7 @@ import { updateConceptImageReviewStatus, type WorkspaceSettings } from '../lib/d
 import { downloadCommercializationReportPdf } from '../utils/commercialization-report-export';
 import { getConceptImageMode } from '../../../supabase/functions/_shared/concept-image-catalog.ts';
 import { Button } from './ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Textarea } from './ui/textarea';
@@ -144,13 +144,16 @@ export function CommercializationReportBuilder({
         Build launch report
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Commercialization report</DialogTitle>
+        <DialogContent className="h-[min(90vh,760px)] max-w-6xl grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0">
+          <DialogHeader className="border-b border-slate-200 px-5 py-4 pr-14">
+            <DialogTitle className="text-xl text-slate-950">Commercialization report</DialogTitle>
+            <DialogDescription>
+              Select the concept and packaging, review the evidence narrative, then save and export the client-ready report.
+            </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
-            <div className="space-y-4">
+          <div className="grid min-h-0 overflow-y-auto lg:grid-cols-[280px_minmax(0,1fr)] lg:overflow-hidden">
+            <aside className="space-y-4 border-b border-slate-200 bg-slate-50/70 p-5 lg:overflow-y-auto lg:border-r lg:border-b-0">
               <div>
                 <Label>Concept study</Label>
                 <Select value={conceptId} onValueChange={value => { setConceptId(value); setImageIndex(0); setSnapshot(null); }}>
@@ -238,11 +241,11 @@ export function CommercializationReportBuilder({
               <Button onClick={generate} disabled={!selectedConcept || selectedConcept.imageUrls.length === 0} className="w-full">
                 <Sparkles className="size-4" />Generate evidence draft
               </Button>
-            </div>
+            </aside>
 
-            <div className="space-y-4">
+            <section className="min-h-0 space-y-4 p-5 lg:overflow-y-auto">
               {!snapshot ? (
-                <div className="flex min-h-80 items-center justify-center rounded-lg border border-dashed border-slate-300 text-center">
+                <div className="flex h-full min-h-72 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-6 text-center">
                   <div className="max-w-sm">
                     <FileText className="mx-auto size-8 text-slate-400" />
                     <p className="mt-3 font-semibold text-slate-900">Select the approved packaging</p>
@@ -277,7 +280,7 @@ export function CommercializationReportBuilder({
                     </div>
                   ))}
                   {error && <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
-                  <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-4">
+                  <div className="sticky bottom-0 -mx-5 flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-white/95 px-5 py-4 backdrop-blur-sm">
                     <Button variant="outline" onClick={saveDraft} disabled={createReport.isPending}>
                       <FileCheck2 className="size-4" />{createReport.isPending ? 'Saving...' : 'Save new version'}
                     </Button>
@@ -307,7 +310,7 @@ export function CommercializationReportBuilder({
                   </div>
                 </>
               )}
-            </div>
+            </section>
           </div>
         </DialogContent>
       </Dialog>
