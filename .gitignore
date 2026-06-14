@@ -22,3 +22,4 @@ ruvector.db
 .claude-flow/security
 .claude-flow/agents
 .claude-flow/swarm
+.vercel
