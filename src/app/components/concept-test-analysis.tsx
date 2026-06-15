@@ -11,6 +11,7 @@ import { useAdminConceptTests, useConceptTestResponses } from '../lib/hooks';
 import type { ConceptTest, ConceptQuestion, ConceptResponse } from '../lib/database';
 import { Megaphone, Trophy, MessageSquare, Users } from 'lucide-react';
 import { InsightInterpretationBlock } from './insights-ui';
+import { TEMPORARY_CHEESE_DEMO_LABEL } from '../data/temporary-cheese-demo';
 
 const CONCEPT_ACCENT = '#2563eb';
 
@@ -119,6 +120,11 @@ function ConceptResultsPanel({ test, responses, minimumResponses }: {
           <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4 text-xs">
             <span className="font-semibold text-slate-500">Concept shown</span>
             <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 font-semibold text-blue-800">{test.name}</span>
+            {test.approvalNotes === TEMPORARY_CHEESE_DEMO_LABEL && (
+              <span className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 font-semibold text-amber-800">
+                Temporary demo responses
+              </span>
+            )}
             {test.projectName && (
               <span className="rounded-md border border-slate-200 bg-white px-2 py-1 font-medium text-slate-600">
                 Project {test.projectName}

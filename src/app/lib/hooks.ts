@@ -23,6 +23,14 @@ import {
 } from './database'
 import type { TrainingLevel } from '../utils/panelist-metrics'
 import type { Product } from '../data/mock-users'
+import {
+  TEMPORARY_CHEESE_CONCEPT_RESPONSES,
+  TEMPORARY_CHEESE_CONCEPTS,
+  TEMPORARY_CHEESE_DECISION,
+  TEMPORARY_CHEESE_PRODUCT,
+  TEMPORARY_CHEESE_RESPONSES,
+  mergeTemporaryFixtures,
+} from '../data/temporary-cheese-demo'
 import { getTenantSlug } from './tenant'
 
 export const queryKeys = {
@@ -54,7 +62,10 @@ export const queryKeys = {
 }
 
 export function useProducts() {
-  return useQuery({ queryKey: queryKeys.products, queryFn: fetchProducts })
+  return useQuery({
+    queryKey: queryKeys.products,
+    queryFn: async () => mergeTemporaryFixtures(await fetchProducts(), [TEMPORARY_CHEESE_PRODUCT]),
+  })
 }
 
 export function useActiveProducts() {
@@ -74,11 +85,17 @@ export function usePanelistReliability() {
 }
 
 export function useAllResponses() {
-  return useQuery({ queryKey: queryKeys.allResponses, queryFn: () => fetchAllResponses() })
+  return useQuery({
+    queryKey: queryKeys.allResponses,
+    queryFn: async () => mergeTemporaryFixtures(await fetchAllResponses(), TEMPORARY_CHEESE_RESPONSES),
+  })
 }
 
 export function useDecisionRecords() {
-  return useQuery({ queryKey: queryKeys.decisionRecords, queryFn: () => fetchDecisionRecords(500) })
+  return useQuery({
+    queryKey: queryKeys.decisionRecords,
+    queryFn: async () => mergeTemporaryFixtures(await fetchDecisionRecords(500), [TEMPORARY_CHEESE_DECISION]),
+  })
 }
 
 export function useUserResponses(userId: string) {
@@ -114,13 +131,20 @@ export function useConceptTest(conceptId: string | undefined) {
 }
 
 export function useAdminConceptTests() {
-  return useQuery({ queryKey: queryKeys.adminConceptTests, queryFn: fetchConceptTestsForAdmin })
+  return useQuery({
+    queryKey: queryKeys.adminConceptTests,
+    queryFn: async () => mergeTemporaryFixtures(await fetchConceptTestsForAdmin(), TEMPORARY_CHEESE_CONCEPTS),
+  })
 }
 
 export function useConceptTestResponses(conceptId: string | undefined) {
   return useQuery({
     queryKey: queryKeys.conceptTestResponses(conceptId ?? ''),
-    queryFn: () => fetchConceptResponsesForTest(conceptId!),
+    queryFn: async () => {
+      const temporaryResponses = TEMPORARY_CHEESE_CONCEPT_RESPONSES[conceptId!] ?? [];
+      if (temporaryResponses.length > 0) return temporaryResponses;
+      return fetchConceptResponsesForTest(conceptId!);
+    },
     enabled: !!conceptId,
   })
 }

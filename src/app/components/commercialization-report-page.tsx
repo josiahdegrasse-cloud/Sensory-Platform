@@ -28,6 +28,10 @@ import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import {
   ReportNarrativePanel, ReportPdfPreviewPanel, ReportVersionsPanel,
 } from './report-workspace-panels';
+import {
+  TEMPORARY_CHEESE_DECISION,
+  TEMPORARY_CHEESE_DEMO_LABEL,
+} from '../data/temporary-cheese-demo';
 
 /**
  * The Commercialization Report — the final stage of the project journey.
@@ -99,6 +103,8 @@ export function CommercializationReportPage() {
   ) ?? null, [concepts, effectiveFoodType, requestedReport]);
   const { data: conceptResponses = [] } = useConceptTestResponses(projectConcept?.id);
   const evidence = useMemo(() => projectConcept ? summarizeConceptResponses(projectConcept.questions, conceptResponses) : null, [projectConcept, conceptResponses]);
+  const usingTemporaryDemo = focusDecision?.id === TEMPORARY_CHEESE_DECISION.id
+    || projectConcept?.approvalNotes === TEMPORARY_CHEESE_DEMO_LABEL;
 
   const savedReport = useMemo(() => {
     if (requestedReport) return requestedReport;
@@ -186,6 +192,7 @@ export function CommercializationReportPage() {
     ...status.warnings,
     ...(focusDecision.decision !== 'GO' ? [`${focusDecision.sampleName} has not reached a GO decision — commercialization claims should not proceed until it does.`] : []),
     ...(!projectConcept ? ['No concept test is linked to this project yet — consumer-facing claims have not been validated.'] : []),
+    ...(usingTemporaryDemo ? ['Temporary synthetic cheese evidence is active. Replace it with collected client data before approval or external use.'] : []),
     ...(evidence && evidence.responseCount > 0 && evidence.responseCount < 30 ? [`Concept evidence is based on a small panel (n=${evidence.responseCount}) — treat purchase-intent figures as directional.`] : []),
     ...(!matchingLiveSensory && sensoryProfile ? ['Sensory evidence for this sample is based on reference/demo data, not live panelist responses — collect live responses before using this report as a client deliverable.'] : []),
   ];
@@ -250,12 +257,21 @@ export function CommercializationReportPage() {
         draftLabel={savedReport ? `Draft v${savedReport.version} · ${savedReport.status}` : undefined}
       />
 
+      {usingTemporaryDemo && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <strong>Temporary cheese demo:</strong> this report preview includes synthetic sensory, concept, and decision evidence.
+          It is intended only to exercise the report workflow.
+        </div>
+      )}
+
       {savedReport && savedReport.status !== 'archived' && (
         <ReportApprovalBar
           report={savedReport}
-          blockedReason={sensoryProvenance === 'reference'
-            ? 'This report still uses reference/demo sensory data. Collect live panel responses before approving it as a client deliverable.'
-            : undefined}
+          blockedReason={usingTemporaryDemo
+            ? 'This report includes temporary synthetic cheese evidence. Replace it with collected client data before approval.'
+            : sensoryProvenance === 'reference'
+              ? 'This report still uses reference/demo sensory data. Collect live panel responses before approving it as a client deliverable.'
+              : undefined}
         />
       )}
 

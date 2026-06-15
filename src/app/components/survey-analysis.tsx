@@ -42,6 +42,7 @@ import {
   InsightsPrototypeWorkspace,
   type InsightsPrototypeOption,
 } from './insights-prototype-workspace';
+import { TEMPORARY_CHEESE_PRODUCT } from '../data/temporary-cheese-demo';
 
 function buildImportedProfiles(dataset: ReturnType<typeof useInstrumentalDataset>['data']): EnhancedSensoryProfile[] {
   return (dataset?.eTongueData ?? []).map(sample => {
@@ -124,6 +125,7 @@ export function SurveyAnalysis() {
     aggregation.productName.toLowerCase().includes(`(${selectedData.sampleId.toLowerCase()})`)
   ) : undefined;
   const usingLiveData = Boolean(matchingLiveData);
+  const usingTemporaryDemo = matchingLiveData?.productId === TEMPORARY_CHEESE_PRODUCT.id;
   const usingReferenceData = Boolean(selectedData && !selectedInstrument && !matchingLiveData);
   const liveResponseCount = matchingLiveData?.n ?? 0;
 
@@ -351,6 +353,13 @@ export function SurveyAnalysis() {
         intensityContent={<IntensityTab activeIntensityData={activeIntensity} activePanelistN={panelN} usingLiveData={usingLiveData} intensityMax={usingLiveData ? 5 : 10} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}
         commentsContent={<CommentsTab usingLiveData={usingLiveData} matchingLiveData={matchingLiveData} commentsByProduct={commentsByProduct} />}
       />
+
+      {usingTemporaryDemo && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <strong>Temporary cheese demo:</strong> the panel responses shown for {selectedData.sampleName} are synthetic preview data.
+          Replace them with collected panel responses before using these findings externally.
+        </div>
+      )}
 
       {liveDataFetchFailed && (
         <div className="flex items-start gap-2 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-900">

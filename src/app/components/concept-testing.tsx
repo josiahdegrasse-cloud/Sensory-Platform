@@ -9,6 +9,7 @@ import {
 import { insertConceptTest } from '../lib/database';
 import { detectFoodType } from '../lib/food-intelligence';
 import {
+  useAdminConceptTests,
   useConceptGenerationSettings,
   useConceptLabDiagnostics,
   usePanelists,
@@ -24,6 +25,8 @@ import { ReviewStep } from './concept-testing/ReviewStep';
 import { getConceptReadiness } from './concept-testing/concept-readiness';
 import { buildTailoredConceptQuestions, defaultConceptPanelistIds } from './concept-testing/smart-defaults';
 import { ProjectHeader } from './project-header';
+import { Badge } from './ui/badge';
+import { TEMPORARY_CHEESE_DEMO_LABEL } from '../data/temporary-cheese-demo';
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
@@ -89,6 +92,7 @@ export function ConceptTesting() {
   const [saveState, setSaveState] = useState<'idle' | 'saved'>('idle');
   const [sourceDecision, setSourceDecision] = useState<SourceDecisionSeed | null>(null);
   const { data: settings } = useConceptGenerationSettings();
+  const { data: existingConcepts = [] } = useAdminConceptTests();
   const { data: workspaceSettings } = useWorkspaceSettings();
   const { data: diagnostics } = useConceptLabDiagnostics();
   const smartDefaultsApplied = useRef(false);
@@ -210,6 +214,28 @@ export function ConceptTesting() {
     setSourceDecision(null);
     smartDefaultsApplied.current = false;
     localStorage.removeItem(DRAFT_STORAGE_KEY);
+  };
+
+  const useExistingConcept = (concept: (typeof existingConcepts)[number]) => {
+    const nextDraft = {
+      ...makeEmptyDraft(settings?.promptStyle ?? 'balanced'),
+      name: concept.name,
+      category: concept.category,
+      projectName: concept.projectName ?? 'Project 1',
+      description: concept.description,
+      marketingImages: concept.imageUrls,
+      marketingImageIds: concept.imageIds ?? [],
+      targetMarket: concept.targetMarket,
+      pricePoint: concept.pricePoint,
+      keyBenefits: concept.keyBenefits,
+    };
+    setDraft(nextDraft);
+    setQuestions(concept.questions);
+    setQuestionsReviewState('draft');
+    setPanelSize(concept.panelSize);
+    setAssignedPanelistIds(concept.assignedPanelistIds);
+    setStep('concept');
+    setDraftNotice(`Loaded "${concept.name}" as a new working draft. The launched concept remains unchanged.`);
   };
 
   const handleLaunch = async () => {
@@ -345,6 +371,46 @@ export function ConceptTesting() {
             </Link>
           </Button>
         </div>
+      )}
+
+      {existingConcepts.length > 0 && (
+        <section className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-slate-950">Existing concepts</h2>
+              <p className="mt-1 text-sm text-slate-600">Review launched directions or reuse one as the starting point for a new test.</p>
+            </div>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/survey-analysis">View concept insights</Link>
+            </Button>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {existingConcepts.slice(0, 6).map(concept => {
+              const isTemporary = concept.approvalNotes === TEMPORARY_CHEESE_DEMO_LABEL;
+              return (
+                <article key={concept.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <h3 className="font-semibold text-slate-950">{concept.name}</h3>
+                      <p className="mt-0.5 text-xs text-slate-500">{concept.category} · {concept.projectName}</p>
+                    </div>
+                    <div className="flex gap-1.5">
+                      {isTemporary && <Badge className="bg-amber-100 text-amber-800">Temporary demo</Badge>}
+                      <Badge variant="outline">{concept.status}</Badge>
+                    </div>
+                  </div>
+                  <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-700">{concept.description}</p>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs text-slate-500">{concept.panelSize} invited · {concept.questions.length} questions</span>
+                    <Button size="sm" variant="outline" onClick={() => useExistingConcept(concept)}>
+                      Use as starting point
+                    </Button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
       )}
 
       <nav aria-label="Concept test progress" className="grid grid-cols-4 gap-2">
