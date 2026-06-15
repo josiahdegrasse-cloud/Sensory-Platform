@@ -1,4 +1,5 @@
-import { AlertTriangle, Check, CheckCircle2, ClipboardCheck, ShieldAlert, X } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, ClipboardCheck, ShieldAlert, Upload, X } from 'lucide-react';
+import { Link } from 'react-router';
 import { buildDecisionSummary } from '../lib/decision-summary';
 import type { DecisionGate, GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
 import { Badge } from './ui/badge';
@@ -296,6 +297,35 @@ export function DecisionReviewWorkspace({
                   <p className="mt-2 text-sm leading-6 text-slate-700">
                     Address the failed decision criteria, then collect a new evidence set before reconsidering this prototype.
                   </p>
+                )}
+                {selected.decision !== 'GO' && (
+                  <div className="mt-4 border-t border-slate-200 pt-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {selected.decision === 'STOP' ? 'Test a reformulation' : 'Confirm the adjustment'}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-700">
+                      Import new machine data specifically for {selected.sampleName}.
+                    </p>
+                    <Button asChild size="sm" className="mt-3 bg-slate-900 text-white hover:bg-slate-700">
+                      <Link
+                        to="/stage1"
+                        state={{
+                          retestImport: {
+                            sampleId: selected.sampleId,
+                            sampleName: selected.sampleName,
+                            decision: selected.decision,
+                            target: primaryPrescription?.target,
+                            action: primaryPrescription?.action,
+                          },
+                        }}
+                      >
+                        <Upload className="size-4" />
+                        {selected.decision === 'STOP'
+                          ? `Import reformulation for ${selected.sampleName}`
+                          : `Import retest for ${selected.sampleName}`}
+                      </Link>
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>

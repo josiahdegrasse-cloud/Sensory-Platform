@@ -1,6 +1,6 @@
 import { CHART_CHROME } from '../styles/tokens';
 import { useState, useRef, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { useFoodType } from "../contexts/food-type-context";
 import { useAuth } from "../contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -32,18 +32,22 @@ import { applyImportMappings, inferImportMappings } from "../lib/csv-import-mapp
 
 import {
   type ETongueMeasurement, type GCMSCompound, type ChemicalComposition,
-  type ColumnReport, type ImportCompletionSummary,
+  type ColumnReport, type ImportCompletionSummary, type RetestImportContext,
   MAX_FILE_SIZE, DEMO_TYPES,
   parseCSVLine, mergeInstrumentalData,
   inferType, inferCategory, getPointColor,
-  buildImportedDataset, validateImportedDataset, applyImportedDataset,
+  buildImportedDataset, validateImportedDataset, applyImportedDataset, buildRetestBatchName,
 } from "./stage1-instrumental-data";
 
 
 export function Stage1Instrumental() {
   const storedImportedData = useMemo(() => null, []);
   const initialDataset = useMemo(() => mergeInstrumentalData(storedImportedData), [storedImportedData]);
+  const location = useLocation();
   const navigate = useNavigate();
+  const retestImport = (
+    location.state as { retestImport?: RetestImportContext } | null
+  )?.retestImport;
   const { user } = useAuth();
   const instrumentalDatasetQuery = useInstrumentalDataset(user?.role === 'admin');
   const insertInstrumentalImport = useInsertInstrumentalImport();
@@ -221,7 +225,7 @@ export function Stage1Instrumental() {
     });
     setPreviewData(mappedData);
     setUploadedFile(fileName);
-    setBatchName(fileName.replace(/\.csv$/i, ''));
+    setBatchName(retestImport ? buildRetestBatchName(retestImport) : fileName.replace(/\.csv$/i, ''));
     setShowPreview(true);
     setImportStep(2);
     setImportError(null);
@@ -493,6 +497,41 @@ export function Stage1Instrumental() {
           </label>
         </div>
       </div>
+
+      {retestImport && (
+        <div className={`rounded-lg border p-4 ${
+          retestImport.decision === 'STOP'
+            ? 'border-rose-200 bg-rose-50'
+            : 'border-amber-200 bg-amber-50'
+        }`}>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                {retestImport.decision === 'STOP' ? 'Reformulation import' : 'Retest import'}
+              </p>
+              <h2 className="mt-1 text-base font-semibold text-slate-950">{retestImport.sampleName}</h2>
+              <p className="mt-1 text-sm text-slate-700">
+                New data will be labeled as <span className="font-semibold">{buildRetestBatchName(retestImport)}</span>
+                {' '}for sample {retestImport.sampleId}.
+              </p>
+              {retestImport.target && (
+                <p className="mt-2 text-xs text-slate-600">
+                  <span className="font-semibold">Change to verify:</span> {retestImport.target}
+                  {retestImport.action ? ` — ${retestImport.action}` : ''}
+                </p>
+              )}
+            </div>
+            <Button
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              className="shrink-0 bg-slate-900 text-white hover:bg-slate-700"
+            >
+              <Upload className="size-4" />
+              Choose CSV for {retestImport.sampleName}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Error banner */}
       {importError && (

@@ -1,7 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { buildImportedDataset, mergeInstrumentalData, recogniseColumns, validateImportedDataset } from './stage1-instrumental-data';
+import {
+  buildImportedDataset,
+  buildRetestBatchName,
+  mergeInstrumentalData,
+  recogniseColumns,
+  validateImportedDataset,
+} from './stage1-instrumental-data';
 
 describe('CSV import workflow intelligence', () => {
+  it('labels item-specific retest and reformulation imports clearly', () => {
+    expect(buildRetestBatchName({
+      sampleId: 'S5',
+      sampleName: 'Cashew Mozzarella v1.2',
+      decision: 'TWEAK',
+    })).toBe('Cashew Mozzarella v1.2 retest');
+
+    expect(buildRetestBatchName({
+      sampleId: 'S5',
+      sampleName: 'Cashew Mozzarella v1.2',
+      decision: 'STOP',
+    })).toBe('Cashew Mozzarella v1.2 reformulation');
+  });
+
   it('preserves the built-in cheese and bread machine datasets', () => {
     const dataset = mergeInstrumentalData(null);
 

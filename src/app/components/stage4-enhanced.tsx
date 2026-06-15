@@ -5,7 +5,7 @@ import { useFoodType, sampleMatchesFoodType, matchFoodType } from "../contexts/f
 import { Card, CardContent } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, FileText, GitMerge, Megaphone, XCircle } from "lucide-react";
+import { CheckCircle2, Download, FileSpreadsheet, FileText, Megaphone } from "lucide-react";
 import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from "../data/enhanced-sensory";
 import { DataProvenanceBadge } from "./data-provenance-badge";
 import { DecisionLog } from "./decision-log";
@@ -405,50 +405,6 @@ export function Stage4Enhanced() {
               </Link>
             </Button>
           </div>
-        </div>
-      )}
-
-      {confirmedDecisionForSelection?.decision === 'TWEAK' && (
-        <div className="flex flex-col gap-4 rounded-lg border border-amber-200 bg-amber-50 p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-700" />
-            <div>
-              <p className="font-semibold text-amber-950">
-                {confirmedDecisionForSelection.sampleName} needs an adjustment before it can advance.
-              </p>
-              <p className="mt-1 text-sm text-amber-800">
-                Make the planned adjustment, then import a retest batch to confirm the change worked.
-              </p>
-            </div>
-          </div>
-          <Button asChild size="sm" className="bg-amber-600 text-white hover:bg-amber-700">
-            <Link to="/stage1">
-              <GitMerge className="size-4" />
-              Import retest data
-            </Link>
-          </Button>
-        </div>
-      )}
-
-      {confirmedDecisionForSelection?.decision === 'STOP' && (
-        <div className="flex flex-col gap-4 rounded-lg border border-rose-200 bg-rose-50 p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-start gap-3">
-            <XCircle className="mt-0.5 size-5 shrink-0 text-rose-700" />
-            <div>
-              <p className="font-semibold text-rose-950">
-                {confirmedDecisionForSelection.sampleName} will not advance to commercialization.
-              </p>
-              <p className="mt-1 text-sm text-rose-800">
-                Review the gate failures above, or start a new formulation with imported data.
-              </p>
-            </div>
-          </div>
-          <Button asChild size="sm" variant="outline" className="border-rose-300 text-rose-800 hover:bg-rose-100">
-            <Link to="/stage1">
-              <GitMerge className="size-4" />
-              Start a new formulation
-            </Link>
-          </Button>
         </div>
       )}
 

@@ -54,6 +54,19 @@ export interface ImportCompletionSummary {
   savedPermanently: boolean;
 }
 
+export interface RetestImportContext {
+  sampleId: string;
+  sampleName: string;
+  decision: 'TWEAK' | 'STOP';
+  target?: string;
+  action?: string;
+}
+
+export function buildRetestBatchName(context: RetestImportContext) {
+  const suffix = context.decision === 'STOP' ? 'reformulation' : 'retest';
+  return `${context.sampleName} ${suffix}`;
+}
+
 export const MOCK_ETONGUE_DATA: ETongueMeasurement[] = [
   { sampleId: "S1", sourness: 2.3, bitterness: 3.1, saltiness: 4.2, umami: 2.8, sweetness: 1.5, type: "pbca", category: "Coconut-based" },
   { sampleId: "S2", sourness: 2.8, bitterness: 3.4, saltiness: 3.9, umami: 3.1, sweetness: 1.3, type: "pbca", category: "Coconut-based" },
