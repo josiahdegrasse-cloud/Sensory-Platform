@@ -67,9 +67,10 @@ interface CATATabProps {
   activePanelistN: number;
   usingLiveData: boolean;
   activeSampleId: string;
+  activeSampleName: string;
 }
 
-export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, activeSampleId }: CATATabProps) {
+export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, activeSampleId, activeSampleName }: CATATabProps) {
   const canShowSignificance = canShowInferentialStatistics(activePanelistN, !usingLiveData);
   const critP05 = (() => {
     for (let k = activePanelistN; k >= 0; k--) {
@@ -99,6 +100,7 @@ export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, 
               ? ` Significance threshold: ≥${critP05}/${activePanelistN} (binomial, p=0.5, α=0.05).`
               : ' Inferential significance is not shown for this evidence set.'}
           </p>
+          <SampleContext name={activeSampleName} id={activeSampleId} />
         </CardHeader>
         <CardContent>
           <div className="bg-white p-4 rounded-lg border-2 border-slate-200">
@@ -202,9 +204,18 @@ interface IntensityTabProps {
   activePanelistN: number;
   usingLiveData: boolean;
   intensityMax: number;
+  activeSampleId: string;
+  activeSampleName: string;
 }
 
-export function IntensityTab({ activeIntensityData, activePanelistN, usingLiveData, intensityMax }: IntensityTabProps) {
+export function IntensityTab({
+  activeIntensityData,
+  activePanelistN,
+  usingLiveData,
+  intensityMax,
+  activeSampleId,
+  activeSampleName,
+}: IntensityTabProps) {
   return (
       <Card>
         <CardHeader>
@@ -218,6 +229,7 @@ export function IntensityTab({ activeIntensityData, activePanelistN, usingLiveDa
           <p className="text-sm text-slate-600">
             Mean intensity scores from {activePanelistN} {usingLiveData ? 'panelists (live)' : 'semi-trained panelists'}
           </p>
+          <SampleContext name={activeSampleName} id={activeSampleId} />
         </CardHeader>
         <CardContent>
           <div className="grid gap-6 lg:grid-cols-2">
@@ -288,6 +300,8 @@ interface HedonicTabProps {
   activeAvgHedonic: string;
   activePanelistN: number;
   usingLiveData: boolean;
+  activeSampleId: string;
+  activeSampleName: string;
 }
 
 function getHedonicColor(score: number): string {
@@ -296,7 +310,14 @@ function getHedonicColor(score: number): string {
   return STATUS.stop;
 }
 
-export function HedonicTab({ activeHedonicData, activeAvgHedonic, activePanelistN, usingLiveData }: HedonicTabProps) {
+export function HedonicTab({
+  activeHedonicData,
+  activeAvgHedonic,
+  activePanelistN,
+  usingLiveData,
+  activeSampleId,
+  activeSampleName,
+}: HedonicTabProps) {
   const n = activePanelistN;
   const canShowIntervals = canShowInferentialStatistics(n, !usingLiveData);
   const dataWithSem = activeHedonicData.map(d => ({
@@ -318,6 +339,7 @@ export function HedonicTab({ activeHedonicData, activeAvgHedonic, activePanelist
           <p className="text-sm text-slate-600">
             Consumer acceptance ratings: 1 = Dislike Extremely, 9 = Like Extremely · n={n} panelists
           </p>
+          <SampleContext name={activeSampleName} id={activeSampleId} />
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
@@ -400,6 +422,20 @@ export function HedonicTab({ activeHedonicData, activeAvgHedonic, activePanelist
           </div>
         </CardContent>
       </Card>
+  );
+}
+
+function SampleContext({ name, id }: { name: string; id: string }) {
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+      <span className="font-semibold text-slate-500">Sample shown</span>
+      <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 font-semibold text-blue-800">
+        {name}
+      </span>
+      <span className="rounded-md border border-slate-200 bg-white px-2 py-1 font-medium text-slate-600">
+        ID {id}
+      </span>
+    </div>
   );
 }
 

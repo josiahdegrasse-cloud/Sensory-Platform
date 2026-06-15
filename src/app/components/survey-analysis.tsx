@@ -209,9 +209,11 @@ export function SurveyAnalysis() {
     ? strongestHedonic && strongestHedonic.score > 0
       ? `${strongestHedonic.category} is the strongest liking dimension at ${strongestHedonic.score.toFixed(1)}/9.`
       : activeCata[0] ? `${activeCata[0].attribute} is the most-selected descriptor.` : 'No clear sensory strength is established yet.'
-    : 'Live panel evidence has not yet established a client-facing sensory strength.';
+    : datasetsPresent > 0
+      ? `Machine evidence is linked for ${selectedData.sampleName}, but consumer preference has not been measured.`
+      : `No live sensory or machine evidence is available for ${selectedData.sampleName}.`;
   const keyConcern = !usingLiveData
-    ? 'Collect live panel responses before making product claims.'
+    ? `Collect at least ${minimumResponses} live panel responses before making liking, preference, or purchase claims.`
     : weakestHedonic && weakestHedonic.score < 6
       ? `${weakestHedonic.category} is the lowest liking dimension at ${weakestHedonic.score.toFixed(1)}/9.`
       : strength.note;
@@ -344,9 +346,9 @@ export function SurveyAnalysis() {
         intensityMax={usingLiveData ? 5 : 10}
         comments={comments}
         overviewEvidence={overviewEvidence}
-        likingContent={<HedonicTab activeHedonicData={activeHedonic} activeAvgHedonic={averageHedonic.toFixed(1)} activePanelistN={panelN} usingLiveData={usingLiveData} />}
-        descriptorContent={<CATATab activeCataAttributes={activeCata} activePanelistN={panelN} usingLiveData={usingLiveData} activeSampleId={selectedData.sampleId} />}
-        intensityContent={<IntensityTab activeIntensityData={activeIntensity} activePanelistN={panelN} usingLiveData={usingLiveData} intensityMax={usingLiveData ? 5 : 10} />}
+        likingContent={<HedonicTab activeHedonicData={activeHedonic} activeAvgHedonic={averageHedonic.toFixed(1)} activePanelistN={panelN} usingLiveData={usingLiveData} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}
+        descriptorContent={<CATATab activeCataAttributes={activeCata} activePanelistN={panelN} usingLiveData={usingLiveData} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}
+        intensityContent={<IntensityTab activeIntensityData={activeIntensity} activePanelistN={panelN} usingLiveData={usingLiveData} intensityMax={usingLiveData ? 5 : 10} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}
         commentsContent={<CommentsTab usingLiveData={usingLiveData} matchingLiveData={matchingLiveData} commentsByProduct={commentsByProduct} />}
       />
 
@@ -356,6 +358,16 @@ export function SurveyAnalysis() {
           Live panel responses could not be loaded. Any reference charts below are for method orientation only.
         </div>
       )}
+
+      <section className="space-y-4">
+        <InsightsSectionHeader
+          id="concept-feedback"
+          icon={BarChart3}
+          title="Concept insights"
+          description="Review appeal, preference, purchase intent, and packaging direction without opening the technical appendix."
+        />
+        <ConceptTestAnalysis projectTests={projectConcepts} minimumResponses={minimumResponses} />
+      </section>
 
       <details className="rounded-lg border border-slate-200 bg-white">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-bold text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500">
@@ -383,11 +395,6 @@ export function SurveyAnalysis() {
           )}
         </section>
       )}
-
-      <section className="space-y-4">
-        <InsightsSectionHeader id="concept-feedback" icon={BarChart3} title="Concept feedback" description="Concept appeal, preference, purchase intent, and packaging direction scoped to this project." />
-        <ConceptTestAnalysis projectTests={projectConcepts} minimumResponses={minimumResponses} />
-      </section>
 
       <section className="space-y-4">
         <InsightsSectionHeader id="comments-themes" icon={MessageCircle} title="Comments and themes" description="Raw panelist language remains visible alongside clear response coverage." />

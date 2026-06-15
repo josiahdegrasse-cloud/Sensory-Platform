@@ -90,6 +90,11 @@ export function InsightsPrototypeWorkspace({
   const leader = prototypes.find(prototype => prototype.signalLabel === 'Highest current liking');
   const runnerUp = rankedLivePrototypes.find(prototype => prototype.id !== leader?.id);
   const leaderDelta = leader && runnerUp ? leader.score - runnerUp.score : 0;
+  const claimReadiness = strength.representative
+    ? strength.level === 'Strong'
+      ? 'Yes, with the study context attached'
+      : 'Use with qualification'
+    : 'Not yet';
 
   return (
     <div className="grid gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
@@ -162,14 +167,36 @@ export function InsightsPrototypeWorkspace({
               </div>
             </div>
           </CardHeader>
-          <CardContent className="grid gap-3 pt-0 md:grid-cols-3">
-            <EvidenceFinding label="Evidence status" value={strength.note} emphasis tone="info" />
-            <EvidenceFinding label="Strongest observed signal" value={keyStrength} tone="success" />
-            <EvidenceFinding label="Evidence gap" value={keyConcern} tone="warning" />
+          <CardContent className="pt-0">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="max-w-2xl">
+                  <p className="text-xs font-semibold text-slate-600">Can this evidence support a product claim?</p>
+                  <p className="mt-1 text-xl font-bold text-slate-950">{claimReadiness}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">{strength.note}</p>
+                </div>
+                <div className="grid shrink-0 grid-cols-2 gap-2 text-center">
+                  <OverviewMetric label="Live responses" value={String(panelResponses)} />
+                  <OverviewMetric label="Instrument sources" value={`${instrumentSources}/3`} />
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 border-t border-slate-200 pt-4 md:grid-cols-2">
+                <EvidenceSummary label="What the evidence shows now" value={keyStrength} tone="success" />
+                <EvidenceSummary label="What is needed next" value={keyConcern} tone="warning" />
+              </div>
+            </div>
           </CardContent>
         </Card>
 
         <Tabs defaultValue="overview" className="mt-4">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+            <p className="text-sm font-semibold text-blue-950">
+              Viewing sample: {selected.name}
+            </p>
+            <span className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-200">
+              ID {selected.id}
+            </span>
+          </div>
           <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 sm:grid-cols-5">
             <TabsTrigger value="overview" className="py-2 data-[state=active]:bg-white data-[state=active]:text-blue-700">Evidence summary</TabsTrigger>
             <TabsTrigger value="liking" className="py-2 data-[state=active]:bg-white data-[state=active]:text-blue-700">Liking</TabsTrigger>
@@ -274,23 +301,19 @@ export function InsightsPrototypeWorkspace({
   );
 }
 
-function EvidenceFinding({ label, value, emphasis = false, tone }: {
+function EvidenceSummary({ label, value, tone }: {
   label: string;
   value: string;
-  emphasis?: boolean;
-  tone: 'info' | 'success' | 'warning';
+  tone: 'success' | 'warning';
 }) {
   const classes = {
-    info: 'border-blue-200 bg-blue-50',
     success: 'border-emerald-200 bg-emerald-50',
     warning: 'border-amber-200 bg-amber-50',
   }[tone];
   return (
-    <div className={cn('rounded-lg border p-4', classes)}>
+    <div className={cn('rounded-lg border p-3', classes)}>
       <p className="text-xs font-semibold text-slate-600">{label}</p>
-      <p className={cn('mt-2 leading-relaxed text-slate-800', emphasis ? 'text-base font-bold text-slate-950' : 'text-sm font-medium')}>
-        {value}
-      </p>
+      <p className="mt-1 text-sm font-medium leading-6 text-slate-800">{value}</p>
     </div>
   );
 }

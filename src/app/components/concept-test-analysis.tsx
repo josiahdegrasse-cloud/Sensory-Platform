@@ -46,7 +46,8 @@ export function ConceptTestAnalysis({ projectTests, minimumResponses = 12 }: {
     <div className="space-y-6">
       <Card>
         <CardHeader className="border-b border-slate-100">
-          <CardTitle className="text-lg">Select Concept Test</CardTitle>
+          <CardTitle className="text-lg">Choose a concept test</CardTitle>
+          <p className="text-sm text-slate-600">Select a launched concept to update every result below.</p>
         </CardHeader>
         <CardContent className="pt-4">
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -114,6 +115,15 @@ function ConceptResultsPanel({ test, responses, minimumResponses }: {
               </div>
             </div>
             <DataProvenanceBadge provenance="live" n={responses.length} />
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4 text-xs">
+            <span className="font-semibold text-slate-500">Concept shown</span>
+            <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 font-semibold text-blue-800">{test.name}</span>
+            {test.projectName && (
+              <span className="rounded-md border border-slate-200 bg-white px-2 py-1 font-medium text-slate-600">
+                Project {test.projectName}
+              </span>
+            )}
           </div>
         </CardContent>
       </Card>
