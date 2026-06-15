@@ -10,9 +10,9 @@ import { type Product, DEFAULT_CATA_ATTRIBUTES, getDefaultCataAttributes } from 
 import { useFoodType, matchFoodType } from '../contexts/food-type-context';
 import {
   useProducts, usePanelists,
-  useInsertProduct, useUpdateProduct, useUpdateProductAssignments, useDeleteProduct,
+  useInsertProduct, useUpdateProduct, useDeleteProduct,
   useUpdatePanelistId, useAllResponses, useImportBatches,
-  useInstrumentalDataset, useUpdateImportBatchStatus, useDeleteImportBatch,
+  useUpdateImportBatchStatus, useDeleteImportBatch,
 } from '../lib/hooks';
 import {
   Plus, Settings, Trash2, Save, CheckCircle2, FolderOpen, Layers,
@@ -38,11 +38,9 @@ export function AdminConfig() {
   const { data: panelists = [] } = usePanelists();
   const { data: allResponses = [] } = useAllResponses();
   const { data: importBatches = [] } = useImportBatches(activeTab === 'products' || activeTab === 'imports');
-  const { data: instrumentalDataset } = useInstrumentalDataset(activeTab === 'products' || activeTab === 'imports');
 
   const insertProductMutation = useInsertProduct();
   const updateProductMutation = useUpdateProduct();
-  const updateProductAssignmentsMutation = useUpdateProductAssignments();
   const deleteProductMutation = useDeleteProduct();
   const updatePanelistIdMutation = useUpdatePanelistId();
   const updateImportBatchStatusMutation = useUpdateImportBatchStatus();
@@ -111,23 +109,6 @@ export function AdminConfig() {
   const modalStdAttrs = getDefaultCataAttributes(newProductCategory);
   const activePanelists = filterAssignablePanelists(panelists);
 
-  const importedSamples = (instrumentalDataset?.eTongueData ?? []).filter(sample =>
-    sample.type === foodType &&
-    (!selectedBatchId || sample.importBatchId === selectedBatchId)
-  );
-  const importedSampleIds = new Set(importedSamples.map(sample => sample.sampleId));
-  const importedGcmsCount = Object.keys(instrumentalDataset?.gcmsData ?? {}).filter(id => importedSampleIds.has(id)).length;
-  const importedCompositionCount = Object.keys(instrumentalDataset?.compositionData ?? {}).filter(id => importedSampleIds.has(id)).length;
-  const normaliseProductName = (value: string) => value.trim().toLowerCase();
-  const importedSamplesWithoutQuestionnaires = importedSamples.filter(sample => {
-    const name = sample.sampleName || sample.sampleId;
-    const generatedName = name === sample.sampleId ? sample.sampleId : `${name} (${sample.sampleId})`;
-    return !products.some(product =>
-      normaliseProductName(product.name) === normaliseProductName(name) ||
-      normaliseProductName(product.name) === normaliseProductName(generatedName)
-    );
-  });
-
   const foodTypeProducts = products.filter(p => matchFoodType(p.category) === foodType);
   const scopedProducts = foodTypeProducts.filter(p => !selectedBatchId || p.sourceImportBatchId === selectedBatchId);
   const scopedActiveCount = scopedProducts.filter(p => p.status === 'active').length;
@@ -172,45 +153,6 @@ export function AdminConfig() {
     }
     return { label: 'Open to all', className: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
   };
-  const getSmartAttributesForSample = (sample: NonNullable<typeof instrumentalDataset>['eTongueData'][number]) => {
-    const base = getDefaultCataAttributes(sample.type || sample.category || currentFoodTypeLabel);
-    const suggested: string[] = [];
-    const tasteScores = [
-      { attr: 'Sour', value: sample.sourness },
-      { attr: 'Bitter', value: sample.bitterness },
-      { attr: 'Salty', value: sample.saltiness },
-      { attr: 'Umami', value: sample.umami },
-      { attr: 'Sweet', value: sample.sweetness },
-    ];
-    tasteScores
-      .filter(item => item.value >= 3.5)
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 3)
-      .forEach(item => suggested.push(item.attr));
-
-    (instrumentalDataset?.gcmsData?.[sample.sampleId] ?? [])
-      .filter(compound => compound.aroma && (compound.threshold === 0 || compound.concentration >= compound.threshold))
-      .slice(0, 4)
-      .forEach(compound => {
-        compound.aroma
-          .split(/[/,]+/)
-          .map(aroma => aroma.trim())
-          .filter(Boolean)
-          .forEach(aroma => suggested.push(formatFoodTypeLabel(aroma)));
-      });
-
-    const composition = instrumentalDataset?.compositionData?.[sample.sampleId];
-    if (composition?.protein && composition.protein >= 15) suggested.push('High Protein');
-    if (composition?.fat && composition.fat >= 10) suggested.push('Rich');
-    if (composition?.saltContent && composition.saltContent >= 1.5) suggested.push('Salty');
-
-    return Array.from(new Set([...base, ...suggested])).slice(0, 32);
-  };
-  const readyForAssignmentProducts = scopedProducts.filter(product =>
-    product.status === 'active' &&
-    getProductAssignmentMode(product) === 'open'
-  );
-  const selectedProject = selectedBatchId ? importBatches.find(batch => batch.id === selectedBatchId) : null;
   const recoverableImportCount = importBatches.filter(batch => batch.status !== 'active').length;
 
   // ── Sample handlers ───────────────────────────────────────────────────────────
@@ -408,24 +350,6 @@ export function AdminConfig() {
     }
   };
 
-  const handleAssignCurrentScopeToAllPanelists = async () => {
-    setMutationError('');
-    try {
-      await updateProductAssignmentsMutation.mutateAsync({
-        productIds: readyForAssignmentProducts.map(product => product.id),
-        assignedPanelistIds: activePanelists.map(panelist => panelist.id),
-      });
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
-      void notifyPanelistsOfSurveys(
-        activePanelists.map(panelist => panelist.id),
-        readyForAssignmentProducts.map(product => product.name),
-      );
-    } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Failed to assign current surveys.');
-    }
-  };
-
   const handleDeleteProduct = async (productId: string) => {
     setMutationError('');
     try {
@@ -470,66 +394,6 @@ export function AdminConfig() {
       setPanelistIdInput('');
     } catch (err) {
       setMutationError(err instanceof Error ? err.message : 'Failed to update panelist ID.');
-    }
-  };
-
-  const handleAddBreadStarterSet = async () => {
-    const breadProducts = [
-      { name: 'Sourdough Loaf v1.0',       category: 'Bread' },
-      { name: 'White Sandwich Bread v2.1', category: 'Bread' },
-      { name: 'Multigrain Artisan v1.0',   category: 'Bread' },
-    ];
-    setMutationError('');
-    try {
-      for (const p of breadProducts) {
-        await insertProductMutation.mutateAsync({
-          name: p.name, category: p.category, status: 'active',
-          customAttributes: getDefaultCataAttributes(p.category),
-        });
-      }
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
-    } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Failed to add bread starter products.');
-    }
-  };
-
-  const handleCreateQuestionnairesFromImports = async () => {
-    if (importedSamplesWithoutQuestionnaires.length === 0) {
-      setMutationError('');
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
-      return;
-    }
-
-    setMutationError('');
-    try {
-      let firstCreatedId: string | null = null;
-      const createdNames: string[] = [];
-      for (const sample of importedSamplesWithoutQuestionnaires) {
-        const name = sample.sampleName || sample.sampleId;
-        const category = sample.type === 'dairy' || sample.type === 'pbca'
-          ? 'Cheese'
-          : formatFoodTypeLabel(sample.type || sample.category || 'generic');
-        const created = await insertProductMutation.mutateAsync({
-          name: name === sample.sampleId ? sample.sampleId : `${name} (${sample.sampleId})`,
-          category,
-          status: 'active',
-          customAttributes: getSmartAttributesForSample(sample),
-          assignedPanelistIds: [],
-          sourceImportBatchId: sample.importBatchId,
-          sourceSampleId: sample.sampleId,
-        });
-        firstCreatedId = firstCreatedId ?? created.id;
-        createdNames.push(created.name);
-      }
-      if (firstCreatedId) setSelectedProduct(firstCreatedId);
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
-      // New surveys default to "open to all" — every active panelist is a recipient.
-      void notifyPanelistsOfSurveys(activePanelists.map(panelist => panelist.id), createdNames);
-    } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Failed to create questionnaires from imported samples.');
     }
   };
 
@@ -609,58 +473,12 @@ export function AdminConfig() {
         <span className="text-sm text-slate-500">{scopedCompletedCount} completed</span>
       </div>
 
-      {importedSamples.length > 0 && (
-        <div className="flex items-center justify-between gap-4 rounded-xl border border-blue-200 bg-blue-50 px-5 py-3">
-          <div className="flex min-w-0 items-center gap-4">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-blue-600">
-              <ClipboardList className="size-5 text-white" />
-            </div>
-            <div className="min-w-0">
-              <div className="font-semibold text-slate-900">
-                {selectedProject ? selectedProject.fileName.replace(/\.csv$/i, '') : `Imported ${currentFoodTypeLabel.toLowerCase()} workspace`}
-              </div>
-              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
-                <span>{importedSamples.length} sample{importedSamples.length === 1 ? '' : 's'}</span>
-                <span>{importedGcmsCount} GC-MS</span>
-                <span>{importedCompositionCount} comp</span>
-                <span>{importedSamplesWithoutQuestionnaires.length === 0 ? 'surveys created' : `${importedSamplesWithoutQuestionnaires.length} surveys missing`}</span>
-                <span title="Open to all = every active panelist already sees these surveys, including panelists added later.">
-                  {readyForAssignmentProducts.length} currently open to all
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="flex shrink-0 flex-wrap justify-end gap-2">
-            <Button
-              onClick={handleCreateQuestionnairesFromImports}
-              disabled={insertProductMutation.isPending || importedSamplesWithoutQuestionnaires.length === 0}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              <Plus className="size-4 mr-1.5" />
-              {importedSamplesWithoutQuestionnaires.length === 0
-                ? 'Surveys created'
-                : `Create ${importedSamplesWithoutQuestionnaires.length} survey${importedSamplesWithoutQuestionnaires.length === 1 ? '' : 's'}`}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleAssignCurrentScopeToAllPanelists}
-              disabled={updateProductAssignmentsMutation.isPending || activePanelists.length === 0 || readyForAssignmentProducts.length === 0}
-              className="border-blue-300 text-blue-700 hover:bg-white"
-              title="Locks these surveys to today's active panelists. They're already visible to everyone, but locking the roster means panelists added later won't be expected to complete this batch."
-            >
-              <Users className="size-4 mr-1.5" />
-              Lock panel roster
-            </Button>
-          </div>
-        </div>
-      )}
-
       {/* Products + Attribute Config — full-height split pane */}
       <div
         className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden"
         style={{
-          height: importedSamples.length > 0 ? 'calc(100vh - 335px)' : 'calc(100vh - 265px)',
-          minHeight: importedSamples.length > 0 ? '560px' : '600px',
+          height: 'calc(100vh - 265px)',
+          minHeight: '600px',
         }}
       >
         {/* Toolbar */}
@@ -693,14 +511,6 @@ export function AdminConfig() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={handleAddBreadStarterSet}
-              disabled={insertProductMutation.isPending}
-              className="h-8 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
-            >
-              Add Reference Set
-            </Button>
             <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700 h-8 text-sm">
               <Plus className="size-3.5 mr-1.5" />New Survey
             </Button>
