@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFoodType, sampleMatchesFoodType, matchFoodType } from "../contexts/food-type-context";
 import { Card, CardContent } from "./ui/card";
@@ -34,6 +34,7 @@ type SampleDecision = GoStopTweakDecision;
 const DEFAULT_WEIGHTS = { hedonic: 30, texture: 25, cata: 25, emotional: 15 };
 
 export function Stage4Enhanced() {
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { foodType, subCategory, extraFoodTypes } = useFoodType();
@@ -379,6 +380,7 @@ export function Stage4Enhanced() {
               foodType={foodType}
               userId={user?.id}
               settings={workspaceSettings}
+              initiallyOpen={Boolean((location.state as { openReport?: boolean } | null)?.openReport)}
             />
             <Button asChild size="sm" className="bg-emerald-700 text-white hover:bg-emerald-800">
               <Link

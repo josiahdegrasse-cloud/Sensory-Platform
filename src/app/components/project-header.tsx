@@ -1,4 +1,5 @@
-import { Link } from 'react-router';
+import { ArrowRight } from 'lucide-react';
+import { Link, useLocation } from 'react-router';
 import { Card, CardContent } from './ui/card';
 import { useFoodType } from '../contexts/food-type-context';
 import { useProjectStatus } from '../lib/use-project-status';
@@ -9,12 +10,15 @@ import { ProjectJourneyNav } from './project-journey-nav';
  * Persistent project context bar shown across the admin workflow pages
  * (/stage1, /survey-analysis, /decision, /concept-testing, future report page).
  * Shows project identity, status, and where the project sits in the workflow —
- * each page supplies its own primary action, so this stays informational only.
+ * Also exposes the computed next action so completed stages lead directly into
+ * the next required review instead of sending users back through the overview.
  */
 export function ProjectHeader() {
+  const location = useLocation();
   const { foodType, subCategory } = useFoodType();
   const importBatchId = subCategory?.startsWith('batch:') ? subCategory.replace('batch:', '') : null;
   const status = useProjectStatus(foodType, importBatchId);
+  const showNextAction = status.nextAction.path !== location.pathname;
 
   if (foodType === 'all' || !foodType) return null;
 
@@ -33,7 +37,19 @@ export function ProjectHeader() {
           <p className="mt-0.5 text-xs text-slate-500">{status.foodTypeLabel}</p>
         </div>
 
-        <ProjectJourneyNav stages={status.stages} />
+        <div className="flex items-center gap-3">
+          <ProjectJourneyNav stages={status.stages} />
+          {showNextAction && (
+            <Link
+              to={status.nextAction.path}
+              className="hidden shrink-0 items-center gap-1.5 rounded-md bg-blue-700 px-3 py-2 text-xs font-bold text-white hover:bg-blue-800 xl:flex"
+              title={status.nextAction.description}
+            >
+              {status.nextAction.label}
+              <ArrowRight className="size-3.5" aria-hidden />
+            </Link>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

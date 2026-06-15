@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
@@ -22,6 +22,7 @@ import { QuestionsStep } from './concept-testing/QuestionsStep';
 import { PanelStep } from './concept-testing/PanelStep';
 import { ReviewStep } from './concept-testing/ReviewStep';
 import { getConceptReadiness } from './concept-testing/concept-readiness';
+import { buildTailoredConceptQuestions, defaultConceptPanelistIds } from './concept-testing/smart-defaults';
 import { ProjectHeader } from './project-header';
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
@@ -90,6 +91,7 @@ export function ConceptTesting() {
   const { data: settings } = useConceptGenerationSettings();
   const { data: workspaceSettings } = useWorkspaceSettings();
   const { data: diagnostics } = useConceptLabDiagnostics();
+  const smartDefaultsApplied = useRef(false);
 
   const STEPS: WizardStep[] = ['concept', 'visuals', 'survey', 'review'];
   const stepIndex = STEPS.indexOf(step);
@@ -119,18 +121,21 @@ export function ConceptTesting() {
       };
     } | null)?.conceptSeed;
     if (seed?.name) {
-      setDraft(prev => ({
-        ...makeEmptyDraft(settings?.promptStyle ?? prev.promptStyle),
-        name: seed.name?.trim() || prev.name,
-        category: seed.category?.trim() || prev.category,
-        description: seed.description?.trim() || prev.description,
-      }));
-      setQuestions([]);
-      setQuestionsReviewState('none');
+      const emptyDraft = makeEmptyDraft(settings?.promptStyle ?? 'balanced');
+      const seededDraft = {
+        ...emptyDraft,
+        name: seed.name.trim(),
+        category: seed.category?.trim() || emptyDraft.category,
+        description: seed.description?.trim() || emptyDraft.description,
+      };
+      setDraft(seededDraft);
+      setQuestions(buildTailoredConceptQuestions(seededDraft));
+      setQuestionsReviewState('draft');
       setSegments([]);
       setAssignedPanelistIds([]);
       setSourceDecision(seed.sourceDecision ?? null);
-      setDraftNotice(`Started from the confirmed GO decision for "${seed.name}". Review the concept before launching.`);
+      smartDefaultsApplied.current = false;
+      setDraftNotice(`Started from the confirmed GO decision for "${seed.name}". A draft survey and panel defaults are ready for review.`);
       localStorage.removeItem(DRAFT_STORAGE_KEY);
       return;
     }
@@ -147,6 +152,7 @@ export function ConceptTesting() {
           setAssignedPanelistIds(saved.assignedPanelistIds ?? []);
           setPanelSize(saved.panelSize ?? 50);
           setSourceDecision(saved.sourceDecision ?? null);
+          smartDefaultsApplied.current = true;
           setDraftNotice(`Draft restored from ${new Date(saved.savedAt).toLocaleString()}.`);
           return;
         }
@@ -157,6 +163,13 @@ export function ConceptTesting() {
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!sourceDecision || smartDefaultsApplied.current || panelists.length === 0) return;
+    setAssignedPanelistIds(defaultConceptPanelistIds(panelists));
+    setPanelSize(workspaceSettings?.defaultPanelSize ?? 50);
+    smartDefaultsApplied.current = true;
+  }, [panelists, sourceDecision, workspaceSettings?.defaultPanelSize]);
 
   useEffect(() => {
     if (!draftHasWork && workspaceSettings?.defaultPanelSize) {
@@ -195,6 +208,7 @@ export function ConceptTesting() {
     setDraftNotice('');
     setSaveState('idle');
     setSourceDecision(null);
+    smartDefaultsApplied.current = false;
     localStorage.removeItem(DRAFT_STORAGE_KEY);
   };
 
@@ -258,8 +272,11 @@ export function ConceptTesting() {
           <Button variant="outline" onClick={() => navigate('/survey-analysis')}>
             View responses
           </Button>
-          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => navigate('/decision')}>
-            Return to decision
+          <Button
+            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            onClick={() => navigate('/decision', { state: { openReport: true } })}
+          >
+            Prepare commercialization report
           </Button>
         </div>
       </div>

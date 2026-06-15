@@ -81,7 +81,7 @@ export function ReportPdfSectionsPanel({ input }: { input: CommercializationRepo
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-5 py-4">
         <div>
           <h2 className="font-semibold text-slate-950">PDF sections</h2>
-          <p className="text-sm text-slate-500">Eight decision-led pages, using the same content builders as the exported PDF.</p>
+          <p className="text-sm text-slate-500">Nine decision-led pages, using the same content builders as the exported PDF.</p>
         </div>
         <Button variant="outline" onClick={() => downloadCommercializationReportPdf(input)}>
           <Download className="size-4" />Download PDF

@@ -434,6 +434,7 @@ export const reportPageHeadings = [
   'Commercialization Plan',
   'Risks and Watch Points',
   'Appendix / Source Record',
+  'Report at a Glance',
 ] as const;
 
 export const reportStrengthTone = strengthTone;

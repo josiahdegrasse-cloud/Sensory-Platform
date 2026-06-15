@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, FileCheck2, FileText, PackageCheck, Sparkles } from 'lucide-react';
 import type { GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
 import {
@@ -19,6 +19,7 @@ import {
 import { updateConceptImageReviewStatus, type WorkspaceSettings } from '../lib/database';
 import { downloadCommercializationReportPdf } from '../utils/commercialization-report-export';
 import { getConceptImageMode } from '../../../supabase/functions/_shared/concept-image-catalog.ts';
+import { preferredConceptImageIndex } from './concept-testing/smart-defaults';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Label } from './ui/label';
@@ -30,11 +31,13 @@ export function CommercializationReportBuilder({
   foodType,
   userId,
   settings,
+  initiallyOpen = false,
 }: {
   decision: GoStopTweakDecision;
   foodType: string;
   userId?: string;
   settings?: WorkspaceSettings;
+  initiallyOpen?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [conceptId, setConceptId] = useState('');
@@ -46,7 +49,8 @@ export function CommercializationReportBuilder({
   const [error, setError] = useState('');
   const { data: decisions = [] } = useDecisionRecords();
   const { data: concepts = [] } = useAdminConceptTests();
-  const { data: responses = [] } = useConceptTestResponses(conceptId);
+  const responsesQuery = useConceptTestResponses(conceptId);
+  const responses = useMemo(() => responsesQuery.data ?? [], [responsesQuery.data]);
   const { data: reports = [] } = useCommercializationReports();
   const createReport = useCreateCommercializationReport();
   const updateStatus = useUpdateCommercializationReportStatus();
@@ -67,14 +71,23 @@ export function CommercializationReportBuilder({
   const canOpen = decision.decision === 'GO' && !!confirmedGo;
 
   useEffect(() => {
-    if (!conceptId && matchingConcepts.length > 0) setConceptId(matchingConcepts[0].id);
+    if (conceptId || matchingConcepts.length === 0) return;
+    setConceptId(matchingConcepts[0].id);
+    setImageIndex(preferredConceptImageIndex(
+      matchingConcepts[0].imageMeta,
+      matchingConcepts[0].imageUrls.length,
+    ));
   }, [conceptId, matchingConcepts]);
 
-  const generate = () => {
+  useEffect(() => {
+    if (initiallyOpen && canOpen) setOpen(true);
+  }, [canOpen, initiallyOpen]);
+
+  const buildDraft = useCallback(() => {
     if (!confirmedGo || !selectedConcept) return;
     const packagingImageUrl = selectedConcept.imageUrls[imageIndex] ?? '';
     const packagingImageId = selectedConcept.imageIds?.[imageIndex] ?? null;
-    setSnapshot(buildCommercializationSnapshot({
+    return buildCommercializationSnapshot({
       decisionRecord: confirmedGo,
       liveDecision: decision,
       concept: selectedConcept,
@@ -83,12 +96,24 @@ export function CommercializationReportBuilder({
       packagingImageId,
       packagingImageUrl,
       packagingImageMeta: selectedConcept.imageMeta?.[imageIndex] ?? null,
-    }));
+    });
+  }, [confirmedGo, decision, foodType, imageIndex, responses, selectedConcept]);
+
+  const generate = () => {
+    const draft = buildDraft();
+    if (!draft) return;
+    setSnapshot(draft);
     setSavedReportId('');
     setSavedVersion(1);
     setSavedStatus('draft');
     setError('');
   };
+
+  useEffect(() => {
+    if (!open || snapshot || !responsesQuery.isSuccess || !selectedConcept || selectedConcept.imageUrls.length === 0) return;
+    const draft = buildDraft();
+    if (draft) setSnapshot(draft);
+  }, [buildDraft, open, responsesQuery.isSuccess, selectedConcept, snapshot]);
 
   const updateNarrative = (key: keyof CommercializationReportSnapshot['narrative'], value: string) => {
     setSnapshot(current => current ? {

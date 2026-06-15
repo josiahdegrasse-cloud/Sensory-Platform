@@ -110,7 +110,7 @@ describe('commercialization report quality evaluation', () => {
       }, null, 2)}\n`);
     }
 
-    expect(doc.getNumberOfPages()).toBe(8);
+    expect(doc.getNumberOfPages()).toBe(9);
     expect(evaluation.weaknesses).toEqual([]);
     expect(evaluation.passed).toBe(true);
   });

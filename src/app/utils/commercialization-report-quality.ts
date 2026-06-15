@@ -94,8 +94,8 @@ export function evaluateCommercializationReport(
   const checks: QualityCheck[] = [
     {
       id: 'page-count',
-      passed: pageTexts.length === 8,
-      detail: `Expected 8 pages; generated ${pageTexts.length}.`,
+      passed: pageTexts.length === 9,
+      detail: `Expected 9 pages; generated ${pageTexts.length}.`,
     },
     {
       id: 'required-headings',
@@ -140,6 +140,19 @@ export function evaluateCommercializationReport(
       detail: 'Concept page connects packaging to strategy and labels the visual as directional.',
     },
     {
+      id: 'final-summary',
+      passed: includesAll(pageTexts[8] ?? '', [
+        'Report at a Glance',
+        'Commercial decision',
+        'Evidence snapshot',
+        'Core strength',
+        'Main watch point',
+        'Immediate priorities',
+        'Next gate',
+      ]),
+      detail: 'Final page condenses the decision, evidence, watch point, priorities, owners, and next gate.',
+    },
+    {
       id: 'scanability',
       passed: pageTexts.every((_, index) => pageWordCounts[index] >= (index === 0 ? 55 : 70) && pageWordCounts[index] <= 520),
       detail: `Page word counts: ${pageWordCounts.join(', ')}.`,
@@ -166,11 +179,11 @@ export function evaluateCommercializationReport(
 
   const scores: Record<RubricCategory, number> = {
     A: scoreChecks(checks, ['cover-decision', 'memo-structure']),
-    B: scoreChecks(checks, ['page-count', 'required-headings', 'flow', 'scanability']),
+    B: scoreChecks(checks, ['page-count', 'required-headings', 'flow', 'scanability', 'final-summary']),
     C: scoreChecks(checks, ['commercial-actions', 'score-interpretation']),
     D: scoreChecks(checks, ['score-interpretation', 'specific-language']),
     E: scoreChecks(checks, ['concept-strategy']),
-    F: scoreChecks(checks, ['scanability', 'flow']),
+    F: scoreChecks(checks, ['scanability', 'flow', 'final-summary']),
     G: scoreChecks(checks, ['appendix-discipline']),
     H: scoreChecks(checks, ['specific-language', 'warning-repetition']),
   };

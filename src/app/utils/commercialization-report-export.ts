@@ -33,6 +33,7 @@ import {
   renderConceptPackagingPage,
   renderRisksPage,
 } from './pdf/pages/action-pages';
+import { buildFinalSummary, renderFinalSummaryPage } from './pdf/pages/summary-page';
 
 export type { CommercializationReportPdfInput } from './pdf/sections';
 
@@ -120,6 +121,9 @@ export async function buildCommercializationReportPdf(input: CommercializationRe
 
   addContentPage(ctx);
   renderAppendixPage(ctx, buildAppendix(input), autoTable);
+
+  addContentPage(ctx);
+  renderFinalSummaryPage(ctx, buildFinalSummary(input), autoTable);
 
   const pageCount = doc.getNumberOfPages();
   for (let page = 1; page <= pageCount; page += 1) {
