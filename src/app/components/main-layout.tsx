@@ -3,7 +3,7 @@ import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Ta
 import { useAuth } from "../contexts/auth-context";
 import { useEffect, useMemo, useState } from "react";
 import { useFoodType } from "../contexts/food-type-context";
-import { useImportBatches, useInstrumentalDataset, useProducts, useUpdateImportBatchStatus, useWorkspaceSettings } from "../lib/hooks";
+import { useDeleteImportBatch, useImportBatches, useInstrumentalDataset, useProducts, useUpdateImportBatchStatus, useWorkspaceSettings } from "../lib/hooks";
 import { matchFoodType } from "../contexts/food-type-context";
 import { useProjectStatus } from "../lib/use-project-status";
 import { ConsentGate } from "./consent-gate";
@@ -17,6 +17,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./ui/alert-dialog";
+
+const BREAD_CHEESE_CLEANUP_KEY = 'nfi:bread-cheese-cleanup:2026-06-16';
+const BREAD_CHEESE_CLEANUP_CUTOFF = Date.parse('2026-06-16T03:35:41Z');
 
 const NFI_BLUE = '#6B7890';
 
@@ -85,6 +88,11 @@ function CategorySidebar() {
   ).length;
   const status = useProjectStatus(foodType, selectedBatchId);
   const hasActiveProject = foodType !== 'all' && Boolean(foodType);
+  const applyTypeProjectStatus = (type: string, nextStatus: 'archived' | 'deleted') => {
+    (projectBatchesByType[type] ?? []).forEach(project => {
+      updateImportBatchStatus.mutate({ id: project.id, status: nextStatus });
+    });
+  };
 
   const btnStyle = (active: boolean) => ({
     background: active ? '#f1f5f9' : 'transparent',
@@ -307,8 +315,13 @@ function CategorySidebar() {
               className={pendingAction?.action === 'delete' ? 'bg-rose-600 hover:bg-rose-700' : ''}
               onClick={() => {
                 if (!pendingAction) return;
-                if (pendingAction.action === 'archive') archiveFoodType(pendingAction.type);
-                else deleteFoodType(pendingAction.type);
+                if (pendingAction.action === 'archive') {
+                  archiveFoodType(pendingAction.type);
+                  applyTypeProjectStatus(pendingAction.type, 'archived');
+                } else {
+                  deleteFoodType(pendingAction.type);
+                  applyTypeProjectStatus(pendingAction.type, 'deleted');
+                }
                 setPendingAction(null);
               }}
             >
@@ -372,6 +385,8 @@ export function MainLayout() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { data: workspaceSettings } = useWorkspaceSettings();
+  const { data: cleanupBatches = [], isFetched: cleanupBatchesFetched } = useImportBatches(user?.role === 'admin');
+  const deleteImportBatch = useDeleteImportBatch();
 
   // Per-tenant branding (falls back to NFI when the org hasn't set its own).
   const brandLogo = workspaceSettings?.logoUrl ?? null;
@@ -407,6 +422,28 @@ export function MainLayout() {
   useEffect(() => {
     if (user?.role === 'panelist' && location.pathname === '/') navigate('/panelist');
   }, [user, location.pathname, navigate]);
+
+  useEffect(() => {
+    if (user?.role !== 'admin' || !cleanupBatchesFetched || deleteImportBatch.isPending) return;
+    if (typeof window === 'undefined' || window.localStorage.getItem(BREAD_CHEESE_CLEANUP_KEY)) return;
+
+    const batchesToDelete = cleanupBatches.filter(batch => {
+      const createdAt = Date.parse(batch.createdAt);
+      return ['bread', 'cheese'].includes(batch.foodTypeSlug)
+        && Number.isFinite(createdAt)
+        && createdAt <= BREAD_CHEESE_CLEANUP_CUTOFF;
+    });
+    if (batchesToDelete.length === 0) {
+      window.localStorage.setItem(BREAD_CHEESE_CLEANUP_KEY, 'none');
+      return;
+    }
+
+    void Promise.all(batchesToDelete.map(batch => deleteImportBatch.mutateAsync(batch.id)))
+      .then(() => window.localStorage.setItem(BREAD_CHEESE_CLEANUP_KEY, new Date().toISOString()))
+      .catch(() => {
+        // Leave the flag unset so the cleanup can retry after transient auth/network errors.
+      });
+  }, [cleanupBatches, cleanupBatchesFetched, deleteImportBatch, user?.role]);
 
   const handleLogout = async () => {
     await logout();

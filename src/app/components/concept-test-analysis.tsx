@@ -9,9 +9,12 @@ import { StageEmptyState } from './stage-empty-state';
 import { DataProvenanceBadge } from './data-provenance-badge';
 import { useAdminConceptTests, useConceptTestResponses } from '../lib/hooks';
 import type { ConceptTest, ConceptQuestion, ConceptResponse } from '../lib/database';
-import { Megaphone, Trophy, MessageSquare, Users } from 'lucide-react';
+import {
+  AlertTriangle, CheckCircle2, Megaphone, MessageSquare, ShoppingBag, Sparkles, Target, Trophy, Users,
+} from 'lucide-react';
 import { InsightInterpretationBlock } from './insights-ui';
 import { TEMPORARY_CHEESE_DEMO_LABEL } from '../data/temporary-cheese-demo';
+import { summarizeConceptResponses } from '../lib/commercialization-report';
 
 const CONCEPT_ACCENT = '#2563eb';
 
@@ -101,35 +104,120 @@ function ConceptResultsPanel({ test, responses, minimumResponses }: {
 }) {
   const validImages = test.imageUrls.filter(u => u.trim());
   const evidenceIsLimited = responses.length < minimumResponses;
+  const summary = summarizeConceptResponses(test.questions, responses);
+  const strongestScale = [...summary.scaleMetrics].sort((a, b) => b.average - a.average)[0];
+  const weakestScale = [...summary.scaleMetrics].sort((a, b) => a.average - b.average)[0];
+  const topSelection = summary.topSelections[0];
+  const appealMetric = findMetric(summary.scaleMetrics, ['appeal', 'like', 'overall']);
+  const purchaseScaleMetric = findMetric(summary.scaleMetrics, ['purchase', 'buy', 'intent']);
+  const purchaseMetric = summary.purchaseIntent != null
+    ? {
+        question: purchaseScaleMetric?.question ?? 'Purchase intent',
+        average: summary.purchaseIntent,
+        count: purchaseScaleMetric?.count ?? responses.length,
+      }
+    : purchaseScaleMetric;
+  const conceptContext = [
+    test.projectName ? `Project: ${test.projectName}` : null,
+    test.foodTypeSlug ? `Sample type: ${humanizeLabel(test.foodTypeSlug)}` : null,
+    test.category ? `Category: ${test.category}` : null,
+  ].filter((item): item is string => Boolean(item));
+  const groupedQuestions = groupConceptQuestions(test.questions);
 
   return (
     <div className="space-y-4">
-      <Card className="border border-slate-200">
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-3">
-              <Users className="size-8 text-blue-600" />
-              <div>
-                <div className="text-2xl font-bold text-slate-900">{responses.length}</div>
-                <div className="text-sm text-slate-600">Panelist responses</div>
-                <div className="text-xs text-slate-500">of {test.panelSize} invited to {test.name}</div>
+      <Card className="overflow-hidden border border-slate-200">
+        <div className="border-b border-blue-100 bg-gradient-to-br from-blue-50 via-white to-emerald-50 p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-3xl">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className="bg-blue-600 text-white">Concept results</Badge>
+                <Badge variant="outline">{test.status}</Badge>
+                {test.approvalNotes === TEMPORARY_CHEESE_DEMO_LABEL && (
+                  <Badge className="border border-amber-200 bg-amber-50 text-amber-800">Temporary demo responses</Badge>
+                )}
               </div>
+              <h3 className="mt-3 text-xl font-bold text-slate-950">{test.name}</h3>
+              <p className="mt-1 text-sm leading-6 text-slate-600">{test.description}</p>
+              {conceptContext.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
+                  {conceptContext.map(item => (
+                    <span key={item} className="rounded-full border border-slate-200 bg-white px-3 py-1">{item}</span>
+                  ))}
+                </div>
+              )}
             </div>
-            <DataProvenanceBadge provenance="live" n={responses.length} />
+            <div className="rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm lg:min-w-[14rem]">
+              <DataProvenanceBadge provenance="live" n={responses.length} />
+              <div className="mt-3 text-3xl font-bold text-slate-950">{responses.length}</div>
+              <p className="text-sm text-slate-600">of {test.panelSize} invited panelists responded</p>
+            </div>
           </div>
-          <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4 text-xs">
-            <span className="font-semibold text-slate-500">Concept shown</span>
-            <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 font-semibold text-blue-800">{test.name}</span>
-            {test.approvalNotes === TEMPORARY_CHEESE_DEMO_LABEL && (
-              <span className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 font-semibold text-amber-800">
-                Temporary demo responses
-              </span>
-            )}
-            {test.projectName && (
-              <span className="rounded-md border border-slate-200 bg-white px-2 py-1 font-medium text-slate-600">
-                Project {test.projectName}
-              </span>
-            )}
+        </div>
+
+        <CardContent className="space-y-5 pt-5">
+          <div className="grid gap-3 md:grid-cols-3">
+            <ConceptMetricCard
+              icon={Users}
+              label="Evidence coverage"
+              value={`${responses.length}/${minimumResponses}`}
+              detail={responses.length >= minimumResponses ? 'Meets decision minimum' : 'Needs more responses'}
+              tone={responses.length >= minimumResponses ? 'success' : 'warning'}
+            />
+            <ConceptMetricCard
+              icon={Sparkles}
+              label="Appeal signal"
+              value={appealMetric ? `${appealMetric.average.toFixed(1)}/9` : '—'}
+              detail={appealMetric ? `${appealMetric.count} rated · ${shortQuestion(appealMetric.question)}` : 'No appeal scale found'}
+              tone={appealMetric && appealMetric.average >= 7 ? 'success' : 'neutral'}
+            />
+            <ConceptMetricCard
+              icon={ShoppingBag}
+              label="Purchase intent"
+              value={purchaseMetric ? `${purchaseMetric.average.toFixed(1)}/9` : '—'}
+              detail={purchaseMetric ? `${purchaseMetric.count} rated · directional` : 'No purchase question found'}
+              tone={purchaseMetric && purchaseMetric.average >= 7 ? 'success' : 'neutral'}
+            />
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-3">
+            <SignalCard
+              icon={Trophy}
+              eyebrow="Strongest signal"
+              title={strongestScale ? `${shortQuestion(strongestScale.question)}: ${strongestScale.average.toFixed(1)}/9` : topSelection ? topSelection.option : 'No signal yet'}
+              body={strongestScale
+                ? `${strongestScale.count} panelists answered this scale question.`
+                : topSelection
+                  ? `${topSelection.count} picks (${topSelection.percentage}%) make this the leading response.`
+                  : 'Responses have not established a clear concept strength yet.'}
+            />
+            <SignalCard
+              icon={Target}
+              eyebrow="Message to use"
+              title={topSelection ? topSelection.option : test.keyBenefits || 'Benefit language pending'}
+              body={topSelection
+                ? 'Use this as the first copy direction to explore, not a final product claim.'
+                : 'The concept needs choice or benefit responses before the strongest message is clear.'}
+            />
+            <SignalCard
+              icon={evidenceIsLimited ? AlertTriangle : CheckCircle2}
+              eyebrow={evidenceIsLimited ? 'Evidence gap' : 'Decision readiness'}
+              title={evidenceIsLimited ? `Collect ${Math.max(0, minimumResponses - responses.length)} more responses` : 'Enough responses for a first read'}
+              body={evidenceIsLimited
+                ? 'Treat concept preference and purchase intent as directional until the response minimum is met.'
+                : weakestScale
+                  ? `Watch the lowest scale: ${shortQuestion(weakestScale.question)} at ${weakestScale.average.toFixed(1)}/9.`
+                  : 'Use the question detail below to confirm the launch story.'}
+            />
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Concept setup</p>
+            <dl className="mt-3 grid gap-3 text-sm md:grid-cols-3">
+              <DefinitionItem label="Target market" value={test.targetMarket || 'Not defined'} />
+              <DefinitionItem label="Price point" value={test.pricePoint || 'Not defined'} />
+              <DefinitionItem label="Key benefits" value={test.keyBenefits || 'Not defined'} />
+            </dl>
           </div>
         </CardContent>
       </Card>
@@ -144,19 +232,145 @@ function ConceptResultsPanel({ test, responses, minimumResponses }: {
         />
       )}
 
-      <div className="space-y-3">
-        {test.questions.map(question => (
-          <QuestionResultCard
-            key={question.id}
-            question={question}
-            responses={responses}
-            images={validImages}
-            evidenceIsLimited={evidenceIsLimited}
-          />
-        ))}
-      </div>
+      <Card className="border border-slate-200">
+        <CardHeader className="border-b border-slate-100">
+          <CardTitle className="text-base">Question breakdown</CardTitle>
+          <p className="text-sm text-slate-600">
+            Results are grouped by job so appeal, purchase intent, message preference, visual direction, and comments do not blur together.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-6 pt-5">
+          {groupedQuestions.map(group => (
+            <section key={group.id} className="space-y-3">
+              <div>
+                <h4 className="text-sm font-bold text-slate-950">{group.title}</h4>
+                <p className="text-xs text-slate-500">{group.description}</p>
+              </div>
+              <div className="grid gap-3">
+                {group.questions.map(question => (
+                  <QuestionResultCard
+                    key={question.id}
+                    question={question}
+                    responses={responses}
+                    images={validImages}
+                    evidenceIsLimited={evidenceIsLimited}
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
+        </CardContent>
+      </Card>
     </div>
   );
+}
+
+function ConceptMetricCard({
+  icon: Icon, label, value, detail, tone = 'neutral',
+}: {
+  icon: typeof Users;
+  label: string;
+  value: string;
+  detail: string;
+  tone?: 'neutral' | 'success' | 'warning';
+}) {
+  const toneClass = tone === 'success'
+    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+    : tone === 'warning'
+      ? 'border-amber-200 bg-amber-50 text-amber-700'
+      : 'border-blue-100 bg-blue-50 text-blue-700';
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <div className={`mb-3 inline-flex rounded-lg border p-2 ${toneClass}`}>
+        <Icon className="size-4" aria-hidden />
+      </div>
+      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1 text-2xl font-bold text-slate-950">{value}</p>
+      <p className="mt-1 text-xs text-slate-500">{detail}</p>
+    </div>
+  );
+}
+
+function SignalCard({
+  icon: Icon, eyebrow, title, body,
+}: {
+  icon: typeof Trophy;
+  eyebrow: string;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+        <Icon className="size-4 text-blue-600" aria-hidden />
+        {eyebrow}
+      </div>
+      <p className="mt-2 text-sm font-bold text-slate-950">{title}</p>
+      <p className="mt-1 text-sm leading-5 text-slate-600">{body}</p>
+    </div>
+  );
+}
+
+function DefinitionItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs font-semibold text-slate-500">{label}</dt>
+      <dd className="mt-1 font-medium leading-5 text-slate-800">{value}</dd>
+    </div>
+  );
+}
+
+function findMetric(
+  metrics: Array<{ question: string; average: number; count: number }>,
+  terms: string[],
+) {
+  return metrics.find(metric => terms.some(term => metric.question.toLowerCase().includes(term)));
+}
+
+function shortQuestion(text: string) {
+  return text
+    .replace(/\?$/, '')
+    .replace(/^how much do you /i, '')
+    .replace(/^how likely are you to /i, '')
+    .replace(/^which /i, '')
+    .trim();
+}
+
+function humanizeLabel(value: string) {
+  return value.replace(/[-_]+/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
+}
+
+function groupConceptQuestions(questions: ConceptQuestion[]) {
+  const groupDefs = [
+    {
+      id: 'appeal',
+      title: 'Appeal and purchase read',
+      description: 'Scale questions that show whether the concept is liked and commercially interesting.',
+      matches: (question: ConceptQuestion) => question.type === 'scale',
+    },
+    {
+      id: 'message',
+      title: 'Message and benefit preference',
+      description: 'Choice questions that reveal which claims, benefits, or positioning angles are resonating.',
+      matches: (question: ConceptQuestion) => question.type === 'multiple_choice' || question.type === 'ranking',
+    },
+    {
+      id: 'visual',
+      title: 'Visual direction',
+      description: 'Packaging or image choices tied to the concept shown to panelists.',
+      matches: (question: ConceptQuestion) => question.type === 'image_choice',
+    },
+    {
+      id: 'comments',
+      title: 'Panelist language',
+      description: 'Open text that can become copy inspiration, objections, or follow-up questions.',
+      matches: (question: ConceptQuestion) => question.type === 'open_text',
+    },
+  ];
+
+  return groupDefs
+    .map(group => ({ ...group, questions: questions.filter(group.matches) }))
+    .filter(group => group.questions.length > 0);
 }
 
 function QuestionResultCard({

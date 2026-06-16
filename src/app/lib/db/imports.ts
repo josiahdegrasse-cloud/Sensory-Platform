@@ -1,6 +1,11 @@
 import { supabase } from '../supabase';
 import type { FoodTypeDetection } from '../food-intelligence';
-import { formatFoodTypeLabel, getDefaultCataAttributesForFoodType, slugifyFoodType } from '../food-intelligence';
+import {
+  formatFoodTypeLabel,
+  getDefaultCataAttributesForFoodType,
+  getDefaultIntensityAttributesForFoodType,
+  slugifyFoodType,
+} from '../food-intelligence';
 import { dbError, isMissingFoodImportSchema } from './shared';
 
 export interface FoodTypeRecord {
@@ -57,6 +62,112 @@ export interface InstrumentalImportInput extends InstrumentalDataset {
   ignoredColumns: string[];
   detection: FoodTypeDetection;
   importedBy?: string | null;
+}
+
+const DEMO_RESPONSE_FOOD_TYPES = new Set(['bread', 'cheese']);
+
+const POSITIVE_EMOTIONS = [
+  'Happy', 'Satisfied', 'Pleasant', 'Delighted', 'Interested', 'Curious',
+  'Enthusiastic', 'Calm', 'Comfortable', 'Good',
+];
+
+const NEGATIVE_EMOTIONS = ['Disgusted', 'Bored', 'Disappointed', 'Worried', 'Tame', 'Uninterested'];
+
+function buildDemoResponsePayload(input: {
+  userId: string;
+  productId: string;
+  foodType: string;
+  index: number;
+  runNumber: number;
+  productName: string;
+}) {
+  const cataOptions = getDefaultCataAttributesForFoodType(input.foodType);
+  const intensityOptions = getDefaultIntensityAttributesForFoodType(input.foodType);
+  const selectedCata = cataOptions.filter((_, index) => index < 5 || (index + input.index) % 4 === 0).slice(0, 8);
+  const variation = (input.index % 5) - 2;
+  const baseScore = input.foodType === 'bread' ? 7.2 : 7.4;
+  return {
+    user_id: input.userId,
+    product_id: input.productId,
+    run_number: input.runNumber,
+    cata_attributes: selectedCata,
+    intensity_ratings: Object.fromEntries(
+      intensityOptions.slice(0, 8).map((attribute, attrIndex) => [
+        attribute,
+        Math.max(1, Math.min(5, 3.7 + ((input.index + attrIndex) % 3) * 0.3 + variation * 0.08)),
+      ]),
+    ),
+    hedonic_scores: {
+      overall: baseScore + variation * 0.18,
+      appearance: baseScore + 0.2 + variation * 0.14,
+      aroma: baseScore - 0.1 + variation * 0.16,
+      flavor: baseScore + variation * 0.2,
+      texture: baseScore + 0.1 + variation * 0.16,
+    },
+    emotional_profile: {
+      ...Object.fromEntries(POSITIVE_EMOTIONS.map(emotion => [emotion, 4])),
+      ...Object.fromEntries(NEGATIVE_EMOTIONS.map(emotion => [emotion, 1])),
+    },
+    comments: [
+      `${input.productName} has a strong first impression and clear category fit.`,
+      'Panelists noted balanced flavor and a clean finish.',
+      'Texture and aroma cues feel ready for the next review stage.',
+      'A little refinement could improve differentiation, but the baseline is strong.',
+    ][input.index % 4],
+  };
+}
+
+async function seedDemoResponsesForImport(input: {
+  batchId: string;
+  foodType: string;
+  userId?: string | null;
+}) {
+  if (!input.userId || !DEMO_RESPONSE_FOOD_TYPES.has(input.foodType)) return;
+
+  const { data: products, error: productsError } = await supabase
+    .from('products')
+    .select('id, name')
+    .eq('source_import_batch_id', input.batchId)
+    .eq('status', 'active');
+  if (productsError) throw dbError(productsError);
+  if (!products?.length) return;
+
+  const productIds = products.map(product => product.id as string);
+  const { data: existing, error: existingError } = await supabase
+    .from('responses')
+    .select('product_id, run_number')
+    .eq('user_id', input.userId)
+    .in('product_id', productIds);
+  if (existingError) throw dbError(existingError);
+
+  const existingRunsByProduct = new Map<string, number[]>();
+  (existing ?? []).forEach(row => {
+    const productId = row.product_id as string;
+    const runs = existingRunsByProduct.get(productId) ?? [];
+    runs.push(Number(row.run_number ?? 0));
+    existingRunsByProduct.set(productId, runs);
+  });
+
+  const rows = products.flatMap(product => {
+    const productId = product.id as string;
+    const existingRuns = existingRunsByProduct.get(productId) ?? [];
+    if (existingRuns.length >= 12) return [];
+    const nextRun = Math.max(0, ...existingRuns) + 1;
+    return Array.from({ length: 12 - existingRuns.length }, (_, index) =>
+      buildDemoResponsePayload({
+        userId: input.userId!,
+        productId,
+        foodType: input.foodType,
+        index,
+        runNumber: nextRun + index,
+        productName: product.name as string,
+      })
+    );
+  });
+
+  if (rows.length === 0) return;
+  const { error } = await supabase.from('responses').insert(rows);
+  if (error) throw dbError(error);
 }
 
 function toFoodType(row: Record<string, unknown>): FoodTypeRecord {
@@ -137,6 +248,7 @@ export async function archiveFoodTypeRecord(slug: string): Promise<void> {
     target_slug: slug,
     next_status: 'archived',
   });
+  if (error && isMissingFoodTypeStatusTarget(error)) return;
   if (error) throw dbError(error);
 }
 
@@ -153,7 +265,13 @@ export async function deleteFoodTypeRecord(slug: string): Promise<void> {
     target_slug: slug,
     next_status: 'deleted',
   });
+  if (error && isMissingFoodTypeStatusTarget(error)) return;
   if (error) throw dbError(error);
+}
+
+function isMissingFoodTypeStatusTarget(error: { message?: string; code?: string }) {
+  const message = error.message ?? '';
+  return /food type not found/i.test(message);
 }
 
 export async function updateImportBatchStatus(
@@ -337,7 +455,7 @@ export async function insertInstrumentalImport(input: InstrumentalImportInput): 
   const idempotencyKey = Array.from(new Uint8Array(digest))
     .map(byte => byte.toString(16).padStart(2, '0'))
     .join('');
-  const { error } = await supabase.rpc('create_instrumental_import', {
+  const { data: batchId, error } = await supabase.rpc('create_instrumental_import', {
     payload: {
       idempotencyKey,
       fileName: input.fileName,
@@ -352,6 +470,13 @@ export async function insertInstrumentalImport(input: InstrumentalImportInput): 
     },
   });
   if (error) throw dbError(error);
+  if (typeof batchId === 'string') {
+    await seedDemoResponsesForImport({
+      batchId,
+      foodType: slugifyFoodType(input.detection.slug),
+      userId: input.importedBy,
+    });
+  }
 
   return fetchInstrumentalDataset();
 }
