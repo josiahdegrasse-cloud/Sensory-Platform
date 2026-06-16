@@ -167,6 +167,16 @@ export async function updateImportBatchStatus(
   if (error) throw dbError(error);
 }
 
+export async function updateImportBatchName(id: string, fileName: string): Promise<void> {
+  const trimmed = fileName.trim();
+  if (!trimmed) throw new Error('Project name is required.');
+  const { error } = await supabase
+    .from('import_batches')
+    .update({ file_name: trimmed })
+    .eq('id', id);
+  if (error) throw dbError(error);
+}
+
 // Permanently removes an import batch (and its products + samples). Unlike the
 // 'deleted' status above (soft, restorable), this cannot be undone.
 export async function deleteImportBatch(id: string): Promise<void> {

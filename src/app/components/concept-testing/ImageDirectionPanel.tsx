@@ -126,25 +126,14 @@ export function ImageDirectionPanel({
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Usage occasion (optional)</Label>
-              <Input
-                value={draft.targetOccasion}
-                onChange={(e) => onChange({ ...draft, targetOccasion: e.target.value })}
-                placeholder="e.g. weekday lunch, post-workout snack"
-                className="h-9 text-xs"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Visual notes (optional)</Label>
-              <Input
-                value={draft.visualNotes}
-                onChange={(e) => onChange({ ...draft, visualNotes: e.target.value })}
-                placeholder="e.g. show the melt, avoid blue tones"
-                className="h-9 text-xs"
-              />
-            </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Additional visual notes (optional)</Label>
+            <Input
+              value={draft.visualNotes}
+              onChange={(e) => onChange({ ...draft, visualNotes: e.target.value })}
+              placeholder="Anything not already covered in the concept image brief"
+              className="h-9 text-xs"
+            />
           </div>
 
           <div className="space-y-1.5">

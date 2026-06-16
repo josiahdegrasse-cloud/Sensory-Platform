@@ -82,6 +82,24 @@ export function ReportOverviewPanel({
     ? { scale: 10, entries: Object.entries(sensoryProfile.intensity).slice(0, 5).map(([label, value]) => ({ label, value: value as number })) }
     : null;
   const topCompounds = [...compounds].sort((a, b) => b.concentration - a.concentration).slice(0, 5);
+  const strongestSignal = evidence?.topSelections[0]
+    ? `${evidence.topSelections[0].option} (${evidence.topSelections[0].percentage.toFixed(0)}% concept selection)`
+    : matchingLiveSensory
+      ? `Overall liking ${matchingLiveSensory.hedonic.overall?.toFixed(1) ?? 'N/A'}/9 from ${matchingLiveSensory.n} live responses`
+      : sample
+        ? 'Instrumental profile is linked, but consumer evidence is still limited'
+        : 'No consumer-facing strength has been established yet';
+  const biggestGap = risks[0]
+    ?? (!projectConcept ? 'No linked concept test yet' : null)
+    ?? (!matchingLiveSensory ? 'Live sensory responses are not linked for this sample' : null)
+    ?? 'No major evidence gap detected';
+  const finalSummaryRows = [
+    { label: 'Product', value: focusDecision.sampleName, detail: `${foodTypeLabel}${projectConcept ? ` · ${projectConcept.name}` : ''}` },
+    { label: 'Decision', value: focusDecision.decision, detail: `ISSF ${focusDecision.issfScore.toFixed(0)} · ${focusDecision.confidence.toFixed(0)}% confidence` },
+    { label: 'Strongest signal', value: strongestSignal, detail: evidence?.purchaseIntent ? `Purchase intent ${evidence.purchaseIntent.toFixed(1)}/9` : 'Use with the evidence status shown here' },
+    { label: 'Main gap', value: biggestGap, detail: claimCaution },
+    { label: 'Next action', value: nextSteps[0] ?? 'Ready for launch handoff', detail: nextSteps[1] ?? launchRecommendation },
+  ];
 
   return (
     <>
@@ -133,6 +151,37 @@ export function ReportOverviewPanel({
           ))}
         </ul>
       </ReportSection>
+
+      <Card className="border border-slate-200 bg-white">
+        <CardHeader className="border-b border-slate-100 pb-3">
+          <CardTitle className="text-base">Final summary</CardTitle>
+          <p className="text-sm text-slate-600">
+            The short version of the report: what matters, what supports it, and what has to happen next.
+          </p>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead className="bg-slate-50 text-xs font-semibold text-slate-500">
+                <tr>
+                  <th className="px-4 py-3">Area</th>
+                  <th className="px-4 py-3">Boiled-down answer</th>
+                  <th className="px-4 py-3">Evidence note</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {finalSummaryRows.map(row => (
+                  <tr key={row.label}>
+                    <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold text-slate-500">{row.label}</th>
+                    <td className="px-4 py-3 font-semibold text-slate-900">{row.value}</td>
+                    <td className="px-4 py-3 text-slate-600">{row.detail}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Product Snapshot */}

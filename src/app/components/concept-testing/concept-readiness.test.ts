@@ -9,8 +9,13 @@ const draft: ConceptDraft = {
   description: 'A clear consumer concept.',
   marketingImages: ['https://example.com/concept.png'],
   marketingImageIds: ['image-1'],
-  targetMarket: '',
+  targetMarket: 'Everyday snack buyers',
   targetOccasion: '',
+  productAppearance: 'Golden baked squares with visible seasoning.',
+  packageFormat: 'Resealable stand-up pouch.',
+  visualSetting: '',
+  colorDirection: '',
+  mustShow: '',
   pricePoint: '',
   keyBenefits: '',
   technicalChallenges: '',
@@ -51,5 +56,26 @@ describe('getConceptReadiness', () => {
       'panelists',
     ]);
     expect(readiness.every(item => item.detail.length > 0)).toBe(true);
+  });
+
+  it('requires the minimum image brief before leaving the concept step', () => {
+    const readiness = getConceptReadiness({
+      draft: {
+        ...draft,
+        targetMarket: '',
+        productAppearance: '',
+        packageFormat: '',
+      },
+      questions,
+      assignedPanelistIds: ['panelist-1'],
+    });
+
+    expect(readiness.find(item => item.id === 'brief')).toMatchObject({
+      ready: false,
+      fixStep: 'concept',
+    });
+    expect(readiness.find(item => item.id === 'brief')?.detail).toContain('product appearance');
+    expect(readiness.find(item => item.id === 'brief')?.detail).toContain('package format');
+    expect(readiness.find(item => item.id === 'brief')?.detail).toContain('target customer');
   });
 });

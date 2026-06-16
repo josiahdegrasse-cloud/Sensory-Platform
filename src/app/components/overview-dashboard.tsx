@@ -229,6 +229,7 @@ function ActiveProjects() {
           {sorted.map(entry => (
             <ProjectCard
               key={entry.batch.id}
+              projectId={entry.batch.id}
               status={entry.status}
               projectPath={`/project/${entry.batch.id}`}
               onOpen={() => open(entry)}

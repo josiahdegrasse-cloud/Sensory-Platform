@@ -20,6 +20,11 @@ interface GenerateConceptImagesBody {
   description?: string;
   targetMarket?: string;
   targetOccasion?: string;
+  productAppearance?: string;
+  packageFormat?: string;
+  visualSetting?: string;
+  colorDirection?: string;
+  mustShow?: string;
   pricePoint?: string;
   keyBenefits?: string;
   sensoryStrengths?: string | string[];
@@ -176,6 +181,11 @@ Deno.serve(async (req: Request) => {
         .filter(Boolean).join(', '),
       targetSegments: body.targetMarket,
       targetOccasion: body.targetOccasion,
+      productAppearance: body.productAppearance,
+      packageFormat: body.packageFormat,
+      visualSetting: body.visualSetting,
+      colorDirection: body.colorDirection,
+      mustShow: body.mustShow,
       keyBenefits: body.keyBenefits,
       sensoryStrengths: body.sensoryStrengths,
       technicalChallenges: body.technicalChallenges,

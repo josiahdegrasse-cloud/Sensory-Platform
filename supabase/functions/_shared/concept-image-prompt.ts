@@ -38,6 +38,11 @@ export interface ConceptImageBrief {
   conceptPositioning: string;
   targetSegments: string[];
   targetOccasion: string;
+  productAppearance: string;
+  packageFormat: string;
+  visualSetting: string;
+  colorDirection: string;
+  mustShow: string[];
   keyBenefits: string[];
   sensoryStrengths: string[];
   technicalChallenges: string[];
@@ -69,6 +74,11 @@ export interface ConceptImageBriefInput {
   conceptPositioning?: unknown;
   targetSegments?: unknown;
   targetOccasion?: unknown;
+  productAppearance?: unknown;
+  packageFormat?: unknown;
+  visualSetting?: unknown;
+  colorDirection?: unknown;
+  mustShow?: unknown;
   keyBenefits?: unknown;
   sensoryStrengths?: unknown;
   technicalChallenges?: unknown;
@@ -129,6 +139,11 @@ export function buildConceptImageBrief(input: ConceptImageBriefInput): ConceptIm
     conceptPositioning: cleanText(input.conceptPositioning),
     targetSegments: cleanList(input.targetSegments),
     targetOccasion: cleanText(input.targetOccasion),
+    productAppearance: cleanText(input.productAppearance),
+    packageFormat: cleanText(input.packageFormat),
+    visualSetting: cleanText(input.visualSetting),
+    colorDirection: cleanText(input.colorDirection),
+    mustShow: cleanList(input.mustShow),
     keyBenefits: cleanList(input.keyBenefits),
     sensoryStrengths: cleanList(input.sensoryStrengths),
     technicalChallenges: cleanList(input.technicalChallenges),
@@ -191,6 +206,11 @@ export function buildConceptImagePrompt(brief: ConceptImageBrief): { prompt: str
       ? `Target consumer: ${segments} — let color, styling, and composition feel deliberately chosen for them, not generic.`
       : '',
     brief.targetOccasion ? `Usage occasion to evoke: ${brief.targetOccasion}.` : '',
+    brief.productAppearance ? `Product appearance must be accurate: ${brief.productAppearance}.` : '',
+    brief.packageFormat ? `Package structure and format: ${brief.packageFormat}.` : '',
+    brief.visualSetting ? `Scene and setting: ${brief.visualSetting}.` : '',
+    brief.colorDirection ? `Color and material direction: ${brief.colorDirection}.` : '',
+    brief.mustShow.length ? `Required visible elements: ${brief.mustShow.join(', ')}.` : '',
     // 5. Visual style
     `Visual style — ${style.label}: ${style.direction}`,
     `Overall brand tone: ${brief.brandTone}.`,

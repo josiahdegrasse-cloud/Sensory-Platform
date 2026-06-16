@@ -24,6 +24,11 @@ const baseInput: ConceptImageBriefInput = {
   conceptPositioning: 'a premium plant-based cheese option for health-conscious shoppers',
   targetSegments: 'Health-conscious adults 25-45',
   targetOccasion: 'everyday lunch',
+  productAppearance: 'pale cheddar-orange slices with a smooth surface and realistic melt',
+  packageFormat: 'a resealable 7 oz pouch with a clear product window',
+  visualSetting: 'a bright modern kitchen with warm natural daylight',
+  colorDirection: 'sage green, charcoal typography, and matte paper textures',
+  mustShow: 'melted serving suggestion, plant-based cue',
   keyBenefits: 'Melts like dairy\nHigh in protein, Allergen-free',
   sensoryStrengths: ['creamy texture', 'clean dairy-like flavor'],
   technicalChallenges: 'melt consistency at high heat',
@@ -98,6 +103,7 @@ describe('buildConceptImageBrief', () => {
     expect(brief.keyBenefits).toEqual(['Melts like dairy', 'High in protein', 'Allergen-free']);
     expect(brief.sensoryStrengths).toEqual(['creamy texture', 'clean dairy-like flavor']);
     expect(brief.technicalChallenges).toEqual(['melt consistency at high heat']);
+    expect(brief.mustShow).toEqual(['melted serving suggestion', 'plant-based cue']);
   });
 
   it('caps list fields at eight items', () => {
@@ -138,6 +144,11 @@ describe('buildConceptImagePrompt', () => {
     expect(prompt).toContain('premium plant-based cheese option');
     expect(prompt).toContain('Health-conscious adults 25-45');
     expect(prompt).toContain('everyday lunch');
+    expect(prompt).toContain('pale cheddar-orange slices');
+    expect(prompt).toContain('resealable 7 oz pouch');
+    expect(prompt).toContain('bright modern kitchen');
+    expect(prompt).toContain('sage green');
+    expect(prompt).toContain('melted serving suggestion');
   });
 
   it('always carries the platform claim-safety guardrails, in every mode', () => {

@@ -103,7 +103,14 @@ export function ImagesStep({
   );
   const profile = getFoodTypeProfile(detection.slug);
   const validImages = draft.marketingImages.filter(u => u.trim() && isValidImageUrl(u));
-  const canGenerate = !!(draft.name.trim() && draft.category.trim() && draft.description.trim());
+  const canGenerate = !!(
+    draft.name.trim()
+    && draft.category.trim()
+    && draft.description.trim()
+    && draft.productAppearance.trim()
+    && draft.packageFormat.trim()
+    && draft.targetMarket.trim()
+  );
   const estimatedCost = estimatedCostPerImage * options.count;
   const styleLabel = getPromptStyle(draft.promptStyle).label;
 
@@ -120,6 +127,11 @@ export function ImagesStep({
         .filter(Boolean).join(', '),
       targetSegments: draft.targetMarket,
       targetOccasion: draft.targetOccasion,
+      productAppearance: draft.productAppearance,
+      packageFormat: draft.packageFormat,
+      visualSetting: draft.visualSetting,
+      colorDirection: draft.colorDirection,
+      mustShow: draft.mustShow,
       keyBenefits: draft.keyBenefits,
       sensoryStrengths: profile.successMarkers.slice(0, 6),
       technicalChallenges: [draft.technicalChallenges, ...profile.riskMarkers.slice(0, 5)].filter(Boolean).join('\n'),
@@ -152,6 +164,11 @@ export function ImagesStep({
         description: draft.description,
         targetMarket: draft.targetMarket,
         targetOccasion: draft.targetOccasion,
+        productAppearance: draft.productAppearance,
+        packageFormat: draft.packageFormat,
+        visualSetting: draft.visualSetting,
+        colorDirection: draft.colorDirection,
+        mustShow: draft.mustShow,
         pricePoint: draft.pricePoint,
         keyBenefits: draft.keyBenefits,
         sensoryStrengths: profile.successMarkers.slice(0, 6),
@@ -262,7 +279,7 @@ export function ImagesStep({
 
             {!canGenerate && (
               <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mt-3">
-                Add product name, category, and description on the concept step before generating visuals.
+                Complete the product name, category, description, appearance, package format, and target customer before generating visuals.
               </p>
             )}
             {generationError && (

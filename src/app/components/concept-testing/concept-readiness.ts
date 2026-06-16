@@ -26,6 +26,9 @@ export function getConceptReadiness({
     !draft.name.trim() && 'concept name',
     !draft.category.trim() && 'category',
     !draft.description.trim() && 'description',
+    !draft.productAppearance.trim() && 'product appearance',
+    !draft.packageFormat.trim() && 'package format',
+    !draft.targetMarket.trim() && 'target customer',
   ].filter(Boolean) as string[];
   const validImageCount = draft.marketingImages.filter(image => image.trim()).length;
   const validQuestionCount = questions.filter(question => question.text.trim()).length;

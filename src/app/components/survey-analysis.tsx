@@ -316,6 +316,9 @@ export function SurveyAnalysis() {
       `${selectedData.sampleId.toLowerCase()}-insights-${new Date().toISOString().slice(0, 10)}.csv`,
     );
   };
+  const selectedConceptSummary = primaryConcept
+    ? `${primaryConcept.name} · ${primaryConcept.category}${primaryConcept.projectName ? ` · ${primaryConcept.projectName}` : ''}`
+    : 'No concept test linked yet';
 
   return (
     <div className="space-y-6">
@@ -353,6 +356,34 @@ export function SurveyAnalysis() {
         intensityContent={<IntensityTab activeIntensityData={activeIntensity} activePanelistN={panelN} usingLiveData={usingLiveData} intensityMax={usingLiveData ? 5 : 10} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}
         commentsContent={<CommentsTab usingLiveData={usingLiveData} matchingLiveData={matchingLiveData} commentsByProduct={commentsByProduct} />}
       />
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold text-slate-500">Current insight context</p>
+            <h2 className="mt-1 text-base font-semibold text-slate-950">
+              {selectedData.sampleName} <span className="text-slate-400">({selectedData.sampleId})</span>
+            </h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Charts below are scoped to this selected sample. Concept insights are shown separately so a user can tell the difference between product evidence and marketing-concept evidence.
+            </p>
+          </div>
+          <dl className="grid gap-2 text-sm sm:grid-cols-3 lg:min-w-[30rem]">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <dt className="text-xs font-semibold text-slate-500">Sample evidence</dt>
+              <dd className="mt-0.5 font-semibold text-slate-900">{usingLiveData ? `${liveResponseCount} live responses` : 'Reference or instrument-led'}</dd>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <dt className="text-xs font-semibold text-slate-500">Concept evidence</dt>
+              <dd className="mt-0.5 font-semibold text-slate-900">{primaryConceptResponses.length} response{primaryConceptResponses.length === 1 ? '' : 's'}</dd>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <dt className="text-xs font-semibold text-slate-500">Concept shown</dt>
+              <dd className="mt-0.5 line-clamp-2 font-semibold text-slate-900">{selectedConceptSummary}</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
 
       {usingTemporaryDemo && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">

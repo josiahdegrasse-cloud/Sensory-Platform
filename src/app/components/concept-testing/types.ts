@@ -20,6 +20,11 @@ export interface ConceptDraft {
   marketingImageIds: string[];
   targetMarket: string;
   targetOccasion: string;
+  productAppearance: string;
+  packageFormat: string;
+  visualSetting: string;
+  colorDirection: string;
+  mustShow: string;
   pricePoint: string;
   keyBenefits: string;
   technicalChallenges: string;

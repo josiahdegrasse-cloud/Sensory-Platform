@@ -303,9 +303,23 @@ export function DecisionReviewWorkspace({
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                       {selected.decision === 'STOP' ? 'Test a reformulation' : 'Confirm the adjustment'}
                     </p>
-                    <p className="mt-1 text-sm text-slate-700">
-                      Import new machine data specifically for {selected.sampleName}.
+                    <p className="mt-1 text-sm leading-6 text-slate-700">
+                      Use a follow-up import for this exact item so the next decision compares the adjusted batch against the issue that blocked advancement.
                     </p>
+                    <ol className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-3">
+                      <li className="rounded-md border border-slate-200 bg-white px-3 py-2">
+                        <span className="block font-semibold text-slate-900">1. Make the change</span>
+                        {primaryPrescription?.action ?? 'Document the reformulation before retesting.'}
+                      </li>
+                      <li className="rounded-md border border-slate-200 bg-white px-3 py-2">
+                        <span className="block font-semibold text-slate-900">2. Import retest data</span>
+                        New CSV data will be labeled for {selected.sampleName}.
+                      </li>
+                      <li className="rounded-md border border-slate-200 bg-white px-3 py-2">
+                        <span className="block font-semibold text-slate-900">3. Re-run decision</span>
+                        Return here to confirm GO, TWEAK, or STOP on the new evidence.
+                      </li>
+                    </ol>
                     <Button asChild size="sm" className="mt-3 bg-slate-900 text-white hover:bg-slate-700">
                       <Link
                         to="/stage1"

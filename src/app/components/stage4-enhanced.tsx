@@ -5,7 +5,7 @@ import { useFoodType, sampleMatchesFoodType, matchFoodType } from "../contexts/f
 import { Card, CardContent } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { CheckCircle2, Download, FileSpreadsheet, FileText, Megaphone } from "lucide-react";
+import { CheckCircle2, Download, FileSpreadsheet, FileText, GitMerge, Megaphone } from "lucide-react";
 import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from "../data/enhanced-sensory";
 import { DataProvenanceBadge } from "./data-provenance-badge";
 import { DecisionLog } from "./decision-log";

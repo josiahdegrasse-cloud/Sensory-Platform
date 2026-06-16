@@ -16,7 +16,7 @@ import {
   insertProduct, updateProduct, updateProductAssignments, deleteProduct,
   insertTemplate, deleteTemplate, updatePanelistId, updatePanelistTrainingLevel, updatePanelistStatus,
   insertConceptTest, insertConceptResponse,
-  insertInstrumentalImport, archiveFoodTypeRecord, restoreFoodTypeRecord, deleteFoodTypeRecord, updateImportBatchStatus, deleteImportBatch,
+  insertInstrumentalImport, archiveFoodTypeRecord, restoreFoodTypeRecord, deleteFoodTypeRecord, updateImportBatchStatus, updateImportBatchName, deleteImportBatch,
   type ConceptTest, type InstrumentalImportInput, type ConceptGenerationSettings,
   type WorkspaceSettings, type PanelistInfo,
   type CommercializationReportRecord,
@@ -469,6 +469,17 @@ export function useUpdateImportBatchStatus() {
       qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
       qc.invalidateQueries({ queryKey: queryKeys.products })
       qc.invalidateQueries({ queryKey: queryKeys.activeProducts })
+    },
+  })
+}
+
+export function useUpdateImportBatchName() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      updateImportBatchName(id, name),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.importBatches })
     },
   })
 }
