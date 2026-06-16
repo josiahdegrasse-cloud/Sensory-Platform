@@ -1,0 +1,13 @@
+sampleId,sampleName,foodType,category,sourness,bitterness,saltiness,umami,sweetness,compound,concentration,aroma,threshold,protein,fat,moisture,pH,saltContent,calciumMg
+S1,Coconut Cheddar v2.1,Cheese,Coconut-based,2.4,1.6,3.8,4.6,1.2,Diacetyl,3.2,buttery,10,18.2,22.5,42.1,5.8,1.8,485
+S2,Cashew Mozzarella v1.2,Cheese,Cashew-based,3.1,2.2,3.0,3.8,1.5,Hexanal,7.8,green/fatty,5,16.4,19.8,46.5,5.5,1.5,360
+S3,Oat-Based Brie v1.0,Cheese,Oat-based,4.8,3.8,2.4,2.7,2.0,Acetic acid,12.4,vinegar/sour,6,9.8,18.5,52.0,4.7,1.2,220
+S4,Coconut Cheddar v3.0,Cheese,Coconut-based,2.0,1.2,4.1,5.0,1.0,Diacetyl,4.1,buttery,10,19.0,23.0,40.8,5.9,1.9,510
+S5,Cashew Cream Cheese v2.0,Cheese,Cashew-based,2.6,1.8,2.8,4.3,2.2,Lactic acid,6.4,milky/tangy,18,15.6,24.2,48.4,5.2,1.1,300
+S6,Almond Gouda v1.0,Cheese,Almond-based,2.9,2.1,3.5,4.1,1.3,2-Heptanone,1.7,creamy/nutty,0.14,17.8,21.7,44.2,5.7,1.7,420
+S7,Mixed Base Sharp Cheddar,Cheese,Mixed base,4.2,3.5,4.4,3.6,0.9,Isovaleric acid,4.8,sweaty/savory,0.7,20.1,20.4,39.6,5.1,2.2,475
+S8,Cashew Cream Cheese v2.1,Cheese,Cashew-based,2.2,1.5,2.6,4.8,2.4,Lactic acid,5.8,milky/tangy,18,16.2,25.0,47.0,5.3,1.0,320
+S9,Almond Feta v1.5,Cheese,Almond-based,4.0,2.7,4.8,3.5,1.1,Acetaldehyde,2.9,green/apple,0.5,18.6,20.5,43.0,4.9,2.6,540
+S10,Coconut Parmesan v1.1,Cheese,Coconut-based,3.5,2.9,5.2,5.4,0.8,Butyric acid,5.6,sharp/cheesy,0.24,23.4,24.8,34.2,5.4,2.4,780
+S11,Mixed Base Gouda v1.0,Cheese,Mixed base,3.8,3.1,3.7,3.9,1.2,Methional,1.9,mushroom/earthy,0.2,17.1,22.2,41.8,5.6,1.8,430
+S12,Cashew Cheddar v2.0,Cheese,Cashew-based,2.3,1.7,4.0,4.9,1.0,Diacetyl,3.9,buttery,10,19.5,21.4,40.5,5.8,1.9,500

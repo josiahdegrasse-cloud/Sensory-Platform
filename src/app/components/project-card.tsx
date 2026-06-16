@@ -63,7 +63,7 @@ export function ProjectCard({ projectId, status, projectPath, onOpen }: ProjectC
     : 'No response target yet';
   const evidenceText = status.issfScore !== null
     ? `ISSF ${status.issfScore.toFixed(0)} · ${status.confidence ?? 'Low'} confidence`
-    : `${responsesText}${status.datasetsPresent > 0 ? ` · ${status.datasetsPresent}/${status.datasetsExpected} machine sources` : ''}`;
+    : null;
 
   return (
     <Card className="border border-slate-200 bg-white shadow-sm transition-all hover:border-slate-300 hover:shadow-md">
@@ -166,7 +166,7 @@ export function ProjectCard({ projectId, status, projectPath, onOpen }: ProjectC
           <section className="space-y-2">
             <p className="text-xs font-semibold text-slate-500">Evidence</p>
             <p className="text-sm font-semibold text-slate-900">{responsesText}</p>
-            <p className="text-xs leading-5 text-slate-500">{evidenceText}</p>
+            {evidenceText && <p className="text-xs leading-5 text-slate-500">{evidenceText}</p>}
           </section>
         </div>
 
