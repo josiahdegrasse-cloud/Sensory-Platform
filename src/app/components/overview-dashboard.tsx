@@ -258,8 +258,8 @@ function ActiveProjectsEmptyState() {
     <StageEmptyState
       icon={FolderKanban}
       headline="No live projects yet"
-      body="Import an instrumental dataset to start your first project and begin the workflow."
-      cta={{ label: 'Import data', to: '/stage1' }}
+      body="Name a project and upload an instrumental CSV to begin the workflow."
+      cta={{ label: 'New project', to: '/stage1?new=project' }}
     />
   );
 }
@@ -280,7 +280,7 @@ export function OverviewDashboard() {
           </p>
         </div>
         <Link
-          to="/stage1"
+          to="/stage1?new=project"
           className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-blue-700"
         >
           <Plus className="size-3.5" aria-hidden /> New project

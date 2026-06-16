@@ -48,6 +48,7 @@ export function Stage1Instrumental() {
   const retestImport = (
     location.state as { retestImport?: RetestImportContext } | null
   )?.retestImport;
+  const newProjectIntent = new URLSearchParams(location.search).get('new') === 'project';
   const { user } = useAuth();
   const instrumentalDatasetQuery = useInstrumentalDataset(user?.role === 'admin');
   const insertInstrumentalImport = useInsertInstrumentalImport();
@@ -69,7 +70,13 @@ export function Stage1Instrumental() {
   const [, setUsingDemoData] = useState(!storedImportedData);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const projectNameInputRef = useRef<HTMLInputElement>(null);
   const { foodType, subCategory, setSelection, registerFoodTypes, archivedFoodTypes, deletedFoodTypes } = useFoodType();
+
+  useEffect(() => {
+    if (!newProjectIntent) return;
+    window.setTimeout(() => projectNameInputRef.current?.focus(), 0);
+  }, [newProjectIntent]);
 
   const importSummary = useMemo(() => {
     if (!showPreview || previewData.length === 0) return null;
@@ -225,7 +232,7 @@ export function Stage1Instrumental() {
     });
     setPreviewData(mappedData);
     setUploadedFile(fileName);
-    setBatchName(retestImport ? buildRetestBatchName(retestImport) : fileName.replace(/\.csv$/i, ''));
+    setBatchName(retestImport ? buildRetestBatchName(retestImport) : batchName.trim() || fileName.replace(/\.csv$/i, ''));
     setShowPreview(true);
     setImportStep(2);
     setImportError(null);
@@ -497,6 +504,56 @@ export function Stage1Instrumental() {
           </label>
         </div>
       </div>
+
+      {newProjectIntent && !showPreview && !lastImportSummary && (
+        <Card className="border-2 border-blue-200 bg-blue-50/60 shadow-sm">
+          <CardContent className="p-5">
+            <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Create new project</p>
+                <h2 className="mt-1 text-lg font-semibold text-slate-950">Name the project, then upload the CSV data.</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  This creates a project folder and turns each imported sample into a questionnaire-ready item.
+                </p>
+                <label htmlFor="new-project-name" className="mt-4 block text-xs font-semibold text-slate-700">
+                  Project name
+                </label>
+                <Input
+                  ref={projectNameInputRef}
+                  id="new-project-name"
+                  value={batchName}
+                  onChange={event => setBatchName(event.target.value)}
+                  placeholder="e.g., Coconut Cheddar June Trial"
+                  className="mt-1 bg-white"
+                />
+              </div>
+              <div className="rounded-xl border border-blue-100 bg-white p-4">
+                <p className="text-sm font-bold text-slate-900">CSV data</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Upload machine data with sample IDs, food type/category, e-tongue values, GC-MS compounds, and composition fields.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={!batchName.trim()}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    <Upload className="size-4" />
+                    Choose CSV
+                  </Button>
+                  <Button variant="outline" onClick={downloadCSVTemplate}>
+                    <Download className="size-4" />
+                    Template
+                  </Button>
+                </div>
+                {!batchName.trim() && (
+                  <p className="mt-2 text-xs font-medium text-blue-700">Enter a project name to unlock CSV upload.</p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {retestImport && (
         <div className={`rounded-lg border p-4 ${
