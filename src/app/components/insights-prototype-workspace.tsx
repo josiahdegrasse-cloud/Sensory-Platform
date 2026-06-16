@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { AlertTriangle, CheckCircle2, CircleHelp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { ProjectStatusBadge } from './project-status-badge';
 import { DataProvenanceBadge } from './data-provenance-badge';
 import type { InsightsEvidenceStrength } from '../lib/insights';
@@ -94,7 +93,15 @@ export function InsightsPrototypeWorkspace({
     ? strength.level === 'Strong'
       ? 'Yes, with the study context attached'
       : 'Use with qualification'
-    : 'Not yet';
+    : 'Still collecting';
+  const snapshotHeadline = usingLiveData
+    ? keyStrength
+    : instrumentSources > 0
+      ? 'Machine data is linked. Panel preference is the next evidence layer.'
+      : 'No trained panel results have been collected for this sample yet.';
+  const nextStep = usingLiveData
+    ? keyConcern
+    : 'Collect trained panel responses to support liking, preference, and purchase-related claims.';
 
   return (
     <div className="grid gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
@@ -150,170 +157,85 @@ export function InsightsPrototypeWorkspace({
         )}
       </aside>
 
-      <div className="min-w-0">
-        <Card className="border border-slate-200 bg-white">
-          <CardHeader className="pb-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-semibold text-slate-500">Selected prototype</p>
-                <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                  <CardTitle className="text-2xl text-slate-950">{selected.name}</CardTitle>
-                  <ProjectStatusBadge label={`${strength.level} evidence`} tone={STRENGTH_TONE[strength.level]} />
-                  <DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={usingLiveData ? panelResponses : undefined} />
-                </div>
-                <p className="mt-1 text-xs text-slate-500">
-                  {panelResponses} panel response{panelResponses === 1 ? '' : 's'} · {instrumentSources} of 3 instrument sources linked
-                </p>
+      <div className="min-w-0 space-y-4">
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Viewing food sample</p>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <h3 className="text-xl font-bold text-blue-950">{selected.name}</h3>
+                <span className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-200">
+                  ID {selected.id}
+                </span>
+                <DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={usingLiveData ? panelResponses : undefined} />
               </div>
+              <p className="mt-2 text-sm leading-6 text-blue-950">{snapshotHeadline}</p>
             </div>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="max-w-2xl">
-                  <p className="text-xs font-semibold text-slate-600">Can this evidence support a product claim?</p>
-                  <p className="mt-1 text-xl font-bold text-slate-950">{claimReadiness}</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-700">{strength.note}</p>
-                </div>
-                <div className="grid shrink-0 grid-cols-2 gap-2 text-center">
-                  <OverviewMetric label="Live responses" value={String(panelResponses)} />
-                  <OverviewMetric label="Instrument sources" value={`${instrumentSources}/3`} />
-                </div>
-              </div>
-              <div className="mt-4 grid gap-3 border-t border-slate-200 pt-4 md:grid-cols-2">
-                <EvidenceSummary label="What the evidence shows now" value={keyStrength} tone="success" />
-                <EvidenceSummary label="What is needed next" value={keyConcern} tone="warning" />
-              </div>
+            <div className="grid shrink-0 grid-cols-3 gap-2 text-center">
+              <OverviewMetric label="Overall liking" value={selected.score > 0 ? `${selected.score.toFixed(1)}/9` : '—'} />
+              <CoveragePill label="Panel responses" value={String(panelResponses)} ready={panelResponses > 0} />
+              <CoveragePill label="Machine sources" value={`${instrumentSources}/3`} ready={instrumentSources > 0} />
             </div>
-          </CardContent>
-        </Card>
-
-        <Tabs defaultValue="overview" className="mt-4">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
-            <p className="text-sm font-semibold text-blue-950">
-              Viewing sample: {selected.name}
-            </p>
-            <span className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-200">
-              ID {selected.id}
-            </span>
           </div>
-          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 sm:grid-cols-5">
-            <TabsTrigger value="overview" className="py-2 data-[state=active]:bg-white data-[state=active]:text-blue-700">Evidence summary</TabsTrigger>
-            <TabsTrigger value="liking" className="py-2 data-[state=active]:bg-white data-[state=active]:text-blue-700">Liking</TabsTrigger>
-            <TabsTrigger value="descriptors" className="py-2 data-[state=active]:bg-white data-[state=active]:text-blue-700">Descriptors</TabsTrigger>
-            <TabsTrigger value="intensity" className="py-2 data-[state=active]:bg-white data-[state=active]:text-blue-700">Intensity</TabsTrigger>
-            <TabsTrigger value="comments" className="py-2 data-[state=active]:bg-white data-[state=active]:text-blue-700">Comments</TabsTrigger>
-          </TabsList>
+        </div>
 
-          <TabsContent value="overview" className="mt-4 space-y-4">
-            <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-              <Card className="border border-slate-200">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Performance and interpretation</CardTitle>
-                  <p className="text-xs text-slate-500">Selected prototype scores on the 9-point liking scale.</p>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {likingMetrics.map(metric => (
-                      <div key={metric.label} className="grid grid-cols-[5.5rem_minmax(0,1fr)_2rem] items-center gap-3">
-                        <span className="text-xs font-medium text-slate-700">{metric.label}</span>
-                        <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-                          <div className="h-full rounded-full bg-blue-600" style={{ width: `${Math.min(100, (metric.score / 9) * 100)}%` }} />
-                        </div>
-                        <span className="text-right text-xs font-bold tabular-nums text-slate-900">{metric.score.toFixed(1)}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-5 grid gap-2 sm:grid-cols-3">
-                    <OverviewMetric label="Overall liking" value={selected.score > 0 ? `${selected.score.toFixed(1)}/9` : 'Not available'} />
-                    <OverviewMetric label="Emotional balance" value={emotionalBalance.toFixed(1)} />
-                    <OverviewMetric label="Average intensity" value={`${averageIntensity.toFixed(1)}/${intensityMax}`} />
-                  </div>
-                </CardContent>
-              </Card>
+        <div className="grid gap-4 2xl:grid-cols-2">
+          <div className="min-w-0">{likingContent}</div>
+          <div className="min-w-0">{descriptorContent}</div>
+        </div>
 
-              <Card className="border border-slate-200">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Evidence completeness</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="divide-y divide-slate-100">
-                    {overviewEvidence.map(item => (
-                      <div key={item.label} className="grid grid-cols-[1rem_minmax(0,1fr)_auto] gap-2 py-3 first:pt-0 last:pb-0">
-                        {item.warning
-                          ? <AlertTriangle className="mt-0.5 size-4 text-amber-600" aria-hidden />
-                          : item.complete
-                            ? <CheckCircle2 className="mt-0.5 size-4 text-emerald-600" aria-hidden />
-                            : <CircleHelp className="mt-0.5 size-4 text-slate-400" aria-hidden />}
-                        <div>
-                          <p className="text-xs font-bold text-slate-900">{item.label}</p>
-                          <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{item.detail}</p>
-                        </div>
-                        <span className="text-xs font-semibold text-slate-500">{item.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+        <div className="grid gap-4 2xl:grid-cols-[1.1fr_0.9fr]">
+          <div className="min-w-0">{intensityContent}</div>
+          <div className="min-w-0">{commentsContent}</div>
+        </div>
 
-            <div className="grid gap-4 xl:grid-cols-2">
-              <Card className="border border-slate-200">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Top sensory descriptors</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {descriptors.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {descriptors.slice(0, 6).map(descriptor => (
-                        <span key={descriptor.label} className="rounded-md bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700">
-                          {descriptor.label} {descriptor.percentage.toFixed(0)}%
-                        </span>
-                      ))}
+        <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+          <Card className="border border-slate-200">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Dashboard read</CardTitle>
+              <p className="text-xs text-slate-500">The important interpretation, kept below the charts.</p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Evidence status</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <p className="text-base font-bold text-slate-950">{claimReadiness}</p>
+                  <ProjectStatusBadge label={`${strength.level} evidence`} tone={STRENGTH_TONE[strength.level]} />
+                </div>
+              </div>
+              <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
+                <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Recommended next step</p>
+                <p className="mt-1 text-sm font-medium leading-6 text-blue-950">{nextStep}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-slate-200">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Evidence completeness</CardTitle>
+              <p className="text-xs text-slate-500">What is ready, what is still missing.</p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {overviewEvidence.map(item => (
+                  <div key={item.label} className="grid grid-cols-[1rem_minmax(0,1fr)_auto] gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3">
+                    {item.warning
+                      ? <AlertTriangle className="mt-0.5 size-4 text-amber-600" aria-hidden />
+                      : item.complete
+                        ? <CheckCircle2 className="mt-0.5 size-4 text-emerald-600" aria-hidden />
+                        : <CircleHelp className="mt-0.5 size-4 text-slate-400" aria-hidden />}
+                    <div>
+                      <p className="text-xs font-bold text-slate-900">{item.label}</p>
+                      <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{item.detail}</p>
                     </div>
-                  ) : <p className="text-sm text-slate-500">No descriptor evidence is available.</p>}
-                </CardContent>
-              </Card>
-
-              <Card className="border border-slate-200">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Comments that could affect the decision</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {comments.length > 0 ? (
-                    <div className="divide-y divide-slate-100">
-                      {comments.slice(0, 2).map((comment, index) => (
-                        <p key={`${comment}-${index}`} className="py-2 text-xs leading-relaxed text-slate-600 first:pt-0 last:pb-0">“{comment}”</p>
-                      ))}
-                    </div>
-                  ) : <p className="text-sm text-slate-500">No open-text comments are available for this prototype.</p>}
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-          <TabsContent value="liking" className="mt-4">{likingContent}</TabsContent>
-          <TabsContent value="descriptors" className="mt-4">{descriptorContent}</TabsContent>
-          <TabsContent value="intensity" className="mt-4">{intensityContent}</TabsContent>
-          <TabsContent value="comments" className="mt-4">{commentsContent}</TabsContent>
-        </Tabs>
+                    <span className="text-xs font-semibold text-slate-500">{item.value}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
-    </div>
-  );
-}
-
-function EvidenceSummary({ label, value, tone }: {
-  label: string;
-  value: string;
-  tone: 'success' | 'warning';
-}) {
-  const classes = {
-    success: 'border-emerald-200 bg-emerald-50',
-    warning: 'border-amber-200 bg-amber-50',
-  }[tone];
-  return (
-    <div className={cn('rounded-lg border p-3', classes)}>
-      <p className="text-xs font-semibold text-slate-600">{label}</p>
-      <p className="mt-1 text-sm font-medium leading-6 text-slate-800">{value}</p>
     </div>
   );
 }
@@ -323,6 +245,15 @@ function OverviewMetric({ label, value }: { label: string; value: string }) {
     <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
       <p className="text-sm font-bold text-slate-950">{value}</p>
       <p className="mt-0.5 text-xs text-slate-500">{label}</p>
+    </div>
+  );
+}
+
+function CoveragePill({ label, value, ready }: { label: string; value: string; ready: boolean }) {
+  return (
+    <div className={`rounded-lg border px-3 py-2 text-center ${ready ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
+      <p className={`text-lg font-bold ${ready ? 'text-emerald-800' : 'text-slate-900'}`}>{value}</p>
+      <p className="mt-0.5 text-xs font-medium text-slate-500">{label}</p>
     </div>
   );
 }

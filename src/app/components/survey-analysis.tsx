@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  AlertCircle, BarChart3, ChevronDown, Download, Layers, MessageCircle,
+  AlertCircle, BarChart3, ChevronDown, Download, Layers, Megaphone, MessageCircle, Users,
 } from 'lucide-react';
 import { useAuth } from '../contexts/auth-context';
 import { useFoodType, sampleMatchesFoodType } from '../contexts/food-type-context';
@@ -25,6 +25,7 @@ import { useSurveyData } from '../lib/use-survey-data';
 import { formatFoodTypeLabel } from '../lib/food-intelligence';
 import { buildAllDataCSVRows, buildSampleCSVRows, downloadCsv } from '../utils/survey-csv-export';
 import { Button } from './ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from './ui/dropdown-menu';
@@ -327,63 +328,14 @@ export function SurveyAnalysis() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-950">Insights</h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-600">Keep every prototype visible while investigating one in depth.</p>
+          <p className="mt-1 max-w-2xl text-sm text-slate-600">
+            Separate trained panel evidence from concept testing evidence so product performance and marketing appeal stay clear.
+          </p>
         </div>
         <p className="text-xs font-semibold text-slate-500">
           {projectSamples.length} prototype{projectSamples.length === 1 ? '' : 's'} · {prototypeOptions.reduce((total, prototype) => total + prototype.responseCount, 0)} live responses
         </p>
       </div>
-
-      <InsightsPrototypeWorkspace
-        prototypes={prototypeOptions}
-        selectedId={selectedSample}
-        onSelect={setRequestedSample}
-        panelResponses={liveResponseCount}
-        instrumentSources={datasetsPresent}
-        usingLiveData={usingLiveData}
-        strength={strength}
-        keyStrength={keyStrength}
-        keyConcern={keyConcern}
-        likingMetrics={activeHedonic.map(item => ({ label: item.category, score: item.score }))}
-        descriptors={activeCata.map(item => ({ label: item.attribute, percentage: item.percentage }))}
-        emotionalBalance={emotionalBalance}
-        averageIntensity={averageIntensity}
-        intensityMax={usingLiveData ? 5 : 10}
-        comments={comments}
-        overviewEvidence={overviewEvidence}
-        likingContent={<HedonicTab activeHedonicData={activeHedonic} activeAvgHedonic={averageHedonic.toFixed(1)} activePanelistN={panelN} usingLiveData={usingLiveData} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}
-        descriptorContent={<CATATab activeCataAttributes={activeCata} activePanelistN={panelN} usingLiveData={usingLiveData} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}
-        intensityContent={<IntensityTab activeIntensityData={activeIntensity} activePanelistN={panelN} usingLiveData={usingLiveData} intensityMax={usingLiveData ? 5 : 10} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}
-        commentsContent={<CommentsTab usingLiveData={usingLiveData} matchingLiveData={matchingLiveData} commentsByProduct={commentsByProduct} />}
-      />
-
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500">Current insight context</p>
-            <h2 className="mt-1 text-base font-semibold text-slate-950">
-              {selectedData.sampleName} <span className="text-slate-400">({selectedData.sampleId})</span>
-            </h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Charts below are scoped to this selected sample. Concept insights are shown separately so a user can tell the difference between product evidence and marketing-concept evidence.
-            </p>
-          </div>
-          <dl className="grid gap-2 text-sm sm:grid-cols-3 lg:min-w-[30rem]">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-              <dt className="text-xs font-semibold text-slate-500">Sample evidence</dt>
-              <dd className="mt-0.5 font-semibold text-slate-900">{usingLiveData ? `${liveResponseCount} live responses` : 'Reference or instrument-led'}</dd>
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-              <dt className="text-xs font-semibold text-slate-500">Concept evidence</dt>
-              <dd className="mt-0.5 font-semibold text-slate-900">{primaryConceptResponses.length} response{primaryConceptResponses.length === 1 ? '' : 's'}</dd>
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-              <dt className="text-xs font-semibold text-slate-500">Concept shown</dt>
-              <dd className="mt-0.5 line-clamp-2 font-semibold text-slate-900">{selectedConceptSummary}</dd>
-            </div>
-          </dl>
-        </div>
-      </section>
 
       {usingTemporaryDemo && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -399,15 +351,80 @@ export function SurveyAnalysis() {
         </div>
       )}
 
-      <section className="space-y-4">
-        <InsightsSectionHeader
-          id="concept-feedback"
-          icon={BarChart3}
-          title="Concept insights"
-          description="Review appeal, preference, purchase intent, and packaging direction without opening the technical appendix."
-        />
-        <ConceptTestAnalysis projectTests={projectConcepts} minimumResponses={minimumResponses} />
-      </section>
+      <Tabs defaultValue="food-panel" className="space-y-4">
+        <TabsList className="grid h-auto w-full grid-cols-2 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+          <TabsTrigger value="food-panel" className="flex-col items-start gap-0 rounded-xl px-4 py-3 text-left data-[state=active]:bg-blue-50 data-[state=active]:text-blue-800">
+            <span className="flex items-center gap-2 text-sm font-bold">
+              <Users className="size-4" />
+              Food panel results
+            </span>
+            <span className="mt-0.5 text-xs font-normal text-slate-500">What panelists think of the food</span>
+          </TabsTrigger>
+          <TabsTrigger value="concept-testing" className="flex-col items-start gap-0 rounded-xl px-4 py-3 text-left data-[state=active]:bg-blue-50 data-[state=active]:text-blue-800">
+            <span className="flex items-center gap-2 text-sm font-bold">
+              <Megaphone className="size-4" />
+              Concept testing
+            </span>
+            <span className="mt-0.5 text-xs font-normal text-slate-500">Feedback on the marketing concept</span>
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="food-panel" className="space-y-4">
+          <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4">
+            <InsightsSectionHeader
+              id="trained-panel-results"
+              icon={Users}
+              title="What panelists think of the food"
+              description="Product and sample evidence from trained panel questionnaires, live responses, and linked machine data."
+            />
+            <InsightsPrototypeWorkspace
+              prototypes={prototypeOptions}
+              selectedId={selectedSample}
+              onSelect={setRequestedSample}
+              panelResponses={liveResponseCount}
+              instrumentSources={datasetsPresent}
+              usingLiveData={usingLiveData}
+              strength={strength}
+              keyStrength={keyStrength}
+              keyConcern={keyConcern}
+              likingMetrics={activeHedonic.map(item => ({ label: item.category, score: item.score }))}
+              descriptors={activeCata.map(item => ({ label: item.attribute, percentage: item.percentage }))}
+              emotionalBalance={emotionalBalance}
+              averageIntensity={averageIntensity}
+              intensityMax={usingLiveData ? 5 : 10}
+              comments={comments}
+              overviewEvidence={overviewEvidence}
+              likingContent={<HedonicTab activeHedonicData={activeHedonic} activeAvgHedonic={averageHedonic.toFixed(1)} activePanelistN={panelN} usingLiveData={usingLiveData} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}
+              descriptorContent={<CATATab activeCataAttributes={activeCata} activePanelistN={panelN} usingLiveData={usingLiveData} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}
+              intensityContent={<IntensityTab activeIntensityData={activeIntensity} activePanelistN={panelN} usingLiveData={usingLiveData} intensityMax={usingLiveData ? 5 : 10} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}
+              commentsContent={<CommentsTab usingLiveData={usingLiveData} matchingLiveData={matchingLiveData} commentsByProduct={commentsByProduct} />}
+            />
+          </section>
+        </TabsContent>
+
+        <TabsContent value="concept-testing" className="space-y-4">
+          <EvidencePathCard
+            icon={Megaphone}
+            label="Concept testing results"
+            title={primaryConcept ? primaryConcept.name : 'No concept linked yet'}
+            detail="Appeal, purchase intent, benefit preference, visual direction, and panelist concept language."
+            metrics={[
+              `${projectConcepts.length} concept test${projectConcepts.length === 1 ? '' : 's'}`,
+              `${primaryConceptResponses.length} response${primaryConceptResponses.length === 1 ? '' : 's'}`,
+              selectedConceptSummary,
+            ]}
+          />
+          <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4">
+            <InsightsSectionHeader
+              id="concept-feedback"
+              icon={Megaphone}
+              title="Feedback from concept testing"
+              description="Solely concept-level evidence: appeal, purchase intent, positioning, benefits, visuals, and comments."
+            />
+            <ConceptTestAnalysis projectTests={projectConcepts} minimumResponses={minimumResponses} />
+          </section>
+        </TabsContent>
+      </Tabs>
 
       <details className="rounded-lg border border-slate-200 bg-white">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-bold text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500">
@@ -476,6 +493,42 @@ export function SurveyAnalysis() {
       </RawDataAppendix>
         </div>
       </details>
+    </div>
+  );
+}
+
+function EvidencePathCard({
+  icon: Icon,
+  label,
+  title,
+  detail,
+  metrics,
+}: {
+  icon: typeof Users;
+  label: string;
+  title: string;
+  detail: string;
+  metrics: string[];
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="flex items-start gap-3">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700 ring-1 ring-blue-100">
+          <Icon className="size-5" aria-hidden />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
+          <h2 className="mt-1 truncate text-lg font-semibold text-slate-950">{title}</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-600">{detail}</p>
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {metrics.map(metric => (
+          <span key={metric} className="max-w-full truncate rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600">
+            {metric}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
