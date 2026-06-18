@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Activity, AlertCircle, Brain, CheckCircle2, ClipboardCheck, Database,
-  Lock, Palette, Save, UserCheck, UserX, Users,
+  HardDrive, Lock, Palette, Save, UserCheck, UserX, Users,
 } from 'lucide-react';
 import { BrandingSettings } from './branding-settings';
 import { OrgEmailDomainsCard } from './org-email-domains-card';
@@ -24,6 +24,7 @@ import {
   useWorkspaceSettings,
 } from '../lib/hooks';
 import type { WorkspaceSettings, PanelistInfo } from '../lib/database';
+import { parseDriveFolderId } from '../lib/database';
 import { useAuth } from '../contexts/auth-context';
 
 const fallbackSettings: WorkspaceSettings = {
@@ -286,6 +287,26 @@ export function AdminSettings() {
                       <SelectItem value="replace">Replace existing sample</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2 border-t border-slate-100 pt-4">
+                  <Label htmlFor="drive-folder" className="flex items-center gap-1.5">
+                    <HardDrive className="size-4 text-slate-500" />
+                    Google Drive folder
+                  </Label>
+                  <Input
+                    id="drive-folder"
+                    value={draft.driveFolderId ?? ''}
+                    placeholder="Paste a Drive folder link or ID"
+                    onChange={event => updateDraft('driveFolderId', parseDriveFolderId(event.target.value))}
+                  />
+                  <p className="text-xs leading-5 text-slate-500">
+                    Connect a shared folder, then use <span className="font-medium">Sync from Drive</span> on the
+                    Instruments page to pull in CSVs. You'll need to share the folder with the service-account
+                    email shown in the sync dialog (Viewer access).
+                    {draft.driveFolderId
+                      ? <span className="mt-1 block text-emerald-700">Connected · folder {draft.driveFolderId}</span>
+                      : <span className="mt-1 block text-slate-400">No folder connected yet.</span>}
+                  </p>
                 </div>
               </CardContent>
             </Card>

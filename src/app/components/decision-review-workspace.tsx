@@ -4,6 +4,7 @@ import { buildDecisionSummary } from '../lib/decision-summary';
 import type { DecisionGate, GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
+import { RETEST_PARENT_DECISION_KEY } from './stage1-instrumental-data';
 
 type GateStatus = DecisionGate['status'];
 
@@ -330,6 +331,7 @@ export function DecisionReviewWorkspace({
                             decision: selected.decision,
                             target: primaryPrescription?.target,
                             action: primaryPrescription?.action,
+                            parentDecisionId: localStorage.getItem(RETEST_PARENT_DECISION_KEY) ?? undefined,
                           },
                         }}
                       >

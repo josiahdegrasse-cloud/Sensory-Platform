@@ -11,6 +11,7 @@ import { DataProvenanceBadge } from "./data-provenance-badge";
 import { DecisionLog } from "./decision-log";
 import { useAuth } from "../contexts/auth-context";
 import { insertDecisionRecord } from "../lib/database";
+import { RETEST_PARENT_DECISION_KEY } from "./stage1-instrumental-data";
 import { formatFoodTypeLabel } from "../lib/food-intelligence";
 import { queryKeys, useDecisionRecords, useInstrumentalDataset, useProducts, useWorkspaceSettings } from "../lib/hooks";
 import { useSurveyData } from "../lib/use-survey-data";
@@ -471,7 +472,8 @@ export function Stage4Enhanced() {
           setDecisionSaving(true);
           setDecisionError("");
           try {
-            await insertDecisionRecord({
+            const parentDecisionId = localStorage.getItem(RETEST_PARENT_DECISION_KEY) ?? undefined;
+            const newDecisionId = await insertDecisionRecord({
               sampleId: selected.sampleId,
               sampleName: selected.sampleName,
               decision: outcome,
@@ -481,7 +483,12 @@ export function Stage4Enhanced() {
               methodVersion: selected.methodVersion,
               decisionFingerprint: selected.decisionFingerprint,
               createdBy: user.id,
+              parentDecisionId,
             });
+            localStorage.removeItem(RETEST_PARENT_DECISION_KEY);
+            if (newDecisionId && (outcome === 'TWEAK' || outcome === 'STOP')) {
+              localStorage.setItem(RETEST_PARENT_DECISION_KEY, newDecisionId);
+            }
             await queryClient.invalidateQueries({ queryKey: queryKeys.decisionRecords });
             setLogRefreshKey(key => key + 1);
             setConfirmedDecision({ ...selected, decision: outcome });

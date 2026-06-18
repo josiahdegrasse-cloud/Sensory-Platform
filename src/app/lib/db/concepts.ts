@@ -45,6 +45,8 @@ export interface ConceptTest {
   createdAt: string;
   launchedAt?: string | null;
   archivedAt?: string | null;
+  /** Structured positioning dimensions for causal analysis across concepts. */
+  variantDimensions?: Record<string, string | null>;
 }
 
 export interface ConceptResponse {
@@ -60,6 +62,7 @@ export interface CommercializationReportRecord {
   decisionRecordId: string;
   conceptTestId: string;
   packagingImageId: string | null;
+  evidenceBundleId?: string | null;
   status: 'draft' | 'review' | 'approved' | 'archived';
   version: number;
   title: string;
@@ -69,6 +72,17 @@ export interface CommercializationReportRecord {
   approvedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface EvidenceBundleRecord {
+  id: string;
+  projectId: string;
+  version: number;
+  schemaVersion: string;
+  sourceDataVersion: string;
+  payload: Record<string, unknown>;
+  createdBy: string;
+  createdAt: string;
 }
 
 export interface ConceptGenerationSettings {
@@ -155,6 +169,7 @@ function toConceptTest(row: Record<string, unknown>): ConceptTest {
     createdAt: row.created_at as string,
     launchedAt: (row.launched_at as string) ?? null,
     archivedAt: (row.archived_at as string) ?? null,
+    variantDimensions: (row.variant_dimensions as Record<string, string | null>) ?? {},
   };
 }
 
@@ -221,6 +236,7 @@ export async function insertConceptTest(
       approval_notes: test.approvalNotes ?? '',
       status: test.status,
       launched_at: test.status === 'active' ? new Date().toISOString() : null,
+      variant_dimensions: test.variantDimensions ?? {},
     })
     .select()
     .single();
@@ -333,6 +349,7 @@ function toCommercializationReport(row: Record<string, unknown>): Commercializat
     decisionRecordId: row.decision_record_id as string,
     conceptTestId: row.concept_test_id as string,
     packagingImageId: (row.packaging_image_id as string) ?? null,
+    evidenceBundleId: (row.evidence_bundle_id as string) ?? null,
     status: row.status as CommercializationReportRecord['status'],
     version: Number(row.version),
     title: row.title as string,
@@ -342,6 +359,19 @@ function toCommercializationReport(row: Record<string, unknown>): Commercializat
     approvedAt: (row.approved_at as string) ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
+  };
+}
+
+function toEvidenceBundle(row: Record<string, unknown>): EvidenceBundleRecord {
+  return {
+    id: row.id as string,
+    projectId: row.project_id as string,
+    version: Number(row.version),
+    schemaVersion: row.schema_version as string,
+    sourceDataVersion: row.source_data_version as string,
+    payload: (row.payload as Record<string, unknown>) ?? {},
+    createdBy: row.created_by as string,
+    createdAt: row.created_at as string,
   };
 }
 
@@ -371,6 +401,34 @@ export async function createCommercializationReport(input: {
   });
   if (error) throw dbError(error);
   return toCommercializationReport(data as Record<string, unknown>);
+}
+
+export async function fetchEvidenceBundles(projectId?: string): Promise<EvidenceBundleRecord[]> {
+  let query = supabase
+    .from('evidence_bundles')
+    .select('*')
+    .order('version', { ascending: false });
+  if (projectId) query = query.eq('project_id', projectId);
+  const { data, error } = await query;
+  if (error && /evidence_bundles|schema cache|does not exist/i.test(error.message ?? '')) return [];
+  if (error) throw dbError(error);
+  return (data ?? []).map(toEvidenceBundle);
+}
+
+export async function saveEvidenceBundle(input: {
+  projectId: string;
+  schemaVersion: string;
+  sourceDataVersion: string;
+  payload: Record<string, unknown>;
+}): Promise<EvidenceBundleRecord> {
+  const { data, error } = await supabase.rpc('create_evidence_bundle', {
+    target_project_id: input.projectId,
+    target_schema_version: input.schemaVersion,
+    target_source_data_version: input.sourceDataVersion,
+    target_payload: input.payload,
+  });
+  if (error) throw dbError(error);
+  return toEvidenceBundle(data as Record<string, unknown>);
 }
 
 export async function updateCommercializationReportStatus(input: {

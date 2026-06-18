@@ -169,16 +169,16 @@ export function CommercializationReportBuilder({
         Build launch report
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="h-[min(90vh,760px)] max-w-6xl grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0">
-          <DialogHeader className="border-b border-slate-200 px-5 py-4 pr-14">
+        <DialogContent className="h-[min(94vh,920px)] !w-[calc(100vw-2rem)] !max-w-[1440px] sm:!max-w-[1440px] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0">
+          <DialogHeader className="border-b border-slate-200 px-6 py-5 pr-14">
             <DialogTitle className="text-xl text-slate-950">Commercialization report</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="max-w-3xl">
               Select the concept and packaging, review the evidence narrative, then save and export the client-ready report.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid min-h-0 overflow-y-auto lg:grid-cols-[280px_minmax(0,1fr)] lg:overflow-hidden">
-            <aside className="space-y-4 border-b border-slate-200 bg-slate-50/70 p-5 lg:overflow-y-auto lg:border-r lg:border-b-0">
+          <div className="grid min-h-0 overflow-y-auto lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)] lg:overflow-hidden">
+            <aside className="space-y-5 border-b border-slate-200 bg-slate-50/70 p-6 lg:overflow-y-auto lg:border-r lg:border-b-0">
               <div>
                 <Label>Concept study</Label>
                 <Select value={conceptId} onValueChange={value => { setConceptId(value); setImageIndex(0); setSnapshot(null); }}>
@@ -195,7 +195,7 @@ export function CommercializationReportBuilder({
                 <>
                   <div>
                     <Label>Packaging direction</Label>
-                    <div className="mt-2 grid grid-cols-2 gap-2">
+                    <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(132px,1fr))] gap-3">
                       {selectedConcept.imageUrls.map((url, index) => {
                         const meta = selectedConcept.imageMeta?.[index];
                         return (
@@ -263,14 +263,14 @@ export function CommercializationReportBuilder({
                   )}
                 </>
               )}
-              <Button onClick={generate} disabled={!selectedConcept || selectedConcept.imageUrls.length === 0} className="w-full">
+              <Button onClick={generate} disabled={!selectedConcept || selectedConcept.imageUrls.length === 0} className="h-10 w-full">
                 <Sparkles className="size-4" />Generate evidence draft
               </Button>
             </aside>
 
-            <section className="min-h-0 space-y-4 p-5 lg:overflow-y-auto">
+            <section className="min-h-0 space-y-5 p-6 lg:overflow-y-auto">
               {!snapshot ? (
-                <div className="flex h-full min-h-72 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-6 text-center">
+                <div className="flex h-full min-h-[420px] items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-6 text-center">
                   <div className="max-w-sm">
                     <FileText className="mx-auto size-8 text-slate-400" />
                     <p className="mt-3 font-semibold text-slate-900">Select the approved packaging</p>
@@ -279,33 +279,39 @@ export function CommercializationReportBuilder({
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
                     {[
                       ['Decision', snapshot.decision.outcome],
                       ['ISSF score', snapshot.decision.issfScore.toFixed(1)],
                       ['Concept panel', String(snapshot.evidence.responseCount)],
                       ['Evidence strength', getEvidenceStrength(snapshot.evidence.responseCount)],
                     ].map(([label, value]) => (
-                      <div key={label} className="rounded-md border border-slate-200 p-3">
+                      <div key={label} className="rounded-md border border-slate-200 bg-white p-4">
                         <div className="text-xs text-slate-500">{label}</div>
                         <div className="mt-1 text-lg font-bold text-slate-900">{value}</div>
                       </div>
                     ))}
                   </div>
-                  {([
-                    ['executiveSummary', 'Executive recommendation'],
-                    ['whyLiked', 'Why panelists liked it'],
-                    ['packagingRationale', 'Packaging rationale'],
-                    ['launchRecommendation', 'Launch recommendation'],
-                    ['claimCaution', 'Claims and limitations'],
-                  ] as const).map(([key, label]) => (
-                    <div key={key}>
-                      <Label>{label}</Label>
-                      <Textarea className="mt-1 min-h-20" value={snapshot.narrative[key]} onChange={event => updateNarrative(key, event.target.value)} />
-                    </div>
-                  ))}
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    {([
+                      ['executiveSummary', 'Executive recommendation', 'xl:col-span-2 min-h-28'],
+                      ['whyLiked', 'Why panelists liked it', 'min-h-32'],
+                      ['packagingRationale', 'Packaging rationale', 'min-h-32'],
+                      ['launchRecommendation', 'Launch recommendation', 'min-h-32'],
+                      ['claimCaution', 'Claims and limitations', 'min-h-32'],
+                    ] as const).map(([key, label, heightClass]) => (
+                      <div key={key}>
+                        <Label>{label}</Label>
+                        <Textarea
+                          className={`mt-1 resize-y leading-6 ${heightClass}`}
+                          value={snapshot.narrative[key]}
+                          onChange={event => updateNarrative(key, event.target.value)}
+                        />
+                      </div>
+                    ))}
+                  </div>
                   {error && <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
-                  <div className="sticky bottom-0 -mx-5 flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-white/95 px-5 py-4 backdrop-blur-sm">
+                  <div className="sticky bottom-0 -mx-6 flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur-sm">
                     <Button variant="outline" onClick={saveDraft} disabled={createReport.isPending}>
                       <FileCheck2 className="size-4" />{createReport.isPending ? 'Saving...' : 'Save new version'}
                     </Button>

@@ -10,7 +10,7 @@ import { FlaskConical, AlertCircle, Upload, X, Check, Download, BarChart3, Clipb
 import { SAMPLES } from "../data/samples";
 import { formatFoodTypeLabel, slugifyFoodType } from "../lib/food-intelligence";
 import { useInsertInstrumentalImport, useInstrumentalDataset } from "../lib/hooks";
-import { isMissingFoodImportSchema } from "../lib/database";
+import { isMissingFoodImportSchema, downloadPendingImportFile, markPendingImportImported } from "../lib/database";
 import {
   ScatterChart,
   Scatter,
@@ -27,13 +27,14 @@ import {
   Radar,
 } from "recharts";
 import { ProjectHeader } from "./project-header";
+import { PendingImportsQueue } from "./pending-imports-queue";
 import { applyImportMappings, inferImportMappings } from "../lib/csv-import-mapping";
 
 
 import {
   type ETongueMeasurement, type GCMSCompound, type ChemicalComposition,
   type ColumnReport, type ImportCompletionSummary, type RetestImportContext,
-  MAX_FILE_SIZE, DEMO_TYPES,
+  MAX_FILE_SIZE, DEMO_TYPES, RETEST_PARENT_DECISION_KEY,
   parseCSVLine, mergeInstrumentalData,
   inferType, inferCategory, getPointColor,
   buildImportedDataset, validateImportedDataset, applyImportedDataset, buildRetestBatchName,
@@ -45,9 +46,17 @@ export function Stage1Instrumental() {
   const initialDataset = useMemo(() => mergeInstrumentalData(storedImportedData), [storedImportedData]);
   const location = useLocation();
   const navigate = useNavigate();
-  const retestImport = (
-    location.state as { retestImport?: RetestImportContext } | null
-  )?.retestImport;
+  type LocationState = {
+    retestImport?: RetestImportContext;
+    pendingImportId?: string;
+    pendingStoragePath?: string;
+    matchedBatchName?: string;
+  } | null;
+  const locationState = location.state as LocationState;
+  const retestImport = locationState?.retestImport;
+  const pendingImportId = locationState?.pendingImportId;
+  const pendingStoragePath = locationState?.pendingStoragePath;
+  const pendingMatchedBatchName = locationState?.matchedBatchName;
   const newProjectIntent = new URLSearchParams(location.search).get('new') === 'project';
   const { user } = useAuth();
   const instrumentalDatasetQuery = useInstrumentalDataset(user?.role === 'admin');
@@ -68,6 +77,7 @@ export function Stage1Instrumental() {
   const [columnReport, setColumnReport] = useState<ColumnReport | null>(null);
   const [foodTypeOverride, setFoodTypeOverride] = useState('');
   const [, setUsingDemoData] = useState(!storedImportedData);
+  const [isLoadingFromQueue, setIsLoadingFromQueue] = useState(!!pendingStoragePath);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const projectNameInputRef = useRef<HTMLInputElement>(null);
@@ -77,6 +87,22 @@ export function Stage1Instrumental() {
     if (!newProjectIntent) return;
     window.setTimeout(() => projectNameInputRef.current?.focus(), 0);
   }, [newProjectIntent]);
+
+  // Auto-load file from the import queue when navigated here via "Review"
+  useEffect(() => {
+    if (!pendingStoragePath) return;
+    setIsLoadingFromQueue(true);
+    downloadPendingImportFile(pendingStoragePath)
+      .then(({ text, fileName }) => {
+        parseCSV(text, fileName, pendingMatchedBatchName);
+      })
+      .catch((err) => {
+        setImportError(err instanceof Error ? err.message : 'Failed to load file from import queue.');
+      })
+      .finally(() => setIsLoadingFromQueue(false));
+    // run once on mount — pendingStoragePath comes from router state, never changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const importSummary = useMemo(() => {
     if (!showPreview || previewData.length === 0) return null;
@@ -201,7 +227,7 @@ export function Stage1Instrumental() {
     reader.readAsText(file, "UTF-8");
   };
 
-  const parseCSV = (text: string, fileName: string) => {
+  const parseCSV = (text: string, fileName: string, overrideBatchName?: string) => {
     // handle \r\n (Windows), \r-only (old Mac), \n (Unix)
     const lines = text.split(/\r\n|\r|\n/).filter((l) => l.trim().length > 0);
 
@@ -232,7 +258,7 @@ export function Stage1Instrumental() {
     });
     setPreviewData(mappedData);
     setUploadedFile(fileName);
-    setBatchName(retestImport ? buildRetestBatchName(retestImport) : batchName.trim() || fileName.replace(/\.csv$/i, ''));
+    setBatchName(overrideBatchName ?? (retestImport ? buildRetestBatchName(retestImport) : batchName.trim() || fileName.replace(/\.csv$/i, '')));
     setShowPreview(true);
     setImportStep(2);
     setImportError(null);
@@ -269,8 +295,14 @@ export function Stage1Instrumental() {
         eTongueData: importedETongue,
         gcmsData: parsed.gcmsData,
         compositionData: parsed.compositionData,
+        reformulationNotes: retestImport
+          ? [retestImport.target, retestImport.action].filter(Boolean).join(' — ') || undefined
+          : undefined,
       });
 
+      if (retestImport?.parentDecisionId) {
+        localStorage.setItem(RETEST_PARENT_DECISION_KEY, retestImport.parentDecisionId);
+      }
       const nextDataset = savedDataset.eTongueData.length > 0 ? savedDataset : parsed;
       applyImportedDataset(nextDataset, setETongueData, setGcmsData, setCompositionData, setSelectedSamples);
     } catch (err) {
@@ -281,6 +313,10 @@ export function Stage1Instrumental() {
         setImportError(err instanceof Error ? err.message : "Import failed while saving to the database.");
         return;
       }
+    }
+
+    if (pendingImportId) {
+      markPendingImportImported(pendingImportId).catch(() => {});
     }
 
     if (!DEMO_TYPES.has(parsed.detection.slug)) {
@@ -472,6 +508,15 @@ export function Stage1Instrumental() {
   return (
     <div className="space-y-6">
       <ProjectHeader />
+
+      <PendingImportsQueue />
+
+      {isLoadingFromQueue && (
+        <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+          <div className="size-4 animate-spin rounded-full border-2 border-blue-300 border-t-blue-600" />
+          Loading file from import queue…
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between">

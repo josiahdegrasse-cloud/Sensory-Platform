@@ -3,14 +3,52 @@ import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
-import { ChevronDown, DollarSign, Eye, FolderKanban, Package, Palette, Star, Target } from 'lucide-react';
-import type { ConceptDraft } from './types';
+import { ChevronDown, DollarSign, Eye, FolderKanban, Layers, Package, Palette, Star, Target } from 'lucide-react';
+import type { ConceptDraft, VariantDimensions } from './types';
 import { detectFoodType, getFoodTypeProfile } from '../../lib/food-intelligence';
+
+// ─── Dimension picker ─────────────────────────────────────────────────────────
+
+function DimPicker<T extends string>({
+  label, value, options, onChange,
+}: {
+  label: string;
+  value: T | null;
+  options: { value: T; label: string }[];
+  onChange: (v: T | null) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-semibold text-slate-700">{label}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map(opt => {
+          const active = value === opt.value;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => onChange(active ? null : opt.value)}
+              className={`rounded-full px-2.5 py-0.5 text-xs font-medium border transition-colors ${
+                active
+                  ? 'bg-blue-600 border-blue-600 text-white'
+                  : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400 hover:text-blue-700'
+              }`}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: ConceptDraft) => void }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const set = (field: keyof ConceptDraft) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     onChange({ ...draft, [field]: e.target.value });
+  const setDim = <K extends keyof VariantDimensions>(dim: K) => (value: VariantDimensions[K] | null) =>
+    onChange({ ...draft, variantDimensions: { ...draft.variantDimensions, [dim]: value } });
   const detection = detectFoodType(draft.category, draft.name, draft.description);
   const profile = getFoodTypeProfile(detection.slug);
 
@@ -143,6 +181,84 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
             className="resize-none bg-white"
           />
           <p className="text-xs text-slate-500">Only include claims or badges that are approved for concept testing.</p>
+        </div>
+      </section>
+
+      <section className="space-y-4 rounded-lg border border-slate-200 bg-slate-50/60 p-4">
+        <div>
+          <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+            <Layers className="size-3.5" /> Concept Positioning
+          </h3>
+          <p className="mt-1 text-xs text-slate-500">
+            These structured dimensions are stored as metadata so consumer responses can later be
+            correlated with positioning choices. Select any that apply — unset dimensions are fine.
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <DimPicker
+            label="Brand positioning"
+            value={draft.variantDimensions?.positioning ?? null}
+            options={[{ value: 'premium', label: 'Premium' }, { value: 'accessible', label: 'Accessible' }]}
+            onChange={setDim('positioning')}
+          />
+          <DimPicker
+            label="Visual complexity"
+            value={draft.variantDimensions?.visualComplexity ?? null}
+            options={[{ value: 'minimal', label: 'Minimal' }, { value: 'expressive', label: 'Expressive' }]}
+            onChange={setDim('visualComplexity')}
+          />
+          <DimPicker
+            label="Consumer appeal"
+            value={draft.variantDimensions?.appeal ?? null}
+            options={[{ value: 'health', label: 'Health-focused' }, { value: 'indulgent', label: 'Indulgent' }]}
+            onChange={setDim('appeal')}
+          />
+          <DimPicker
+            label="Primary channel"
+            value={draft.variantDimensions?.channel ?? null}
+            options={[{ value: 'retail', label: 'Retail shelf' }, { value: 'lifestyle', label: 'Lifestyle / DTC' }]}
+            onChange={setDim('channel')}
+          />
+          <DimPicker
+            label="Packaging format"
+            value={draft.variantDimensions?.packagingFormat ?? null}
+            options={[
+              { value: 'pouch', label: 'Pouch' }, { value: 'block', label: 'Block' },
+              { value: 'jar', label: 'Jar' }, { value: 'can', label: 'Can' },
+              { value: 'bottle', label: 'Bottle' }, { value: 'sleeve', label: 'Sleeve' },
+              { value: 'tray', label: 'Tray' }, { value: 'tube', label: 'Tube' },
+            ]}
+            onChange={setDim('packagingFormat')}
+          />
+          <DimPicker
+            label="Brand colour scheme"
+            value={draft.variantDimensions?.brandColorScheme ?? null}
+            options={[
+              { value: 'earthy', label: 'Earthy' }, { value: 'vibrant', label: 'Vibrant' },
+              { value: 'minimalist', label: 'Minimalist' }, { value: 'luxury', label: 'Luxury' },
+              { value: 'bold', label: 'Bold' }, { value: 'pastel', label: 'Pastel' },
+            ]}
+            onChange={setDim('brandColorScheme')}
+          />
+          <DimPicker
+            label="Target demographic"
+            value={draft.variantDimensions?.targetDemographic ?? null}
+            options={[
+              { value: 'young_active', label: 'Young & Active' }, { value: 'family', label: 'Family' },
+              { value: 'professional', label: 'Professional' }, { value: 'senior', label: 'Senior' },
+              { value: 'health_seeker', label: 'Health-seeker' },
+            ]}
+            onChange={setDim('targetDemographic')}
+          />
+          <DimPicker
+            label="Price positioning"
+            value={draft.variantDimensions?.pricePositioning ?? null}
+            options={[
+              { value: 'budget', label: 'Budget' }, { value: 'mainstream', label: 'Mainstream' },
+              { value: 'premium', label: 'Premium' }, { value: 'ultra_premium', label: 'Ultra-premium' },
+            ]}
+            onChange={setDim('pricePositioning')}
+          />
         </div>
       </section>
 

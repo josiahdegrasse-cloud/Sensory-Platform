@@ -46,7 +46,22 @@ export interface WorkspaceSettings {
   logoUrl?: string | null;
   primaryColor?: string | null;
   accentColor?: string | null;
+  // Connected Google Drive folder for the monitored-import source.
+  driveFolderId?: string | null;
+  driveFolderName?: string | null;
   updatedAt: string | null;
+}
+
+// Accepts a pasted Drive folder URL or a bare id and returns the folder id.
+// e.g. https://drive.google.com/drive/folders/<id>?usp=sharing -> <id>
+export function parseDriveFolderId(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const match = trimmed.match(/folders\/([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
+  // Bare id (Drive ids are url-safe base64-ish, no slashes/spaces)
+  if (/^[a-zA-Z0-9_-]+$/.test(trimmed)) return trimmed;
+  return null;
 }
 
 export interface PublicWorkspaceConfig {
@@ -80,6 +95,8 @@ export interface DecisionRecord {
   note: string;
   methodVersion: string;
   decisionFingerprint: string;
+  /** Set when this decision was made after a retest triggered by a prior TWEAK/STOP. */
+  parentDecisionId?: string | null;
 }
 
 function defaultWorkspaceSettings(): WorkspaceSettings {
@@ -123,6 +140,8 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     logoUrl: null,
     primaryColor: null,
     accentColor: null,
+    driveFolderId: null,
+    driveFolderName: null,
     updatedAt: null,
   };
 }
@@ -168,6 +187,8 @@ function toWorkspaceSettings(row: Record<string, unknown>): WorkspaceSettings {
     logoUrl: (row.logo_url as string) ?? null,
     primaryColor: (row.primary_color as string) ?? null,
     accentColor: (row.accent_color as string) ?? null,
+    driveFolderId: (row.drive_folder_id as string) ?? null,
+    driveFolderName: (row.drive_folder_name as string) ?? null,
     updatedAt: (row.updated_at as string) ?? null,
   };
 }
@@ -256,6 +277,8 @@ export async function updateWorkspaceSettings(
     logo_url: updates.logoUrl ?? null,
     primary_color: updates.primaryColor ?? null,
     accent_color: updates.accentColor ?? null,
+    drive_folder_id: updates.driveFolderId ?? null,
+    drive_folder_name: updates.driveFolderName ?? null,
     updated_at: new Date().toISOString(),
   };
 
@@ -406,6 +429,7 @@ export async function fetchDecisionRecords(limit = 200): Promise<DecisionRecord[
     note: (row.note as string) ?? '',
     methodVersion: row.method_version as string,
     decisionFingerprint: row.decision_fingerprint as string,
+    parentDecisionId: (row.parent_decision_id as string) ?? null,
   }));
 }
 
@@ -419,8 +443,10 @@ export async function insertDecisionRecord(input: {
   methodVersion: string;
   decisionFingerprint: string;
   createdBy: string;
-}): Promise<void> {
-  const { error } = await supabase.from('decision_records').insert({
+  /** ID of the TWEAK/STOP decision that triggered the retest leading to this one. */
+  parentDecisionId?: string | null;
+}): Promise<string | null> {
+  const { data, error } = await supabase.from('decision_records').insert({
     sample_id: input.sampleId,
     sample_name: input.sampleName,
     decision: input.decision,
@@ -430,6 +456,8 @@ export async function insertDecisionRecord(input: {
     method_version: input.methodVersion,
     decision_fingerprint: input.decisionFingerprint,
     created_by: input.createdBy,
-  });
+    parent_decision_id: input.parentDecisionId ?? null,
+  }).select('id').single();
   if (error) throw dbError(error);
+  return (data as { id: string } | null)?.id ?? null;
 }

@@ -2,6 +2,32 @@
 
 export type QuestionType = 'scale' | 'multiple_choice' | 'open_text' | 'ranking' | 'image_choice';
 
+/** Structured positioning dimensions for a concept. Each dimension is a
+ * controlled enum so results can be compared across concepts and correlated
+ * with consumer outcomes. All fields are nullable — dimensions are optional
+ * but strongly encouraged for causal interpretation. */
+export interface VariantDimensions {
+  positioning:       'premium' | 'accessible'                                                        | null;
+  visualComplexity:  'minimal' | 'expressive'                                                        | null;
+  appeal:            'health'  | 'indulgent'                                                          | null;
+  channel:           'retail'  | 'lifestyle'                                                          | null;
+  packagingFormat:   'pouch' | 'block' | 'jar' | 'can' | 'bottle' | 'sleeve' | 'tray' | 'tube'      | null;
+  brandColorScheme:  'earthy' | 'vibrant' | 'minimalist' | 'luxury' | 'bold' | 'pastel'              | null;
+  targetDemographic: 'young_active' | 'family' | 'professional' | 'senior' | 'health_seeker'         | null;
+  pricePositioning:  'budget' | 'mainstream' | 'premium' | 'ultra_premium'                           | null;
+}
+
+export const EMPTY_VARIANT_DIMENSIONS: VariantDimensions = {
+  positioning:       null,
+  visualComplexity:  null,
+  appeal:            null,
+  channel:           null,
+  packagingFormat:   null,
+  brandColorScheme:  null,
+  targetDemographic: null,
+  pricePositioning:  null,
+};
+
 export interface Question {
   id: string;
   text: string;
@@ -35,6 +61,8 @@ export interface ConceptDraft {
   /** Claims that must never appear or be implied in generated images (one per line). */
   forbiddenClaims: string;
   approvalStatus: 'draft' | 'review' | 'approved';
+  /** Structured positioning dimensions. Persisted to concept_tests.variant_dimensions. */
+  variantDimensions: VariantDimensions;
 }
 
 export type WizardStep = 'concept' | 'visuals' | 'survey' | 'review' | 'launched';

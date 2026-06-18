@@ -7,14 +7,113 @@ import {
   Clock3,
   FileText,
   FolderKanban,
+  Info,
   Image as ImageIcon,
+  Layers,
   Users,
 } from 'lucide-react';
 import type { ConceptDraft, Question } from './types';
 import { CATEGORY_COLORS } from './types';
-import { usePanelists } from '../../lib/hooks';
+import { usePanelists, useWorkspaceSettings } from '../../lib/hooks';
 import { getConceptReadiness } from './concept-readiness';
 import { estimateSurveySeconds, formatSurveyDuration } from './survey-utils';
+import type { StudyQualityScore } from './study-quality-scorer';
+
+// ─── Study Quality card ───────────────────────────────────────────────────────
+
+const SUB_LABELS: Record<keyof Omit<StudyQualityScore, 'overall' | 'warnings'>, string> = {
+  panelAdequacy:    'Panel',
+  surveyBalance:    'Survey',
+  conceptClarity:   'Clarity',
+  researchIntegrity: 'Integrity',
+};
+
+function StudyQualityCard({ score }: { score: StudyQualityScore }) {
+  const pct = score.overall;
+  const ring = pct >= 75 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-rose-600';
+  const errors = score.warnings.filter(w => w.severity === 'error');
+  const warnings = score.warnings.filter(w => w.severity === 'warn');
+  const infos = score.warnings.filter(w => w.severity === 'info');
+
+  return (
+    <Card className="border border-slate-200">
+      <CardContent className="py-4 space-y-4">
+        <div className="flex items-start gap-4">
+          <div className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 min-w-[4.5rem]">
+            <span className={`text-3xl font-bold tabular-nums ${ring}`}>{pct}</span>
+            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">/100</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-slate-900">Study readiness</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {pct >= 75 ? 'This study is well-designed and ready to launch.'
+                : pct >= 50 ? 'Good foundation — address the warnings below for stronger results.'
+                : 'Several design issues detected. Review warnings before launching.'}
+            </p>
+            <div className="mt-3 grid grid-cols-4 gap-2">
+              {(Object.keys(SUB_LABELS) as (keyof typeof SUB_LABELS)[]).map(key => {
+                const sub = score[key] as number;
+                const fill = sub >= 19 ? 'bg-emerald-500' : sub >= 12 ? 'bg-amber-500' : 'bg-rose-400';
+                return (
+                  <div key={key} className="space-y-1">
+                    <div className="h-1.5 w-full rounded-full bg-slate-100">
+                      <div className={`h-1.5 rounded-full ${fill}`} style={{ width: `${(sub / 25) * 100}%` }} />
+                    </div>
+                    <p className="text-[10px] text-slate-500">{SUB_LABELS[key]} <span className="font-semibold text-slate-700">{sub}/25</span></p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {(errors.length > 0 || warnings.length > 0 || infos.length > 0) && (
+          <ul className="space-y-1.5">
+            {[...errors, ...warnings, ...infos].map(w => (
+              <li key={w.code} className={`flex items-start gap-2 rounded-md px-3 py-2 text-xs ${
+                w.severity === 'error' ? 'bg-rose-50 border border-rose-200 text-rose-800'
+                : w.severity === 'warn' ? 'bg-amber-50 border border-amber-200 text-amber-800'
+                : 'bg-blue-50 border border-blue-200 text-blue-800'
+              }`}>
+                {w.severity === 'error' ? <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                  : w.severity === 'warn' ? <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                  : <Info className="mt-0.5 size-3.5 shrink-0" />}
+                {w.message}
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Positioning summary ──────────────────────────────────────────────────────
+
+const DIM_LABELS: Record<string, string> = {
+  positioning: 'Brand positioning',
+  visualComplexity: 'Visual complexity',
+  appeal: 'Consumer appeal',
+  channel: 'Primary channel',
+  packagingFormat: 'Packaging format',
+  brandColorScheme: 'Colour scheme',
+  targetDemographic: 'Target demographic',
+  pricePositioning: 'Price positioning',
+};
+
+const OPTION_LABELS: Record<string, string> = {
+  premium: 'Premium', accessible: 'Accessible',
+  minimal: 'Minimal', expressive: 'Expressive',
+  health: 'Health-focused', indulgent: 'Indulgent',
+  retail: 'Retail shelf', lifestyle: 'Lifestyle / DTC',
+  young_active: 'Young & Active', family: 'Family', professional: 'Professional',
+  senior: 'Senior', health_seeker: 'Health-seeker',
+  budget: 'Budget', mainstream: 'Mainstream', ultra_premium: 'Ultra-premium',
+  earthy: 'Earthy', vibrant: 'Vibrant', minimalist: 'Minimalist',
+  luxury: 'Luxury', bold: 'Bold', pastel: 'Pastel',
+  pouch: 'Pouch', block: 'Block', jar: 'Jar', can: 'Can',
+  bottle: 'Bottle', sleeve: 'Sleeve', tray: 'Tray', tube: 'Tube',
+};
 
 export function ReviewStep({
   draft,
@@ -36,7 +135,11 @@ export function ReviewStep({
   onEditSurvey: () => void;
 }) {
   const { data: panelists = [] } = usePanelists();
-  const readiness = getConceptReadiness({ draft, questions, assignedPanelistIds, panelists });
+  const { data: workspaceSettings } = useWorkspaceSettings();
+  const { items: readiness, studyQuality } = getConceptReadiness({
+    draft, questions, assignedPanelistIds, panelists,
+    targetPanelSize: workspaceSettings?.defaultPanelSize,
+  });
   const blockers = readiness.filter(item => !item.ready);
   const selectedImages = draft.marketingImages.filter(image => image.trim());
   const estimatedDuration = formatSurveyDuration(estimateSurveySeconds(questions));
@@ -84,6 +187,8 @@ export function ReviewStep({
           All launch requirements are complete.
         </div>
       )}
+
+      <StudyQualityCard score={studyQuality} />
 
       <Card className="border border-slate-200">
         <CardContent className="py-4">
@@ -196,6 +301,37 @@ export function ReviewStep({
                 </div>
               </>
             )}
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="positioning">
+          <AccordionTrigger>
+            <span className="flex items-center gap-2">
+              <Layers className="size-4 text-slate-500" aria-hidden />
+              Concept positioning
+              <span className="font-normal text-slate-500">
+                {Object.values(draft.variantDimensions ?? {}).filter(v => v !== null).length} / 8 set
+              </span>
+            </span>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {Object.entries(DIM_LABELS).map(([key, label]) => {
+                const val = (draft.variantDimensions as unknown as Record<string, string | null> | undefined)?.[key] ?? null;
+                return (
+                  <div key={key} className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-slate-500 shrink-0">{label}</span>
+                    {val ? (
+                      <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
+                        {OPTION_LABELS[val] ?? val}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400 italic">Not specified</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </AccordionContent>
         </AccordionItem>
       </Accordion>

@@ -6,6 +6,7 @@ import {
   fetchConceptTestsForPanelist, fetchUserConceptResponses,
   fetchConceptTestsForAdmin, fetchConceptResponsesForTest,
   fetchCommercializationReports, createCommercializationReport, updateCommercializationReportStatus,
+  fetchEvidenceBundles, saveEvidenceBundle,
   fetchConceptTest, fetchConceptGenerationSettings, updateConceptGenerationSettings,
   fetchConceptImageGenerations, fetchConceptProjectSummaries, fetchConceptLabDiagnostics,
   fetchFoodTypes, fetchInstrumentalDataset, fetchImportBatches,
@@ -17,15 +18,21 @@ import {
   insertTemplate, deleteTemplate, updatePanelistId, updatePanelistTrainingLevel, updatePanelistStatus,
   insertConceptTest, insertConceptResponse,
   insertInstrumentalImport, archiveFoodTypeRecord, restoreFoodTypeRecord, deleteFoodTypeRecord, updateImportBatchStatus, updateImportBatchName, deleteImportBatch,
+  fetchPendingImports, dismissPendingImport, markPendingImportImported, uploadAndQueueImport,
+  rejectPendingImport, listDriveFiles, importDriveFiles,
   type ConceptTest, type InstrumentalImportInput, type ConceptGenerationSettings,
   type WorkspaceSettings, type PanelistInfo,
   type CommercializationReportRecord,
+  type EvidenceBundleRecord,
+  type PendingImportRecord,
 } from './database'
 import type { TrainingLevel } from '../utils/panelist-metrics'
 import type { Product } from '../data/mock-users'
 import { getTenantSlug } from './tenant'
 
 export const queryKeys = {
+  pendingImports: ['pendingImports'] as const,
+  driveFiles: ['driveFiles'] as const,
   products: ['products'] as const,
   activeProducts: ['activeProducts'] as const,
   templates: ['templates'] as const,
@@ -39,6 +46,7 @@ export const queryKeys = {
   adminConceptTests: ['adminConceptTests'] as const,
   conceptTestResponses: (id: string) => ['conceptTestResponses', id] as const,
   commercializationReports: ['commercializationReports'] as const,
+  evidenceBundles: (projectId?: string) => ['evidenceBundles', projectId ?? 'all'] as const,
   conceptGenerationSettings: ['conceptGenerationSettings'] as const,
   conceptImageGenerations: ['conceptImageGenerations'] as const,
   conceptProjects: ['conceptProjects'] as const,
@@ -74,7 +82,7 @@ export function usePanelistReliability() {
 }
 
 export function useAllResponses() {
-  return useQuery({ queryKey: queryKeys.allResponses, queryFn: fetchAllResponses })
+  return useQuery({ queryKey: queryKeys.allResponses, queryFn: () => fetchAllResponses() })
 }
 
 export function useDecisionRecords() {
@@ -129,11 +137,30 @@ export function useCommercializationReports() {
   return useQuery({ queryKey: queryKeys.commercializationReports, queryFn: fetchCommercializationReports })
 }
 
+export function useEvidenceBundles(projectId?: string) {
+  return useQuery({
+    queryKey: queryKeys.evidenceBundles(projectId),
+    queryFn: () => fetchEvidenceBundles(projectId),
+  })
+}
+
 export function useCreateCommercializationReport() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: createCommercializationReport,
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.commercializationReports }),
+  })
+}
+
+export function useSaveEvidenceBundle() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { projectId: string; schemaVersion: string; sourceDataVersion: string; payload: Record<string, unknown> }) =>
+      saveEvidenceBundle(input),
+    onSuccess: (bundle: EvidenceBundleRecord) => {
+      qc.invalidateQueries({ queryKey: queryKeys.evidenceBundles(bundle.projectId) })
+      qc.invalidateQueries({ queryKey: queryKeys.evidenceBundles() })
+    },
   })
 }
 
@@ -472,6 +499,78 @@ export function useDeleteImportBatch() {
     },
   })
 }
+
+export function usePendingImports(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.pendingImports,
+    queryFn: fetchPendingImports,
+    enabled,
+    refetchInterval: 30_000,
+  })
+}
+
+export function useUploadAndQueueImport() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ file, userId }: { file: File; userId: string }) =>
+      uploadAndQueueImport(file, userId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.pendingImports }),
+  })
+}
+
+export function useDismissPendingImport() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => dismissPendingImport(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.pendingImports }),
+  })
+}
+
+export function useMarkPendingImportImported() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => markPendingImportImported(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.pendingImports })
+      qc.invalidateQueries({ queryKey: queryKeys.importBatches })
+    },
+  })
+}
+
+export function useRejectPendingImport() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      rejectPendingImport(id, reason),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.pendingImports }),
+  })
+}
+
+// Lists CSVs in the connected Drive folder. Manual-fetch only (no polling) —
+// the modal triggers it on open via `enabled`.
+export function useDriveFiles(enabled = false) {
+  return useQuery({
+    queryKey: queryKeys.driveFiles,
+    queryFn: listDriveFiles,
+    enabled,
+    refetchOnWindowFocus: false,
+    staleTime: 0,
+  })
+}
+
+export function useImportDriveFiles() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (fileIds: string[]) => importDriveFiles(fileIds),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.pendingImports })
+      qc.invalidateQueries({ queryKey: queryKeys.driveFiles })
+    },
+  })
+}
+
+// Re-export type so consumers don't need a second import
+export type { PendingImportRecord }
 
 export function useImportBatches(enabled = true) {
   return useQuery({

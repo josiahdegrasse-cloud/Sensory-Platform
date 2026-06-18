@@ -62,6 +62,8 @@ export interface InstrumentalImportInput extends InstrumentalDataset {
   ignoredColumns: string[];
   detection: FoodTypeDetection;
   importedBy?: string | null;
+  /** Set when this import is a retest/reformulation; describes what changed. */
+  reformulationNotes?: string | null;
 }
 
 const DEMO_RESPONSE_FOOD_TYPES = new Set(['bread', 'cheese']);
@@ -316,6 +318,8 @@ export interface ImportBatchRecord {
   importedByName: string | null;
   createdAt: string;
   sampleCount: number;
+  /** What changed in this reformulation vs. the prior version (from TweakPrescription). */
+  reformulationNotes?: string | null;
 }
 
 export async function fetchImportBatches(): Promise<ImportBatchRecord[]> {
@@ -366,6 +370,7 @@ export async function fetchImportBatches(): Promise<ImportBatchRecord[]> {
       importedByName: profile?.name ?? null,
       createdAt: row.imported_at as string,
       sampleCount: countArr?.[0]?.count ?? Number(row.row_count ?? 0),
+      reformulationNotes: (row.reformulation_notes as string) ?? null,
     };
   });
 }
@@ -471,6 +476,12 @@ export async function insertInstrumentalImport(input: InstrumentalImportInput): 
   });
   if (error) throw dbError(error);
   if (typeof batchId === 'string') {
+    if (input.reformulationNotes) {
+      await supabase
+        .from('import_batches')
+        .update({ reformulation_notes: input.reformulationNotes })
+        .eq('id', batchId);
+    }
     await seedDemoResponsesForImport({
       batchId,
       foodType: slugifyFoodType(input.detection.slug),
