@@ -1,5 +1,5 @@
 import { supabase } from '../supabase';
-import { dbError } from './shared';
+import { dbError, edgeFunctionErrorMessage } from './shared';
 
 export interface PendingImportParsePreview {
   headers: string[];
@@ -119,7 +119,7 @@ export async function uploadAndQueueImport(
   const { data, error: invokeError } = await supabase.functions.invoke('process-import', {
     body: { storagePath },
   });
-  if (invokeError) throw new Error(`Processing failed: ${invokeError.message}`);
+  if (invokeError) throw new Error(`Processing failed: ${await edgeFunctionErrorMessage(invokeError, invokeError.message)}`);
   return toPendingImport(data as Record<string, unknown>);
 }
 
@@ -129,7 +129,7 @@ export async function listDriveFiles(): Promise<{ files: DriveFile[]; serviceAcc
   const { data, error } = await supabase.functions.invoke('drive-sync', {
     body: { mode: 'list' },
   });
-  if (error) throw new Error(error.message || 'Failed to list Drive files.');
+  if (error) throw new Error(await edgeFunctionErrorMessage(error, 'Failed to list Drive files.'));
   const payload = data as { files?: DriveFile[]; serviceAccountEmail?: string };
   return { files: payload.files ?? [], serviceAccountEmail: payload.serviceAccountEmail ?? '' };
 }
@@ -139,7 +139,7 @@ export async function importDriveFiles(fileIds: string[]): Promise<DriveImportRe
   const { data, error } = await supabase.functions.invoke('drive-sync', {
     body: { mode: 'import', fileIds },
   });
-  if (error) throw new Error(error.message || 'Drive import failed.');
+  if (error) throw new Error(await edgeFunctionErrorMessage(error, 'Drive import failed.'));
   const payload = data as Partial<DriveImportResult>;
   return {
     queued: payload.queued ?? 0,

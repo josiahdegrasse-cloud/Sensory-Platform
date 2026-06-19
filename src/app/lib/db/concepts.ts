@@ -1,5 +1,5 @@
 import { supabase } from '../supabase';
-import { dbError } from './shared';
+import { dbError, edgeFunctionErrorMessage } from './shared';
 
 export interface ConceptQuestion {
   id: string;
@@ -469,7 +469,7 @@ export async function generateReportNarrative(
   input: ReportNarrativeRequest,
 ): Promise<{ sections: Record<string, string>; model: string }> {
   const { data, error } = await supabase.functions.invoke('generate-report-narrative', { body: input });
-  if (error) throw new Error(error.message || 'Narrative generation failed.');
+  if (error) throw new Error(await edgeFunctionErrorMessage(error, 'Narrative generation failed.'));
   const payload = data as { sections?: Record<string, string>; model?: string };
   return { sections: payload.sections ?? {}, model: payload.model ?? '' };
 }

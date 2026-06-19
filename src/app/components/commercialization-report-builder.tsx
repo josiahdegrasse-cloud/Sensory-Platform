@@ -438,6 +438,9 @@ export function CommercializationReportBuilder({
                       <div key={key}>
                         <Label>{label}</Label>
                         <Textarea
+                          // Evidence tokens (s4, issf, cata, quality-warning…) aren't
+                          // dictionary words; spellcheck underlines them as false errors.
+                          spellCheck={false}
                           className={`mt-1 resize-y leading-6 ${heightClass}`}
                           value={snapshot.narrative[key]}
                           onChange={event => updateNarrative(key, event.target.value)}

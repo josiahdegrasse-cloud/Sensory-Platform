@@ -6,6 +6,28 @@ export function dbError(error: { message?: string; code?: string }): Error {
   return new Error(error.message || `Database error (code: ${error.code ?? 'unknown'})`);
 }
 
+// supabase.functions.invoke surfaces a generic "Edge Function returned a non-2xx
+// status code" message on HTTP errors and drops the function's JSON { error }
+// body, which it carries on FunctionsHttpError.context (a Response). Recover the
+// real reason so the UI can show what actually went wrong.
+export async function edgeFunctionErrorMessage(error: unknown, fallback: string): Promise<string> {
+  const context = (error as { context?: unknown })?.context;
+  if (context instanceof Response) {
+    try {
+      const body = await context.clone().json();
+      const detail = body?.detail ? ` — ${typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail)}` : '';
+      if (typeof body?.error === 'string' && body.error.trim()) return `${body.error}${detail}`;
+    } catch {
+      try {
+        const text = await context.clone().text();
+        if (text.trim()) return text.trim();
+      } catch { /* fall through to message */ }
+    }
+  }
+  const message = (error as { message?: unknown })?.message;
+  return typeof message === 'string' && message.trim() ? message : fallback;
+}
+
 export function isMissingFoodImportSchema(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return (
