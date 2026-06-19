@@ -38,7 +38,7 @@ const SECTION_META: Record<ReportSectionKey, { title: string; guidance: string; 
   },
   packagingRationale: {
     title: 'Packaging rationale',
-    guidance: 'Describe the chosen packaging direction from the concept inputs. This section is concept-driven and is not grounded by the evidence bundle.',
+    guidance: 'Describe the chosen packaging direction in plain, client-facing language, based on the concept inputs (positioning, target consumer, format). Write only what the concept supports; do not cite sensory metrics. Never use internal terms such as "evidence bundle".',
     evidenceBacked: false,
   },
   launchRecommendation: {

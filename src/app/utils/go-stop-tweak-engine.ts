@@ -249,9 +249,9 @@ function describeTextureAction(sample: EnhancedSensoryProfile, foodTypeSlug: str
   const cues = positiveTextureCues(foodTypeSlug);
   const targetCues = cues.slice(0, 3).join(', ');
   if (dominantDefects.length > 0) {
-    return `Reduce ${dominantDefects.join(' and ')} (the dominant texture drag in this sample) via milling, hydration, or fat-protein ratio changes, and build toward ${targetCues}. Re-measure texture after the next prototype.`;
+    return `Reduce ${dominantDefects.join(' and ')} and build toward ${targetCues} cues through milling, hydration, or fat-protein ratio changes.`;
   }
-  return `No single texture defect dominates; lift overall texture liking by reinforcing ${targetCues} through formulation and process controls, then re-measure after the next prototype.`;
+  return `Lift overall texture liking by reinforcing ${targetCues} cues through formulation and process controls.`;
 }
 
 function buildPrescriptions(

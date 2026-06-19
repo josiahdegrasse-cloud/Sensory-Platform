@@ -155,19 +155,19 @@ function scoreImplication(key: keyof CommercializationReportSnapshot['decision']
   const strong: Record<typeof key, string> = {
     hedonic: 'Acceptance is strong enough to lead the buyer story with the product experience.',
     texture: 'Texture can be presented as a product advantage, provided scale-up preserves the tested profile.',
-    cata: 'Panelist language provides usable vocabulary for concept copy and buyer conversations.',
+    cata: 'The sensory descriptor profile is distinctive and gives the product a clear, defensible sensory identity to build messaging around.',
     emotional: 'The product creates a positive response that can support an engaging, benefit-led story.',
   };
   const developing: Record<typeof key, string> = {
     hedonic: 'Acceptance supports continued development, but broader validation should precede a broad launch claim.',
     texture: 'Texture is viable but should be protected through formulation and scale-up controls.',
-    cata: 'Descriptor signals are useful for direction, but messaging should stay focused and be retested.',
+    cata: 'The sensory descriptor profile is taking shape but should stay focused and be confirmed in the next screen.',
     emotional: 'Emotional response is encouraging but should remain a supporting proof point.',
   };
   const weak: Record<typeof key, string> = {
     hedonic: 'Acceptance needs targeted formulation work before the product is placed in a high-stakes buyer test.',
     texture: 'Texture is a commercialization risk and should be optimized before packaging or claims are locked.',
-    cata: 'The sensory story is not yet distinctive; refine the product or concept language before external use.',
+    cata: 'The sensory descriptor profile is not yet distinctive; sharpen the product before locking the sensory story.',
     emotional: 'The product is not yet creating enough positive pull to anchor the commercial story.',
   };
   if (score >= 75) return strong[key];
@@ -237,7 +237,9 @@ export function buildExecutiveReadout(input: CommercializationReportPdfInput): E
     decision: qualifier.conditional
       ? `${snapshot.product.sampleName} should advance into controlled commercialization preparation, conditional on closing the items below before any external launch.`
       : `${snapshot.product.sampleName} should advance into controlled commercialization preparation.`,
-    rationale: `The saved GO decision is supported by an ISSF score of ${snapshot.decision.issfScore.toFixed(1)} and ${snapshot.decision.confidence.toFixed(0)}% model confidence. ${strength} leads at ${Number(strengthScore).toFixed(0)}/100; ${watch} is the lowest dimension at ${Number(watchScore).toFixed(0)}/100.${qualifier.conditional ? ` ${qualifier.caveatLine}` : ''}`,
+    // The DECISION block above and the final dashboard already carry the
+    // conditional caveat; keep the rationale to the score facts to avoid repeating it.
+    rationale: `The saved GO decision is supported by an ISSF score of ${snapshot.decision.issfScore.toFixed(1)} and ${snapshot.decision.confidence.toFixed(0)}% model confidence. ${strength} leads at ${Number(strengthScore).toFixed(0)}/100; ${watch} is the lowest dimension at ${Number(watchScore).toFixed(0)}/100.`,
     // Route the AI (or deterministic-fallback) executive recommendation into the
     // PDF — it was previously written but never rendered. Append the deterministic
     // implication so the lead-dimension guidance is preserved.
@@ -276,7 +278,7 @@ export function buildPerformanceDashboard(input: CommercializationReportPdfInput
     ],
     evidenceNote: getEvidenceStrengthNote(snapshot.evidence.responseCount),
     definitions:
-      'How to read these scores: all dimension scores are 0–100, higher is better. '
+      'All dimension scores are 0–100, higher is better. '
       + 'ISSF = Integrated Sensory Screening Framework, the composite suitability score behind the GO / TWEAK / STOP decision. '
       + 'Model confidence reflects how complete and consistent the sensory evidence is — not market demand. '
       + 'n = number of concept-test responses collected.',
@@ -352,7 +354,7 @@ export function buildConceptPackaging(input: CommercializationReportPdfInput): C
     targetConsumer: snapshot.concept.targetMarket || 'Priority consumer requires definition.',
     pricePoint: snapshot.concept.pricePoint || 'Price point requires validation.',
     packagingDirection: stripEvidenceCitations(snapshot.narrative.packagingRationale),
-    coreMessage: `Lead with ${stripEvidenceCitations(snapshot.narrative.whyLiked)}`,
+    coreMessage: stripEvidenceCitations(snapshot.narrative.whyLiked),
     strategicFit: hasVisual
       ? `The selected visual gives the ${snapshot.concept.name || 'concept'} direction a concrete shelf and buyer-review stimulus while keeping the product experience central.`
       : 'A selected visual is required to connect the product strategy to a credible shelf and buyer-review direction.',
@@ -431,10 +433,26 @@ export function buildRisks(input: CommercializationReportPdfInput): RisksData {
         nextGate: 'Readiness review',
       },
     ],
-    // The AI (or deterministic-fallback) claims/limitations statement — previously
-    // written but never rendered in the PDF. Belongs on the control page.
-    claimsNote: stripEvidenceCitations(snapshot.narrative.claimCaution),
+    // Claims/limitations are legal-sensitive, so build this deterministically
+    // from the actual gaps rather than the AI narrative (which can degrade to a
+    // bare lead-in). Lists the concrete constraints a reviewer must clear.
+    claimsNote: buildClaimsNote(snapshot),
   };
+}
+
+function buildClaimsNote(snapshot: CommercializationReportSnapshot): string {
+  const [watchKey, watchScore] = weakestDimension(snapshot);
+  const count = snapshot.evidence.responseCount;
+  const parts: string[] = [
+    count === 0
+      ? 'No concept responses have been collected, so consumer preference and purchase-intent claims are unsupported.'
+      : `Concept evidence (n=${count}) is directional and not yet representative of the target market.`,
+  ];
+  if (Number(watchScore) < 60) {
+    parts.push(`${formatDecisionDimension(watchKey as keyof typeof snapshot.decision.dimensions)} (${Number(watchScore).toFixed(0)}/100) is below the readiness line and must be remediated before any performance claim.`);
+  }
+  parts.push('Substantiate every sensory, nutrition, and benefit claim against named evidence and complete legal review before external use.');
+  return parts.join(' ');
 }
 
 export function buildAppendix(input: CommercializationReportPdfInput): AppendixData {
