@@ -143,8 +143,26 @@ export function AdminSettings() {
   const [draft, setDraft] = useState<WorkspaceSettings>(settings);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  // Raw text for the Drive folder field so typing a URL by hand isn't blanked
+  // by parse-on-keystroke; the parsed id is committed to the draft on blur.
+  const [driveFolderInput, setDriveFolderInput] = useState(settings.driveFolderId ?? '');
 
-  useEffect(() => setDraft(settings), [settings]);
+  useEffect(() => {
+    setDraft(settings);
+    setDriveFolderInput(settings.driveFolderId ?? '');
+  }, [settings]);
+
+  const commitDriveFolder = () => {
+    const folderId = parseDriveFolderId(driveFolderInput);
+    setDraft(prev => ({
+      ...prev,
+      driveFolderId: folderId,
+      // Best-effort label: keep an existing name, else derive nothing (id shown).
+      driveFolderName: folderId ? (prev.driveFolderName ?? null) : null,
+    }));
+    // Normalise the visible text to the parsed id once it resolves.
+    if (folderId) setDriveFolderInput(folderId);
+  };
 
   const panelistStats = useMemo(() => {
     const active = panelists.filter(panelist => panelist.status === 'active').length;
@@ -160,7 +178,15 @@ export function AdminSettings() {
     setError('');
     setSaved(false);
     try {
-      await updateSettings.mutateAsync({ settings: draft, actorId: user?.id });
+      // Parse the Drive folder from its raw input here so an un-blurred edit is
+      // never lost when Save is clicked directly.
+      const driveFolderId = parseDriveFolderId(driveFolderInput);
+      const finalSettings: WorkspaceSettings = {
+        ...draft,
+        driveFolderId,
+        driveFolderName: driveFolderId ? (draft.driveFolderName ?? null) : null,
+      };
+      await updateSettings.mutateAsync({ settings: finalSettings, actorId: user?.id });
       setSaved(true);
       window.setTimeout(() => setSaved(false), 2600);
     } catch (err) {
@@ -295,9 +321,10 @@ export function AdminSettings() {
                   </Label>
                   <Input
                     id="drive-folder"
-                    value={draft.driveFolderId ?? ''}
+                    value={driveFolderInput}
                     placeholder="Paste a Drive folder link or ID"
-                    onChange={event => updateDraft('driveFolderId', parseDriveFolderId(event.target.value))}
+                    onChange={event => setDriveFolderInput(event.target.value)}
+                    onBlur={commitDriveFolder}
                   />
                   <p className="text-xs leading-5 text-slate-500">
                     Connect a shared folder, then use <span className="font-medium">Sync from Drive</span> on the
