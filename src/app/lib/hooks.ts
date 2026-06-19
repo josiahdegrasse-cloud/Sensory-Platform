@@ -29,6 +29,7 @@ import {
 import type { TrainingLevel } from '../utils/panelist-metrics'
 import type { Product } from '../data/mock-users'
 import { getTenantSlug } from './tenant'
+import { buildEvidenceBundle } from './report-evidence-source'
 
 export const queryKeys = {
   pendingImports: ['pendingImports'] as const,
@@ -47,6 +48,7 @@ export const queryKeys = {
   conceptTestResponses: (id: string) => ['conceptTestResponses', id] as const,
   commercializationReports: ['commercializationReports'] as const,
   evidenceBundles: (projectId?: string) => ['evidenceBundles', projectId ?? 'all'] as const,
+  projectEvidence: (projectId: string) => ['projectEvidence', projectId] as const,
   conceptGenerationSettings: ['conceptGenerationSettings'] as const,
   conceptImageGenerations: ['conceptImageGenerations'] as const,
   conceptProjects: ['conceptProjects'] as const,
@@ -161,6 +163,17 @@ export function useSaveEvidenceBundle() {
       qc.invalidateQueries({ queryKey: queryKeys.evidenceBundles(bundle.projectId) })
       qc.invalidateQueries({ queryKey: queryKeys.evidenceBundles() })
     },
+  })
+}
+
+// Deterministic, in-memory evidence bundle for a project/sample key (not saved).
+// Drives the report builder's "Data evidence" panel and the persisted payload.
+export function useProjectEvidenceBundle(projectId: string | null | undefined, createdBy?: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.projectEvidence(projectId ?? 'none'),
+    queryFn: () => buildEvidenceBundle(projectId as string, createdBy),
+    enabled: enabled && !!projectId,
+    staleTime: 60_000,
   })
 }
 

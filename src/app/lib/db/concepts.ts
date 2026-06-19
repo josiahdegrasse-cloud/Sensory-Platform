@@ -391,6 +391,7 @@ export async function createCommercializationReport(input: {
   packagingImageId: string | null;
   title: string;
   reportSnapshot: Record<string, unknown>;
+  evidenceBundleId?: string | null;
 }): Promise<CommercializationReportRecord> {
   const { data, error } = await supabase.rpc('create_commercialization_report', {
     target_decision_record_id: input.decisionRecordId,
@@ -400,7 +401,21 @@ export async function createCommercializationReport(input: {
     target_report_snapshot: input.reportSnapshot,
   });
   if (error) throw dbError(error);
-  return toCommercializationReport(data as Record<string, unknown>);
+  const report = toCommercializationReport(data as Record<string, unknown>);
+
+  // Link the evidence bundle backing this report. Done as a follow-up update
+  // (rather than threading through the SECURITY DEFINER RPC) — RLS lets the
+  // creator update a non-approved report. Non-fatal: the report is already saved.
+  if (input.evidenceBundleId) {
+    const { data: linked, error: linkError } = await supabase
+      .from('commercialization_reports')
+      .update({ evidence_bundle_id: input.evidenceBundleId })
+      .eq('id', report.id)
+      .select()
+      .maybeSingle();
+    if (!linkError && linked) return toCommercializationReport(linked as Record<string, unknown>);
+  }
+  return report;
 }
 
 export async function fetchEvidenceBundles(projectId?: string): Promise<EvidenceBundleRecord[]> {

@@ -14,6 +14,8 @@ import {
   useConceptTestResponses,
   useCreateCommercializationReport,
   useDecisionRecords,
+  useProjectEvidenceBundle,
+  useSaveEvidenceBundle,
   useUpdateCommercializationReportStatus,
 } from '../lib/hooks';
 import { updateConceptImageReviewStatus, type WorkspaceSettings } from '../lib/database';
@@ -54,6 +56,14 @@ export function CommercializationReportBuilder({
   const { data: reports = [] } = useCommercializationReports();
   const createReport = useCreateCommercializationReport();
   const updateStatus = useUpdateCommercializationReportStatus();
+  const saveBundle = useSaveEvidenceBundle();
+  // Deterministic evidence bundle for the GO sample — drives the data-evidence
+  // panel and is persisted + linked to the report on save.
+  const evidenceQuery = useProjectEvidenceBundle(decision.sampleId, userId, open);
+  const evidenceBundle = evidenceQuery.data ?? null;
+  const evidenceMismatch = !!evidenceBundle
+    && evidenceBundle.deterministicCandidateDecision !== 'INSUFFICIENT_DATA'
+    && evidenceBundle.deterministicCandidateDecision !== 'GO';
 
   const confirmedGo = decisions.find(record =>
     record.sampleId === decision.sampleId
@@ -125,6 +135,22 @@ export function CommercializationReportBuilder({
   const saveDraft = async () => {
     if (!snapshot || !confirmedGo || !selectedConcept || !userId) return;
     try {
+      // Persist the deterministic evidence bundle (idempotent server-side) and
+      // link it to the report. Non-fatal: a bundle failure must not block saving.
+      let evidenceBundleId: string | null = null;
+      if (evidenceBundle) {
+        try {
+          const savedBundle = await saveBundle.mutateAsync({
+            projectId: evidenceBundle.projectId,
+            schemaVersion: evidenceBundle.schemaVersion,
+            sourceDataVersion: evidenceBundle.sourceDataVersion,
+            payload: evidenceBundle as unknown as Record<string, unknown>,
+          });
+          evidenceBundleId = savedBundle.id;
+        } catch {
+          evidenceBundleId = null;
+        }
+      }
       const report = await createReport.mutateAsync({
         decisionRecordId: confirmedGo.id,
         conceptTestId: selectedConcept.id,
@@ -132,6 +158,7 @@ export function CommercializationReportBuilder({
         title: (settings?.defaultReportTitle || '{sample} commercialization report')
           .replace(/\{sample\}/g, decision.sampleName),
         reportSnapshot: snapshot as unknown as Record<string, unknown>,
+        evidenceBundleId,
       });
       setSavedReportId(report.id);
       setSavedVersion(report.version);
@@ -292,6 +319,35 @@ export function CommercializationReportBuilder({
                       </div>
                     ))}
                   </div>
+                  {evidenceBundle && (
+                    <div className={`rounded-md border p-4 ${evidenceMismatch ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'}`}>
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Data evidence</span>
+                        <span className="text-sm text-slate-700">
+                          Deterministic candidate: <strong className="text-slate-900">{evidenceBundle.deterministicCandidateDecision}</strong>
+                        </span>
+                        <span className="text-sm text-slate-700">
+                          Confidence: <strong className="capitalize text-slate-900">{evidenceBundle.deterministicConfidence}</strong>
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {evidenceBundle.evidence.length} evidence records · {evidenceBundle.missingData.length} missing · {evidenceBundle.qualityWarnings.length} warnings
+                        </span>
+                      </div>
+                      {evidenceMismatch && (
+                        <p className="mt-2 text-xs leading-5 text-amber-800">
+                          The deterministic engine reads this data as <strong>{evidenceBundle.deterministicCandidateDecision}</strong>, not GO.
+                          Confirm the human GO decision still holds before publishing client-facing claims.
+                        </p>
+                      )}
+                      {evidenceBundle.qualityWarnings.length > 0 && (
+                        <ul className="mt-2 space-y-0.5 text-xs text-slate-600">
+                          {evidenceBundle.qualityWarnings.slice(0, 3).map(warning => (
+                            <li key={warning.id}>• {warning.title}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
                   <div className="grid gap-4 xl:grid-cols-2">
                     {([
                       ['executiveSummary', 'Executive recommendation', 'xl:col-span-2 min-h-28'],
