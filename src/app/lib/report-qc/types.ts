@@ -201,6 +201,7 @@ export interface ReportContext {
   // evidence provenance — the real ids that exist in the source bundle. Claims
   // must cite ids from this set; anything else is unsupported.
   sourceEvidenceIds: string[];
+  evidenceProvenance: string;
 
   // governance / traceability
   methodVersion: string;

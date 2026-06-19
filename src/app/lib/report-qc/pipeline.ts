@@ -93,6 +93,9 @@ export function runQcPipeline(input: QcPipelineInput): QcPipelineResult {
 // these are not fixable by editing prose; they require collecting more data.
 function collectMissingEvidence(ctx: ReportContext): string[] {
   const missing: string[] = [];
+  if (/reference\/demo|reference-demo/i.test(ctx.evidenceProvenance)) {
+    missing.push('Reference/demo evidence must be replaced with collected client evidence before approval or external use.');
+  }
   if (ctx.concept.responseCount === 0) missing.push('Concept-test responses (n=0): consumer preference and purchase intent cannot be validated.');
   const weak = ctx.dimensions.filter(d => d.score < ctx.thresholds.readiness);
   for (const dim of weak) missing.push(`${dim.label} (${dim.score}/100) is below the ${ctx.thresholds.readiness}/100 readiness line.`);

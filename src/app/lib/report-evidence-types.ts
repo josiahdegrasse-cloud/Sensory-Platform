@@ -91,6 +91,70 @@ export type EvidenceBundle = {
   /** Underlying sensory measures behind the dimension scores — the raw evidence
    *  the report dashboard and QC pipeline cite instead of "saved decision model". */
   sensoryProfile?: SensoryProfileEvidence | null;
+  commercialProfile?: CommercializationProjectProfile | null;
+};
+
+export type CommercializationProjectProfile = {
+  sampleId: string;
+  evidenceStatus: 'reference_demo' | 'live' | 'mixed';
+  evidenceLabel: string;
+  product: {
+    productName: string;
+    category: string;
+    baseSystem: string;
+    formatHypothesis: string;
+    developmentStage: string;
+    intendedUseHypotheses: string[];
+  };
+  development: {
+    objective: string;
+    strengths: string[];
+    technicalRisks: string[];
+    formulationKnown: string[];
+    formulationUnknown: string[];
+  };
+  studyDesign: {
+    sensoryPopulation: string;
+    conceptPopulation: string;
+    instrumentalPopulation: string;
+    sensoryMethod: string;
+    instrumentalMethod: string;
+    collectionBoundary: string;
+  };
+  instrumentalSummary: Array<{
+    source: string;
+    finding: string;
+    benchmark: string;
+    effect: 'supports' | 'contradicts' | 'watch' | 'neutral';
+  }>;
+  conceptHypothesis: {
+    positioning: string;
+    targetSegment: string;
+    consumerNeed: string;
+    usageOccasion: string;
+    productPromise: string;
+    reasonsToBelieve: string[];
+    priceHypothesis: string;
+    packagingHypothesis: string;
+    validationQuestions: string[];
+  };
+  claimsBoundary: {
+    supportedInternalLanguage: string[];
+    prohibitedUntilValidated: string[];
+    requiredReviews: string[];
+  };
+  actionPlan: Array<{
+    workstream: string;
+    owner: string;
+    team: string;
+    dueDate: string | null;
+    priority: 'critical' | 'high' | 'medium' | 'low';
+    action: string;
+    completionEvidence: string;
+    passingCriteria: string;
+    dependencies: string[];
+    nextGate: string;
+  }>;
 };
 
 export type SensoryProfileEvidence = {

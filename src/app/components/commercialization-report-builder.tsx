@@ -306,6 +306,7 @@ export function CommercializationReportBuilder({
       reportVersion: selectedReport?.version ?? savedVersion,
       readinessThreshold: 60,
       augmentation,
+      commercialProfile: evidenceBundle.commercialProfile,
     });
   };
 

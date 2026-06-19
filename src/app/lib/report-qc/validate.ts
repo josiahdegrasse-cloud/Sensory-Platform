@@ -85,6 +85,9 @@ export function validateReportContext(ctx: ReportContext): ValidationResult {
   if (ctx.stage !== 'commercialization_approval' && ctx.decision.launchAuthorization === 'approved') {
     errors.push(err('title-stage-mismatch', 'Report stage does not permit launch authorization.', 16));
   }
+  if (ctx.approvalStatus === 'approved' && /reference\/demo|reference-demo/i.test(ctx.evidenceProvenance)) {
+    errors.push(err('reference-demo-approval', 'Reference/demo evidence cannot support external report approval.', 31));
+  }
 
   // — evidence completeness —
   for (const dim of ctx.dimensions) {

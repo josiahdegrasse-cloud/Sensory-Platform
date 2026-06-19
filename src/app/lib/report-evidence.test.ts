@@ -31,6 +31,9 @@ describe('Evidence Bundle builder', () => {
     // CATA measures express real descriptor frequencies, e.g. "Cheese 13/14 (93%)".
     expect(bundle.sensoryProfile!.dimensionMeasures.cata.join(' ')).toMatch(/\d+\/14/);
     expect(bundle.sensoryProfile!.dimensionMeasures.hedonic.join(' ')).toMatch(/Overall/);
+    expect(bundle.commercialProfile?.sampleId).toBe('S4');
+    expect(bundle.commercialProfile?.evidenceStatus).toBe('reference_demo');
+    expect(bundle.commercialProfile?.actionPlan).toHaveLength(5);
   });
 
   it('surfaces critical gate failures as STOP evidence', () => {

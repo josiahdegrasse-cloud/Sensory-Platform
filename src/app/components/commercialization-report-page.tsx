@@ -8,6 +8,7 @@ import { ProjectHeader } from './project-header';
 import {
   useDecisionRecords, useInstrumentalDataset, useAdminConceptTests,
   useCommercializationReports, useConceptTestResponses, useWorkspaceSettings,
+  useProjectEvidenceBundle,
 } from '../lib/hooks';
 import { ENHANCED_SENSORY_DATA } from '../data/enhanced-sensory';
 import { useSurveyData } from '../lib/use-survey-data';
@@ -22,6 +23,7 @@ import type { SemanticTone } from '../lib/project-status';
 import { ReportBrandStrip, ReportCoverHeader } from './commercialization-report-ui';
 import { ReportApprovalBar } from './report-approval-bar';
 import { ReportOverviewPanel } from './report-overview-panel';
+import { CommercializationProductDossier } from './commercialization-product-dossier';
 import { ReportPdfSectionsPanel } from './report-pdf-sections-panel';
 import { StageEmptyState } from './stage-empty-state';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
@@ -32,6 +34,9 @@ import {
   TEMPORARY_CHEESE_DECISION,
   TEMPORARY_CHEESE_DEMO_LABEL,
 } from '../data/temporary-cheese-demo';
+import { getCommercializationProjectProfile } from '../data/coconut-cheddar-profile';
+import { buildReportContext, type ApprovalStatus, type SensoryAugmentation } from '../lib/report-qc';
+import type { GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
 
 /**
  * The Commercialization Report — the final stage of the project journey.
@@ -79,12 +84,17 @@ export function CommercializationReportPage() {
     ? decisionRecords.find(decision => decision.id === requestedReport.decisionRecordId) ?? null
     : null;
   const focusDecision = requestedDecision ?? goDecision ?? latestDecision;
+  const { data: reportEvidenceBundle } = useProjectEvidenceBundle(focusDecision?.sampleId, user?.id, Boolean(focusDecision));
 
   const sample = useMemo(() => instrumentalDataset?.eTongueData.find(s => s.sampleId === focusDecision?.sampleId), [instrumentalDataset, focusDecision]);
   const composition = focusDecision ? instrumentalDataset?.compositionData[focusDecision.sampleId] : undefined;
   const compounds = focusDecision ? instrumentalDataset?.gcmsData[focusDecision.sampleId] ?? [] : [];
   const sensoryProfile = useMemo(() =>
     ENHANCED_SENSORY_DATA.find(p => p.sampleId === focusDecision?.sampleId), [focusDecision]);
+  const commercialProfile = useMemo(
+    () => getCommercializationProjectProfile(focusDecision?.sampleId),
+    [focusDecision],
+  );
   const matchingLiveSensory = useMemo(() => {
     if (!focusDecision) return undefined;
     return liveAggregations.find(a =>
@@ -112,6 +122,62 @@ export function CommercializationReportPage() {
     return reports.find(report => report.decisionRecordId === focusDecision.id) ?? null;
   }, [reports, focusDecision, requestedReport]);
   const snapshot = (savedReport?.reportSnapshot as unknown as CommercializationReportSnapshot | undefined) ?? null;
+  const reportContext = useMemo(() => {
+    if (!snapshot || !reportEvidenceBundle) return undefined;
+    const sp = reportEvidenceBundle.sensoryProfile;
+    const augmentation: SensoryAugmentation = {
+      panelSize: sp?.panelSize ?? null,
+      sourceEvidenceIds: reportEvidenceBundle.evidence.map(record => record.id),
+      sensoryDescriptors: (sp?.descriptors ?? []).map(descriptor => ({
+        ...descriptor,
+        sampleSize: sp?.panelSize ?? 0,
+        percentage: sp?.panelSize ? descriptor.count / sp.panelSize * 100 : 0,
+      })),
+      dimensions: Object.fromEntries(
+        Object.entries(sp?.dimensionMeasures ?? {}).map(([key, measures]) => [
+          key,
+          { measures, agreement: null, benchmark: null },
+        ]),
+      ),
+      intensity: sp?.intensity,
+      foodTypeSlug: sp?.foodTypeSlug ?? effectiveFoodType,
+      instrumentalFindings: sp?.instrumentalFindings,
+      instrumentSignal: sp?.instrumentSignal,
+      gatePenalty: sp?.gatePenalty,
+      confidenceCalculation: sp?.confidenceCalculation,
+    };
+    const liveDecision: GoStopTweakDecision = {
+      sampleId: snapshot.product.sampleId,
+      sampleName: snapshot.product.sampleName,
+      issfScore: snapshot.decision.issfScore,
+      confidenceScore: snapshot.decision.confidence,
+      decision: snapshot.decision.outcome,
+      recommendation: snapshot.decision.recommendation,
+      costSavings: 0,
+      timeline: 'pilot validation',
+      riskLevel: 'medium',
+      details: [],
+      dimensionScores: snapshot.decision.dimensions,
+      gates: snapshot.decision.gates ?? [],
+      prescriptions: snapshot.decision.prescriptions,
+      decisionFingerprint: snapshot.decision.fingerprint,
+      methodVersion: snapshot.decision.methodVersion,
+    };
+    const approvalStatus: ApprovalStatus = savedReport?.status === 'approved'
+      ? 'approved'
+      : savedReport?.status === 'review'
+        ? 'in_review'
+        : 'draft';
+    return buildReportContext({
+      snapshot,
+      decision: liveDecision,
+      approvalStatus,
+      reportVersion: savedReport?.version ?? 1,
+      readinessThreshold: 60,
+      augmentation,
+      commercialProfile: reportEvidenceBundle.commercialProfile,
+    });
+  }, [effectiveFoodType, reportEvidenceBundle, savedReport, snapshot]);
 
   const foodTypeLabel = formatFoodTypeLabel(effectiveFoodType);
   const decisionTone: SemanticTone = !focusDecision ? 'neutral'
@@ -137,6 +203,7 @@ export function CommercializationReportPage() {
         primaryColor: workspaceSettings?.primaryColor,
         accentColor: workspaceSettings?.accentColor,
         reportTemplate: workspaceSettings?.reportTemplate,
+        reportContext,
       });
     } catch (error) {
       setExportError(error instanceof Error ? error.message : 'Unable to export the report.');
@@ -239,6 +306,7 @@ export function CommercializationReportPage() {
     primaryColor: workspaceSettings?.primaryColor,
     accentColor: workspaceSettings?.accentColor,
     reportTemplate: workspaceSettings?.reportTemplate,
+    reportContext,
   } : null;
 
   return (
@@ -301,6 +369,7 @@ export function CommercializationReportPage() {
       )}
 
       <div className={workspaceTab === 'overview' ? 'contents' : 'hidden'}>
+        {commercialProfile && <CommercializationProductDossier profile={commercialProfile} />}
         <ReportOverviewPanel
           snapshot={snapshot}
           focusDecision={focusDecision}

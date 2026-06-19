@@ -11,6 +11,7 @@ import {
   buildConceptPackaging,
   buildDecisionSnapshot,
   buildExecutiveReadout,
+  buildMethodEvidence,
   buildPerformanceDashboard,
   buildRisks,
 } from '../utils/pdf/sections';
@@ -71,6 +72,7 @@ export function ReportPdfSectionsPanel({ input }: { input: CommercializationRepo
   const executive = buildExecutiveReadout(input);
   const performance = buildPerformanceDashboard(input);
   const insights = buildCommercialInsights(input);
+  const method = buildMethodEvidence(input);
   const concept = buildConceptPackaging(input);
   const plan = buildCommercializationPlan(input);
   const risks = buildRisks(input);
@@ -129,7 +131,17 @@ export function ReportPdfSectionsPanel({ input }: { input: CommercializationRepo
         <p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">{performance.evidenceNote}</p>
       </PdfPageCard>
 
-      <PdfPageCard page={4} title="Key Commercial Insights" accent={accent}>
+      <PdfPageCard page={4} title="Method and Evidence Integration" accent={accent}>
+        <p className="text-sm text-slate-600">Method {method.methodLabel}</p>
+        <DataTable head={['Dimension', 'Score', 'Weight', 'Contribution']} rows={method.rows} />
+        <LabelValue label="ISSF reproduction" value={method.issfFormula} />
+        <LabelValue label="Critical-gate logic" value={method.gateLogic} />
+        <DataTable head={['Model-confidence input', 'Score x weight', 'Contribution']} rows={method.confidenceRows} />
+        <p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">{method.instrumentalNote}</p>
+        <DataTable head={['Source', 'Finding', 'Benchmark', 'Decision effect']} rows={method.instrumentalRows} />
+      </PdfPageCard>
+
+      <PdfPageCard page={5} title="Key Commercial Insights" accent={accent}>
         <p>{insights.intro}</p>
         <div className="space-y-3">
           {insights.insights.map((insight, index) => (
@@ -145,20 +157,23 @@ export function ReportPdfSectionsPanel({ input }: { input: CommercializationRepo
         </div>
       </PdfPageCard>
 
-      <PdfPageCard page={5} title="Concept and Packaging Direction" accent={accent}>
+      <PdfPageCard page={6} title="Concept and Packaging Direction" accent={accent}>
         <div className="grid gap-3 sm:grid-cols-2">
           <LabelValue label="Concept name" value={concept.conceptName} />
-          <LabelValue label="Positioning" value={concept.positioning} />
-          <LabelValue label="Target consumer" value={concept.targetConsumer} />
-          <LabelValue label="Price point" value={concept.pricePoint} />
-          <LabelValue label="Packaging direction" value={concept.packagingDirection} />
-          <LabelValue label="Core message" value={concept.coreMessage} />
+          <LabelValue label="Positioning hypothesis" value={concept.positioning} />
+          <LabelValue label="Target segment" value={concept.targetConsumer} />
+          <LabelValue label="Consumer need" value={concept.consumerNeed} />
+          <LabelValue label="Usage occasion" value={concept.usageOccasion} />
+          <LabelValue label="Product promise" value={concept.productPromise} />
+          <LabelValue label="Price hypothesis" value={concept.pricePoint} />
+          <LabelValue label="Packaging hypothesis" value={concept.packagingDirection} />
         </div>
-        <LabelValue label="Why this supports the product" value={concept.strategicFit} />
-        <DataTable head={['Refine before external use']} rows={concept.refinements.map(item => [item])} />
+        <DataTable head={['Evidence-supported reasons to believe']} rows={concept.reasonsToBelieve.map(item => [item])} />
+        <DataTable head={['Validation questions']} rows={concept.validationQuestions.map(item => [item])} />
+        <DataTable head={['Prohibited without evidence']} rows={concept.prohibitedClaims.map(item => [item])} />
       </PdfPageCard>
 
-      <PdfPageCard page={6} title="Commercialization Plan" accent={accent}>
+      <PdfPageCard page={7} title="Commercialization Plan" accent={accent}>
         <p>{plan.intro}</p>
         <DataTable
           head={['Workstream', 'Current read', 'Required action', 'Status / owner']}
@@ -167,7 +182,7 @@ export function ReportPdfSectionsPanel({ input }: { input: CommercializationRepo
         <LabelValue label="Next decision gate" value={plan.decisionGate} />
       </PdfPageCard>
 
-      <PdfPageCard page={7} title="Risks and Watch Points" accent={accent}>
+      <PdfPageCard page={8} title="Risks and Watch Points" accent={accent}>
         <p>{risks.intro}</p>
         <DataTable
           head={['Risk', 'Commercial impact', 'Mitigation', 'Next decision gate']}
@@ -175,7 +190,7 @@ export function ReportPdfSectionsPanel({ input }: { input: CommercializationRepo
         />
       </PdfPageCard>
 
-      <PdfPageCard page={8} title="Appendix / Source Record" accent={accent}>
+      <PdfPageCard page={9} title="Appendix / Source Record" accent={accent}>
         <p>{appendix.intro}</p>
         <DataTable rows={appendix.rows} />
         <LabelValue label="Approval and distribution" value={appendix.approvalNote} />

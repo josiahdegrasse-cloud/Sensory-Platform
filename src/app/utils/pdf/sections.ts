@@ -583,6 +583,7 @@ export function buildAppendix(input: CommercializationReportPdfInput): AppendixD
         ? `${packagingProvenanceLabel(snapshot)} · AI-generated directional visual; prompt metadata is retained with the source project.`
         : snapshot.concept.packagingImageUrl ? 'User-supplied concept visual; source approval should be confirmed.' : 'No concept visual attached.'],
       ['Evidence populations', ctx ? `${ctx.dimensions[0]?.population ?? 'Sensory panel not documented'}; concept test n=${ctx.concept.responseCount}; instrumental findings n=${ctx.instrumental.findings.length}.` : `Concept test n=${snapshot.evidence.responseCount}.`],
+      ['Evidence provenance', ctx?.evidenceProvenance ?? 'Not documented.'],
       ['Instrumental evidence', ctx?.instrumental.absenceNote ?? (ctx?.instrumental.findings.map(item => `${item.source}: ${item.finding}`).join(' | ') || 'Not itemized.')],
       ['AI provenance', ctx?.imageProvenance.aiGenerated ? 'AI-generated concept visual labeled directional; prompt metadata retained with source project.' : 'No AI-generated report visual used.'],
       ['Conditions', ctx?.decision.conditions.join(' | ') ?? 'Not recorded.'],

@@ -2,6 +2,7 @@ import type { CommercializationReportSnapshot } from '../commercialization-repor
 import type { GoStopTweakDecision } from '../../utils/go-stop-tweak-engine';
 import { buildReportContext, type SensoryAugmentation } from './context';
 import type { ApprovalStatus, ReportContext } from './types';
+import { COCONUT_CHEDDAR_PROFILE } from '../../data/coconut-cheddar-profile';
 
 // ════════════════════════════════════════════════════════════════════════════
 // Regression fixtures for the QC pipeline. The Coconut Cheddar v3.0 fixture
@@ -172,5 +173,6 @@ export function coconutCheddarContext(approvalStatus: ApprovalStatus = 'draft'):
     reportVersion: 4,
     readinessThreshold: 60,
     augmentation: coconutCheddarAugmentation(),
+    commercialProfile: COCONUT_CHEDDAR_PROFILE,
   });
 }

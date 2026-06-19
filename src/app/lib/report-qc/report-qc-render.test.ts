@@ -5,6 +5,7 @@ import { buildCommercializationReportPdf } from '../../utils/commercialization-r
 import type { CommercializationReportPdfInput } from '../../utils/pdf/sections';
 import { buildReportContext } from './context';
 import { coconutCheddarAugmentation, coconutCheddarDecision, coconutCheddarSnapshot } from './fixtures';
+import { COCONUT_CHEDDAR_PROFILE } from '../../data/coconut-cheddar-profile';
 
 function renderInput(): CommercializationReportPdfInput {
   // Use a snapshot without a binary image so the test renders headless.
@@ -18,6 +19,7 @@ function renderInput(): CommercializationReportPdfInput {
     reportVersion: 5,
     readinessThreshold: 60,
     augmentation: coconutCheddarAugmentation(),
+    commercialProfile: COCONUT_CHEDDAR_PROFILE,
   });
   return {
     organizationName: 'New Food Innovation',

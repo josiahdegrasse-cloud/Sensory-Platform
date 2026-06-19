@@ -17,6 +17,7 @@ import type {
   ReportLimitation,
   RiskItem,
 } from './types';
+import type { CommercializationProjectProfile } from '../report-evidence-types';
 
 // ════════════════════════════════════════════════════════════════════════════
 // Builds the canonical ReportContext from the existing snapshot + live decision.
@@ -60,6 +61,7 @@ export interface BuildContextInput {
   /** True only when the claims/legal review gate has been signed off. */
   claimsApproved?: boolean;
   augmentation: SensoryAugmentation;
+  commercialProfile?: CommercializationProjectProfile | null;
 }
 
 export function buildReportContext(input: BuildContextInput): ReportContext {
@@ -115,7 +117,7 @@ export function buildReportContext(input: BuildContextInput): ReportContext {
   });
 
   const instrumental = buildInstrumental(augmentation.instrumentalFindings ?? []);
-  const limitations = buildLimitations(snapshot, dimensions, responseCount, weakest, readiness, instrumental);
+  const limitations = buildLimitations(snapshot, dimensions, responseCount, weakest, readiness, instrumental, input.commercialProfile);
   const claims = buildClaims(snapshot, augmentation.sourceEvidenceIds);
 
   return {
@@ -143,6 +145,7 @@ export function buildReportContext(input: BuildContextInput): ReportContext {
       representativeComments: snapshot.evidence.comments.slice(0, 3),
     },
     sourceEvidenceIds: augmentation.sourceEvidenceIds,
+    evidenceProvenance: input.commercialProfile?.evidenceLabel ?? 'Evidence provenance is inherited from the linked source records.',
     methodVersion: snapshot.decision.methodVersion,
     decisionFingerprint: snapshot.decision.fingerprint,
     reportVersion: input.reportVersion,
@@ -154,11 +157,11 @@ export function buildReportContext(input: BuildContextInput): ReportContext {
       label: snapshot.concept.packagingImagePromptStyle ?? null,
       directionalDisclaimer: true,
     },
-    risks: buildRisks(snapshot, responseCount),
-    actions: buildActions(snapshot, decision, readiness),
+    risks: buildRisks(snapshot, responseCount, input.commercialProfile),
+    actions: buildActions(snapshot, decision, readiness, input.commercialProfile),
     claims,
     limitations,
-    conceptStrategy: buildConceptStrategy(snapshot, responseCount),
+    conceptStrategy: buildConceptStrategy(snapshot, responseCount, input.commercialProfile),
   };
 }
 
@@ -273,8 +276,16 @@ function buildLimitations(
   weakest: number,
   readiness: number,
   instrumental: InstrumentalEvidence,
+  profile?: CommercializationProjectProfile | null,
 ): ReportLimitation[] {
   const limitations: ReportLimitation[] = [];
+  if (profile?.evidenceStatus === 'reference_demo') {
+    limitations.push({
+      id: 'reference-demo-evidence',
+      limitation: 'This report includes reference/demo evidence and is not eligible for external approval.',
+      cause: profile.evidenceLabel,
+    });
+  }
   if (responseCount === 0) {
     limitations.push({
       id: 'no-concept-evidence',
@@ -332,7 +343,22 @@ function buildClaims(snapshot: CommercializationReportSnapshot, sourceEvidenceId
   ];
 }
 
-function buildRisks(snapshot: CommercializationReportSnapshot, responseCount: number): RiskItem[] {
+function buildRisks(
+  snapshot: CommercializationReportSnapshot,
+  responseCount: number,
+  profile?: CommercializationProjectProfile | null,
+): RiskItem[] {
+  if (profile) {
+    return profile.development.technicalRisks.map((risk, index) => ({
+      category: index === 0 ? 'Product risk' : index === 1 ? 'Validation risk' : 'Evidence risk',
+      risk,
+      impact: index === 0
+        ? 'The current stage decision remains conditional until the texture basis is completed and revalidated.'
+        : 'The open evidence gap prevents launch authorization and limits external claims.',
+      mitigation: profile.actionPlan[index]?.action ?? 'Collect the missing evidence and repeat cross-functional review.',
+      nextGate: profile.actionPlan[index]?.nextGate ?? 'Evidence review',
+    }));
+  }
   return [
     {
       category: 'Product risk',
@@ -355,7 +381,21 @@ function buildActions(
   snapshot: CommercializationReportSnapshot,
   decision: GoStopTweakDecision,
   readiness: number,
+  profile?: CommercializationProjectProfile | null,
 ): PlanAction[] {
+  if (profile) {
+    return profile.actionPlan.map(item => ({
+      workstream: item.workstream,
+      owner: item.owner,
+      dueDate: item.dueDate,
+      unscheduled: item.dueDate === null,
+      requiredAction: item.action,
+      completionEvidence: item.completionEvidence,
+      passingThreshold: item.passingCriteria,
+      nextGate: item.nextGate,
+      status: `Open - ${item.priority} priority - ${item.team}`,
+    }));
+  }
   const prescription = decision.prescriptions[0];
   return [
     {
@@ -394,7 +434,31 @@ function buildActions(
   ];
 }
 
-function buildConceptStrategy(snapshot: CommercializationReportSnapshot, responseCount: number): ConceptStrategy {
+function buildConceptStrategy(
+  snapshot: CommercializationReportSnapshot,
+  responseCount: number,
+  profile?: CommercializationProjectProfile | null,
+): ConceptStrategy {
+  if (profile) {
+    const hypothesis = profile.conceptHypothesis;
+    return {
+      hypothesisOnly: responseCount === 0,
+      positioning: `Hypothesis - ${hypothesis.positioning}`,
+      targetSegment: hypothesis.targetSegment,
+      consumerNeed: hypothesis.consumerNeed,
+      usageOccasion: hypothesis.usageOccasion,
+      productPromise: hypothesis.productPromise,
+      reasonsToBelieve: hypothesis.reasonsToBelieve,
+      priceHypothesis: hypothesis.priceHypothesis,
+      packagingHypothesis: hypothesis.packagingHypothesis,
+      unknowns: profile.claimsBoundary.prohibitedUntilValidated,
+      conceptTestObjective: hypothesis.validationQuestions.join(' '),
+      prohibitedClaims: profile.claimsBoundary.prohibitedUntilValidated,
+      visualProvenance: snapshot.concept.packagingImageAiGenerated
+        ? 'AI-generated directional visual; not final artwork.'
+        : 'No approved final concept visual is attached.',
+    };
+  }
   const concept = snapshot.concept;
   const hypothesisLabel = responseCount === 0 ? 'Hypothesis — ' : '';
   const target = concept.targetMarket?.trim();

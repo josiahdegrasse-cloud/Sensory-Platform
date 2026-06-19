@@ -23,6 +23,7 @@
   "warnings": [],
   "recommendedFixes": [],
   "missingEvidence": [
+    "Reference/demo evidence must be replaced with collected client evidence before approval or external use.",
     "Concept-test responses (n=0): consumer preference and purchase intent cannot be validated.",
     "Texture performance (43/100) is below the 60/100 readiness line.",
     "Claims and legal approval not on file."

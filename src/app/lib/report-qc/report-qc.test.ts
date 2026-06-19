@@ -11,6 +11,7 @@ import { stageHeadline } from './stage';
 import { validateReportContext } from './validate';
 import { validateDimensionEvidenceConsistency } from './validate';
 import type { GeneratedSections } from './validate';
+import { COCONUT_CHEDDAR_PROFILE } from '../../data/coconut-cheddar-profile';
 
 // A clean, stage-appropriate rendering of the Coconut Cheddar conditional report.
 function cleanSections(): GeneratedSections {
@@ -177,6 +178,28 @@ describe('report-qc: validation guards', () => {
       augmentation: { ...coconutCheddarAugmentation(), instrumentalFindings: [], instrumentSignal: undefined },
     });
     expect(ctx.instrumental.absenceNote).toMatch(/No instrumental evidence was included/i);
+  });
+
+  it('uses the rich product dossier for concept strategy and execution planning', () => {
+    const ctx = buildReportContext({
+      snapshot: coconutCheddarSnapshot(),
+      decision: coconutCheddarDecision(),
+      approvalStatus: 'draft',
+      reportVersion: 5,
+      readinessThreshold: 60,
+      augmentation: coconutCheddarAugmentation(),
+      commercialProfile: COCONUT_CHEDDAR_PROFILE,
+    });
+    expect(ctx.conceptStrategy.conceptTestObjective).toContain('plant-based cheddar');
+    expect(ctx.conceptStrategy.priceHypothesis).toContain('$5.99-$7.49');
+    expect(ctx.actions).toHaveLength(5);
+    expect(ctx.actions.some(action => /Shelf life/.test(action.workstream))).toBe(true);
+    expect(ctx.evidenceProvenance).toMatch(/Reference\/demo/);
+  });
+
+  it('blocks external approval when the report still uses reference/demo evidence', () => {
+    const ctx = coconutCheddarContext('approved');
+    expect(validateReportContext(ctx).errors.some(error => error.code === 'reference-demo-approval')).toBe(true);
   });
 
   it('labels descriptor evidence as category recognition rather than distinctiveness', () => {

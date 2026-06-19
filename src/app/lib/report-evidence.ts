@@ -2,6 +2,7 @@ import { convergenceData, calculateScreeningRiskScore, checkEscalationTriggers }
 import type { EnhancedSensoryProfile } from '../data/enhanced-sensory';
 import { METHOD_COMPARISON, VALIDATION_DATASET } from '../data/validation-data';
 import { calculateGoStopTweakDecision, PANEL_N, type GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
+import { getCommercializationProjectProfile } from '../data/coconut-cheddar-profile';
 import {
   type BuildEvidenceBundleInput,
   type CategoryEvidenceResult,
@@ -480,5 +481,6 @@ export function buildEvidenceBundleFromProfiles(input: BuildEvidenceBundleInput)
     decisionReasons: decisionReasons(candidate, decisionList, missingData, qualityWarnings),
     createdBy: input.createdBy,
     sensoryProfile: buildSensoryProfileEvidence(input.profiles, input.foodTypeSlug, decisionList[0]),
+    commercialProfile: getCommercializationProjectProfile(input.profiles[0]?.sampleId),
   };
 }

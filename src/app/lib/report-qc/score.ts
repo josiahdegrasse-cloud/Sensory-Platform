@@ -18,6 +18,7 @@ const CODE_CATEGORY: Record<string, QualityCategory> = {
   'approval-without-gates': 'decisionClarity',
   'go-without-gate': 'decisionClarity',
   'title-stage-mismatch': 'decisionClarity',
+  'reference-demo-approval': 'claimSupport',
   'confidence-without-type': 'decisionClarity',
   'missing-sample-size': 'evidenceCompleteness',
   'weak-evidence-source': 'evidenceCompleteness',
@@ -97,6 +98,7 @@ export function scoreReportQuality(input: ScoreInputs): QualityScore {
   if (codes.has('missing-sample-size') || codes.has('weak-evidence-source')) cap(79);
   if (codes.has('contradictory-decision') || codes.has('approval-without-gates') || codes.has('title-stage-mismatch')) cap(74);
   if (codes.has('unsupported-claim')) cap(69);
+  if (codes.has('reference-demo-approval')) cap(69);
   if (codes.has('unsupported-consumer-language')) cap(69);
   if (codes.has('unexplained-score-evidence-contradiction')) cap(74);
   if (codes.has('calculation-mismatch') || codes.has('missing-confidence-calculation')) cap(84);
