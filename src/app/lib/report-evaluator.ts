@@ -24,6 +24,19 @@ const PASS_THRESHOLD = 70;
 const LAUNCH_POSITIVE_RE = /\b(recommend(?:ed|ing)?\s+(?:to\s+)?launch|proceed\s+to\s+launch|ready\s+(?:to|for)\s+launch|green[\s-]?light|go\s+to\s+market)\b/i;
 const CAUTION_RE = /\b(however|caution|risk|limitation|insufficient|do not|not recommend|hold|before launch|tweak|stop)\b/i;
 
+// Removes inline [evidence:<id>] provenance tokens for human-facing display.
+// The tokens are required while the evaluator validates citations, but must
+// never reach the editor, the saved report, or the exported PDF. Also tidies the
+// whitespace/punctuation the removal leaves behind.
+export function stripEvidenceCitations(text: string): string {
+  return text
+    .replace(/\s*\[evidence:[^\]]+\]/g, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/[ \t]+([.,;:)])/g, '$1')
+    .replace(/[ \t]+$/gm, '')
+    .trim();
+}
+
 function citationsIn(text: string): string[] {
   const out: string[] = [];
   let m: RegExpExecArray | null;

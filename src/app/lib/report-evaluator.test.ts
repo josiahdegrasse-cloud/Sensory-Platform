@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ENHANCED_SENSORY_DATA } from '../data/enhanced-sensory';
 import { buildEvidenceBundleFromProfiles } from './report-evidence';
 import { buildReportPlan } from './report-plan';
-import { evaluateNarrative } from './report-evaluator';
+import { evaluateNarrative, stripEvidenceCitations } from './report-evaluator';
 
 function planFor(sampleId: string) {
   const profile = ENHANCED_SENSORY_DATA.find(item => item.sampleId === sampleId)!;
@@ -41,6 +41,14 @@ describe('evaluateNarrative', () => {
     const evaluation = evaluateNarrative({ plan, sections, bundle });
     expect(evaluation.passed).toBe(false);
     expect(evaluation.issues.some(i => i.includes('totally.fake.id'))).toBe(true);
+  });
+
+  it('strips inline evidence tokens and tidies the surrounding whitespace', () => {
+    expect(
+      stripEvidenceCitations('GO at 91% confidence [evidence:sample.s4.decision][evidence:sample.s4.issf-score].'),
+    ).toBe('GO at 91% confidence.');
+    expect(stripEvidenceCitations('Scores [evidence:a] indicate response.')).toBe('Scores indicate response.');
+    expect(stripEvidenceCitations('No citations here.')).toBe('No citations here.');
   });
 
   it('flags a launch claim that contradicts a STOP candidate decision', () => {

@@ -20,7 +20,7 @@ import {
   useUpdateCommercializationReportStatus,
 } from '../lib/hooks';
 import { buildReportPlan } from '../lib/report-plan';
-import { evaluateNarrative, type NarrativeEvaluation } from '../lib/report-evaluator';
+import { evaluateNarrative, stripEvidenceCitations, type NarrativeEvaluation } from '../lib/report-evaluator';
 import { canApproveReport, isReportStale } from '../lib/report-quality';
 import { ReportQualityPanel } from './report-quality-panel';
 import { useEvidenceBundles } from '../lib/hooks';
@@ -112,7 +112,9 @@ export function CommercializationReportBuilder({
         const narrative = { ...current.narrative };
         (Object.keys(narrative) as (keyof typeof narrative)[]).forEach(key => {
           const text = result.sections[key];
-          if (typeof text === 'string' && text.trim()) narrative[key] = text.trim();
+          // Evaluation has already run on the cited text; strip the inline
+          // [evidence:<id>] tokens so the editor and saved report read cleanly.
+          if (typeof text === 'string' && text.trim()) narrative[key] = stripEvidenceCitations(text);
         });
         return { ...current, narrative };
       });

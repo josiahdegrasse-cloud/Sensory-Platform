@@ -8,6 +8,7 @@ import {
   getConceptImageMode,
   getPromptStyle,
 } from '../../../../supabase/functions/_shared/concept-image-catalog.ts';
+import { stripEvidenceCitations } from '../../lib/report-evaluator';
 
 export const AI_VISUAL_DISCLAIMER =
   'Directional concept visualization only. Final packaging requires design, claims, and legal approval.';
@@ -208,7 +209,7 @@ export function buildDecisionSnapshot(input: CommercializationReportPdfInput): D
     readinessStage: `${evidenceStrength} evidence · Buyer preparation`,
     coreStrength: `${strengthLabel} (${Number(strengthScore).toFixed(0)}/100) gives the product a credible lead proof point.`,
     mainWatchPoint: primaryWatchPoint(snapshot),
-    nextAction: snapshot.narrative.launchRecommendation,
+    nextAction: stripEvidenceCitations(snapshot.narrative.launchRecommendation),
     organizationName: input.organizationName || 'Food Platform',
     workspaceName: input.workspaceName,
     generatedLabel: generatedLabel(snapshot.generatedAt),
@@ -227,7 +228,7 @@ export function buildExecutiveReadout(input: CommercializationReportPdfInput): E
     decision: `${snapshot.product.sampleName} should advance into controlled commercialization preparation.`,
     rationale: `The saved GO decision is supported by an ISSF score of ${snapshot.decision.issfScore.toFixed(1)} and ${snapshot.decision.confidence.toFixed(0)}% model confidence. ${strength} leads at ${Number(strengthScore).toFixed(0)}/100; ${watch} is the lowest dimension at ${Number(watchScore).toFixed(0)}/100.`,
     commercialImplication: `${scoreImplication(strengthKey as keyof typeof snapshot.decision.dimensions, Number(strengthScore))} The team should keep the buyer narrative anchored in tested sensory performance while treating concept feedback as ${getEvidenceStrength(snapshot.evidence.responseCount).toLowerCase()} evidence.`,
-    nextMove: `${snapshot.narrative.launchRecommendation} In parallel, close the watch points and approval gates listed in the commercialization plan before external distribution.`,
+    nextMove: `${stripEvidenceCitations(snapshot.narrative.launchRecommendation)} In parallel, close the watch points and approval gates listed in the commercialization plan before external distribution.`,
   };
 }
 
@@ -320,8 +321,8 @@ export function buildConceptPackaging(input: CommercializationReportPdfInput): C
     positioning: snapshot.concept.keyBenefits || snapshot.concept.description || 'Positioning requires definition.',
     targetConsumer: snapshot.concept.targetMarket || 'Priority consumer requires definition.',
     pricePoint: snapshot.concept.pricePoint || 'Price point requires validation.',
-    packagingDirection: snapshot.narrative.packagingRationale,
-    coreMessage: `Lead with ${snapshot.narrative.whyLiked}`,
+    packagingDirection: stripEvidenceCitations(snapshot.narrative.packagingRationale),
+    coreMessage: `Lead with ${stripEvidenceCitations(snapshot.narrative.whyLiked)}`,
     strategicFit: hasVisual
       ? `The selected visual gives the ${snapshot.concept.name || 'concept'} direction a concrete shelf and buyer-review stimulus while keeping the product experience central.`
       : 'A selected visual is required to connect the product strategy to a credible shelf and buyer-review direction.',
