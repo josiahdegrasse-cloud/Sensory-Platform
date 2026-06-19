@@ -21,6 +21,9 @@ import {
 } from '../lib/hooks';
 import { buildReportPlan } from '../lib/report-plan';
 import { evaluateNarrative, type NarrativeEvaluation } from '../lib/report-evaluator';
+import { canApproveReport, isReportStale } from '../lib/report-quality';
+import { ReportQualityPanel } from './report-quality-panel';
+import { useEvidenceBundles } from '../lib/hooks';
 import { updateConceptImageReviewStatus, type WorkspaceSettings } from '../lib/database';
 import { downloadCommercializationReportPdf } from '../utils/commercialization-report-export';
 import { getConceptImageMode } from '../../../supabase/functions/_shared/concept-image-catalog.ts';
@@ -67,9 +70,7 @@ export function CommercializationReportBuilder({
   // panel and is persisted + linked to the report on save.
   const evidenceQuery = useProjectEvidenceBundle(decision.sampleId, userId, open);
   const evidenceBundle = evidenceQuery.data ?? null;
-  const evidenceMismatch = !!evidenceBundle
-    && evidenceBundle.deterministicCandidateDecision !== 'INSUFFICIENT_DATA'
-    && evidenceBundle.deterministicCandidateDecision !== 'GO';
+  const { data: savedBundles = [] } = useEvidenceBundles(decision.sampleId);
 
   // AI narrative (beta): evidence-constrained generation with one bounded revision
   // pass. The deterministic narrative remains the default/fallback.
@@ -135,6 +136,16 @@ export function CommercializationReportBuilder({
     report.decisionRecordId === confirmedGo?.id && report.conceptTestId === conceptId
   );
   const canOpen = decision.decision === 'GO' && !!confirmedGo;
+  // Staleness: the bundle linked to the saved report vs the current data fingerprint.
+  const linkedBundle = selectedReport?.evidenceBundleId
+    ? savedBundles.find(bundle => bundle.id === selectedReport.evidenceBundleId)
+    : null;
+  const reportStale = isReportStale(linkedBundle?.sourceDataVersion, evidenceBundle?.sourceDataVersion);
+  const approvalGate = canApproveReport({
+    hasEvidenceBundle: !!evidenceBundle,
+    candidateDecision: evidenceBundle?.deterministicCandidateDecision,
+    evaluation: aiEval,
+  });
 
   useEffect(() => {
     if (conceptId || matchingConcepts.length === 0) return;
@@ -229,8 +240,22 @@ export function CommercializationReportBuilder({
     }
   };
 
+  const submitForReview = async () => {
+    if (!savedReportId || !userId) return;
+    try {
+      await updateStatus.mutateAsync({ id: savedReportId, status: 'review', actorId: userId });
+      setSavedStatus('review');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to submit for review.');
+    }
+  };
+
   const approve = async () => {
     if (!savedReportId || !userId) return;
+    if (!approvalGate.allowed) {
+      setError(approvalGate.reason ?? 'This report cannot be approved yet.');
+      return;
+    }
     try {
       await updateStatus.mutateAsync({ id: savedReportId, status: 'approved', actorId: userId });
       setSavedStatus('approved');
@@ -375,35 +400,7 @@ export function CommercializationReportBuilder({
                       </div>
                     ))}
                   </div>
-                  {evidenceBundle && (
-                    <div className={`rounded-md border p-4 ${evidenceMismatch ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'}`}>
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Data evidence</span>
-                        <span className="text-sm text-slate-700">
-                          Deterministic candidate: <strong className="text-slate-900">{evidenceBundle.deterministicCandidateDecision}</strong>
-                        </span>
-                        <span className="text-sm text-slate-700">
-                          Confidence: <strong className="capitalize text-slate-900">{evidenceBundle.deterministicConfidence}</strong>
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          {evidenceBundle.evidence.length} evidence records · {evidenceBundle.missingData.length} missing · {evidenceBundle.qualityWarnings.length} warnings
-                        </span>
-                      </div>
-                      {evidenceMismatch && (
-                        <p className="mt-2 text-xs leading-5 text-amber-800">
-                          The deterministic engine reads this data as <strong>{evidenceBundle.deterministicCandidateDecision}</strong>, not GO.
-                          Confirm the human GO decision still holds before publishing client-facing claims.
-                        </p>
-                      )}
-                      {evidenceBundle.qualityWarnings.length > 0 && (
-                        <ul className="mt-2 space-y-0.5 text-xs text-slate-600">
-                          {evidenceBundle.qualityWarnings.slice(0, 3).map(warning => (
-                            <li key={warning.id}>• {warning.title}</li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  )}
+                  <ReportQualityPanel bundle={evidenceBundle} evaluation={aiEval} stale={reportStale} />
                   <div className="flex flex-wrap items-center gap-3 rounded-md border border-slate-200 bg-white p-3">
                     <Button
                       variant="outline"
@@ -453,7 +450,19 @@ export function CommercializationReportBuilder({
                     <Button variant="outline" onClick={saveDraft} disabled={createReport.isPending}>
                       <FileCheck2 className="size-4" />{createReport.isPending ? 'Saving...' : 'Save new version'}
                     </Button>
-                    <Button variant="outline" onClick={approve} disabled={!savedReportId || savedStatus === 'approved'}>
+                    <Button
+                      variant="outline"
+                      onClick={submitForReview}
+                      disabled={!savedReportId || savedStatus !== 'draft' || updateStatus.isPending}
+                    >
+                      <FileText className="size-4" />Submit for review
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={approve}
+                      disabled={!savedReportId || savedStatus === 'approved' || !approvalGate.allowed}
+                      title={approvalGate.allowed ? 'Approve this report' : (approvalGate.reason ?? '')}
+                    >
                       <CheckCircle2 className="size-4" />Approve report
                     </Button>
                     <Button
