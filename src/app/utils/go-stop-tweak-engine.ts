@@ -75,7 +75,8 @@ export interface GoStopTweakDecision {
  *    (85–110% pass, 75–85% watch, <75% fail) — instrument QC discipline.
  */
 const METHOD_VERSION = 'NFI-GST-1.1';
-const PANEL_N = 14;
+/** Nominal panel size used to normalize CATA citation counts. */
+export const PANEL_N = 14;
 const DEFECT_WORDS = [
   'rancid', 'cardboard', 'fermented', 'sulfur', 'sulphur', 'livery', 'rubbery',
   'beany', 'chalky', 'burnt', 'stale', 'musty', 'metallic', 'soapy', 'watery',

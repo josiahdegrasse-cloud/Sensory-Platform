@@ -26,6 +26,7 @@ import { ReportQualityPanel } from './report-quality-panel';
 import { useEvidenceBundles } from '../lib/hooks';
 import { updateConceptImageReviewStatus, type WorkspaceSettings } from '../lib/database';
 import { downloadCommercializationReportPdf } from '../utils/commercialization-report-export';
+import { buildReportContext, type SensoryAugmentation, type ApprovalStatus } from '../lib/report-qc';
 import { getConceptImageMode } from '../../../supabase/functions/_shared/concept-image-catalog.ts';
 import { preferredConceptImageIndex } from './concept-testing/smart-defaults';
 import { Button } from './ui/button';
@@ -266,6 +267,67 @@ export function CommercializationReportBuilder({
     }
   };
 
+  // Maps the saved report status to the typed QC approval status.
+  const toApprovalStatus = (status: string): ApprovalStatus =>
+    status === 'approved' ? 'approved' : status === 'review' ? 'in_review' : 'draft';
+
+  // Assembles the stage-aware QC context from the snapshot + decision + the
+  // evidence bundle's underlying sensory measures. Drives the stage headline,
+  // real evidence dashboard, and export gate.
+  const buildExportContext = () => {
+    if (!snapshot || !evidenceBundle) return undefined;
+    const sp = evidenceBundle.sensoryProfile ?? null;
+    const augmentation: SensoryAugmentation = {
+      panelSize: sp?.panelSize ?? null,
+      sourceEvidenceIds: evidenceBundle.evidence.map(record => record.id),
+      sensoryDescriptors: (sp?.descriptors ?? []).map(d => ({
+        descriptor: d.descriptor,
+        count: d.count,
+        sampleSize: sp?.panelSize ?? 0,
+        percentage: sp?.panelSize ? (d.count / sp.panelSize) * 100 : 0,
+      })),
+      dimensions: Object.fromEntries(
+        Object.entries(sp?.dimensionMeasures ?? {}).map(([key, measures]) => [
+          key,
+          { measures, agreement: null, benchmark: null },
+        ]),
+      ),
+    };
+    return buildReportContext({
+      snapshot,
+      decision,
+      approvalStatus: toApprovalStatus(selectedReport?.status ?? savedStatus),
+      reportVersion: selectedReport?.version ?? savedVersion,
+      readinessThreshold: 60,
+      augmentation,
+    });
+  };
+
+  const downloadPdf = async () => {
+    if (!snapshot) return;
+    setError('');
+    try {
+      await downloadCommercializationReportPdf({
+        snapshot,
+        organizationName: settings?.organizationName ?? DEFAULT_REPORT_ORGANIZATION_NAME,
+        workspaceName: settings?.workspaceName ?? DEFAULT_REPORT_WORKSPACE_NAME,
+        reportFooter: settings?.reportFooter,
+        version: selectedReport?.version ?? savedVersion,
+        status: selectedReport?.status ?? savedStatus,
+        logoUrl: resolveReportLogoUrl(
+          settings?.organizationName ?? DEFAULT_REPORT_ORGANIZATION_NAME,
+          settings?.logoUrl,
+        ),
+        primaryColor: settings?.primaryColor,
+        accentColor: settings?.accentColor,
+        reportTemplate: settings?.reportTemplate,
+        reportContext: buildExportContext(),
+      });
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to export the report.');
+    }
+  };
+
   return (
     <>
       <Button
@@ -470,24 +532,7 @@ export function CommercializationReportBuilder({
                     >
                       <CheckCircle2 className="size-4" />Approve report
                     </Button>
-                    <Button
-                      disabled={!savedReportId}
-                      onClick={() => downloadCommercializationReportPdf({
-                        snapshot,
-                        organizationName: settings?.organizationName ?? DEFAULT_REPORT_ORGANIZATION_NAME,
-                        workspaceName: settings?.workspaceName ?? DEFAULT_REPORT_WORKSPACE_NAME,
-                        reportFooter: settings?.reportFooter,
-                        version: selectedReport?.version ?? savedVersion,
-                        status: selectedReport?.status ?? savedStatus,
-                        logoUrl: resolveReportLogoUrl(
-                          settings?.organizationName ?? DEFAULT_REPORT_ORGANIZATION_NAME,
-                          settings?.logoUrl,
-                        ),
-                        primaryColor: settings?.primaryColor,
-                        accentColor: settings?.accentColor,
-                        reportTemplate: settings?.reportTemplate,
-                      })}
-                    >
+                    <Button disabled={!savedReportId} onClick={downloadPdf}>
                       <FileText className="size-4" />Download branded PDF
                     </Button>
                   </div>

@@ -88,6 +88,17 @@ export type EvidenceBundle = {
   deterministicConfidence: ConfidenceLevel;
   decisionReasons: string[];
   createdBy: string;
+  /** Underlying sensory measures behind the dimension scores — the raw evidence
+   *  the report dashboard and QC pipeline cite instead of "saved decision model". */
+  sensoryProfile?: SensoryProfileEvidence | null;
+};
+
+export type SensoryProfileEvidence = {
+  panelSize: number;
+  /** Trained/consumer-panel CATA descriptor citations. */
+  descriptors: Array<{ descriptor: string; count: number }>;
+  /** Per-dimension underlying measures, keyed by dimension (hedonic/texture/cata/emotional). */
+  dimensionMeasures: Record<string, string[]>;
 };
 
 export type BuildEvidenceBundleInput = {

@@ -22,6 +22,17 @@ describe('Evidence Bundle builder', () => {
     expect(first.evidence.some(item => item.id === 'sample.s4.issf-score')).toBe(true);
   });
 
+  it('carries the underlying sensory profile (descriptors + panel size + measures)', () => {
+    const sample = ENHANCED_SENSORY_DATA.find(item => item.sampleId === 'S4')!;
+    const bundle = buildEvidenceBundleFromProfiles({ ...baseInput, profiles: [sample] });
+    expect(bundle.sensoryProfile).toBeTruthy();
+    expect(bundle.sensoryProfile!.panelSize).toBe(14);
+    expect(bundle.sensoryProfile!.descriptors[0].count).toBeGreaterThan(0);
+    // CATA measures express real descriptor frequencies, e.g. "Cheese 13/14 (93%)".
+    expect(bundle.sensoryProfile!.dimensionMeasures.cata.join(' ')).toMatch(/\d+\/14/);
+    expect(bundle.sensoryProfile!.dimensionMeasures.hedonic.join(' ')).toMatch(/Overall/);
+  });
+
   it('surfaces critical gate failures as STOP evidence', () => {
     const sample = ENHANCED_SENSORY_DATA.find(item => item.sampleId === 'S3')!;
     const bundle = buildEvidenceBundleFromProfiles({ ...baseInput, projectId: 'S3', profiles: [sample] });

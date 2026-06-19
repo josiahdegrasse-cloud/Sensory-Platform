@@ -1,7 +1,7 @@
 import { convergenceData, calculateScreeningRiskScore, checkEscalationTriggers } from '../data/convergence-data';
 import type { EnhancedSensoryProfile } from '../data/enhanced-sensory';
 import { METHOD_COMPARISON, VALIDATION_DATASET } from '../data/validation-data';
-import { calculateGoStopTweakDecision, type GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
+import { calculateGoStopTweakDecision, PANEL_N, type GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
 import {
   type BuildEvidenceBundleInput,
   type CategoryEvidenceResult,
@@ -324,6 +324,41 @@ function qualityWarningsFor(decisions: Array<{ profile: EnhancedSensoryProfile; 
   return warnings;
 }
 
+// Extracts the underlying sensory measures behind each dimension score so the
+// report can cite real evidence (descriptor frequencies, intensity ratings)
+// instead of "saved sensory decision model".
+function buildSensoryProfileEvidence(profiles: EnhancedSensoryProfile[]) {
+  const profile = profiles[0];
+  if (!profile) return null;
+  const panelSize = PANEL_N;
+  const descriptors = Object.entries(profile.cata ?? {})
+    .map(([descriptor, count]) => ({ descriptor, count: Number(count) }))
+    .sort((a, b) => b.count - a.count);
+  const intensity = profile.intensity ?? {};
+  const topTexture = ['creamy', 'smooth', 'firm', 'juicy', 'soft', 'springy', 'grainy', 'chalky', 'dry', 'rubbery']
+    .filter(key => Number.isFinite(intensity[key]))
+    .sort((a, b) => Number(intensity[b]) - Number(intensity[a]))
+    .slice(0, 4)
+    .map(key => `${key} ${Number(intensity[key]).toFixed(1)}/10`);
+  return {
+    panelSize,
+    descriptors,
+    dimensionMeasures: {
+      hedonic: [
+        `Overall ${profile.hedonic.overall.toFixed(1)}/9`,
+        `Flavour ${profile.hedonic.flavour.toFixed(1)}/9`,
+        `Appearance ${profile.hedonic.appearance.toFixed(1)}/9`,
+      ],
+      texture: topTexture.length ? topTexture : [`Texture liking ${profile.hedonic.texture.toFixed(1)}/9`],
+      cata: descriptors.slice(0, 5).map(d => `${d.descriptor} ${d.count}/${panelSize} (${Math.round((d.count / panelSize) * 100)}%)`),
+      emotional: [
+        `Positive ${profile.emotions.positive.toFixed(1)}/5`,
+        `Negative ${profile.emotions.negative.toFixed(1)}/5`,
+      ],
+    } as Record<string, string[]>,
+  };
+}
+
 export function buildEvidenceBundleFromProfiles(input: BuildEvidenceBundleInput): EvidenceBundle {
   const generatedAt = input.generatedAt ?? new Date().toISOString();
   const version = input.version ?? 1;
@@ -387,5 +422,6 @@ export function buildEvidenceBundleFromProfiles(input: BuildEvidenceBundleInput)
     deterministicConfidence: confidenceLevel(averageConfidence, missingData, qualityWarnings),
     decisionReasons: decisionReasons(candidate, decisionList, missingData, qualityWarnings),
     createdBy: input.createdBy,
+    sensoryProfile: buildSensoryProfileEvidence(input.profiles),
   };
 }
