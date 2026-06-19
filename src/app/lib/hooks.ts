@@ -6,7 +6,7 @@ import {
   fetchConceptTestsForPanelist, fetchUserConceptResponses,
   fetchConceptTestsForAdmin, fetchConceptResponsesForTest,
   fetchCommercializationReports, createCommercializationReport, updateCommercializationReportStatus,
-  fetchEvidenceBundles, saveEvidenceBundle,
+  fetchEvidenceBundles, saveEvidenceBundle, generateReportNarrative, type ReportNarrativeRequest,
   fetchConceptTest, fetchConceptGenerationSettings, updateConceptGenerationSettings,
   fetchConceptImageGenerations, fetchConceptProjectSummaries, fetchConceptLabDiagnostics,
   fetchFoodTypes, fetchInstrumentalDataset, fetchImportBatches,
@@ -174,6 +174,13 @@ export function useProjectEvidenceBundle(projectId: string | null | undefined, c
     queryFn: () => buildEvidenceBundle(projectId as string, createdBy),
     enabled: enabled && !!projectId,
     staleTime: 60_000,
+  })
+}
+
+// Calls the evidence-constrained narrative Edge Function (OpenAI).
+export function useGenerateReportNarrative() {
+  return useMutation({
+    mutationFn: (input: ReportNarrativeRequest) => generateReportNarrative(input),
   })
 }
 

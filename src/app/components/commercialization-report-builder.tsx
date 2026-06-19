@@ -14,10 +14,13 @@ import {
   useConceptTestResponses,
   useCreateCommercializationReport,
   useDecisionRecords,
+  useGenerateReportNarrative,
   useProjectEvidenceBundle,
   useSaveEvidenceBundle,
   useUpdateCommercializationReportStatus,
 } from '../lib/hooks';
+import { buildReportPlan } from '../lib/report-plan';
+import { evaluateNarrative, type NarrativeEvaluation } from '../lib/report-evaluator';
 import { updateConceptImageReviewStatus, type WorkspaceSettings } from '../lib/database';
 import { downloadCommercializationReportPdf } from '../utils/commercialization-report-export';
 import { getConceptImageMode } from '../../../supabase/functions/_shared/concept-image-catalog.ts';
@@ -57,6 +60,9 @@ export function CommercializationReportBuilder({
   const createReport = useCreateCommercializationReport();
   const updateStatus = useUpdateCommercializationReportStatus();
   const saveBundle = useSaveEvidenceBundle();
+  const generateNarrative = useGenerateReportNarrative();
+  const [aiEval, setAiEval] = useState<NarrativeEvaluation | null>(null);
+  const [aiError, setAiError] = useState('');
   // Deterministic evidence bundle for the GO sample — drives the data-evidence
   // panel and is persisted + linked to the report on save.
   const evidenceQuery = useProjectEvidenceBundle(decision.sampleId, userId, open);
@@ -64,6 +70,56 @@ export function CommercializationReportBuilder({
   const evidenceMismatch = !!evidenceBundle
     && evidenceBundle.deterministicCandidateDecision !== 'INSUFFICIENT_DATA'
     && evidenceBundle.deterministicCandidateDecision !== 'GO';
+
+  // AI narrative (beta): evidence-constrained generation with one bounded revision
+  // pass. The deterministic narrative remains the default/fallback.
+  const generateAiNarrative = async () => {
+    if (!evidenceBundle || !snapshot) return;
+    setAiError('');
+    setAiEval(null);
+    const plan = buildReportPlan(evidenceBundle);
+    const evidence = evidenceBundle.evidence.map(record => ({
+      id: record.id, title: record.title, description: record.description,
+    }));
+    const request = {
+      plan: {
+        headline: plan.headline,
+        candidateDecision: plan.candidateDecision,
+        confidence: plan.confidence,
+        sections: plan.sections.map(section => ({
+          key: section.key,
+          title: section.title,
+          guidance: section.guidance,
+          evidenceIds: section.evidenceIds,
+          evidenceBacked: section.evidenceBacked,
+          claimStatements: section.claims.map(claim => claim.statement),
+        })),
+      },
+      evidence,
+    };
+    try {
+      let result = await generateNarrative.mutateAsync(request);
+      let evaluation = evaluateNarrative({ plan, sections: result.sections, bundle: evidenceBundle });
+      // One bounded revision pass when the first draft fails the quality gate.
+      if (!evaluation.passed && evaluation.issues.length > 0) {
+        result = await generateNarrative.mutateAsync({ ...request, revisionIssues: evaluation.issues });
+        evaluation = evaluateNarrative({ plan, sections: result.sections, bundle: evidenceBundle });
+      }
+      // Merge non-empty AI sections into the editable narrative.
+      setSnapshot(current => {
+        if (!current) return current;
+        const narrative = { ...current.narrative };
+        (Object.keys(narrative) as (keyof typeof narrative)[]).forEach(key => {
+          const text = result.sections[key];
+          if (typeof text === 'string' && text.trim()) narrative[key] = text.trim();
+        });
+        return { ...current, narrative };
+      });
+      setAiEval(evaluation);
+    } catch (reason) {
+      setAiError(reason instanceof Error ? reason.message : 'AI narrative generation failed.');
+    }
+  };
 
   const confirmedGo = decisions.find(record =>
     record.sampleId === decision.sampleId
@@ -347,6 +403,32 @@ export function CommercializationReportBuilder({
                         </ul>
                       )}
                     </div>
+                  )}
+                  <div className="flex flex-wrap items-center gap-3 rounded-md border border-slate-200 bg-white p-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!evidenceBundle || generateNarrative.isPending}
+                      onClick={generateAiNarrative}
+                      title={evidenceBundle ? 'Draft the narrative from the evidence bundle with AI' : 'No evidence bundle available for this sample'}
+                    >
+                      <Sparkles className="size-4" />
+                      {generateNarrative.isPending ? 'Drafting…' : 'Draft with AI (beta)'}
+                    </Button>
+                    <span className="text-xs text-slate-500">
+                      AI writes each section using only the cited evidence. Review before saving.
+                    </span>
+                    {aiEval && (
+                      <span className={`text-xs font-semibold ${aiEval.passed ? 'text-emerald-700' : 'text-amber-700'}`}>
+                        Quality {aiEval.score}/100 · {aiEval.passed ? 'passed' : 'needs review'}
+                      </span>
+                    )}
+                  </div>
+                  {aiError && <p className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700">{aiError}</p>}
+                  {aiEval && aiEval.issues.length > 0 && (
+                    <ul className="space-y-0.5 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                      {aiEval.issues.slice(0, 5).map((issue, index) => <li key={index}>• {issue}</li>)}
+                    </ul>
                   )}
                   <div className="grid gap-4 xl:grid-cols-2">
                     {([

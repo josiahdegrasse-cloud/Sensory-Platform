@@ -446,6 +446,34 @@ export async function saveEvidenceBundle(input: {
   return toEvidenceBundle(data as Record<string, unknown>);
 }
 
+export interface ReportNarrativeRequest {
+  plan: {
+    headline: string;
+    candidateDecision: string;
+    confidence: string;
+    sections: {
+      key: string;
+      title: string;
+      guidance: string;
+      evidenceIds: string[];
+      evidenceBacked: boolean;
+      claimStatements?: string[];
+    }[];
+  };
+  evidence: { id: string; title: string; description: string }[];
+  revisionIssues?: string[];
+}
+
+// Calls the generate-report-narrative Edge Function (OpenAI, evidence-constrained).
+export async function generateReportNarrative(
+  input: ReportNarrativeRequest,
+): Promise<{ sections: Record<string, string>; model: string }> {
+  const { data, error } = await supabase.functions.invoke('generate-report-narrative', { body: input });
+  if (error) throw new Error(error.message || 'Narrative generation failed.');
+  const payload = data as { sections?: Record<string, string>; model?: string };
+  return { sections: payload.sections ?? {}, model: payload.model ?? '' };
+}
+
 export async function updateCommercializationReportStatus(input: {
   id: string;
   status: CommercializationReportRecord['status'];
