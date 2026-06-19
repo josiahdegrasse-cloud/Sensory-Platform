@@ -114,30 +114,47 @@ export function ImagesStep({
   const estimatedCost = estimatedCostPerImage * options.count;
   const styleLabel = getPromptStyle(draft.promptStyle).label;
 
+  // Derive variant-dimension overrides for image generation.
+  const variantImageMode = draft.variantDimensions?.channel === 'lifestyle' ? 'lifestyle' : options.mode;
+  const variantPositioningCues: string[] = [];
+  if (draft.variantDimensions?.positioning === 'premium') variantPositioningCues.push('premium aesthetic, typographic restraint');
+  if (draft.variantDimensions?.positioning === 'accessible') variantPositioningCues.push('friendly, approachable, everyday');
+  if (draft.variantDimensions?.appeal === 'health') variantPositioningCues.push('clean ingredients, natural textures, health cues');
+  if (draft.variantDimensions?.appeal === 'indulgent') variantPositioningCues.push('rich, indulgent, sensory abundance');
+  if (draft.variantDimensions?.visualComplexity === 'minimal') variantPositioningCues.push('minimal composition, whitespace-led');
+  if (draft.variantDimensions?.visualComplexity === 'expressive') variantPositioningCues.push('bold, expressive, colourful');
+
   // Client-side preview of the brief the server will build. Branding
   // (organization name, report tone) is applied server-side from workspace
   // settings, so the preview uses the neutral fallback phrasing.
   const preview = useMemo(() => {
     if (!canGenerate) return null;
+    const positioningParts = [
+      draft.description,
+      draft.pricePoint ? `priced around ${draft.pricePoint}` : '',
+      ...variantPositioningCues,
+    ].filter(Boolean);
     const brief = buildConceptImageBrief({
       productName: draft.name,
       conceptName: draft.name,
       foodCategory: draft.category || detection.label,
-      conceptPositioning: [draft.description, draft.pricePoint ? `priced around ${draft.pricePoint}` : '']
-        .filter(Boolean).join(', '),
+      conceptPositioning: positioningParts.join(', '),
       targetSegments: draft.targetMarket,
       targetOccasion: draft.targetOccasion,
-      productAppearance: draft.productAppearance,
+      productAppearance: draft.packageFormat
+        ? `${draft.productAppearance}${draft.variantDimensions?.packagingFormat ? ` (${draft.variantDimensions.packagingFormat})` : ''}`
+        : draft.productAppearance,
       packageFormat: draft.packageFormat,
       visualSetting: draft.visualSetting,
-      colorDirection: draft.colorDirection,
+      colorDirection: draft.colorDirection
+        || (draft.variantDimensions?.brandColorScheme ? `${draft.variantDimensions.brandColorScheme} palette` : ''),
       mustShow: draft.mustShow,
       keyBenefits: draft.keyBenefits,
       sensoryStrengths: profile.successMarkers.slice(0, 6),
       technicalChallenges: [draft.technicalChallenges, ...profile.riskMarkers.slice(0, 5)].filter(Boolean).join('\n'),
       forbiddenClaims: draft.forbiddenClaims,
       visualNotes: draft.visualNotes,
-      imageMode: options.mode,
+      imageMode: variantImageMode,
       promptStyle: draft.promptStyle,
       model: settings?.defaultModel,
       quality: options.quality,
@@ -146,7 +163,7 @@ export function ImagesStep({
       foodTypeSlug: detection.slug,
     });
     return buildConceptImagePrompt(brief);
-  }, [canGenerate, detection.label, detection.slug, draft, options, profile.riskMarkers, profile.successMarkers, settings?.defaultModel]);
+  }, [canGenerate, detection.label, detection.slug, draft, options, profile.riskMarkers, profile.successMarkers, settings?.defaultModel, variantImageMode, variantPositioningCues]);
 
   const handleGenerate = async () => {
     if (!canGenerate) return;
@@ -167,19 +184,21 @@ export function ImagesStep({
         productAppearance: draft.productAppearance,
         packageFormat: draft.packageFormat,
         visualSetting: draft.visualSetting,
-        colorDirection: draft.colorDirection,
+        colorDirection: draft.colorDirection
+          || (draft.variantDimensions?.brandColorScheme ? `${draft.variantDimensions.brandColorScheme} palette` : ''),
         mustShow: draft.mustShow,
         pricePoint: draft.pricePoint,
         keyBenefits: draft.keyBenefits,
         sensoryStrengths: profile.successMarkers.slice(0, 6),
         technicalChallenges: [draft.technicalChallenges, ...profile.riskMarkers.slice(0, 5)].filter(Boolean).join('\n'),
         forbiddenClaims: draft.forbiddenClaims,
-        visualNotes: draft.visualNotes,
-        mode: options.mode,
+        visualNotes: [draft.visualNotes, ...variantPositioningCues].filter(Boolean).join('. '),
+        mode: variantImageMode,
         promptStyle: normalizePromptStyle(draft.promptStyle),
         quality: options.quality,
         count: options.count,
         spreadModes: options.spreadModes,
+        variantDimensions: draft.variantDimensions ?? {},
       },
     });
 

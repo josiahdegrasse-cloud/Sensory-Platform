@@ -1,17 +1,22 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { formatDistanceToNow } from 'date-fns';
 import { ArrowLeft, Activity, FolderKanban } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { StageEmptyState } from './stage-empty-state';
 import { useFoodType } from '../contexts/food-type-context';
-import { useAuditEvents, useImportBatches, useWorkspaceSettings } from '../lib/hooks';
+import {
+  useAdminConceptTests, useAuditEvents, useCommercializationReports,
+  useDecisionRecords, useImportBatches, useInstrumentalDataset, useWorkspaceSettings,
+} from '../lib/hooks';
 import { useProjectStatus } from '../lib/use-project-status';
 import { ProjectStatusBadge, toneTextClasses } from './project-status-badge';
 import { ProjectJourneyNav } from './project-journey-nav';
 import { NextActionCard } from './next-action-card';
 import { ReportPreviewCard } from './report-preview-card';
 import { DataProvenanceBadge } from './data-provenance-badge';
+import { ProductHistoryTimeline } from './product-history-timeline';
+import { buildProductTimeline } from '../lib/product-history';
 import type { AuditEventRecord } from '../lib/database';
 import type { ProjectStatusSummary } from '../lib/project-status';
 
@@ -145,6 +150,11 @@ export function ProjectCommandCenter() {
   const { data: importBatches = [] } = useImportBatches();
   const { data: workspaceSettings } = useWorkspaceSettings();
   const { data: auditEvents = [] } = useAuditEvents();
+  const { data: decisionRecords = [] } = useDecisionRecords();
+  const { data: conceptTests = [] } = useAdminConceptTests();
+  const { data: reports = [] } = useCommercializationReports();
+  const { data: instrumentalDataset } = useInstrumentalDataset(true);
+  const [selectedHistorySampleId, setSelectedHistorySampleId] = useState<string | null>(null);
 
   const routedBatch = batchId ? importBatches.find(batch => batch.id === batchId) ?? null : null;
 
@@ -163,6 +173,23 @@ export function ProjectCommandCenter() {
     ?? (subCategory?.startsWith('batch:') ? subCategory.replace('batch:', '') : null);
   const status = useProjectStatus(effectiveFoodType, effectiveBatchId);
   const batch = routedBatch ?? (effectiveBatchId ? importBatches.find(b => b.id === effectiveBatchId) ?? null : null);
+
+  const batchSamples = useMemo(() => {
+    if (!effectiveBatchId || !instrumentalDataset) return [];
+    return instrumentalDataset.eTongueData.filter(s => s.importBatchId === effectiveBatchId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveBatchId, instrumentalDataset]);
+
+  const historySampleId = selectedHistorySampleId ?? batchSamples[0]?.sampleId ?? null;
+  const historySampleName = batchSamples.find(s => s.sampleId === historySampleId)?.sampleName ?? historySampleId ?? '';
+  const productTimeline = useMemo(() => {
+    if (!historySampleId) return null;
+    return buildProductTimeline(
+      historySampleId, historySampleName,
+      importBatches, decisionRecords, conceptTests, reports,
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historySampleId, importBatches, decisionRecords, conceptTests, reports]);
 
   const { projectEvents, projectScoped } = useMemo(() => {
     const needles = [effectiveBatchId, status.projectName, effectiveFoodType].filter(Boolean) as string[];
@@ -230,6 +257,28 @@ export function ProjectCommandCenter() {
         </div>
         <ReportPreviewCard status={status} />
       </div>
+
+      {productTimeline && (
+        <div className="space-y-3">
+          {batchSamples.length > 1 && (
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-semibold text-slate-500">Sample</span>
+              <select
+                value={historySampleId ?? ''}
+                onChange={e => setSelectedHistorySampleId(e.target.value)}
+                className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {batchSamples.map(s => (
+                  <option key={s.sampleId} value={s.sampleId}>
+                    {s.sampleName ?? s.sampleId}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <ProductHistoryTimeline timeline={productTimeline} />
+        </div>
+      )}
     </div>
   );
 }

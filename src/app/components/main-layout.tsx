@@ -3,7 +3,7 @@ import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Ta
 import { useAuth } from "../contexts/auth-context";
 import { useEffect, useMemo, useState } from "react";
 import { useFoodType } from "../contexts/food-type-context";
-import { useDeleteImportBatch, useImportBatches, useInstrumentalDataset, useProducts, useUpdateImportBatchStatus, useWorkspaceSettings } from "../lib/hooks";
+import { useDeleteImportBatch, useImportBatches, useInstrumentalDataset, usePendingImports, useProducts, useUpdateImportBatchStatus, useWorkspaceSettings } from "../lib/hooks";
 import { matchFoodType } from "../contexts/food-type-context";
 import { useProjectStatus } from "../lib/use-project-status";
 import { ConsentGate } from "./consent-gate";
@@ -387,6 +387,7 @@ export function MainLayout() {
   const { data: workspaceSettings } = useWorkspaceSettings();
   const { data: cleanupBatches = [], isFetched: cleanupBatchesFetched } = useImportBatches(user?.role === 'admin');
   const deleteImportBatch = useDeleteImportBatch();
+  const { data: pendingImports = [] } = usePendingImports(user?.role === 'admin');
 
   // Per-tenant branding (falls back to NFI when the org hasn't set its own).
   const brandLogo = workspaceSettings?.logoUrl ?? null;
@@ -528,6 +529,11 @@ export function MainLayout() {
                 >
                   {Icon && <Icon className="size-3.5" />}
                   {item.label}
+                  {item.path === '/stage1' && pendingImports.length > 0 && (
+                    <span className="ml-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-bold leading-none text-white">
+                      {pendingImports.length > 9 ? '9+' : pendingImports.length}
+                    </span>
+                  )}
                 </Link>
               );
             })}

@@ -80,7 +80,6 @@ export function ProjectCard({ projectId, status, projectPath, onOpen }: ProjectC
                     if (event.key === 'Escape') cancelRename();
                   }}
                   onBlur={() => void saveRename()}
-                  autoFocus
                   aria-label="Project name"
                   className="h-9 bg-white text-base font-semibold"
                 />

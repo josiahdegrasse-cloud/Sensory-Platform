@@ -5,6 +5,7 @@ import {
   preferredConceptImageIndex,
 } from './smart-defaults';
 import type { ConceptDraft } from './types';
+import { EMPTY_VARIANT_DIMENSIONS } from './types';
 
 const draft: ConceptDraft = {
   name: 'Everyday Melt',
@@ -27,6 +28,7 @@ const draft: ConceptDraft = {
   visualNotes: '',
   forbiddenClaims: '',
   approvalStatus: 'draft',
+  variantDimensions: { ...EMPTY_VARIANT_DIMENSIONS },
 };
 
 describe('concept workflow smart defaults', () => {

@@ -1,6 +1,7 @@
 import type { ConceptDraft, Question, WizardStep } from './types';
 import type { AssignablePanelist } from '../../lib/assignments';
 import { getAssignmentSummary } from '../../lib/assignments';
+import { scoreStudyQuality, type StudyQualityScore } from './study-quality-scorer';
 
 export interface ConceptReadinessItem {
   id: 'project' | 'brief' | 'visuals' | 'questions' | 'panelists';
@@ -10,17 +11,24 @@ export interface ConceptReadinessItem {
   fixStep: Exclude<WizardStep, 'review' | 'launched'>;
 }
 
+export interface ConceptReadinessResult {
+  items: ConceptReadinessItem[];
+  studyQuality: StudyQualityScore;
+}
+
 export function getConceptReadiness({
   draft,
   questions,
   assignedPanelistIds,
   panelists,
+  targetPanelSize,
 }: {
   draft: ConceptDraft;
   questions: Question[];
   assignedPanelistIds: string[];
   panelists?: AssignablePanelist[];
-}): ConceptReadinessItem[] {
+  targetPanelSize?: number;
+}): ConceptReadinessResult {
   const projectReady = Boolean(draft.projectName.trim());
   const missingBriefFields = [
     !draft.name.trim() && 'concept name',
@@ -37,7 +45,7 @@ export function getConceptReadiness({
     ? getAssignmentSummary('concept', { assignedPanelistIds }, panelists).activeAssignedIds.length
     : assignedPanelistIds.length;
 
-  return [
+  const items: ConceptReadinessItem[] = [
     {
       id: 'project',
       label: 'Project',
@@ -86,4 +94,13 @@ export function getConceptReadiness({
       fixStep: 'survey',
     },
   ];
+
+  const studyQuality = scoreStudyQuality(
+    draft,
+    questions,
+    activeAssignedCount,
+    targetPanelSize ?? 24,
+  );
+
+  return { items, studyQuality };
 }

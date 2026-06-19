@@ -16,6 +16,7 @@ import {
   useWorkspaceSettings,
 } from '../lib/hooks';
 import type { ConceptDraft, Question, WizardStep } from './concept-testing/types';
+import { EMPTY_VARIANT_DIMENSIONS } from './concept-testing/types';
 import type { AIReviewState } from './ai-review-card';
 import { ConceptStep } from './concept-testing/ConceptStep';
 import { ImagesStep } from './concept-testing/ImagesStep';
@@ -56,6 +57,7 @@ const makeEmptyDraft = (promptStyle: string = 'balanced'): ConceptDraft => ({
   visualNotes: '',
   forbiddenClaims: '',
   approvalStatus: 'draft',
+  variantDimensions: { ...EMPTY_VARIANT_DIMENSIONS },
 });
 
 interface StoredConceptDraft {
@@ -75,6 +77,28 @@ interface SourceDecisionSeed {
   issfScore: number;
   confidence: number;
   timestamp: string;
+}
+
+const QUESTION_CATEGORIES = new Set<Question['category']>([
+  'appeal',
+  'purchase',
+  'price',
+  'attributes',
+  'demographics',
+  'usage',
+]);
+
+function normalizeQuestionCategory(category: string): Question['category'] {
+  return QUESTION_CATEGORIES.has(category as Question['category'])
+    ? category as Question['category']
+    : 'attributes';
+}
+
+function normalizeQuestions(questions: Array<Omit<Question, 'category'> & { category: string }>): Question[] {
+  return questions.map(question => ({
+    ...question,
+    category: normalizeQuestionCategory(question.category),
+  }));
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -106,7 +130,7 @@ export function ConceptTesting() {
   const stepIndex = STEPS.indexOf(step);
 
   const detection = detectFoodType(draft.category, draft.name, draft.description);
-  const readinessItems = getConceptReadiness({ draft, questions, assignedPanelistIds, panelists });
+  const { items: readinessItems } = getConceptReadiness({ draft, questions, assignedPanelistIds, panelists });
   const launchReady = readinessItems.every(item => item.ready);
   const conceptStepReady = readinessItems.filter(item => item.fixStep === 'concept').every(item => item.ready);
   const visualsStepReady = readinessItems.filter(item => item.fixStep === 'visuals').every(item => item.ready);
@@ -221,7 +245,7 @@ export function ConceptTesting() {
     localStorage.removeItem(DRAFT_STORAGE_KEY);
   };
 
-  const useExistingConcept = (concept: (typeof existingConcepts)[number]) => {
+  const loadExistingConcept = (concept: (typeof existingConcepts)[number]) => {
     const nextDraft = {
       ...makeEmptyDraft(settings?.promptStyle ?? 'balanced'),
       name: concept.name,
@@ -235,7 +259,7 @@ export function ConceptTesting() {
       keyBenefits: concept.keyBenefits,
     };
     setDraft(nextDraft);
-    setQuestions(concept.questions);
+    setQuestions(normalizeQuestions(concept.questions));
     setQuestionsReviewState('draft');
     setPanelSize(concept.panelSize);
     setAssignedPanelistIds(concept.assignedPanelistIds);
@@ -269,6 +293,7 @@ export function ConceptTesting() {
         foodTypeSlug: detection.slug,
         approvalNotes: draft.approvalStatus === 'approved' ? 'Approved in Concept Lab before launch.' : '',
         status: 'active',
+        variantDimensions: draft.variantDimensions as unknown as Record<string, string | null>,
       });
       localStorage.removeItem(DRAFT_STORAGE_KEY);
       setStep('launched');
@@ -481,7 +506,7 @@ export function ConceptTesting() {
                     <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-700">{concept.description}</p>
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                       <span className="text-xs text-slate-500">{concept.panelSize} invited · {concept.questions.length} questions</span>
-                      <Button size="sm" variant="outline" onClick={() => useExistingConcept(concept)}>
+                      <Button size="sm" variant="outline" onClick={() => loadExistingConcept(concept)}>
                         Use as starting point
                       </Button>
                     </div>

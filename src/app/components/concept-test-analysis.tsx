@@ -10,7 +10,7 @@ import { DataProvenanceBadge } from './data-provenance-badge';
 import { useAdminConceptTests, useConceptTestResponses } from '../lib/hooks';
 import type { ConceptTest, ConceptQuestion, ConceptResponse } from '../lib/database';
 import {
-  AlertTriangle, CheckCircle2, Megaphone, MessageSquare, ShoppingBag, Sparkles, Target, Trophy, Users,
+  AlertTriangle, CheckCircle2, Layers, Megaphone, MessageSquare, ShoppingBag, Sparkles, Target, Trophy, Users,
 } from 'lucide-react';
 import { InsightInterpretationBlock } from './insights-ui';
 import { TEMPORARY_CHEESE_DEMO_LABEL } from '../data/temporary-cheese-demo';
@@ -261,6 +261,13 @@ function ConceptResultsPanel({ test, responses, minimumResponses }: {
           ))}
         </CardContent>
       </Card>
+
+      {test.variantDimensions && (
+        <PositioningAnalysisCard
+          dims={test.variantDimensions}
+          purchaseIntent={summary.purchaseIntent}
+        />
+      )}
     </div>
   );
 }
@@ -325,6 +332,71 @@ function findMetric(
   terms: string[],
 ) {
   return metrics.find(metric => terms.some(term => metric.question.toLowerCase().includes(term)));
+}
+
+const DIM_LABELS: Record<string, string> = {
+  positioning: 'Brand positioning', visualComplexity: 'Visual complexity', appeal: 'Consumer appeal',
+  channel: 'Primary channel', packagingFormat: 'Packaging format', brandColorScheme: 'Colour scheme',
+  targetDemographic: 'Target demographic', pricePositioning: 'Price positioning',
+};
+const OPTION_LABELS: Record<string, string> = {
+  premium: 'Premium', accessible: 'Accessible', minimal: 'Minimal', expressive: 'Expressive',
+  health: 'Health-focused', indulgent: 'Indulgent', retail: 'Retail shelf', lifestyle: 'Lifestyle / DTC',
+  young_active: 'Young & Active', family: 'Family', professional: 'Professional', senior: 'Senior',
+  health_seeker: 'Health-seeker', budget: 'Budget', mainstream: 'Mainstream',
+  ultra_premium: 'Ultra-premium', earthy: 'Earthy', vibrant: 'Vibrant', minimalist: 'Minimalist',
+  luxury: 'Luxury', bold: 'Bold', pastel: 'Pastel', pouch: 'Pouch', block: 'Block',
+  jar: 'Jar', can: 'Can', bottle: 'Bottle', sleeve: 'Sleeve', tray: 'Tray', tube: 'Tube',
+};
+
+function PositioningAnalysisCard({
+  dims, purchaseIntent,
+}: {
+  dims: Record<string, string | null>;
+  purchaseIntent: number | null | undefined;
+}) {
+  const set = Object.entries(DIM_LABELS).filter(([k]) => dims[k]);
+  if (set.length === 0) return null;
+  return (
+    <Card className="border border-slate-200">
+      <CardHeader className="border-b border-slate-100">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Layers className="size-4 text-slate-500" aria-hidden />
+          Positioning profile
+        </CardTitle>
+        <p className="text-sm text-slate-600">Dimensions set for this concept variant.</p>
+      </CardHeader>
+      <CardContent className="pt-4">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-100">
+              <th className="pb-2 text-left text-xs font-semibold text-slate-500">Dimension</th>
+              <th className="pb-2 text-left text-xs font-semibold text-slate-500">Value</th>
+              <th className="pb-2 text-right text-xs font-semibold text-slate-500">Purchase intent</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {set.map(([key, label]) => (
+              <tr key={key}>
+                <td className="py-2 text-slate-600">{label}</td>
+                <td className="py-2">
+                  <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
+                    {OPTION_LABELS[dims[key]!] ?? dims[key]}
+                  </span>
+                </td>
+                <td className="py-2 text-right font-semibold tabular-nums text-slate-900">
+                  {purchaseIntent != null ? `${purchaseIntent.toFixed(1)}/9` : '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {purchaseIntent == null && (
+          <p className="mt-3 text-xs text-slate-400 italic">Add a purchase intent question to see the outcome score here.</p>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function shortQuestion(text: string) {

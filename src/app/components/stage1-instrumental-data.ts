@@ -60,7 +60,10 @@ export interface RetestImportContext {
   decision: 'TWEAK' | 'STOP';
   target?: string;
   action?: string;
+  parentDecisionId?: string;
 }
+
+export const RETEST_PARENT_DECISION_KEY = 'retest_parent_decision_id';
 
 export function buildRetestBatchName(context: RetestImportContext) {
   const suffix = context.decision === 'STOP' ? 'reformulation' : 'retest';
