@@ -34,6 +34,7 @@ import {
   renderRisksPage,
 } from './pdf/pages/action-pages';
 import { buildFinalSummary, renderFinalSummaryPage } from './pdf/pages/summary-page';
+import { runQcPipeline, type GeneratedSections, type QcPipelineResult } from '../lib/report-qc';
 
 export type { CommercializationReportPdfInput } from './pdf/sections';
 
@@ -138,10 +139,36 @@ export async function buildCommercializationReportPdf(input: CommercializationRe
     generatedAt: input.snapshot.generatedAt,
     version: input.version,
   });
-  return { doc, filename };
+
+  // Stage-aware QC: when a typed context is supplied, run the deterministic
+  // pipeline over the rendered prose and return the result + machine-readable
+  // quality report. Critical errors set qc.exportAllowed=false.
+  let qc: QcPipelineResult | undefined;
+  if (input.reportContext) {
+    const exec = buildExecutiveReadout(input);
+    const generated: GeneratedSections = {
+      sections: [
+        { label: 'Decision', text: buildDecisionSnapshot(input).readinessStage },
+        { label: 'Executive rationale', text: `${exec.decision} ${exec.rationale}` },
+        { label: 'Executive recommendation', text: exec.commercialImplication },
+        { label: 'Next move', text: exec.nextMove },
+        { label: 'Packaging rationale', text: buildConceptPackaging(input).packagingDirection },
+        { label: 'Core message', text: buildConceptPackaging(input).coreMessage },
+        { label: 'Risks and limitations', text: buildRisks(input).claimsNote },
+      ],
+    };
+    qc = runQcPipeline({ ctx: input.reportContext, generated });
+  }
+
+  return { doc, filename, qc };
 }
 
 export async function downloadCommercializationReportPdf(input: CommercializationReportPdfInput) {
-  const { doc, filename } = await buildCommercializationReportPdf(input);
+  const { doc, filename, qc } = await buildCommercializationReportPdf(input);
+  // Critical QC errors block export (only enforced when a typed context is supplied).
+  if (qc && !qc.exportAllowed) {
+    const reasons = qc.score.blockers.slice(0, 5).join('; ');
+    throw new Error(`Report export blocked by quality control: ${reasons}`);
+  }
   doc.save(filename);
 }

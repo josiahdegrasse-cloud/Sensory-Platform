@@ -1,0 +1,30 @@
+{
+  "sample": "Coconut Cheddar v3.0",
+  "reportStage": "conditional_advancement",
+  "launchAuthorization": "not_approved",
+  "modelConfidence": 0.91,
+  "evidenceMaturity": "limited",
+  "conceptResponses": 0,
+  "approvalStatus": "draft",
+  "totalScore": 100,
+  "clientReady": false,
+  "exportAllowed": true,
+  "categoryScores": {
+    "decisionClarity": 15,
+    "evidenceCompleteness": 20,
+    "claimSupport": 15,
+    "commercialUsefulness": 15,
+    "actionability": 10,
+    "writingQuality": 10,
+    "visualReadability": 5,
+    "governance": 10
+  },
+  "blockers": [],
+  "warnings": [],
+  "recommendedFixes": [],
+  "missingEvidence": [
+    "Concept-test responses (n=0): consumer preference and purchase intent cannot be validated.",
+    "Texture performance (43/100) is below the 60/100 readiness line.",
+    "Claims and legal approval not on file."
+  ]
+}

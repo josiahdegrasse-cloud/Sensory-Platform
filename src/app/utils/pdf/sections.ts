@@ -10,6 +10,7 @@ import {
   getPromptStyle,
 } from '../../../../supabase/functions/_shared/concept-image-catalog.ts';
 import { stripEvidenceCitations } from '../../lib/report-evaluator';
+import { stageHeadline, REPORT_STAGE_TITLE, type ReportContext } from '../../lib/report-qc';
 
 export const AI_VISUAL_DISCLAIMER =
   'Directional concept visualization only. Final packaging requires design, claims, and legal approval.';
@@ -25,6 +26,9 @@ export interface CommercializationReportPdfInput {
   primaryColor?: string | null;
   accentColor?: string | null;
   reportTemplate?: 'standard' | 'editorial-sage';
+  /** Stage-aware QC context. When present, drives the headline, dashboard
+   *  evidence, and conditional framing from the typed model. */
+  reportContext?: ReportContext;
 }
 
 export type EvidenceStrengthTone = 'established' | 'limited' | 'accent';
@@ -36,6 +40,7 @@ export interface DecisionSnapshotData {
   decision: string;
   conditional: boolean;
   readinessStage: string;
+  decisionSubheading: string;
   coreStrength: string;
   mainWatchPoint: string;
   nextAction: string;
@@ -206,15 +211,22 @@ export function buildDecisionSnapshot(input: CommercializationReportPdfInput): D
   const strengthLabel = formatDecisionDimension(strengthKey as keyof typeof snapshot.decision.dimensions);
   const evidenceStrength = getEvidenceStrength(snapshot.evidence.responseCount);
   const qualifier = getDecisionQualifier(snapshot);
+  const ctx = input.reportContext;
+  // Stage-aware headline replaces the bare GO badge: a conditional advancement
+  // must read as "advance to next gate", never as launch approval.
+  const head = ctx ? stageHeadline(ctx.stage, ctx.decision.sensoryOutcome) : null;
   return {
     productName: snapshot.product.sampleName,
     category: snapshot.product.foodType,
-    reportTitle: 'Commercialization Readiness Report',
-    decision: snapshot.decision.outcome,
-    conditional: qualifier.conditional,
-    readinessStage: qualifier.conditional
-      ? `${evidenceStrength} evidence · Conditional GO · Buyer preparation`
-      : `${evidenceStrength} evidence · Buyer preparation`,
+    reportTitle: head ? head.headline : 'Commercialization Readiness Report',
+    decision: head ? head.badge : snapshot.decision.outcome,
+    conditional: ctx ? ctx.stage !== 'commercialization_approval' : qualifier.conditional,
+    readinessStage: head && ctx
+      ? `${REPORT_STAGE_TITLE[ctx.stage]} · ${evidenceStrength} evidence`
+      : qualifier.conditional
+        ? `${evidenceStrength} evidence · Conditional GO · Buyer preparation`
+        : `${evidenceStrength} evidence · Buyer preparation`,
+    decisionSubheading: head ? head.subheading : '',
     coreStrength: `${strengthLabel} (${Number(strengthScore).toFixed(0)}/100) gives the product a credible lead proof point.`,
     mainWatchPoint: primaryWatchPoint(snapshot),
     nextAction: stripEvidenceCitations(snapshot.narrative.launchRecommendation),
@@ -249,18 +261,29 @@ export function buildExecutiveReadout(input: CommercializationReportPdfInput): E
 }
 
 export function buildPerformanceDashboard(input: CommercializationReportPdfInput): PerformanceDashboardData {
-  const { snapshot } = input;
-  const dimensions = Object.entries(snapshot.decision.dimensions).map(([key, score]) => ({
-    label: formatDecisionDimension(key as keyof typeof snapshot.decision.dimensions),
-    value: `${Number(score).toFixed(0)}/100`,
-    score: Number(score),
-    // Every dimension score comes from the saved sensory decision model. The
-    // CATA card must NOT cite concept-test descriptors — those are a separate,
-    // often-empty data source and pairing them produced a score-vs-"no data"
-    // contradiction on the dashboard.
-    evidence: 'Saved sensory decision model',
-    implication: scoreImplication(key as keyof typeof snapshot.decision.dimensions, Number(score)),
-  }));
+  const { snapshot, reportContext } = input;
+  const ctxByKey = new Map((reportContext?.dimensions ?? []).map(d => [d.key, d]));
+  const dimensions = Object.entries(snapshot.decision.dimensions).map(([key, score]) => {
+    const dim = ctxByKey.get(key);
+    // When the typed context is present, cite the underlying evidence (sample
+    // size + actual measures + benchmark) instead of "Saved sensory decision
+    // model". The descriptor dimension shows its real descriptor frequencies.
+    const evidence = dim
+      ? [
+          `Threshold ${dim.threshold}/100`,
+          dim.sampleSize ? `n=${dim.sampleSize}` : null,
+          dim.measures.length ? dim.measures.slice(0, 4).join(', ') : null,
+          dim.benchmark ? `benchmark: ${dim.benchmark}` : null,
+        ].filter(Boolean).join(' · ')
+      : 'Saved sensory decision model';
+    return {
+      label: formatDecisionDimension(key as keyof typeof snapshot.decision.dimensions),
+      value: `${Number(score).toFixed(0)}/100`,
+      score: Number(score),
+      evidence,
+      implication: scoreImplication(key as keyof typeof snapshot.decision.dimensions, Number(score)),
+    };
+  });
   const purchaseIntent = snapshot.evidence.purchaseIntent;
   return {
     intro: 'Performance is shown as a commercial decision aid: each result states the evidence and the action or story it supports.',

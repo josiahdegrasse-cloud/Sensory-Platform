@@ -48,9 +48,9 @@ function pageHeading(ctx: PdfContext, eyebrow: string, title: string, purpose: s
 }
 
 function badgeColor(decision: string): Rgb {
-  if (decision === 'GO') return GREEN;
+  if (decision === 'GO' || decision === 'APPROVED') return GREEN;
   if (decision === 'STOP') return [190, 18, 60];
-  return AMBER;
+  return AMBER; // CONDITIONAL, REVIEW, TWEAK
 }
 
 function snapshotCard(ctx: PdfContext, label: string, value: string, x: number, y: number, width: number, height: number) {
@@ -140,12 +140,20 @@ export function renderDecisionSnapshotPage(
 
   setText(doc, SLATE_500, 7.5, 'bold');
   doc.text('READINESS STAGE', margin, 289);
-  paragraph(doc, data.readinessStage, margin, 311, leftWidth, {
+  const readinessBottom = paragraph(doc, data.readinessStage, margin, 311, leftWidth, {
     color: SLATE_950,
     size: 13,
     weight: 'bold',
     lineHeight: 17,
   });
+  // Stage subheading: makes "this is not launch approval" explicit on the cover.
+  if (data.decisionSubheading) {
+    paragraph(doc, data.decisionSubheading, margin, readinessBottom + 8, leftWidth, {
+      color: SLATE_500,
+      size: 8.5,
+      lineHeight: 12,
+    });
+  }
 
   const cardWidth = (width - margin * 2 - 14) / 2;
   snapshotCard(ctx, 'Core strength', data.coreStrength, margin, 445, cardWidth, 108);
