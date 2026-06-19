@@ -106,7 +106,8 @@ export function renderDecisionSnapshotPage(
   const productLines = doc.splitTextToSize(data.productName, width - margin * 2 - 130) as string[];
   doc.text(productLines.slice(0, 2), margin, 137, { lineHeightFactor: 1 });
 
-  const badge = badgeColor(data.decision);
+  // A conditional GO renders amber so the cover badge never overstates confidence.
+  const badge = data.conditional ? AMBER : badgeColor(data.decision);
   doc.setFillColor(...badge);
   doc.roundedRect(width - margin - 94, 40, 94, 42, 21, 21, 'F');
   setText(doc, WHITE, 14, 'bold');
@@ -169,7 +170,7 @@ export function renderExecutiveReadoutPage(ctx: PdfContext, data: ExecutiveReado
   const blocks = [
     ['Decision', data.decision],
     ['Rationale', data.rationale],
-    ['Commercial implication', data.commercialImplication],
+    ['Executive recommendation', data.commercialImplication],
     ['Next move', data.nextMove],
   ];
   blocks.forEach(([label, value], index) => {
@@ -244,6 +245,20 @@ export function renderPerformanceDashboardPage(ctx: PdfContext, data: Performanc
     color: SLATE_700,
     size: 8,
     lineHeight: 11,
+  });
+
+  // Glossary: the score numbers are meaningless to a reader who doesn't know what
+  // ISSF or "model confidence" mean. Define them where the scores appear.
+  y += 74;
+  const defLines = doc.splitTextToSize(data.definitions, contentWidth - 28) as string[];
+  doc.setFillColor(...SLATE_50);
+  doc.roundedRect(margin, y, contentWidth, 28 + defLines.length * 10, 8, 8, 'F');
+  setText(doc, accent, 7, 'bold');
+  doc.text('HOW TO READ THESE SCORES', margin + 14, y + 18);
+  paragraph(doc, data.definitions, margin + 14, y + 32, contentWidth - 28, {
+    color: SLATE_700,
+    size: 7.6,
+    lineHeight: 10,
   });
 }
 

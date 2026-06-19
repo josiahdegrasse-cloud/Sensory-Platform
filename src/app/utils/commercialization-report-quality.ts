@@ -109,7 +109,7 @@ export function evaluateCommercializationReport(
     },
     {
       id: 'memo-structure',
-      passed: includesAll(pageTexts[1] ?? '', ['Decision', 'Rationale', 'Commercial implication', 'Next move']),
+      passed: includesAll(pageTexts[1] ?? '', ['Decision', 'Rationale', 'Executive recommendation', 'Next move']),
       detail: 'Executive summary uses the required business memo structure.',
     },
     {

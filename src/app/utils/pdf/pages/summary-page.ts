@@ -1,4 +1,4 @@
-import { formatDecisionDimension, getEvidenceStrength } from '../../../lib/commercialization-report';
+import { formatDecisionDimension, getDecisionQualifier, getEvidenceStrength } from '../../../lib/commercialization-report';
 import { renderBarChart } from '../charts';
 import {
   AMBER,
@@ -26,6 +26,8 @@ import {
 
 export interface FinalSummaryData {
   decision: string;
+  conditional: boolean;
+  caveatLine: string;
   decisionStatement: string;
   issfScore: number;
   confidence: number;
@@ -67,8 +69,12 @@ export function buildFinalSummary(input: CommercializationReportPdfInput): Final
   const risks = buildRisks(input);
   const riskOwners = ['R&D', 'Design', 'Legal'];
 
+  const qualifier = getDecisionQualifier(snapshot);
+
   return {
     decision: snapshot.decision.outcome,
+    conditional: qualifier.conditional,
+    caveatLine: qualifier.caveatLine,
     decisionStatement: snapshot.narrative.launchRecommendation,
     issfScore: snapshot.decision.issfScore,
     confidence: snapshot.decision.confidence,
@@ -122,7 +128,9 @@ export function renderFinalSummaryPage(
 ) {
   const { doc, margin, contentWidth, primary, accent } = ctx;
   let y = summaryHeading(ctx);
-  const decision = decisionColor(data.decision);
+  // A conditional GO renders amber, not green — the badge must not signal more
+  // confidence than the evidence supports.
+  const decision = data.conditional ? AMBER : decisionColor(data.decision);
 
   doc.setFillColor(...primary);
   doc.roundedRect(margin, y, contentWidth, 92, 10, 10, 'F');
@@ -139,6 +147,19 @@ export function renderFinalSummaryPage(
     lineHeight: 15,
   });
   y += 108;
+
+  // Conditional caveat sits directly beneath the banner, in amber, so it can't be
+  // missed the way a buried watch point can.
+  if (data.caveatLine) {
+    setText(doc, AMBER, 8, 'bold');
+    const caveatBottom = paragraph(doc, data.caveatLine, margin, y, contentWidth, {
+      color: AMBER,
+      size: 8,
+      weight: 'bold',
+      lineHeight: 11,
+    });
+    y = caveatBottom + 12;
+  }
 
   const metricWidth = (contentWidth - 20) / 3;
   [

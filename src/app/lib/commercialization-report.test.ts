@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatDecisionDimension,
+  getDecisionQualifier,
   getEvidenceStrength,
   getEvidenceStrengthNote,
   resolveReportLogoUrl,
   summarizeConceptResponses,
 } from './commercialization-report';
+
+const dims = { hedonic: 84, texture: 43, cata: 99, emotional: 86 } as const;
 
 describe('commercialization report evidence', () => {
   it('summarizes scale, selection, purchase, and comment answers', () => {
@@ -34,8 +37,28 @@ describe('commercialization report evidence', () => {
   });
 
   it('uses client-facing labels for decision dimensions', () => {
-    expect(formatDecisionDimension('cata')).toBe('Panelist-selected sensory descriptors');
+    // cata is the trained-panel CATA descriptor profile — deliberately not
+    // "panelist-selected descriptors", which collided with concept-test descriptors.
+    expect(formatDecisionDimension('cata')).toBe('Sensory descriptor profile');
     expect(formatDecisionDimension('emotional')).toBe('Positive emotional response indicators');
+  });
+
+  it('flags a GO as conditional when a dimension is weak or concept evidence is absent', () => {
+    const weakAndNoConcept = getDecisionQualifier({
+      decision: { dimensions: dims } as never,
+      evidence: { responseCount: 0 } as never,
+    });
+    expect(weakAndNoConcept.conditional).toBe(true);
+    expect(weakAndNoConcept.caveats).toHaveLength(2);
+    expect(weakAndNoConcept.caveatLine).toContain('Texture performance');
+    expect(weakAndNoConcept.caveatLine).toContain('n=0');
+
+    const clean = getDecisionQualifier({
+      decision: { dimensions: { hedonic: 84, texture: 72, cata: 99, emotional: 86 } } as never,
+      evidence: { responseCount: 40 } as never,
+    });
+    expect(clean.conditional).toBe(false);
+    expect(clean.caveatLine).toBe('');
   });
 
   it('uses the NFI logo only as the default for the NFI workspace', () => {

@@ -93,12 +93,54 @@ export function getEvidenceStrengthNote(responseCount: number) {
 const DIMENSION_LABELS: Record<keyof GoStopTweakDecision['dimensionScores'], string> = {
   hedonic: 'Overall sensory acceptance',
   texture: 'Texture performance',
-  cata: 'Panelist-selected sensory descriptors',
+  // CATA = the trained/consumer sensory panel's check-all-that-apply descriptor
+  // profile. Deliberately NOT "panelist-selected descriptors" — that phrasing
+  // collided with concept-test descriptors and made a sensory score look like it
+  // came from concept responses that may not exist.
+  cata: 'Sensory descriptor profile',
   emotional: 'Positive emotional response indicators',
 };
 
 export function formatDecisionDimension(dimension: keyof GoStopTweakDecision['dimensionScores']) {
   return DIMENSION_LABELS[dimension];
+}
+
+/** A dimension at or below this score is a launch blocker, not a footnote. */
+export const WEAK_DIMENSION_THRESHOLD = 60;
+
+export interface DecisionQualifier {
+  /** True when the GO carries material caveats that belong next to the badge. */
+  conditional: boolean;
+  /** Reasons, each a clause suitable for joining into a sentence. */
+  caveats: string[];
+  /** Rendered caveat sentence, empty when not conditional. */
+  caveatLine: string;
+}
+
+// A GO decision can coexist with a failing dimension or zero concept evidence.
+// Surfacing that tension next to the badge is the difference between an honest
+// readout and one that oversells confidence the data does not support.
+export function getDecisionQualifier(
+  snapshot: Pick<CommercializationReportSnapshot, 'decision' | 'evidence'>,
+): DecisionQualifier {
+  const caveats: string[] = [];
+  const weak = Object.entries(snapshot.decision.dimensions)
+    .filter(([, score]) => Number(score) < WEAK_DIMENSION_THRESHOLD)
+    .map(([key]) => formatDecisionDimension(key as keyof GoStopTweakDecision['dimensionScores']));
+  if (weak.length > 0) {
+    caveats.push(
+      `${weak.join(' and ')} ${weak.length === 1 ? 'is' : 'are'} below the ${WEAK_DIMENSION_THRESHOLD}/100 readiness line and must be remediated before launch`,
+    );
+  }
+  if (snapshot.evidence.responseCount === 0) {
+    caveats.push('the decision rests on sensory data only — no concept validation has been collected (n=0)');
+  }
+  const conditional = caveats.length > 0;
+  return {
+    conditional,
+    caveats,
+    caveatLine: conditional ? `Conditional GO — ${caveats.join('; ')}.` : '',
+  };
 }
 
 function questionById(questions: ConceptQuestion[]) {

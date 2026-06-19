@@ -23,6 +23,13 @@ const CITATION_RE = /\[evidence:([^\]]+)\]/g;
 const PASS_THRESHOLD = 70;
 const LAUNCH_POSITIVE_RE = /\b(recommend(?:ed|ing)?\s+(?:to\s+)?launch|proceed\s+to\s+launch|ready\s+(?:to|for)\s+launch|green[\s-]?light|go\s+to\s+market)\b/i;
 const CAUTION_RE = /\b(however|caution|risk|limitation|insufficient|do not|not recommend|hold|before launch|tweak|stop)\b/i;
+// Generic, non-specific hedging that signals templated rather than product-specific writing.
+const HEDGE_RE = /\b(depending on the food type|various factors|in general|may or may not|could potentially|as needed|where applicable|if applicable)\b/i;
+// A demographic/age range or explicit price is an unsupported claim unless the
+// text grounds it (a cited evidence id or an explicit "not yet determined").
+const DEMOGRAPHIC_RE = /\b(\d{2}\s*[-–]\s*\d{2})\b|\b(?:aged?|ages)\s+\d{2}\b/i;
+const PRICE_RE = /(?:[$£€]\s?\d|\b\d+(?:\.\d{2})?\s?(?:USD|GBP|EUR|dollars|pounds|euros)\b)/i;
+const NOT_DETERMINED_RE = /\bnot yet determined|requires (?:segmented|broader|further) (?:panel )?data|requires validation\b/i;
 
 // Removes inline [evidence:<id>] provenance tokens for human-facing display.
 // The tokens are required while the evaluator validates citations, but must
@@ -79,6 +86,16 @@ export function evaluateNarrative(input: {
       && LAUNCH_POSITIVE_RE.test(text) && !CAUTION_RE.test(text)) {
       contradiction = true;
       issues.push(`${section.title}: asserts a launch recommendation that contradicts the ${candidate} candidate decision.`);
+    }
+
+    // Anti-boilerplate: generic hedging reads as templated, not product-specific.
+    if (text && HEDGE_RE.test(text)) {
+      issues.push(`${section.title}: uses generic hedged language ("${(text.match(HEDGE_RE) ?? [''])[0]}"); write specifically about this product.`);
+    }
+    // Unsupported demographic/price claims must be grounded or flagged as unknown.
+    if (text && (DEMOGRAPHIC_RE.test(text) || PRICE_RE.test(text))
+      && cited.length === 0 && !NOT_DETERMINED_RE.test(text)) {
+      issues.push(`${section.title}: states a demographic or price claim without supporting evidence or a "not yet determined" qualifier.`);
     }
 
     return {

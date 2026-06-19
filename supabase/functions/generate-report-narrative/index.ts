@@ -92,6 +92,12 @@ Deno.serve(async (req: Request) => {
     '3. For sections marked evidenceBacked=false (e.g. packaging), do not fabricate data; write only from the provided guidance, with no [evidence:] citations.',
     '4. If a section has no allowed evidence ids and is evidenceBacked=true, return an empty string for it.',
     '5. Be concise and factual. No marketing hyperbole that the evidence does not support.',
+    // Anti-boilerplate and grounding rules — these target the specific failure
+    // modes that made earlier drafts read as generic, hedged, or unsupported.
+    '6. NEVER use hedged or conditional filler such as "depending on the food type", "various factors", "in general", "may or may not", or "could potentially". Write specifically about THIS product using the supplied evidence and descriptors.',
+    '7. Do NOT state a demographic, target consumer, price point, or market-size claim unless the evidence supports it. If it is not in the evidence, write "Not yet determined — requires segmented panel data" instead of guessing a number or range.',
+    '8. When concept descriptors or response counts indicate no/low data (e.g. n=0), say so plainly; do not imply consumer validation that did not happen.',
+    '9. Prefer the exact panelist/sensory descriptor words supplied over invented marketing adjectives.',
     body.revisionIssues && body.revisionIssues.length > 0
       ? `Revision required — fix these issues from the previous draft:\n${body.revisionIssues.map(i => `- ${i}`).join('\n')}`
       : '',

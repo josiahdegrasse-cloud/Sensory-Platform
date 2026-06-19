@@ -226,10 +226,39 @@ function buildOffNoteGates(sample: EnhancedSensoryProfile, foodTypeSlug: string)
   return gates;
 }
 
+// Food-type-specific positive texture cues, mirroring scoreTexture's positiveKeys.
+function positiveTextureCues(foodTypeSlug: string): string[] {
+  if (foodTypeSlug === 'meat') return ['juicy', 'tender', 'firm'];
+  if (foodTypeSlug === 'bread') return ['soft', 'crusty', 'chewy', 'airy', 'springy'];
+  return ['creamy', 'smooth', 'firm', 'spreadable'];
+}
+
+const NEGATIVE_TEXTURE_KEYS = ['grainy', 'chalky', 'dry', 'rubbery', 'gummy', 'sticky', 'dense'];
+
+// Names the texture defects that are actually dragging this sample's score and
+// the cues to build toward, instead of a generic "depending on the food type"
+// list. Uses the same descriptor vocabulary as scoreTexture so the advice and
+// the score agree.
+function describeTextureAction(sample: EnhancedSensoryProfile, foodTypeSlug: string): string {
+  const dominantDefects = NEGATIVE_TEXTURE_KEYS
+    .map(key => ({ key, value: safeScore(sample.intensity[key]) }))
+    .filter(item => item.value >= 3)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 2)
+    .map(item => item.key);
+  const cues = positiveTextureCues(foodTypeSlug);
+  const targetCues = cues.slice(0, 3).join(', ');
+  if (dominantDefects.length > 0) {
+    return `Reduce ${dominantDefects.join(' and ')} (the dominant texture drag in this sample) via milling, hydration, or fat-protein ratio changes, and build toward ${targetCues}. Re-measure texture after the next prototype.`;
+  }
+  return `No single texture defect dominates; lift overall texture liking by reinforcing ${targetCues} through formulation and process controls, then re-measure after the next prototype.`;
+}
+
 function buildPrescriptions(
   sample: EnhancedSensoryProfile,
   dimensionScores: GoStopTweakDecision['dimensionScores'],
   gates: DecisionGate[],
+  foodTypeSlug: string,
 ): TweakPrescription[] {
   const prescriptions: TweakPrescription[] = [];
   const failedOffNote = gates.find(gate => gate.id === 'off-note' && gate.status !== 'pass');
@@ -242,14 +271,11 @@ function buildPrescriptions(
     });
   }
 
-  const textureDrag = Math.min(safeScore(sample.intensity.grainy), safeScore(sample.intensity.chalky), safeScore(sample.intensity.dry));
   if (dimensionScores.texture < 68) {
     prescriptions.push({
       priority: prescriptions.length + 1,
       target: 'Texture rebuild',
-      action: textureDrag > 4
-        ? 'Reduce particulate/grain drag with finer milling, hydration change, or fat-protein ratio adjustment.'
-        : 'Increase positive texture cues such as creamy, smooth, juicy, soft, or crusty depending on the food type.',
+      action: describeTextureAction(sample, foodTypeSlug),
       expectedLift: clamp((75 - dimensionScores.texture) * 0.22, 4, 14),
     });
   }
@@ -325,7 +351,7 @@ export function calculateGoStopTweakDecision(
   const issfScore = hardStop ? Math.min(baseScore - gatePenalty, 54) : baseScore - gatePenalty;
   const finalScore = clamp(issfScore);
   const confidenceScore = confidenceFromEvidence(sample, finalScore, gates);
-  const prescriptions = buildPrescriptions(sample, dimensionScores, gates);
+  const prescriptions = buildPrescriptions(sample, dimensionScores, gates, foodTypeSlug);
 
   let decision: DecisionOutcome = 'TWEAK';
   if (hardStop || finalScore < stopThreshold) {

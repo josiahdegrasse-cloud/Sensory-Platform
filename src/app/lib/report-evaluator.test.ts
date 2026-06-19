@@ -51,6 +51,31 @@ describe('evaluateNarrative', () => {
     expect(stripEvidenceCitations('No citations here.')).toBe('No citations here.');
   });
 
+  it('flags generic hedged language as a quality issue', () => {
+    const { bundle, plan } = planFor('S4');
+    const sections: Record<string, string> = {};
+    plan.sections.forEach(section => {
+      sections[section.key] = section.evidenceBacked && section.evidenceIds.length > 0
+        ? `Summary. [evidence:${section.evidenceIds[0]}]`
+        : 'Concept-driven packaging note.';
+    });
+    const exec = plan.sections.find(s => s.key === 'executiveSummary')!;
+    sections.executiveSummary = `Improve texture depending on the food type. [evidence:${exec.evidenceIds[0]}]`;
+    const evaluation = evaluateNarrative({ plan, sections, bundle });
+    expect(evaluation.issues.some(i => /hedged language/.test(i))).toBe(true);
+  });
+
+  it('flags an unsupported demographic claim with no citation or qualifier', () => {
+    const { bundle, plan } = planFor('S4');
+    const sections: Record<string, string> = {};
+    plan.sections.forEach(section => { sections[section.key] = ''; });
+    // packaging is evidenceBacked=false, so a target-consumer claim here has no citation
+    const packaging = plan.sections.find(s => s.key === 'packagingRationale')!;
+    sections[packaging.key] = 'Targets consumers aged 25-35 who want convenience.';
+    const evaluation = evaluateNarrative({ plan, sections, bundle });
+    expect(evaluation.issues.some(i => /demographic or price claim/.test(i))).toBe(true);
+  });
+
   it('flags a launch claim that contradicts a STOP candidate decision', () => {
     const { bundle, plan } = planFor('S3'); // STOP
     const sections: Record<string, string> = {};

@@ -181,7 +181,7 @@ export function renderCommercializationPlanPage(
 }
 
 export function renderRisksPage(ctx: PdfContext, data: RisksData, autoTable: AutoTableFn) {
-  const { doc, margin, primary } = ctx;
+  const { doc, margin, contentWidth, accent, primary } = ctx;
   const y = pageHeading(ctx, 'Page 7 · Control', 'Risks and Watch Points', data.intro);
   autoTable(doc, {
     startY: y,
@@ -205,6 +205,26 @@ export function renderRisksPage(ctx: PdfContext, data: RisksData, autoTable: Aut
       3: { cellWidth: ctx.contentWidth - 440, fontStyle: 'bold' },
     },
   });
+
+  // Claims & limitations callout below the table (sourced from the report
+  // narrative, which is otherwise never rendered in the PDF).
+  if (data.claimsNote) {
+    const tableBottom = (doc as PdfDocument & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y;
+    const boxY = tableBottom + 20;
+    doc.setFillColor(...SLATE_50);
+    doc.setDrawColor(...SLATE_200);
+    const textWidth = contentWidth - 32;
+    const lines = doc.splitTextToSize(data.claimsNote, textWidth) as string[];
+    const boxHeight = 40 + lines.length * 12;
+    doc.roundedRect(margin, boxY, contentWidth, boxHeight, 8, 8, 'FD');
+    setText(doc, accent, 7, 'bold');
+    doc.text('CLAIMS AND LIMITATIONS', margin + 16, boxY + 20);
+    paragraph(doc, data.claimsNote, margin + 16, boxY + 34, textWidth, {
+      color: SLATE_700,
+      size: 8.5,
+      lineHeight: 12,
+    });
+  }
 }
 
 export function renderAppendixPage(ctx: PdfContext, data: AppendixData, autoTable: AutoTableFn) {

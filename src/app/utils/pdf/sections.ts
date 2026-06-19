@@ -1,5 +1,6 @@
 import {
   formatDecisionDimension,
+  getDecisionQualifier,
   getEvidenceStrength,
   getEvidenceStrengthNote,
   type CommercializationReportSnapshot,
@@ -33,6 +34,7 @@ export interface DecisionSnapshotData {
   category: string;
   reportTitle: string;
   decision: string;
+  conditional: boolean;
   readinessStage: string;
   coreStrength: string;
   mainWatchPoint: string;
@@ -63,6 +65,7 @@ export interface PerformanceDashboardData {
   intro: string;
   metrics: PerformanceMetric[];
   evidenceNote: string;
+  definitions: string;
 }
 
 export interface CommercialInsight {
@@ -115,6 +118,7 @@ export interface RiskRow {
 export interface RisksData {
   intro: string;
   rows: RiskRow[];
+  claimsNote: string;
 }
 
 export interface AppendixData {
@@ -201,12 +205,16 @@ export function buildDecisionSnapshot(input: CommercializationReportPdfInput): D
   const [strengthKey, strengthScore] = topDimension(snapshot);
   const strengthLabel = formatDecisionDimension(strengthKey as keyof typeof snapshot.decision.dimensions);
   const evidenceStrength = getEvidenceStrength(snapshot.evidence.responseCount);
+  const qualifier = getDecisionQualifier(snapshot);
   return {
     productName: snapshot.product.sampleName,
     category: snapshot.product.foodType,
     reportTitle: 'Commercialization Readiness Report',
     decision: snapshot.decision.outcome,
-    readinessStage: `${evidenceStrength} evidence · Buyer preparation`,
+    conditional: qualifier.conditional,
+    readinessStage: qualifier.conditional
+      ? `${evidenceStrength} evidence · Conditional GO · Buyer preparation`
+      : `${evidenceStrength} evidence · Buyer preparation`,
     coreStrength: `${strengthLabel} (${Number(strengthScore).toFixed(0)}/100) gives the product a credible lead proof point.`,
     mainWatchPoint: primaryWatchPoint(snapshot),
     nextAction: stripEvidenceCitations(snapshot.narrative.launchRecommendation),
@@ -224,10 +232,16 @@ export function buildExecutiveReadout(input: CommercializationReportPdfInput): E
   const [watchKey, watchScore] = weakestDimension(snapshot);
   const strength = formatDecisionDimension(strengthKey as keyof typeof snapshot.decision.dimensions);
   const watch = formatDecisionDimension(watchKey as keyof typeof snapshot.decision.dimensions);
+  const qualifier = getDecisionQualifier(snapshot);
   return {
-    decision: `${snapshot.product.sampleName} should advance into controlled commercialization preparation.`,
-    rationale: `The saved GO decision is supported by an ISSF score of ${snapshot.decision.issfScore.toFixed(1)} and ${snapshot.decision.confidence.toFixed(0)}% model confidence. ${strength} leads at ${Number(strengthScore).toFixed(0)}/100; ${watch} is the lowest dimension at ${Number(watchScore).toFixed(0)}/100.`,
-    commercialImplication: `${scoreImplication(strengthKey as keyof typeof snapshot.decision.dimensions, Number(strengthScore))} The team should keep the buyer narrative anchored in tested sensory performance while treating concept feedback as ${getEvidenceStrength(snapshot.evidence.responseCount).toLowerCase()} evidence.`,
+    decision: qualifier.conditional
+      ? `${snapshot.product.sampleName} should advance into controlled commercialization preparation, conditional on closing the items below before any external launch.`
+      : `${snapshot.product.sampleName} should advance into controlled commercialization preparation.`,
+    rationale: `The saved GO decision is supported by an ISSF score of ${snapshot.decision.issfScore.toFixed(1)} and ${snapshot.decision.confidence.toFixed(0)}% model confidence. ${strength} leads at ${Number(strengthScore).toFixed(0)}/100; ${watch} is the lowest dimension at ${Number(watchScore).toFixed(0)}/100.${qualifier.conditional ? ` ${qualifier.caveatLine}` : ''}`,
+    // Route the AI (or deterministic-fallback) executive recommendation into the
+    // PDF — it was previously written but never rendered. Append the deterministic
+    // implication so the lead-dimension guidance is preserved.
+    commercialImplication: `${stripEvidenceCitations(snapshot.narrative.executiveSummary)} ${scoreImplication(strengthKey as keyof typeof snapshot.decision.dimensions, Number(strengthScore))}`.trim(),
     nextMove: `${stripEvidenceCitations(snapshot.narrative.launchRecommendation)} In parallel, close the watch points and approval gates listed in the commercialization plan before external distribution.`,
   };
 }
@@ -238,7 +252,11 @@ export function buildPerformanceDashboard(input: CommercializationReportPdfInput
     label: formatDecisionDimension(key as keyof typeof snapshot.decision.dimensions),
     value: `${Number(score).toFixed(0)}/100`,
     score: Number(score),
-    evidence: key === 'cata' ? selectedDescriptors(snapshot) : 'Saved sensory decision model',
+    // Every dimension score comes from the saved sensory decision model. The
+    // CATA card must NOT cite concept-test descriptors — those are a separate,
+    // often-empty data source and pairing them produced a score-vs-"no data"
+    // contradiction on the dashboard.
+    evidence: 'Saved sensory decision model',
     implication: scoreImplication(key as keyof typeof snapshot.decision.dimensions, Number(score)),
   }));
   const purchaseIntent = snapshot.evidence.purchaseIntent;
@@ -257,6 +275,11 @@ export function buildPerformanceDashboard(input: CommercializationReportPdfInput
       }] : []),
     ],
     evidenceNote: getEvidenceStrengthNote(snapshot.evidence.responseCount),
+    definitions:
+      'How to read these scores: all dimension scores are 0–100, higher is better. '
+      + 'ISSF = Integrated Sensory Screening Framework, the composite suitability score behind the GO / TWEAK / STOP decision. '
+      + 'Model confidence reflects how complete and consistent the sensory evidence is — not market demand. '
+      + 'n = number of concept-test responses collected.',
   };
 }
 
@@ -281,12 +304,19 @@ export function buildCommercialInsights(input: CommercializationReportPdfInput):
         ? `${snapshot.decision.prescriptions[0].action} Recheck the dimension after the next prototype.`
         : 'Define a scale-up acceptance range and confirm the result in the next validation round.',
     },
-    {
-      title: 'Panel language can sharpen the product story',
-      evidence: `The leading panelist-selected language is: ${selectedDescriptors(snapshot)}.`,
-      commercialMeaning: 'These words are more credible than invented marketing language because they reflect how the product was actually described.',
-      action: 'Use the strongest two or three terms in concept copy, then verify comprehension with the target audience.',
-    },
+    snapshot.evidence.topSelections.length > 0
+      ? {
+          title: 'Concept language can sharpen the product story',
+          evidence: `The most-selected concept descriptors are: ${selectedDescriptors(snapshot)}.`,
+          commercialMeaning: 'These words are more credible than invented marketing language because they reflect how panelists actually described the concept.',
+          action: 'Use the strongest two or three terms in concept copy, then verify comprehension with the target audience.',
+        }
+      : {
+          title: 'Capture concept descriptors to sharpen the product story',
+          evidence: 'No concept descriptors have been captured yet (no concept responses recorded).',
+          commercialMeaning: 'Without panelist-described language, buyer-facing copy would rely on invented marketing terms that the evidence does not support.',
+          action: 'Add a check-all-that-apply descriptor question to the concept test and collect a target-consumer panel before locking copy.',
+        },
     {
       title: 'Concept evidence should match the size of the claim',
       evidence: `${snapshot.evidence.responseCount} response${snapshot.evidence.responseCount === 1 ? '' : 's'} provide ${getEvidenceStrength(snapshot.evidence.responseCount).toLowerCase()} concept evidence.`,
@@ -401,6 +431,9 @@ export function buildRisks(input: CommercializationReportPdfInput): RisksData {
         nextGate: 'Readiness review',
       },
     ],
+    // The AI (or deterministic-fallback) claims/limitations statement — previously
+    // written but never rendered in the PDF. Belongs on the control page.
+    claimsNote: stripEvidenceCitations(snapshot.narrative.claimCaution),
   };
 }
 
