@@ -207,7 +207,7 @@ export function renderPerformanceDashboardPage(ctx: PdfContext, data: Performanc
   let y = pageHeading(ctx, 'Page 3 · Evidence', 'Product Performance Dashboard', data.intro);
   const gap = 12;
   const cardWidth = (contentWidth - gap) / 2;
-  const cardHeight = 154;
+  const cardHeight = 184;
   data.metrics.forEach((metric, index) => {
     const column = index % 2;
     const row = Math.floor(index / 2);
@@ -234,13 +234,20 @@ export function renderPerformanceDashboardPage(ctx: PdfContext, data: Performanc
       size: 7.7,
       lineHeight: 10,
     });
+    setText(doc, SLATE_500, 6.8, 'bold');
+    doc.text('SCORE EXPLANATION', x + 15, cardY + 122);
+    paragraph(doc, metric.explanation ?? 'See the method page for the score transform.', x + 15, cardY + 136, cardWidth - 30, {
+      color: SLATE_700,
+      size: 6.4,
+      lineHeight: 8,
+    });
     setText(doc, accent, 6.8, 'bold');
-    doc.text('BUSINESS IMPLICATION', x + 15, cardY + 112);
-    paragraph(doc, metric.implication, x + 15, cardY + 126, cardWidth - 30, {
+    doc.text('COMMERCIAL IMPLICATION', x + 15, cardY + 158);
+    paragraph(doc, metric.implication, x + 15, cardY + 172, cardWidth - 30, {
       color: SLATE_950,
-      size: 7.3,
+      size: 6.6,
       weight: 'bold',
-      lineHeight: 9.2,
+      lineHeight: 8,
     });
   });
   const rows = Math.ceil(data.metrics.length / 2);
@@ -272,7 +279,7 @@ export function renderPerformanceDashboardPage(ctx: PdfContext, data: Performanc
 
 export function renderCommercialInsightsPage(ctx: PdfContext, data: CommercialInsightsData) {
   const { doc, margin, contentWidth, accent } = ctx;
-  let y = pageHeading(ctx, 'Page 4 · Interpretation', 'Key Commercial Insights', data.intro);
+  let y = pageHeading(ctx, 'Page 5 · Interpretation', 'Key Commercial Insights', data.intro);
   const cardHeight = data.insights.length > 4 ? 111 : 132;
   data.insights.forEach((insight, index) => {
     doc.setFillColor(...(index % 2 === 0 ? SLATE_50 : WHITE));

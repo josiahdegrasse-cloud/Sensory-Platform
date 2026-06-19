@@ -2,120 +2,139 @@ import type {
   DecisionSemantics,
   EvidenceMaturity,
   GateResult,
+  ModelConfidenceDetail,
   ReportStage,
   SensoryOutcome,
+  StageDecisionCode,
 } from './types';
 
 // ════════════════════════════════════════════════════════════════════════════
-// Stage classification + decision semantics. The stage is derived strictly from
-// evidence sufficiency and gate results — never asserted. A report can only be
-// "commercialization_approval" when every configured gate passes.
+// Stage classification + decision semantics. The stage decision is the dominant
+// headline and is derived strictly from evidence sufficiency and gate results —
+// never asserted. Final-approval wording is only produced when every gate passes
+// and the report is approved.
 // ════════════════════════════════════════════════════════════════════════════
 
 export interface StageInputs {
   sensoryOutcome: SensoryOutcome;
   responseCount: number;
   gates: GateResult[];
-  /** Lowest dimension score vs the readiness line — a sub-readiness dimension blocks approval. */
+  /** Lowest dimension score — a sub-readiness dimension forces pilot validation. */
   weakestDimensionScore: number;
   readinessThreshold: number;
-  approvalStatus: 'draft' | 'in_review' | 'approved';
+  approvalStatus: DecisionSemantics['approvalStatus'];
 }
 
-// Overall evidence maturity. n=0 still has sensory evidence, so it maps to
-// "limited" (matching getEvidenceStrength), not "none". "none" is reserved for a
-// report with no analyzable sensory basis at all.
-export function evidenceMaturity(responseCount: number): EvidenceMaturity {
-  if (responseCount < 5) return 'limited';
-  if (responseCount < 15) return 'directional';
-  if (responseCount < 30) return 'developing';
-  return 'established';
+// Overall evidence maturity across sensory + concept evidence. n=0 still has a
+// full sensory panel, so it maps to "limited", not "insufficient".
+export function evidenceMaturity(responseCount: number, hasSensory = true): EvidenceMaturity {
+  if (!hasSensory && responseCount === 0) return 'insufficient';
+  if (responseCount >= 30) return 'strong';
+  if (responseCount >= 15) return 'moderate';
+  return 'limited';
 }
 
-export function determineReportStage(input: StageInputs): ReportStage {
-  // Insufficient sensory basis, or no decision at all → evidence review.
+export function stageDecisionCode(input: StageInputs): StageDecisionCode {
   if (input.sensoryOutcome === 'INSUFFICIENT_DATA' || input.sensoryOutcome === 'STOP') {
-    return 'evidence_review';
+    return 'HOLD_FOR_EVIDENCE';
   }
+  // A failing sensory dimension is the binding constraint — pilot reformulation
+  // and revalidation come before any consumer or commercial step.
+  if (input.weakestDimensionScore < input.readinessThreshold) return 'ADVANCE_TO_PILOT_VALIDATION';
+  if (input.responseCount === 0) return 'ADVANCE_TO_CONCEPT_VALIDATION';
+  const allGatesPass = input.gates.length > 0 && input.gates.every(g => g.status === 'pass');
+  if (allGatesPass && input.approvalStatus === 'approved') return 'APPROVED_FOR_LAUNCH';
+  return 'ADVANCE_TO_COMMERCIAL_PREPARATION';
+}
 
-  const allGatesPass = input.gates.length > 0 && input.gates.every(gate => gate.status === 'pass');
-  const launchReady =
-    allGatesPass
-    && input.approvalStatus === 'approved'
-    && input.responseCount > 0
-    && input.weakestDimensionScore >= input.readinessThreshold;
-
-  if (launchReady) return 'commercialization_approval';
-
-  // A GO/TWEAK sensory result with open gates, weak dimensions, or thin concept
-  // evidence can still advance to a defined next gate — but not launch.
+export function reportStageFor(code: StageDecisionCode): ReportStage {
+  if (code === 'HOLD_FOR_EVIDENCE') return 'evidence_review';
+  if (code === 'APPROVED_FOR_LAUNCH') return 'commercialization_approval';
   return 'conditional_advancement';
 }
 
+export function determineReportStage(input: StageInputs): ReportStage {
+  return reportStageFor(stageDecisionCode(input));
+}
+
 // ── Decision semantics ──────────────────────────────────────────────────────
-// Builds the seven separated fields. Each carries one meaning; they are never
-// collapsed into a single confidence/status statement.
 export interface SemanticsInputs extends StageInputs {
-  stage: ReportStage;
   modelConfidence: number; // 0–1
+  confidenceBasis: string[];
+  methodId: string;
   defaultNextGate: string;
+  conditions: string[];
+}
+
+function confidenceLabel(value: number): ModelConfidenceDetail['label'] {
+  if (!Number.isFinite(value)) return 'not_available';
+  if (value >= 0.85) return 'high';
+  if (value >= 0.7) return 'medium';
+  return 'low';
 }
 
 export function buildDecisionSemantics(input: SemanticsInputs): DecisionSemantics {
-  const launchAuthorization = input.stage === 'commercialization_approval' ? 'approved' : 'not_approved';
-
-  const stageDecision = (() => {
-    switch (input.stage) {
-      case 'commercialization_approval':
-        return 'Approved for commercialization';
-      case 'conditional_advancement':
-        return 'Advance to the next development gate, conditional on closing open items';
-      case 'evidence_review':
-      default:
-        return 'Hold for further evidence before an advancement decision';
-    }
-  })();
+  const code = stageDecisionCode(input);
+  const launchAuthorization = code === 'APPROVED_FOR_LAUNCH' ? 'approved' : 'not_approved';
+  const stageDecision = STAGE_DECISION_TEXT[code];
+  const value = clampFraction(input.modelConfidence);
 
   return {
     sensoryOutcome: input.sensoryOutcome,
+    stageDecisionCode: code,
     stageDecision,
-    modelConfidence: clampFraction(input.modelConfidence),
+    modelConfidence: value,
+    confidence: {
+      value,
+      label: confidenceLabel(value),
+      basis: input.confidenceBasis,
+      methodId: input.methodId,
+    },
     evidenceMaturity: evidenceMaturity(input.responseCount),
     launchAuthorization,
     approvalStatus: input.approvalStatus,
     nextGate: input.defaultNextGate,
+    conditions: input.conditions,
   };
 }
 
-// ── Stage-aware headline (section 9) ────────────────────────────────────────
+const STAGE_DECISION_TEXT: Record<StageDecisionCode, string> = {
+  HOLD_FOR_EVIDENCE: 'Hold for additional evidence before an advancement decision',
+  ADVANCE_TO_REFORMULATION: 'Advance to reformulation, conditional on closing open sensory items',
+  ADVANCE_TO_PILOT_VALIDATION: 'Advance to pilot-scale validation, conditional on closing open items',
+  ADVANCE_TO_CONCEPT_VALIDATION: 'Advance to target-consumer concept validation, conditional on closing open items',
+  ADVANCE_TO_COMMERCIAL_PREPARATION: 'Advance to commercial preparation, conditional on closing open items',
+  APPROVED_FOR_LAUNCH: 'Approved for market launch',
+};
+
+// ── Stage-aware report titles + headline (sections "Required report title logic") ──
 export interface StageHeadline {
+  reportType: string;
   badge: string;
   headline: string;
   subheading: string;
 }
 
-export function stageHeadline(stage: ReportStage, sensoryOutcome: SensoryOutcome): StageHeadline {
-  switch (stage) {
-    case 'commercialization_approval':
-      return {
-        badge: 'APPROVED',
-        headline: 'APPROVED FOR COMMERCIALIZATION',
-        subheading: 'All required sensory, consumer, product, packaging, claims, and approval gates are satisfied.',
-      };
-    case 'evidence_review':
-      return {
-        badge: 'REVIEW',
-        headline: 'EVIDENCE REVIEW — NOT AN ADVANCEMENT DECISION',
-        subheading: 'Current evidence is insufficient to authorize advancement. Collect the missing evidence before the next gate.',
-      };
-    case 'conditional_advancement':
+export function stageHeadline(code: StageDecisionCode, sensoryOutcome: SensoryOutcome): StageHeadline {
+  const notLaunch = 'The sensory screening outcome supports continued development. This is not approval for commercialization or market launch.';
+  switch (code) {
+    case 'APPROVED_FOR_LAUNCH':
+      return { reportType: 'Commercialization Approval Report', badge: 'APPROVED', headline: 'APPROVED FOR MARKET LAUNCH', subheading: 'All configured gates pass and the report is approved for launch.' };
+    case 'HOLD_FOR_EVIDENCE':
+      return { reportType: 'Evidence Review Report', badge: 'REVIEW', headline: 'ADDITIONAL EVIDENCE REQUIRED', subheading: 'Current evidence is insufficient to authorize advancement. Collect the missing evidence before the next gate.' };
+    case 'ADVANCE_TO_REFORMULATION':
+      return { reportType: 'Development Advancement Report', badge: 'CONDITIONAL', headline: 'ADVANCE TO REFORMULATION — CONDITIONAL', subheading: notLaunch };
+    case 'ADVANCE_TO_CONCEPT_VALIDATION':
+      return { reportType: 'Development Advancement Report', badge: 'CONDITIONAL', headline: 'ADVANCE TO CONCEPT VALIDATION — CONDITIONAL', subheading: notLaunch };
+    case 'ADVANCE_TO_COMMERCIAL_PREPARATION':
+      return { reportType: 'Commercial Readiness Report', badge: 'CONDITIONAL', headline: 'ADVANCE TO COMMERCIAL PREPARATION — CONDITIONAL', subheading: notLaunch };
+    case 'ADVANCE_TO_PILOT_VALIDATION':
     default:
       return {
+        reportType: 'Development Advancement Report',
         badge: 'CONDITIONAL',
-        headline: 'ADVANCE TO NEXT GATE — CONDITIONAL',
-        subheading: `Proceed to pilot-scale confirmation and target-consumer concept validation. This is not approval for market launch.${
-          sensoryOutcome === 'GO' ? ' The sensory GO result is supporting evidence only.' : ''
-        }`,
+        headline: 'ADVANCE TO PILOT VALIDATION — CONDITIONAL',
+        subheading: `${notLaunch}${sensoryOutcome === 'GO' ? ' The sensory GO is supporting evidence only.' : ''}`,
       };
   }
 }
@@ -123,6 +142,6 @@ export function stageHeadline(stage: ReportStage, sensoryOutcome: SensoryOutcome
 function clampFraction(value: number): number {
   if (!Number.isFinite(value)) return 0;
   if (value < 0) return 0;
-  if (value > 1) return value > 1 && value <= 100 ? value / 100 : 1;
+  if (value > 1) return value <= 100 ? value / 100 : 1;
   return value;
 }

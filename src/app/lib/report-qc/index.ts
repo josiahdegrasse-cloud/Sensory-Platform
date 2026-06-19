@@ -4,7 +4,7 @@ export { buildReportContext } from './context';
 export type { BuildContextInput, SensoryAugmentation, DimensionAugmentation } from './context';
 export { findUnsupportedClaims, classifyStatement } from './claims';
 export { lintText, findDuplicateParagraphs } from './lint';
-export { validateReportContext, validateGeneratedReport } from './validate';
+export { validateReportContext, validateGeneratedReport, validateDimensionEvidenceConsistency } from './validate';
 export type { GeneratedSections } from './validate';
 export { scoreReportQuality } from './score';
 export type { ScoreInputs, RenderDefect } from './score';

@@ -87,10 +87,14 @@ export function evaluateCommercializationReport(
 ): CommercializationReportEvaluation {
   const pageTexts = extractGeneratedPdfPageText(doc);
   const pageWordCounts = pageTexts.map(countWords);
-  const beforeAppendix = pageTexts.slice(0, 7).join(' ').toLowerCase();
-  const appendix = pageTexts[7]?.toLowerCase() ?? '';
+  const beforeAppendix = pageTexts.slice(0, 8).join(' ').toLowerCase();
+  const appendix = pageTexts[8]?.toLowerCase() ?? '';
   const dimensions = Object.keys(input.snapshot.decision.dimensions) as Array<keyof typeof input.snapshot.decision.dimensions>;
   const repeatedWarnings = repeatedCaveats(pageTexts);
+  const expectedHeadings = [
+    input.reportContext ? 'ADVANCE TO' : 'Commercialization Readiness Report',
+    ...reportPageHeadings.slice(1),
+  ];
   const checks: QualityCheck[] = [
     {
       id: 'page-count',
@@ -99,7 +103,7 @@ export function evaluateCommercializationReport(
     },
     {
       id: 'required-headings',
-      passed: reportPageHeadings.every((heading, index) => pageTexts[index]?.toLowerCase().includes(heading.toLowerCase())),
+      passed: expectedHeadings.every((heading, index) => pageTexts[index]?.toLowerCase().includes(heading.toLowerCase())),
       detail: 'Each required heading must appear on its intended page.',
     },
     {
@@ -114,13 +118,13 @@ export function evaluateCommercializationReport(
     },
     {
       id: 'flow',
-      passed: reportPageHeadings.every((heading, index) => pageTexts[index]?.includes(heading)),
+      passed: expectedHeadings.every((heading, index) => pageTexts[index]?.includes(heading)),
       detail: 'Report follows decision, evidence, insight, direction, plan, risk, and source flow.',
     },
     {
       id: 'commercial-actions',
-      passed: includesAll(pageTexts[3] ?? '', ['Why it matters commercially', 'Recommended action'])
-        && includesAll(pageTexts[5] ?? '', ['Required action', 'Status / owner', 'Next decision gate']),
+      passed: includesAll(pageTexts[4] ?? '', ['Why it matters commercially', 'Recommended action'])
+        && includesAll(pageTexts[6] ?? '', ['Required action', 'Status / owner', 'Next decision gate']),
       detail: 'Insights and plan pages translate evidence into named actions.',
     },
     {
@@ -129,28 +133,31 @@ export function evaluateCommercializationReport(
         const label = formatDecisionDimension(dimension).toLowerCase();
         const page = (pageTexts[2] ?? '').toLowerCase();
         const labelIndex = page.indexOf(label);
-        const implicationIndex = page.indexOf('business implication', labelIndex);
+        const implicationIndex = Math.max(
+          page.indexOf('business implication', labelIndex),
+          page.indexOf('commercial implication', labelIndex),
+        );
         return labelIndex >= 0 && implicationIndex >= labelIndex && implicationIndex - labelIndex < 700;
       }),
       detail: 'Every major score has a nearby business implication.',
     },
     {
       id: 'concept-strategy',
-      passed: includesAll(pageTexts[4] ?? '', ['Packaging direction', 'Core message', 'Why this supports the product', 'Refine before external use', 'Directional concept visual']),
-      detail: 'Concept page connects packaging to strategy and labels the visual as directional.',
+      passed: includesAll(pageTexts[5] ?? '', ['Positioning hypothesis', 'Target segment', 'Consumer need', 'Usage occasion', 'Product promise', 'Directional concept visual']),
+      detail: 'Concept page presents a structured market hypothesis and labels the visual as directional.',
     },
     {
       id: 'final-summary',
       passed: includesAll(pageTexts[8] ?? '', [
-        'Report at a Glance',
-        'Commercial decision',
-        'Evidence snapshot',
-        'Core strength',
-        'Main watch point',
-        'Immediate priorities',
-        'Next gate',
+        'Appendix / Source Record',
+        'Decision record ID',
+        'Decision fingerprint',
+        'Method ID',
+        'Evidence populations',
+        'Approval status',
+        'Approval and distribution',
       ]),
-      detail: 'Final page condenses the decision, evidence, watch point, priorities, owners, and next gate.',
+      detail: 'Final page records traceability, evidence populations, conditions, approval, and distribution status.',
     },
     {
       id: 'scanability',

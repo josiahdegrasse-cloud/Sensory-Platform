@@ -99,12 +99,52 @@ export function coconutCheddarDecision(): GoStopTweakDecision {
 }
 
 // Real S4 CATA descriptor citations (panel of 14) behind the descriptor score.
+// Real S4 intensity attributes (0–10) — note firm/spreadable are absent, which
+// is exactly why texture composites to 43 despite high creamy/smooth.
+const COCONUT_INTENSITY: Record<string, number> = {
+  sourMilk: 2.0, milkiness: 7.2, cheesiness: 6.8, creamy: 8.4, grainy: 1.8, oily: 2.8, chalky: 1.2, smooth: 8.6,
+};
+
 export function coconutCheddarAugmentation(): SensoryAugmentation {
   const panelSize = 14;
   const cata: Record<string, number> = { Cheese: 13, Butter: 12, 'Lactic acid': 11, Milk: 11, Nutty: 8 };
   return {
     panelSize,
     sourceEvidenceIds: COCONUT_SOURCE_EVIDENCE_IDS,
+    intensity: COCONUT_INTENSITY,
+    foodTypeSlug: 'cheese',
+    instrumentSignal: 72.3,
+    gatePenalty: 0,
+    instrumentalFindings: [
+      {
+        source: 'E-tongue / composition model',
+        batchId: 'S4',
+        finding: 'Instrument signal 72.3/100 from taste and composition inputs',
+        benchmark: 'Production ISSF instrument-signal transform',
+        decisionEffect: 'supports',
+      },
+      {
+        source: 'GC-MS / GC-O',
+        batchId: 'S4',
+        finding: '2 aroma findings; no critical off-note gate failure',
+        benchmark: 'Off-note decision gate',
+        decisionEffect: 'supports',
+      },
+      {
+        source: 'Internal-standard QC',
+        batchId: 'S4',
+        replicateCount: 1,
+        finding: 'Recovery 95.1%',
+        benchmark: 'Pass range 85–110%',
+        decisionEffect: 'supports',
+      },
+    ],
+    confidenceCalculation: [
+      { input: 'Trained-panel agreement', score: 88.8, weightPct: 45, contribution: 40.0 },
+      { input: 'Instrument QC recovery', score: 96, weightPct: 20, contribution: 19.2 },
+      { input: 'GC-MS/olfactometry coverage', score: 92, weightPct: 20, contribution: 18.4 },
+      { input: 'Descriptor evidence coverage', score: 88, weightPct: 15, contribution: 13.2 },
+    ],
     sensoryDescriptors: Object.entries(cata).map(([descriptor, count]) => ({
       descriptor,
       count,

@@ -99,6 +99,24 @@ export type SensoryProfileEvidence = {
   descriptors: Array<{ descriptor: string; count: number }>;
   /** Per-dimension underlying measures, keyed by dimension (hedonic/texture/cata/emotional). */
   dimensionMeasures: Record<string, string[]>;
+  intensity: Record<string, number>;
+  foodTypeSlug: string;
+  instrumentSignal: number;
+  gatePenalty: number;
+  instrumentalFindings: Array<{
+    source: string;
+    batchId?: string;
+    replicateCount?: number;
+    finding: string;
+    benchmark: string;
+    decisionEffect: 'supports' | 'contradicts' | 'watch' | 'neutral';
+  }>;
+  confidenceCalculation: Array<{
+    input: string;
+    score: number;
+    weightPct: number;
+    contribution: number;
+  }>;
 };
 
 export type BuildEvidenceBundleInput = {

@@ -64,6 +64,7 @@ export interface PerformanceMetric {
   score: number | null;
   evidence: string;
   implication: string;
+  explanation?: string;
 }
 
 export interface PerformanceDashboardData {
@@ -85,12 +86,28 @@ export interface CommercialInsightsData {
   insights: CommercialInsight[];
 }
 
+export interface MethodEvidenceData {
+  methodLabel: string;
+  rows: Array<[string, string, string, string]>;
+  issfFormula: string;
+  gateLogic: string;
+  confidenceRows: Array<[string, string, string]>;
+  instrumentalRows: Array<[string, string, string, string]>;
+  instrumentalNote: string;
+}
+
 export interface ConceptPackagingData {
   conceptName: string;
   conceptDescription: string;
   positioning: string;
   targetConsumer: string;
+  consumerNeed: string;
+  usageOccasion: string;
+  productPromise: string;
+  reasonsToBelieve: string[];
   pricePoint: string;
+  validationQuestions: string[];
+  prohibitedClaims: string[];
   packagingDirection: string;
   coreMessage: string;
   strategicFit: string;
@@ -158,10 +175,10 @@ function weakestDimension(snapshot: CommercializationReportSnapshot) {
 
 function scoreImplication(key: keyof CommercializationReportSnapshot['decision']['dimensions'], score: number) {
   const strong: Record<typeof key, string> = {
-    hedonic: 'Acceptance is strong enough to lead the buyer story with the product experience.',
+    hedonic: 'The tested panel result supports continued sensory development at the next gate.',
     texture: 'Texture can be presented as a product advantage, provided scale-up preserves the tested profile.',
-    cata: 'The sensory descriptor profile is distinctive and gives the product a clear, defensible sensory identity to build messaging around.',
-    emotional: 'The product creates a positive response that can support an engaging, benefit-led story.',
+    cata: 'The panel shows high agreement on cheddar-category descriptors; this supports category recognition, not distinctiveness without a comparator.',
+    emotional: 'The tested panel recorded positive emotional indicators; this is not evidence of representative consumer response.',
   };
   const developing: Record<typeof key, string> = {
     hedonic: 'Acceptance supports continued development, but broader validation should precede a broad launch claim.',
@@ -172,7 +189,7 @@ function scoreImplication(key: keyof CommercializationReportSnapshot['decision']
   const weak: Record<typeof key, string> = {
     hedonic: 'Acceptance needs targeted formulation work before the product is placed in a high-stakes buyer test.',
     texture: 'Texture is a commercialization risk and should be optimized before packaging or claims are locked.',
-    cata: 'The sensory descriptor profile is not yet distinctive; sharpen the product before locking the sensory story.',
+    cata: 'Category-relevant descriptor agreement is weak; strengthen the sensory profile before locking the sensory story.',
     emotional: 'The product is not yet creating enough positive pull to anchor the commercial story.',
   };
   if (score >= 75) return strong[key];
@@ -214,7 +231,7 @@ export function buildDecisionSnapshot(input: CommercializationReportPdfInput): D
   const ctx = input.reportContext;
   // Stage-aware headline replaces the bare GO badge: a conditional advancement
   // must read as "advance to next gate", never as launch approval.
-  const head = ctx ? stageHeadline(ctx.stage, ctx.decision.sensoryOutcome) : null;
+  const head = ctx ? stageHeadline(ctx.decision.stageDecisionCode, ctx.decision.sensoryOutcome) : null;
   return {
     productName: snapshot.product.sampleName,
     category: snapshot.product.foodType,
@@ -227,7 +244,7 @@ export function buildDecisionSnapshot(input: CommercializationReportPdfInput): D
         ? `${evidenceStrength} evidence · Conditional GO · Buyer preparation`
         : `${evidenceStrength} evidence · Buyer preparation`,
     decisionSubheading: head ? head.subheading : '',
-    coreStrength: `${strengthLabel} (${Number(strengthScore).toFixed(0)}/100) gives the product a credible lead proof point.`,
+    coreStrength: `${strengthLabel} (${Number(strengthScore).toFixed(0)}/100) is the strongest documented sensory result.`,
     mainWatchPoint: primaryWatchPoint(snapshot),
     nextAction: stripEvidenceCitations(snapshot.narrative.launchRecommendation),
     organizationName: input.organizationName || 'Food Platform',
@@ -245,18 +262,27 @@ export function buildExecutiveReadout(input: CommercializationReportPdfInput): E
   const strength = formatDecisionDimension(strengthKey as keyof typeof snapshot.decision.dimensions);
   const watch = formatDecisionDimension(watchKey as keyof typeof snapshot.decision.dimensions);
   const qualifier = getDecisionQualifier(snapshot);
+  const ctx = input.reportContext;
   return {
-    decision: qualifier.conditional
+    decision: ctx
+      ? ctx.decision.stageDecision
+      : qualifier.conditional
       ? `${snapshot.product.sampleName} should advance into controlled commercialization preparation, conditional on closing the items below before any external launch.`
       : `${snapshot.product.sampleName} should advance into controlled commercialization preparation.`,
     // The DECISION block above and the final dashboard already carry the
     // conditional caveat; keep the rationale to the score facts to avoid repeating it.
-    rationale: `The saved GO decision is supported by an ISSF score of ${snapshot.decision.issfScore.toFixed(1)} and ${snapshot.decision.confidence.toFixed(0)}% model confidence. ${strength} leads at ${Number(strengthScore).toFixed(0)}/100; ${watch} is the lowest dimension at ${Number(watchScore).toFixed(0)}/100.`,
+    rationale: ctx
+      ? `The sensory screening outcome is ${ctx.decision.sensoryOutcome}. ISSF is ${ctx.issfScore.toFixed(1)}/100 and model confidence is ${(ctx.decision.modelConfidence * 100).toFixed(0)}%, based on the weighted inputs shown in the method section. ${strength} leads at ${Number(strengthScore).toFixed(0)}/100; ${watch} is the binding risk at ${Number(watchScore).toFixed(0)}/100.`
+      : `The sensory GO decision is supported by an ISSF score of ${snapshot.decision.issfScore.toFixed(1)} and ${snapshot.decision.confidence.toFixed(0)}% model confidence. ${strength} leads at ${Number(strengthScore).toFixed(0)}/100; ${watch} is the lowest dimension at ${Number(watchScore).toFixed(0)}/100.`,
     // Route the AI (or deterministic-fallback) executive recommendation into the
     // PDF — it was previously written but never rendered. Append the deterministic
     // implication so the lead-dimension guidance is preserved.
-    commercialImplication: `${stripEvidenceCitations(snapshot.narrative.executiveSummary)} ${scoreImplication(strengthKey as keyof typeof snapshot.decision.dimensions, Number(strengthScore))}`.trim(),
-    nextMove: `${stripEvidenceCitations(snapshot.narrative.launchRecommendation)} In parallel, close the watch points and approval gates listed in the commercialization plan before external distribution.`,
+    commercialImplication: ctx
+      ? `Continued development is permitted. Consumer preference, purchase intent, market acceptance, and launch claims are not permitted because concept-test n=${ctx.concept.responseCount} and launch authorization is ${ctx.decision.launchAuthorization.replace('_', ' ')}.`
+      : `${stripEvidenceCitations(snapshot.narrative.executiveSummary)} ${scoreImplication(strengthKey as keyof typeof snapshot.decision.dimensions, Number(strengthScore))}`.trim(),
+    nextMove: ctx
+      ? `${ctx.decision.nextGate}. Conditions: ${ctx.decision.conditions.join(' ')}`
+      : `${stripEvidenceCitations(snapshot.narrative.launchRecommendation)} In parallel, close the watch points and approval gates listed in the commercialization plan before external distribution.`,
   };
 }
 
@@ -271,8 +297,8 @@ export function buildPerformanceDashboard(input: CommercializationReportPdfInput
     const evidence = dim
       ? [
           `Threshold ${dim.threshold}/100`,
-          dim.sampleSize ? `n=${dim.sampleSize}` : null,
-          dim.measures.length ? dim.measures.slice(0, 4).join(', ') : null,
+          dim.population,
+          dim.measures.length ? dim.measures.slice(0, 2).join(', ') : null,
           dim.benchmark ? `benchmark: ${dim.benchmark}` : null,
         ].filter(Boolean).join(' · ')
       : 'Saved sensory decision model';
@@ -282,6 +308,11 @@ export function buildPerformanceDashboard(input: CommercializationReportPdfInput
       score: Number(score),
       evidence,
       implication: scoreImplication(key as keyof typeof snapshot.decision.dimensions, Number(score)),
+      explanation: dim
+        ? key === 'texture'
+          ? 'Formula: positive-cue average x 105 minus negative-cue average x 45. Firm and spreadable were not captured and count as zero.'
+          : `${dim.label} is calculated from the named sensory-panel measures; see page 4 for weighting.`
+        : undefined,
     };
   });
   const purchaseIntent = snapshot.evidence.purchaseIntent;
@@ -304,7 +335,47 @@ export function buildPerformanceDashboard(input: CommercializationReportPdfInput
       'All dimension scores are 0–100, higher is better. '
       + 'ISSF = Integrated Sensory Screening Framework, the composite suitability score behind the GO / TWEAK / STOP decision. '
       + 'Model confidence reflects how complete and consistent the sensory evidence is — not market demand. '
-      + 'n = number of concept-test responses collected.',
+      + (reportContext
+        ? ` Evidence populations are labeled separately: ${reportContext.dimensions[0]?.population ?? 'sensory panel not documented'}; concept test n=${reportContext.concept.responseCount}.`
+        : ' Concept-test sample sizes are labeled separately from sensory-panel sample sizes.'),
+  };
+}
+
+export function buildMethodEvidence(input: CommercializationReportPdfInput): MethodEvidenceData {
+  const ctx = input.reportContext;
+  if (!ctx) {
+    return {
+      methodLabel: input.snapshot.decision.methodVersion,
+      rows: [],
+      issfFormula: 'Method details unavailable in this report snapshot.',
+      gateLogic: 'Gate details unavailable.',
+      confidenceRows: [],
+      instrumentalRows: [],
+      instrumentalNote: 'No instrumental evidence detail was supplied to the report builder.',
+    };
+  }
+  return {
+    methodLabel: `${ctx.methodology.methodId} / ${ctx.methodology.methodVersion}`,
+    rows: ctx.methodology.contributions.map(row => [
+      row.dimension,
+      row.score.toFixed(1),
+      `${row.weightPct.toFixed(1)}%`,
+      row.contribution.toFixed(1),
+    ]),
+    issfFormula: ctx.methodology.formula,
+    gateLogic: ctx.methodology.conditionalReason,
+    confidenceRows: ctx.methodology.confidenceCalculation.map(row => [
+      row.input,
+      `${row.score.toFixed(1)} × ${row.weightPct.toFixed(0)}%`,
+      row.contribution.toFixed(1),
+    ]),
+    instrumentalRows: ctx.instrumental.findings.map(row => [
+      row.source,
+      row.finding,
+      row.benchmark,
+      row.decisionEffect,
+    ]),
+    instrumentalNote: ctx.instrumental.absenceNote ?? 'Instrumental findings are itemized below and are included in the decision snapshot.',
   };
 }
 
@@ -343,7 +414,7 @@ export function buildCommercialInsights(input: CommercializationReportPdfInput):
           action: 'Add a check-all-that-apply descriptor question to the concept test and collect a target-consumer panel before locking copy.',
         },
     {
-      title: 'Concept evidence should match the size of the claim',
+      title: 'Keep concept conclusions proportional to the study',
       evidence: `${snapshot.evidence.responseCount} response${snapshot.evidence.responseCount === 1 ? '' : 's'} provide ${getEvidenceStrength(snapshot.evidence.responseCount).toLowerCase()} concept evidence.`,
       commercialMeaning: snapshot.evidence.responseCount >= 30
         ? 'The concept read can support buyer discussion, but representativeness still determines how broadly it can be generalized.'
@@ -369,13 +440,26 @@ export function buildCommercialInsights(input: CommercializationReportPdfInput):
 
 export function buildConceptPackaging(input: CommercializationReportPdfInput): ConceptPackagingData {
   const { snapshot } = input;
+  const strategy = input.reportContext?.conceptStrategy;
   const hasVisual = Boolean(snapshot.concept.packagingImageUrl);
   return {
     conceptName: snapshot.concept.name || 'Concept direction not named',
     conceptDescription: snapshot.concept.description || 'No concept description is stored.',
-    positioning: snapshot.concept.keyBenefits || snapshot.concept.description || 'Positioning requires definition.',
-    targetConsumer: snapshot.concept.targetMarket || 'Priority consumer requires definition.',
-    pricePoint: snapshot.concept.pricePoint || 'Price point requires validation.',
+    positioning: strategy?.positioning ?? (snapshot.concept.keyBenefits || snapshot.concept.description || 'Positioning requires definition.'),
+    targetConsumer: strategy?.targetSegment ?? (snapshot.concept.targetMarket || 'Priority consumer requires definition.'),
+    consumerNeed: strategy?.consumerNeed ?? 'Consumer need requires definition.',
+    usageOccasion: strategy?.usageOccasion ?? 'Usage occasion requires definition.',
+    productPromise: strategy?.productPromise ?? (snapshot.concept.keyBenefits || 'Product promise requires definition.'),
+    reasonsToBelieve: strategy?.reasonsToBelieve ?? [],
+    pricePoint: strategy?.priceHypothesis ?? (snapshot.concept.pricePoint || 'Price point requires validation.'),
+    validationQuestions: strategy ? [
+      'Does the concept communicate plant-based cheddar clearly?',
+      'Does coconut naming create positive or negative expectations?',
+      'Which usage occasion feels most credible?',
+      'Is the proposed price acceptable?',
+      'Does the package overpromise texture performance?',
+    ] : [],
+    prohibitedClaims: strategy?.prohibitedClaims ?? [],
     packagingDirection: stripEvidenceCitations(snapshot.narrative.packagingRationale),
     coreMessage: stripEvidenceCitations(snapshot.narrative.whyLiked),
     strategicFit: hasVisual
@@ -394,11 +478,17 @@ export function buildConceptPackaging(input: CommercializationReportPdfInput): C
 
 export function buildCommercializationPlan(input: CommercializationReportPdfInput): CommercializationPlanData {
   const { snapshot } = input;
+  const ctx = input.reportContext;
   const prescription = snapshot.decision.prescriptions[0];
   const count = snapshot.evidence.responseCount;
   return {
-    intro: 'The decision advances only when each workstream has a named owner, a clear deliverable, and evidence for the next gate.',
-    rows: [
+    intro: 'Each workstream shows the accountable owner or an explicit ownership gap, the required evidence, and the passing criteria for the next gate.',
+    rows: ctx ? ctx.actions.map(action => ({
+      workstream: action.workstream,
+      currentRead: `${action.status} · Owner: ${action.owner ?? 'Not assigned'} · Due: ${action.dueDate ?? 'not scheduled'}`,
+      requiredAction: `${action.requiredAction}\nCompletion evidence: ${action.completionEvidence}\nPass: ${action.passingThreshold}`,
+      statusOwner: `Priority: high · Gate: ${action.nextGate} · Dependencies: source evidence and cross-functional review`,
+    })) : [
       ['Product formulation', prescription ? `GO with open action: ${prescription.target}` : 'GO formulation; no saved corrective prescription', prescription?.action || 'Lock the tested formula and define scale-up tolerances.', 'Open · R&D'],
       ['Sensory validation', `${snapshot.decision.issfScore.toFixed(1)} ISSF; ${snapshot.decision.confidence.toFixed(0)}% confidence`, 'Confirm the product at pilot scale against the saved decision profile.', 'Open · Sensory'],
       ['Texture optimization', `${snapshot.decision.dimensions.texture.toFixed(0)}/100 texture performance`, snapshot.decision.dimensions.texture >= 75 ? 'Protect texture through process and shelf-life checks.' : 'Run a focused texture optimization and repeat validation.', 'Open · R&D'],
@@ -423,7 +513,7 @@ export function buildRisks(input: CommercializationReportPdfInput): RisksData {
       {
         category: 'Product risk',
         risk: productRisk,
-        impact: 'A changed or inconsistent product experience could erode the evidence supporting the GO decision.',
+        impact: 'A changed or inconsistent product experience could invalidate the current sensory screening outcome.',
         mitigation: 'Set pilot-scale acceptance ranges and repeat the critical sensory measures.',
         nextGate: 'Pilot validation',
       },
@@ -480,6 +570,7 @@ function buildClaimsNote(snapshot: CommercializationReportSnapshot): string {
 
 export function buildAppendix(input: CommercializationReportPdfInput): AppendixData {
   const { snapshot } = input;
+  const ctx = input.reportContext;
   return {
     intro: 'Traceability fields are retained here so the commercial story remains readable while every decision can still be audited.',
     rows: [
@@ -491,25 +582,28 @@ export function buildAppendix(input: CommercializationReportPdfInput): AppendixD
       ['Concept visual provenance', snapshot.concept.packagingImageAiGenerated
         ? `${packagingProvenanceLabel(snapshot)} · AI-generated directional visual; prompt metadata is retained with the source project.`
         : snapshot.concept.packagingImageUrl ? 'User-supplied concept visual; source approval should be confirmed.' : 'No concept visual attached.'],
-      ['Source data notes', `Saved sensory decision evidence plus ${snapshot.evidence.responseCount} concept response${snapshot.evidence.responseCount === 1 ? '' : 's'}. Instrumental measures are not itemized in this snapshot.`],
+      ['Evidence populations', ctx ? `${ctx.dimensions[0]?.population ?? 'Sensory panel not documented'}; concept test n=${ctx.concept.responseCount}; instrumental findings n=${ctx.instrumental.findings.length}.` : `Concept test n=${snapshot.evidence.responseCount}.`],
+      ['Instrumental evidence', ctx?.instrumental.absenceNote ?? (ctx?.instrumental.findings.map(item => `${item.source}: ${item.finding}`).join(' | ') || 'Not itemized.')],
+      ['AI provenance', ctx?.imageProvenance.aiGenerated ? 'AI-generated concept visual labeled directional; prompt metadata retained with source project.' : 'No AI-generated report visual used.'],
+      ['Conditions', ctx?.decision.conditions.join(' | ') ?? 'Not recorded.'],
       ['Approval status', input.status],
     ],
     approvalNote: input.status === 'approved'
-      ? 'Approved report version. Confirm recipient permissions and final claims before distribution.'
+      ? `Approved report version. Launch authorization: ${ctx?.decision.launchAuthorization ?? 'not documented'}. Confirm recipient permissions and final claims before distribution.`
       : 'Working report version. Cross-functional approval is required before external distribution.',
   };
 }
 
 export const reportPageHeadings = [
-  'Commercialization Readiness Report',
+  'ADVANCE TO',
   'Executive Summary / Commercial Readout',
   'Product Performance Dashboard',
+  'Method and Evidence Integration',
   'Key Commercial Insights',
   'Concept and Packaging Direction',
   'Commercialization Plan',
   'Risks and Watch Points',
   'Appendix / Source Record',
-  'Report at a Glance',
 ] as const;
 
 export const reportStrengthTone = strengthTone;

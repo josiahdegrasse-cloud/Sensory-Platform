@@ -17,6 +17,7 @@ import {
   buildConceptPackaging,
   buildDecisionSnapshot,
   buildExecutiveReadout,
+  buildMethodEvidence,
   buildPerformanceDashboard,
   buildRisks,
   type CommercializationReportPdfInput,
@@ -32,8 +33,8 @@ import {
   renderCommercializationPlanPage,
   renderConceptPackagingPage,
   renderRisksPage,
+  renderMethodEvidencePage,
 } from './pdf/pages/action-pages';
-import { buildFinalSummary, renderFinalSummaryPage } from './pdf/pages/summary-page';
 import { runQcPipeline, type GeneratedSections, type QcPipelineResult } from '../lib/report-qc';
 
 export type { CommercializationReportPdfInput } from './pdf/sections';
@@ -109,6 +110,9 @@ export async function buildCommercializationReportPdf(input: CommercializationRe
   renderPerformanceDashboardPage(ctx, buildPerformanceDashboard(input));
 
   addContentPage(ctx);
+  renderMethodEvidencePage(ctx, buildMethodEvidence(input), autoTable);
+
+  addContentPage(ctx);
   renderCommercialInsightsPage(ctx, buildCommercialInsights(input));
 
   addContentPage(ctx);
@@ -122,9 +126,6 @@ export async function buildCommercializationReportPdf(input: CommercializationRe
 
   addContentPage(ctx);
   renderAppendixPage(ctx, buildAppendix(input), autoTable);
-
-  addContentPage(ctx);
-  renderFinalSummaryPage(ctx, buildFinalSummary(input), autoTable);
 
   const pageCount = doc.getNumberOfPages();
   for (let page = 1; page <= pageCount; page += 1) {
@@ -146,15 +147,22 @@ export async function buildCommercializationReportPdf(input: CommercializationRe
   let qc: QcPipelineResult | undefined;
   if (input.reportContext) {
     const exec = buildExecutiveReadout(input);
+    const method = buildMethodEvidence(input);
+    const concept = buildConceptPackaging(input);
+    const plan = buildCommercializationPlan(input);
+    const appendix = buildAppendix(input);
     const generated: GeneratedSections = {
       sections: [
-        { label: 'Decision', text: buildDecisionSnapshot(input).readinessStage },
+        { label: 'Decision', text: `${buildDecisionSnapshot(input).reportTitle}. ${buildDecisionSnapshot(input).decisionSubheading}` },
         { label: 'Executive rationale', text: `${exec.decision} ${exec.rationale}` },
         { label: 'Executive recommendation', text: exec.commercialImplication },
         { label: 'Next move', text: exec.nextMove },
-        { label: 'Packaging rationale', text: buildConceptPackaging(input).packagingDirection },
-        { label: 'Core message', text: buildConceptPackaging(input).coreMessage },
+        { label: 'Methodology', text: `${method.issfFormula}. ${method.gateLogic}. ${method.instrumentalNote}` },
+        { label: 'Concept hypothesis', text: `${concept.positioning} ${concept.targetConsumer} ${concept.consumerNeed} ${concept.usageOccasion} ${concept.productPromise}` },
+        { label: 'Packaging rationale', text: concept.packagingDirection },
+        { label: 'Execution plan', text: plan.rows.map(row => `${row.workstream}: ${row.currentRead}. ${row.requiredAction}. ${row.statusOwner}.`).join(' ') },
         { label: 'Risks and limitations', text: buildRisks(input).claimsNote },
+        { label: 'Traceability and approval', text: `${appendix.rows.map(row => row.join(': ')).join('. ')}. ${appendix.approvalNote}` },
       ],
     };
     qc = runQcPipeline({ ctx: input.reportContext, generated });

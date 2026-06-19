@@ -9,6 +9,7 @@ import { buildReportContext } from './context';
 import { runQcPipeline } from './pipeline';
 import { stageHeadline } from './stage';
 import { validateReportContext } from './validate';
+import { validateDimensionEvidenceConsistency } from './validate';
 import type { GeneratedSections } from './validate';
 
 // A clean, stage-appropriate rendering of the Coconut Cheddar conditional report.
@@ -40,9 +41,9 @@ describe('report-qc: Coconut Cheddar regression fixture', () => {
 
   it('uses the conditional-advancement headline, not launch approval', () => {
     const ctx = coconutCheddarContext('draft');
-    const head = stageHeadline(ctx.stage, ctx.decision.sensoryOutcome);
-    expect(head.headline).toBe('ADVANCE TO NEXT GATE — CONDITIONAL');
-    expect(head.subheading).toContain('not approval for market launch');
+    const head = stageHeadline(ctx.decision.stageDecisionCode, ctx.decision.sensoryOutcome);
+    expect(head.headline).toBe('ADVANCE TO PILOT VALIDATION — CONDITIONAL');
+    expect(head.subheading).toContain('not approval for commercialization or market launch');
   });
 
   it('surfaces the texture readiness failure and real limitations', () => {
@@ -65,7 +66,7 @@ describe('report-qc: Coconut Cheddar regression fixture', () => {
     const result = runQcPipeline({ ctx, generated: cleanSections() });
     expect(result.exportAllowed).toBe(true);
     expect(result.contextValidation.errors.every(e => !e.blocksExport)).toBe(true);
-    expect(result.score.totalScore).toBeGreaterThanOrEqual(90);
+    expect(result.score.totalScore).toBeGreaterThanOrEqual(97);
     // A draft is never client_ready even at a high score.
     expect(result.score.clientReady).toBe(false);
     expect(result.missingEvidence.some(m => /n=0/.test(m))).toBe(true);
@@ -123,6 +124,93 @@ describe('report-qc: validation guards', () => {
     const result = validateReportContext(ctx);
     expect(result.errors.some(e => e.code === 'action-without-owner')).toBe(true);
     expect(result.exportAllowed).toBe(false);
+  });
+
+  it('requires a due date or explicit unscheduled status', () => {
+    const ctx = coconutCheddarContext();
+    ctx.actions[0].unscheduled = false;
+    const result = validateReportContext(ctx);
+    expect(result.warnings.some(e => e.code === 'action-without-due-date')).toBe(true);
+  });
+
+  it('blocks an action without measurable completion evidence', () => {
+    const ctx = coconutCheddarContext();
+    ctx.actions[0].passingThreshold = '';
+    expect(validateReportContext(ctx).errors.some(e => e.code === 'action-without-completion')).toBe(true);
+  });
+
+  it('reproduces ISSF and explains the confidence calculation', () => {
+    const ctx = coconutCheddarContext();
+    expect(ctx.methodology.reproducedIssf).toBeCloseTo(ctx.issfScore, 0);
+    expect(ctx.methodology.formula).toContain('0.86');
+    expect(ctx.methodology.confidenceCalculation.reduce((sum, row) => sum + row.contribution, 0)).toBeCloseTo(90.8, 1);
+  });
+
+  it('blocks a stored/calculated ISSF mismatch', () => {
+    const ctx = coconutCheddarContext();
+    ctx.methodology.storedIssf = 55;
+    expect(validateReportContext(ctx).errors.some(e => e.code === 'calculation-mismatch')).toBe(true);
+  });
+
+  it('explains positive visible texture cues and the low composite', () => {
+    const texture = coconutCheddarContext().dimensions.find(d => d.key === 'texture')!;
+    expect(texture.calculationExplanation).toMatch(/missing firm and spreadable count as 0/i);
+    expect(texture.calculationExplanation).toContain('42.7');
+    expect(validateDimensionEvidenceConsistency(coconutCheddarContext()).exportAllowed).toBe(true);
+  });
+
+  it('blocks an unexplained low score when all displayed metrics look positive', () => {
+    const ctx = coconutCheddarContext();
+    const texture = ctx.dimensions.find(d => d.key === 'texture')!;
+    texture.rawMetrics = [{ label: 'Smooth', value: 8.6, direction: 'higher_better' }];
+    texture.calculationExplanation = 'Texture is 43/100.';
+    expect(validateDimensionEvidenceConsistency(ctx).errors.some(e => e.code === 'unexplained-score-evidence-contradiction')).toBe(true);
+  });
+
+  it('shows instrumental evidence when available and an explicit limitation when absent', () => {
+    expect(coconutCheddarContext().instrumental.findings.length).toBeGreaterThan(0);
+    const ctx = buildReportContext({
+      snapshot: coconutCheddarSnapshot(),
+      decision: coconutCheddarDecision(),
+      approvalStatus: 'draft',
+      reportVersion: 1,
+      augmentation: { ...coconutCheddarAugmentation(), instrumentalFindings: [], instrumentSignal: undefined },
+    });
+    expect(ctx.instrumental.absenceNote).toMatch(/No instrumental evidence was included/i);
+  });
+
+  it('labels descriptor evidence as category recognition rather than distinctiveness', () => {
+    const ctx = coconutCheddarContext();
+    expect(ctx.conceptStrategy.reasonsToBelieve.join(' ')).toMatch(/cheddar-category/i);
+    expect(ctx.conceptStrategy.reasonsToBelieve.join(' ')).not.toMatch(/\bdistinctive\b/i);
+  });
+
+  it('detects duplicate paragraphs and raw system leakage', () => {
+    const ctx = coconutCheddarContext();
+    const repeated = 'This paragraph is deliberately long enough to trigger duplicate detection across report sections.';
+    const result = runQcPipeline({ ctx, generated: { sections: [
+      { label: 'One', text: repeated },
+      { label: 'Two', text: repeated },
+      { label: 'Three', text: 'Deterministic candidate decision across samples.' },
+    ] } });
+    expect(result.score.warnings.some(item => /duplicate-paragraph/.test(item))).toBe(true);
+    expect(result.score.warnings.some(item => /raw-deterministic/.test(item))).toBe(true);
+  });
+
+  it('requires AI visual provenance and a directional label', () => {
+    const ctx = coconutCheddarContext();
+    ctx.imageProvenance.directionalDisclaimer = false;
+    expect(validateReportContext(ctx).errors.some(e => e.code === 'concept-visual-not-directional')).toBe(true);
+  });
+
+  it('requires method version and explicit evidence populations', () => {
+    const ctx = coconutCheddarContext();
+    ctx.methodVersion = '';
+    ctx.dimensions[0].sampleSize = null;
+    const result = validateReportContext(ctx);
+    expect(result.errors.some(e => e.code === 'missing-method-version')).toBe(true);
+    expect(result.warnings.some(e => e.code === 'missing-sample-size')).toBe(true);
+    expect(ctx.concept.responseCount).toBe(0);
   });
 });
 

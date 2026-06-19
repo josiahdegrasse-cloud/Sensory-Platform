@@ -42,7 +42,7 @@ describe('report-qc: stage-aware PDF render', () => {
     expect(qc!.exportAllowed).toBe(true);
     expect(qc!.qualityReport.reportStage).toBe('conditional_advancement');
     expect(qc!.qualityReport.launchAuthorization).toBe('not_approved');
-    expect(qc!.qualityReport.totalScore).toBeGreaterThanOrEqual(90);
+    expect(qc!.qualityReport.totalScore).toBeGreaterThanOrEqual(97);
     // Draft is never client-ready.
     expect(qc!.qualityReport.clientReady).toBe(false);
     expect(qc!.missingEvidence.some(m => /n=0/.test(m))).toBe(true);

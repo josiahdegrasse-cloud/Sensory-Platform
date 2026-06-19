@@ -46,6 +46,7 @@ export interface MachineReadableQualityReport {
   warnings: string[];
   recommendedFixes: string[];
   missingEvidence: string[];
+  blockedUnsupportedClaims: string[];
 }
 
 export function runQcPipeline(input: QcPipelineInput): QcPipelineResult {
@@ -80,6 +81,9 @@ export function runQcPipeline(input: QcPipelineInput): QcPipelineResult {
     warnings: score.warnings,
     recommendedFixes: score.recommendedFixes,
     missingEvidence,
+    blockedUnsupportedClaims: input.ctx.claims
+      .filter(claim => claim.evidenceIds.length === 0 || claim.reviewerStatus === 'rejected')
+      .map(claim => claim.claim),
   };
 
   return { contextValidation, reportValidation, score, exportAllowed, complete, missingEvidence, qualityReport };

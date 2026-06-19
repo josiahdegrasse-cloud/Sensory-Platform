@@ -23,7 +23,7 @@ const RAW_SYSTEM_PATTERNS: Array<{ code: string; re: RegExp }> = [
 const VAGUE_PRAISE_RE = /\b(strong|credible|market[- ]ready|consumer[- ]approved|world[- ]class|exceptional|outstanding)\b/i;
 const EVIDENCE_MARKER_RE = /\b(\d{1,3}\/100|\d{1,3}%|n\s*=\s*\d+|ISSF|threshold|score)\b/i;
 
-const KNOWN_ACRONYMS = new Set(['ISSF', 'GO', 'STOP', 'AI', 'R&D', 'NFI', 'CATA', 'GST', 'PDF', 'ID', 'GC', 'GCMS']);
+const KNOWN_ACRONYMS = new Set(['ISSF', 'GO', 'STOP', 'AI', 'R&D', 'NFI', 'CATA', 'GST', 'PDF', 'ID', 'GC', 'GCMS', 'ADVANCE', 'CONDITIONAL', 'PILOT', 'VALIDATION']);
 
 export function lintText(label: string, text: string): LintFinding[] {
   const findings: LintFinding[] = [];

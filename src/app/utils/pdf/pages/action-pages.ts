@@ -18,6 +18,7 @@ import type {
   AppendixData,
   CommercializationPlanData,
   ConceptPackagingData,
+  MethodEvidenceData,
   RisksData,
 } from '../sections';
 
@@ -54,10 +55,10 @@ function factRow(ctx: PdfContext, label: string, value: string, x: number, y: nu
   doc.text(label.toUpperCase(), x, y + 17);
   return paragraph(doc, value, x + 104, y + 17, width - 104, {
     color: SLATE_950,
-    size: 8.8,
+    size: 7.6,
     weight: 'bold',
-    lineHeight: 12,
-  }) + 8;
+    lineHeight: 10,
+  }) + 4;
 }
 
 export function renderConceptPackagingPage(
@@ -68,7 +69,7 @@ export function renderConceptPackagingPage(
   const { doc, width, margin, contentWidth, accent } = ctx;
   let y = pageHeading(
     ctx,
-    'Page 5 · Market expression',
+    'Page 6 · Market expression',
     'Concept and Packaging Direction',
     'How the product should be positioned, expressed, and refined before external use.',
   );
@@ -81,9 +82,12 @@ export function renderConceptPackagingPage(
     size: 9,
     lineHeight: 13,
   }) + 15;
-  y = factRow(ctx, 'Positioning', data.positioning, margin, y, copyWidth);
-  y = factRow(ctx, 'Target consumer', data.targetConsumer, margin, y, copyWidth);
-  y = factRow(ctx, 'Price point', data.pricePoint, margin, y, copyWidth);
+  y = factRow(ctx, 'Positioning hypothesis', data.positioning, margin, y, copyWidth);
+  y = factRow(ctx, 'Target segment', data.targetConsumer, margin, y, copyWidth);
+  y = factRow(ctx, 'Consumer need', data.consumerNeed, margin, y, copyWidth);
+  y = factRow(ctx, 'Usage occasion', data.usageOccasion, margin, y, copyWidth);
+  y = factRow(ctx, 'Product promise', data.productPromise, margin, y, copyWidth);
+  y = factRow(ctx, 'Price hypothesis', data.pricePoint, margin, y, copyWidth);
 
   const visualX = width - margin - visualWidth;
   const visualY = 173;
@@ -109,37 +113,71 @@ export function renderConceptPackagingPage(
     });
   }
 
-  y = Math.max(y + 10, 415);
+  y = Math.max(y + 10, 430);
   const blocks = [
-    ['PACKAGING DIRECTION', data.packagingDirection],
-    ['CORE MESSAGE', data.coreMessage],
-    ['WHY THIS SUPPORTS THE PRODUCT', data.strategicFit],
+    ['REASONS TO BELIEVE', data.reasonsToBelieve.join(' • ') || 'No supported reasons to believe are documented.'],
+    ['PACKAGING HYPOTHESIS', data.packagingDirection],
+    ['VALIDATION AND CLAIMS BOUNDARY', `${data.validationQuestions.slice(0, 3).join(' • ')} Prohibited without evidence: ${data.prohibitedClaims.join(', ')}.`],
   ];
   blocks.forEach(([label, value]) => {
     doc.setFillColor(...SLATE_50);
-    doc.roundedRect(margin, y, contentWidth, 72, 8, 8, 'F');
+    doc.roundedRect(margin, y, contentWidth, 52, 8, 8, 'F');
     setText(doc, accent, 6.8, 'bold');
     doc.text(label, margin + 14, y + 19);
-    paragraph(doc, value, margin + 14, y + 37, contentWidth - 28, {
+    paragraph(doc, value, margin + 14, y + 34, contentWidth - 28, {
       color: SLATE_950,
-      size: 8.5,
-      lineHeight: 11.5,
+      size: 7.4,
+      lineHeight: 9.5,
     });
-    y += 82;
+    y += 58;
   });
 
-  setText(doc, SLATE_950, 9, 'bold');
-  doc.text('REFINE BEFORE EXTERNAL USE', margin, y + 4);
-  data.refinements.forEach((item, index) => {
-    const itemX = margin + (index % 2) * (contentWidth / 2);
-    const itemY = y + 25 + Math.floor(index / 2) * 31;
-    doc.setFillColor(...accent);
-    doc.circle(itemX + 4, itemY - 3, 3, 'F');
-    paragraph(doc, item, itemX + 13, itemY, contentWidth / 2 - 24, {
-      color: SLATE_700,
-      size: 7.7,
-      lineHeight: 10,
-    });
+}
+
+export function renderMethodEvidencePage(ctx: PdfContext, data: MethodEvidenceData, autoTable: AutoTableFn) {
+  const { doc, margin, contentWidth, primary, accent } = ctx;
+  let y = pageHeading(ctx, 'Page 4 · Method', 'Method and Evidence Integration', `Method ${data.methodLabel}. The calculation below makes the decision reproducible.`);
+  autoTable(doc, {
+    startY: y,
+    head: [['Dimension', 'Score', 'Weight', 'Contribution']],
+    body: data.rows,
+    theme: 'plain',
+    margin: { left: margin, right: margin },
+    headStyles: { fillColor: primary, textColor: WHITE, fontStyle: 'bold', fontSize: 7.2 },
+    bodyStyles: { textColor: SLATE_700, fontSize: 7.4, cellPadding: 5 },
+    alternateRowStyles: { fillColor: SLATE_50 },
+    columnStyles: { 0: { cellWidth: 220, fontStyle: 'bold' }, 1: { cellWidth: 80 }, 2: { cellWidth: 80 }, 3: { cellWidth: contentWidth - 380 } },
+  });
+  y = ((doc as PdfDocument & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y) + 14;
+  doc.setFillColor(...SLATE_50);
+  doc.roundedRect(margin, y, contentWidth, 72, 8, 8, 'F');
+  setText(doc, accent, 7, 'bold');
+  doc.text('ISSF REPRODUCTION AND CRITICAL-GATE LOGIC', margin + 14, y + 18);
+  paragraph(doc, `${data.issfFormula}. ${data.gateLogic}`, margin + 14, y + 35, contentWidth - 28, { color: SLATE_700, size: 7.5, lineHeight: 10 });
+  y += 84;
+  autoTable(doc, {
+    startY: y,
+    head: [['Model-confidence input', 'Score × weight', 'Contribution']],
+    body: data.confidenceRows,
+    theme: 'plain',
+    margin: { left: margin, right: margin },
+    headStyles: { fillColor: primary, textColor: WHITE, fontStyle: 'bold', fontSize: 7 },
+    bodyStyles: { textColor: SLATE_700, fontSize: 7, cellPadding: 4 },
+    alternateRowStyles: { fillColor: SLATE_50 },
+  });
+  y = ((doc as PdfDocument & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y) + 14;
+  paragraph(doc, data.instrumentalNote, margin, y, contentWidth, { color: SLATE_700, size: 8, lineHeight: 11 });
+  y += 34;
+  autoTable(doc, {
+    startY: y,
+    head: [['Source', 'Finding', 'Benchmark', 'Decision effect']],
+    body: data.instrumentalRows.length ? data.instrumentalRows : [['Not available', data.instrumentalNote, 'Not available', 'Limits decision']],
+    theme: 'plain',
+    margin: { left: margin, right: margin },
+    headStyles: { fillColor: primary, textColor: WHITE, fontStyle: 'bold', fontSize: 6.8 },
+    bodyStyles: { textColor: SLATE_700, fontSize: 6.8, cellPadding: 4, valign: 'top' },
+    alternateRowStyles: { fillColor: SLATE_50 },
+    columnStyles: { 0: { cellWidth: 105 }, 1: { cellWidth: 190 }, 2: { cellWidth: 130 }, 3: { cellWidth: contentWidth - 425, fontStyle: 'bold' } },
   });
 }
 
@@ -149,7 +187,7 @@ export function renderCommercializationPlanPage(
   autoTable: AutoTableFn,
 ) {
   const { doc, margin, contentWidth, primary, accent } = ctx;
-  let y = pageHeading(ctx, 'Page 6 · Execution', 'Commercialization Plan', data.intro);
+  let y = pageHeading(ctx, 'Page 7 · Execution', 'Commercialization Plan', data.intro);
   autoTable(doc, {
     startY: y,
     head: [['Workstream', 'Current read', 'Required action', 'Status / owner']],
@@ -182,7 +220,7 @@ export function renderCommercializationPlanPage(
 
 export function renderRisksPage(ctx: PdfContext, data: RisksData, autoTable: AutoTableFn) {
   const { doc, margin, contentWidth, accent, primary } = ctx;
-  const y = pageHeading(ctx, 'Page 7 · Control', 'Risks and Watch Points', data.intro);
+  const y = pageHeading(ctx, 'Page 8 · Control', 'Risks and Watch Points', data.intro);
   autoTable(doc, {
     startY: y,
     head: [['Risk', 'Commercial impact', 'Mitigation', 'Next decision gate']],
@@ -229,7 +267,7 @@ export function renderRisksPage(ctx: PdfContext, data: RisksData, autoTable: Aut
 
 export function renderAppendixPage(ctx: PdfContext, data: AppendixData, autoTable: AutoTableFn) {
   const { doc, margin, contentWidth, primary, accent } = ctx;
-  let y = pageHeading(ctx, 'Page 8 · Traceability', 'Appendix / Source Record', data.intro);
+  let y = pageHeading(ctx, 'Page 9 · Traceability', 'Appendix / Source Record', data.intro);
   autoTable(doc, {
     startY: y,
     body: data.rows,

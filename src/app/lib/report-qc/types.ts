@@ -21,17 +21,40 @@ export const REPORT_STAGE_TITLE: Record<ReportStage, string> = {
 // These are deliberately distinct fields. They must never be merged into one
 // generic "confidence" or "status" statement.
 export type SensoryOutcome = 'GO' | 'TWEAK' | 'STOP' | 'INSUFFICIENT_DATA';
-export type LaunchAuthorization = 'approved' | 'not_approved';
-export type EvidenceMaturity = 'none' | 'limited' | 'directional' | 'developing' | 'established';
-export type ApprovalStatus = 'draft' | 'in_review' | 'approved';
+export type LaunchAuthorization = 'not_approved' | 'conditionally_approved' | 'approved';
+export type EvidenceMaturity = 'none' | 'insufficient' | 'early' | 'limited' | 'moderate' | 'strong' | 'complete';
+export type ApprovalStatus = 'draft' | 'submitted' | 'in_review' | 'approved' | 'rejected';
+
+// The stage decision is the dominant headline — it answers "what does this report
+// authorize", which is NOT the same as the sensory screening outcome.
+export type StageDecisionCode =
+  | 'HOLD_FOR_EVIDENCE'
+  | 'ADVANCE_TO_REFORMULATION'
+  | 'ADVANCE_TO_PILOT_VALIDATION'
+  | 'ADVANCE_TO_CONCEPT_VALIDATION'
+  | 'ADVANCE_TO_COMMERCIAL_PREPARATION'
+  | 'APPROVED_FOR_LAUNCH';
+
+export type ConfidenceLabel = 'low' | 'medium' | 'high' | 'not_available';
+
+export interface ModelConfidenceDetail {
+  value: number | null; // 0–1 fraction
+  label: ConfidenceLabel;
+  /** What the confidence is computed from — never a bare number. */
+  basis: string[];
+  methodId: string | null;
+}
 
 export interface DecisionSemantics {
   /** The deterministic sensory engine result. Supporting info only — not a launch decision. */
   sensoryOutcome: SensoryOutcome;
-  /** The action this report authorizes, in plain language (e.g. "Advance to pilot-scale validation"). */
+  /** Typed stage decision — the dominant headline. */
+  stageDecisionCode: StageDecisionCode;
+  /** The action this report authorizes, in plain language. */
   stageDecision: string;
-  /** Model confidence as a 0–1 fraction. Always paired with its meaning, never bare. */
+  /** Model confidence as a 0–1 fraction (kept for layout); see confidence for the typed detail. */
   modelConfidence: number;
+  confidence: ModelConfidenceDetail;
   /** How mature the supporting evidence is. */
   evidenceMaturity: EvidenceMaturity;
   /** Whether the product is authorized for market launch. */
@@ -40,6 +63,8 @@ export interface DecisionSemantics {
   approvalStatus: ApprovalStatus;
   /** The next decision gate the product must clear. */
   nextGate: string;
+  /** Conditions attached to a conditional advancement. */
+  conditions: string[];
 }
 
 // ── Gates ───────────────────────────────────────────────────────────────────
@@ -63,15 +88,33 @@ export interface GateResult {
 }
 
 // ── 3. Canonical ReportContext ──────────────────────────────────────────────
+export type MetricDirection = 'higher_better' | 'lower_better' | 'ideal_range';
+
+export interface RawMetric {
+  label: string;
+  value: number | string;
+  scale?: string;
+  direction?: MetricDirection;
+  targetRange?: [number, number];
+  /** Marks an input that was expected but not captured (drives "missing firmness" explanations). */
+  missing?: boolean;
+}
+
 export interface DimensionEvidence {
   key: string;
   label: string;
   score: number;
   threshold: number;
   sampleSize: number | null;
+  /** Names the study population, e.g. "Sensory panel n=14". Never a bare n. */
+  population: string;
   source: string;
-  /** Underlying raw or summarized measures behind the score. */
+  /** Underlying raw or summarized measures behind the score (display strings). */
   measures: string[];
+  /** Structured raw metrics with direction — used by the consistency validator. */
+  rawMetrics: RawMetric[];
+  /** Plain-language account of how the metrics produced the score. */
+  calculationExplanation: string;
   /** Variability or panel agreement, when available. */
   agreement: string | null;
   /** Benchmark / reference comparison, when available. */
@@ -146,6 +189,12 @@ export interface ReportContext {
   thresholds: { go: number; stop: number; readiness: number };
   gates: GateResult[];
 
+  // methodology (ISSF reproducibility)
+  methodology: MethodologyEvidence;
+
+  // instrumental evidence — shown when present, explicitly absent otherwise
+  instrumental: InstrumentalEvidence;
+
   // concept evidence
   concept: ConceptEvidence;
 
@@ -169,6 +218,58 @@ export interface ReportContext {
 
   // concept strategy (hypotheses when concept n=0)
   conceptStrategy: ConceptStrategy;
+}
+
+// ── Methodology / ISSF reproducibility ──────────────────────────────────────
+export interface IssfContribution {
+  dimension: string;
+  score: number;
+  weightPct: number;
+  contribution: number;
+}
+
+export interface MethodologyEvidence {
+  methodId: string;
+  methodVersion: string;
+  weights: Record<string, number>;
+  thresholds: { go: number; stop: number; readiness: number };
+  contributions: IssfContribution[];
+  /** Weighted dimension base before the instrument-signal blend and gate penalty. */
+  weightedBase: number;
+  instrumentSignal: number | null;
+  gatePenalty: number;
+  formula: string;
+  /** ISSF reproduced from the contributions, for the consistency check. */
+  reproducedIssf: number;
+  /** ISSF stored on the decision record. */
+  storedIssf: number;
+  confidenceBasis: string[];
+  confidenceCalculation: Array<{
+    input: string;
+    score: number;
+    weightPct: number;
+    contribution: number;
+  }>;
+  /** Why a sub-readiness dimension forces conditional advancement, not GO. */
+  conditionalReason: string;
+}
+
+// ── Instrumental evidence ───────────────────────────────────────────────────
+export interface InstrumentalFinding {
+  source: string;
+  batchId?: string;
+  replicateCount?: number;
+  finding: string;
+  benchmark: string;
+  decisionEffect: 'supports' | 'contradicts' | 'watch' | 'neutral';
+}
+
+export interface InstrumentalEvidence {
+  available: boolean;
+  includedInDecision: boolean;
+  findings: InstrumentalFinding[];
+  /** Stated explicitly when no instrumental evidence is in the decision snapshot. */
+  absenceNote: string | null;
 }
 
 // ── Concept strategy (section 11) ───────────────────────────────────────────

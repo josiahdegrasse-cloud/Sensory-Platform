@@ -269,7 +269,7 @@ export function CommercializationReportBuilder({
 
   // Maps the saved report status to the typed QC approval status.
   const toApprovalStatus = (status: string): ApprovalStatus =>
-    status === 'approved' ? 'approved' : status === 'review' ? 'in_review' : 'draft';
+    status === 'approved' ? 'approved' : status === 'review' ? 'in_review' : status === 'rejected' ? 'rejected' : 'draft';
 
   // Assembles the stage-aware QC context from the snapshot + decision + the
   // evidence bundle's underlying sensory measures. Drives the stage headline,
@@ -280,6 +280,12 @@ export function CommercializationReportBuilder({
     const augmentation: SensoryAugmentation = {
       panelSize: sp?.panelSize ?? null,
       sourceEvidenceIds: evidenceBundle.evidence.map(record => record.id),
+      intensity: sp?.intensity,
+      foodTypeSlug: sp?.foodTypeSlug ?? foodType,
+      instrumentalFindings: sp?.instrumentalFindings,
+      instrumentSignal: sp?.instrumentSignal,
+      gatePenalty: sp?.gatePenalty,
+      confidenceCalculation: sp?.confidenceCalculation,
       sensoryDescriptors: (sp?.descriptors ?? []).map(d => ({
         descriptor: d.descriptor,
         count: d.count,

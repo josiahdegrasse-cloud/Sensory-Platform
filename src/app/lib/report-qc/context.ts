@@ -1,13 +1,17 @@
 import type { CommercializationReportSnapshot } from '../commercialization-report';
 import { formatDecisionDimension } from '../commercialization-report';
 import type { GoStopTweakDecision } from '../../utils/go-stop-tweak-engine';
-import { buildDecisionSemantics, determineReportStage } from './stage';
+import { buildDecisionSemantics, determineReportStage, stageDecisionCode } from './stage';
+import { buildMethodology, buildTextureBreakdown } from './methodology';
 import type {
+  ApprovalStatus,
   ClaimRecord,
   ConceptStrategy,
   DescriptorFrequency,
   DimensionEvidence,
   GateResult,
+  InstrumentalEvidence,
+  InstrumentalFinding,
   PlanAction,
   ReportContext,
   ReportLimitation,
@@ -35,12 +39,20 @@ export interface SensoryAugmentation {
   sensoryDescriptors: DescriptorFrequency[];
   /** Real evidence ids present in the source bundle. */
   sourceEvidenceIds: string[];
+  /** Raw intensity attributes (0–10) — used to explain the texture composite. */
+  intensity?: Record<string, number>;
+  foodTypeSlug?: string;
+  /** Instrumental findings, when the decision snapshot includes them. */
+  instrumentalFindings?: InstrumentalFinding[];
+  instrumentSignal?: number | null;
+  gatePenalty?: number;
+  confidenceCalculation?: ReportContext['methodology']['confidenceCalculation'];
 }
 
 export interface BuildContextInput {
   snapshot: CommercializationReportSnapshot;
   decision: GoStopTweakDecision;
-  approvalStatus: 'draft' | 'in_review' | 'approved';
+  approvalStatus: ApprovalStatus;
   reportVersion: number;
   readinessThreshold?: number;
   goThreshold?: number;
@@ -58,29 +70,52 @@ export function buildReportContext(input: BuildContextInput): ReportContext {
   const gates = buildGates(decision, snapshot, responseCount, input.approvalStatus, Boolean(input.claimsApproved));
   const weakest = Math.min(...Object.values(snapshot.decision.dimensions).map(Number));
 
-  const stage = determineReportStage({
+  const thresholds = { go: input.goThreshold ?? 75, stop: input.stopThreshold ?? 45, readiness };
+  const stageInputs = {
     sensoryOutcome: decision.decision,
     responseCount,
     gates,
     weakestDimensionScore: weakest,
     readinessThreshold: readiness,
     approvalStatus: input.approvalStatus,
-  });
-
-  const semantics = buildDecisionSemantics({
-    sensoryOutcome: decision.decision,
-    responseCount,
-    gates,
-    weakestDimensionScore: weakest,
-    readinessThreshold: readiness,
-    approvalStatus: input.approvalStatus,
-    stage,
-    modelConfidence: snapshot.decision.confidence / 100,
-    defaultNextGate: 'Pilot-scale sensory confirmation and target-consumer concept validation',
-  });
+  };
+  const stage = determineReportStage(stageInputs);
+  const code = stageDecisionCode(stageInputs);
 
   const dimensions = buildDimensions(snapshot, augmentation, readiness);
-  const limitations = buildLimitations(snapshot, dimensions, responseCount, weakest, readiness);
+  const weakestDim = dimensions.find(d => d.score === weakest);
+  const confidenceBasis = [
+    `Sensory panel n=${augmentation.panelSize ?? 'unknown'}`,
+    'Dimension-score completeness across sensory acceptance, texture, descriptor profile, and emotional response',
+    'Critical sensory gate outcomes (off-note, instrument QC)',
+  ];
+  const conditions = buildConditions(dimensions, responseCount, readiness);
+
+  const semantics = buildDecisionSemantics({
+    ...stageInputs,
+    modelConfidence: snapshot.decision.confidence / 100,
+    confidenceBasis,
+    methodId: snapshot.decision.methodVersion,
+    defaultNextGate: 'Pilot-scale sensory confirmation and target-consumer concept validation',
+    conditions,
+  });
+
+  const methodology = buildMethodology({
+    dimensions: snapshot.decision.dimensions,
+    storedIssf: snapshot.decision.issfScore,
+    methodId: snapshot.decision.methodVersion,
+    methodVersion: snapshot.decision.methodVersion,
+    thresholds,
+    confidenceBasis,
+    weakestDimensionLabel: weakestDim?.label ?? 'A sensory dimension',
+    weakestScore: weakest,
+    instrumentSignal: augmentation.instrumentSignal ?? null,
+    gatePenalty: augmentation.gatePenalty ?? 0,
+    confidenceCalculation: augmentation.confidenceCalculation ?? [],
+  });
+
+  const instrumental = buildInstrumental(augmentation.instrumentalFindings ?? []);
+  const limitations = buildLimitations(snapshot, dimensions, responseCount, weakest, readiness, instrumental);
   const claims = buildClaims(snapshot, augmentation.sourceEvidenceIds);
 
   return {
@@ -92,8 +127,10 @@ export function buildReportContext(input: BuildContextInput): ReportContext {
     decision: semantics,
     issfScore: snapshot.decision.issfScore,
     dimensions,
-    thresholds: { go: input.goThreshold ?? 75, stop: input.stopThreshold ?? 45, readiness },
+    thresholds,
     gates,
+    methodology,
+    instrumental,
     concept: {
       responseCount,
       purchaseIntent: snapshot.evidence.purchaseIntent,
@@ -170,25 +207,63 @@ function buildDimensions(
   augmentation: SensoryAugmentation,
   readiness: number,
 ): DimensionEvidence[] {
+  const population = augmentation.panelSize ? `Sensory panel n=${augmentation.panelSize}` : 'Sensory panel (n not documented)';
+  const intensity = augmentation.intensity ?? {};
+  const foodTypeSlug = augmentation.foodTypeSlug ?? 'cheese';
+
   return Object.entries(snapshot.decision.dimensions).map(([key, score]) => {
     const aug = augmentation.dimensions[key];
     const numeric = Number(score);
+    // Texture gets a real calculation explanation showing the missing positive
+    // cues that drag the composite below the readiness line.
+    const texture = key === 'texture' ? buildTextureBreakdown(intensity, foodTypeSlug, numeric, readiness) : null;
+    const calculationExplanation = texture
+      ? texture.explanation
+      : `${formatDecisionDimension(key as keyof GoStopTweakDecision['dimensionScores'])} scores ${numeric}/100 (threshold ${readiness}) from the panel measures shown.`;
+
     return {
       key,
       label: formatDecisionDimension(key as keyof GoStopTweakDecision['dimensionScores']),
       score: numeric,
       threshold: readiness,
       sampleSize: augmentation.panelSize,
-      source: 'Trained/consumer sensory panel (ISSF method)',
+      population,
+      source: 'Trained sensory panel (ISSF method)',
       measures: aug?.measures ?? [],
+      rawMetrics: texture ? texture.rawMetrics : (aug?.measures ?? []).map(m => ({ label: m, value: m })),
+      calculationExplanation,
       agreement: aug?.agreement ?? null,
       benchmark: aug?.benchmark ?? null,
       businessImplication: numeric >= readiness
-        ? 'Meets the readiness line and can support the buyer story.'
-        : 'Below the readiness line; remediate before locking packaging or claims.',
+        ? 'Meets the readiness line and supports continued sensory development.'
+        : 'Below the readiness line; capture the missing measures and remediate before locking packaging or claims.',
       limitation: aug?.measures?.length ? null : 'Underlying panel measures not itemized for this dimension.',
     };
   });
+}
+
+// Conditions attached to a conditional advancement — each is a concrete gate.
+function buildConditions(dimensions: DimensionEvidence[], responseCount: number, readiness: number): string[] {
+  const conditions: string[] = [];
+  const weak = dimensions.filter(d => d.score < readiness);
+  for (const dim of weak) {
+    conditions.push(`Bring ${dim.label} to >=${readiness}/100 at pilot scale and revalidate.`);
+  }
+  if (responseCount === 0) conditions.push('Collect target-consumer concept evidence before any consumer or market claim.');
+  conditions.push('Obtain claims/legal approval before external distribution.');
+  return conditions;
+}
+
+function buildInstrumental(findings: InstrumentalFinding[]): InstrumentalEvidence {
+  if (findings.length === 0) {
+    return {
+      available: false,
+      includedInDecision: false,
+      findings: [],
+      absenceNote: 'No instrumental evidence was included in this decision snapshot. The recommendation is based on sensory evidence only; instrumental confirmation (e-tongue, GC-MS, GC-O) is a pilot-stage requirement.',
+    };
+  }
+  return { available: true, includedInDecision: true, findings, absenceNote: null };
 }
 
 function buildLimitations(
@@ -197,13 +272,21 @@ function buildLimitations(
   responseCount: number,
   weakest: number,
   readiness: number,
+  instrumental: InstrumentalEvidence,
 ): ReportLimitation[] {
   const limitations: ReportLimitation[] = [];
   if (responseCount === 0) {
     limitations.push({
       id: 'no-concept-evidence',
       limitation: 'Consumer preference and purchase-intent are unvalidated.',
-      cause: 'No concept-test responses have been collected (n=0).',
+      cause: 'No concept-test responses have been collected (concept-test n=0).',
+    });
+  }
+  if (!instrumental.includedInDecision) {
+    limitations.push({
+      id: 'no-instrumental-evidence',
+      limitation: 'No instrumental evidence is included in this decision snapshot.',
+      cause: 'The recommendation rests on sensory evidence only; instrumental confirmation is pending.',
     });
   }
   if (weakest < readiness) {
@@ -277,29 +360,29 @@ function buildActions(
   return [
     {
       workstream: 'Texture optimization',
-      owner: 'R&D',
+      owner: 'Not assigned — readiness gap',
       dueDate: null,
       unscheduled: true,
       requiredAction: prescription?.action ?? 'Run a focused texture optimization and repeat validation.',
       completionEvidence: 'Pilot-scale sensory retest',
-      passingThreshold: `Texture score ≥${readiness}/100, no critical gate failures, n≥18`,
+      passingThreshold: `Texture score >=${readiness}/100, no critical gate failures, sensory panel n>=18`,
       nextGate: 'Pilot validation',
       status: 'Open',
     },
     {
       workstream: 'Concept validation',
-      owner: 'Commercial',
+      owner: 'Not assigned — readiness gap',
       dueDate: null,
       unscheduled: true,
       requiredAction: 'Run a target-consumer concept test with a check-all-that-apply descriptor question.',
       completionEvidence: 'Concept-test response set',
-      passingThreshold: 'n≥30 target-consumer responses with documented panel fit',
+      passingThreshold: 'Concept test n>=30 target-consumer responses with documented panel fit',
       nextGate: 'Evidence review',
       status: 'Open',
     },
     {
       workstream: 'Claims and legal review',
-      owner: 'Legal',
+      owner: 'Not assigned — readiness gap',
       dueDate: null,
       unscheduled: true,
       requiredAction: 'Substantiate and approve every sensory, nutrition, and benefit claim.',
@@ -313,16 +396,20 @@ function buildActions(
 
 function buildConceptStrategy(snapshot: CommercializationReportSnapshot, responseCount: number): ConceptStrategy {
   const concept = snapshot.concept;
+  const hypothesisLabel = responseCount === 0 ? 'Hypothesis — ' : '';
+  const target = concept.targetMarket?.trim();
   return {
     hypothesisOnly: responseCount === 0,
-    positioning: concept.description || 'Positioning hypothesis requires definition.',
-    targetSegment: concept.targetMarket || 'Target segment not yet defined.',
-    consumerNeed: 'Consumer need is a hypothesis pending concept validation.',
-    usageOccasion: 'Usage occasion is a hypothesis pending concept validation.',
-    productPromise: concept.keyBenefits || 'Product promise requires definition.',
-    reasonsToBelieve: ['Sensory GO result from the saved decision model.'],
-    priceHypothesis: concept.pricePoint || 'Price hypothesis requires validation.',
-    packagingHypothesis: concept.packagingImageUrl ? 'Directional packaging selected; structure and claims unconfirmed.' : 'No packaging direction selected.',
+    positioning: `${hypothesisLabel}For flexitarian buyers seeking a familiar plant-based cheddar for everyday cooking, ${concept.name || snapshot.product.sampleName} proposes recognizable cheddar-category sensory cues from a coconut-based format; the reason to believe is the trained sensory profile, not consumer validation.`,
+    targetSegment: `${hypothesisLabel}${target ? `${target} flexitarian shoppers` : 'Flexitarian shoppers'} who buy plant-based alternatives but prioritize familiar cheddar cues and cooking versatility.`,
+    consumerNeed: `${hypothesisLabel}A plant-based cheese option that feels familiar enough for routine cooking without implying validated consumer preference.`,
+    usageOccasion: `${hypothesisLabel}Everyday melting, sandwiches, and simple cooked meals; validate the most relevant occasion in concept testing.`,
+    productPromise: `${hypothesisLabel}${concept.keyBenefits || 'Familiar cheddar-category character in a coconut-based format.'}`,
+    reasonsToBelieve: ['Sensory screening outcome GO at the documented ISSF score.', 'High panel agreement on cheddar-category descriptors.'],
+    priceHypothesis: `${hypothesisLabel}${concept.pricePoint || 'Test an explicit price range against category alternatives.'}`,
+    packagingHypothesis: concept.packagingImageUrl
+      ? `${hypothesisLabel}Use the directional visual to communicate plant-based cheddar clearly while avoiding any implication that texture performance or claims are finalized.`
+      : `${hypothesisLabel}Develop a directional visual that communicates plant-based cheddar and everyday use without overpromising texture.`,
     unknowns: ['Consumer preference', 'Purchase intent', 'Price acceptance', 'Representativeness'],
     conceptTestObjective: 'Validate preference, descriptor comprehension, and price acceptance with the target consumer.',
     prohibitedClaims: ['consumer preference', 'purchase demand', 'market readiness', 'representative acceptance'],

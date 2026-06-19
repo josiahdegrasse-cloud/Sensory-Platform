@@ -1,5 +1,6 @@
-import { findUnsupportedClaims } from './claims';
+import { classifyStatement, findUnsupportedClaims } from './claims';
 import { findDuplicateParagraphs, lintText, type LintFinding } from './lint';
+import { isIssfReproduced } from './methodology';
 import type {
   ReportContext,
   ValidationFinding,
@@ -19,16 +20,50 @@ function warn(code: string, message: string, deduction: number): ValidationFindi
   return { code, severity: 'warning', message, deduction, blocksExport: false };
 }
 
+export function validateDimensionEvidenceConsistency(ctx: ReportContext): ValidationResult {
+  const errors: ValidationFinding[] = [];
+  const warnings: ValidationFinding[] = [];
+  for (const dim of ctx.dimensions) {
+    if (!dim.calculationExplanation.trim()) {
+      errors.push(err('missing-score-explanation', `${dim.label} has no calculation explanation.`, 16));
+    }
+    if (dim.measures.length === 0 || dim.rawMetrics.length === 0) {
+      errors.push(err('displayed-evidence-mismatch', `${dim.label} does not display the evidence used in its score.`, 16));
+    }
+    if (dim.score < dim.threshold) {
+      const visible = dim.rawMetrics.filter(metric => !metric.missing && typeof metric.value !== 'string');
+      const allAppearPositive = visible.length > 0 && visible.every(metric => {
+        const value = Number(metric.value);
+        if (!Number.isFinite(value)) return false;
+        if (metric.direction === 'lower_better') return value <= 3;
+        if (metric.direction === 'ideal_range' && metric.targetRange) return value >= metric.targetRange[0] && value <= metric.targetRange[1];
+        return metric.direction === 'higher_better' ? value >= 6 : false;
+      });
+      const explanationNamesPenalty = /\b(missing|penalt|not captured|ideal range|below|count as 0|weak)\b/i.test(dim.calculationExplanation);
+      if (allAppearPositive && !explanationNamesPenalty) {
+        errors.push(err('unexplained-score-evidence-contradiction', `${dim.label} is below threshold although all visible metrics appear positive.`, 26));
+      }
+    }
+  }
+  return { errors, warnings, exportAllowed: !errors.some(item => item.blocksExport) };
+}
+
 export function validateReportContext(ctx: ReportContext): ValidationResult {
   const errors: ValidationFinding[] = [];
   const warnings: ValidationFinding[] = [];
   const knownEvidenceIds = new Set<string>(ctx.sourceEvidenceIds);
+  const dimensionValidation = validateDimensionEvidenceConsistency(ctx);
+  errors.push(...dimensionValidation.errors);
+  warnings.push(...dimensionValidation.warnings);
 
   // — claims must cite real bundle evidence —
   for (const claim of ctx.claims) {
     const unknown = claim.evidenceIds.filter(id => !knownEvidenceIds.has(id));
     if (claim.evidenceIds.length > 0 && unknown.length === claim.evidenceIds.length) {
       errors.push(err('missing-evidence-reference', `Claim "${claim.id}" cites only unknown evidence ids.`, 16));
+    }
+    if (claim.evidenceIds.length === 0) {
+      errors.push(err('missing-evidence-reference', `Claim "${claim.id}" has no evidence reference.`, 16));
     }
   }
 
@@ -64,6 +99,16 @@ export function validateReportContext(ctx: ReportContext): ValidationResult {
   // — confidence must carry a type/maturity —
   if (!ctx.decision.evidenceMaturity) {
     errors.push(err('confidence-without-type', 'Model confidence present without an evidence maturity.', 11));
+  }
+  if (!isIssfReproduced(ctx.methodology)) {
+    errors.push(err(
+      'calculation-mismatch',
+      `Displayed methodology reproduces ISSF ${ctx.methodology.reproducedIssf.toFixed(1)}, not stored ISSF ${ctx.methodology.storedIssf.toFixed(1)}.`,
+      16,
+    ));
+  }
+  if (ctx.decision.confidence.value !== null && ctx.methodology.confidenceCalculation.length === 0) {
+    errors.push(err('missing-confidence-calculation', 'Model confidence is shown without its weighted inputs.', 11));
   }
 
   // — consumer claims when concept n=0 —
@@ -120,6 +165,12 @@ export function validateGeneratedReport(ctx: ReportContext, generated: Generated
       continue;
     }
     lintFindings.push(...lintText(section.label, section.text));
+    const claimType = classifyStatement(section.text);
+    if (ctx.concept.responseCount === 0
+      && ['consumer_preference', 'purchase_demand', 'representative_acceptance', 'market_readiness'].includes(claimType)
+      && !/\b(unvalidated|unsupported|hypothesis|not (?:a |yet )?|cannot|pending|no concept|n\s*=\s*0)\b/i.test(section.text)) {
+      errors.push(err('unsupported-consumer-language', `${section.label}: consumer or market conclusion is not bounded by concept evidence.`, 31));
+    }
   }
   lintFindings.push(...findDuplicateParagraphs(generated.sections));
 
