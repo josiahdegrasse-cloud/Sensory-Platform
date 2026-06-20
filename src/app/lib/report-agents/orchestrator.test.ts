@@ -204,4 +204,35 @@ describe('report agent orchestration', () => {
     expect(result.state.exportStatus).toBe('demonstration_only');
     expect(result.state.completedAgents).toHaveLength(4);
   });
+
+  it('runs the standard review when action owners are readiness gaps', async () => {
+    const calls: ReportAgentRole[] = [];
+    const context = coconutCheddarContext();
+    context.actions.forEach(action => { action.owner = null; });
+    const runner: ReportAgentRunner = {
+      async run<R extends ReportAgentRole>(task: ReportAgentTask<R>): Promise<ReportAgentOutputMap[R]> {
+        calls.push(task.role);
+        return outputFor(task.role) as ReportAgentOutputMap[R];
+      },
+    };
+
+    const result = await orchestrateReportAgents({
+      mode: 'standard',
+      context,
+      generatedSections: cleanSections,
+      pageText: [{ page: 1, text: 'Conditional advancement.' }],
+      runner,
+      render: async ({ draft }) => ({
+        generatedSections: cleanSections,
+        writtenReport: draft,
+        finalPdfText: 'Internal draft',
+        renderedPages: [],
+      }),
+    });
+
+    expect(calls).toHaveLength(4);
+    expect(result.state.completedAgents).toHaveLength(4);
+    expect(result.state.defects.filter(defect => defect.category === 'action-without-owner')).toHaveLength(5);
+    expect(result.state.exportStatus).toBe('demonstration_only');
+  });
 });

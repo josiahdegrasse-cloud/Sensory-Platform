@@ -17,6 +17,17 @@ import { buildGeneratedReportSections, type CommercializationReportPdfInput } fr
 import { useCreateCommercializationReport } from '../lib/hooks';
 import { Button } from './ui/button';
 
+function isReusableReview(value: unknown): value is ReportOrchestrationArtifacts {
+  if (!value || typeof value !== 'object') return false;
+  const artifacts = value as Partial<ReportOrchestrationArtifacts>;
+  return Boolean(
+    artifacts.finalDraft
+    && artifacts.state
+    && artifacts.state.completedAgents.length > 0
+    && artifacts.state.qualityScore !== null,
+  );
+}
+
 export function ReportAgentReviewPanel({
   report,
   input,
@@ -30,6 +41,7 @@ export function ReportAgentReviewPanel({
   const [result, setResult] = useState<ReportOrchestrationArtifacts | null>(null);
   const [cost, setCost] = useState<number | null>(null);
   const [savedVersion, setSavedVersion] = useState<number | null>(null);
+  const [cacheHit, setCacheHit] = useState(false);
   const [lastReview, setLastReview] = useState<{
     mode: ReportReviewMode;
     hash: string;
@@ -44,6 +56,7 @@ export function ReportAgentReviewPanel({
     setResult(null);
     setCost(null);
     setSavedVersion(null);
+    setCacheHit(false);
     const metered = createMeteredReportAgentRunner();
     try {
       const currentHash = await hashReportContext(input.reportContext);
@@ -52,18 +65,23 @@ export function ReportAgentReviewPanel({
         || (persistedCache?.mode === 'full' && mode === 'standard');
       const localCoversMode = lastReview?.mode === mode
         || (lastReview?.mode === 'full' && mode === 'standard');
-      if (lastReview && localCoversMode && lastReview.hash === currentHash) {
+      if (lastReview
+        && localCoversMode
+        && lastReview.hash === currentHash
+        && isReusableReview(lastReview.artifacts)) {
         setResult(lastReview.artifacts);
         setCost(0);
+        setCacheHit(true);
         setSavedVersion(lastReview.version);
         return;
       }
       if (persistedCache
         && persistedCoversMode
         && persistedCache.reportContextHash === currentHash
-        && persistedCache.artifacts) {
-        setResult(persistedCache.artifacts as unknown as ReportOrchestrationArtifacts);
+        && isReusableReview(persistedCache.artifacts)) {
+        setResult(persistedCache.artifacts);
         setCost(0);
+        setCacheHit(true);
         setSavedVersion(report.version);
         return;
       }
@@ -191,11 +209,24 @@ export function ReportAgentReviewPanel({
           <p className="mt-1 text-xs">
             {result.state.completedAgents.length} specialist passes completed
             {savedVersion ? ` · saved as draft version ${savedVersion}` : ' · no revised version was saved'}
-            {cost === 0 ? ' · reused cached review' : ''}
+            {cacheHit ? ' · reused cached review' : ''}
             {result.state.defects.filter(defect => defect.status === 'open').length
               ? ` · ${result.state.defects.filter(defect => defect.status === 'open').length} open defects`
               : ''}
           </p>
+          {result.state.deterministicBlockers.length > 0 && (
+            <ul className="mt-2 space-y-1 text-xs">
+              {result.state.deterministicBlockers.slice(0, 5).map(blocker => (
+                <li key={blocker}>• {blocker}</li>
+              ))}
+            </ul>
+          )}
+          {result.state.deterministicBlockers.length === 0
+            && result.state.defects.some(defect => defect.status === 'open') && (
+              <p className="mt-2 text-xs">
+                Open readiness gaps remain in the saved draft. They do not prevent internal review, but must be resolved before external release.
+              </p>
+            )}
         </div>
       )}
     </section>

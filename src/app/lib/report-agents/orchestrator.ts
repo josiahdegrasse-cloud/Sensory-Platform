@@ -39,6 +39,9 @@ import type {
 } from './types';
 
 const MAX_AUTOMATED_REPAIR_ITERATIONS = 8;
+const REVIEWABLE_PREFLIGHT_CODES = new Set([
+  'action-without-owner',
+]);
 
 export interface ReportOrchestratorInput {
   mode?: ReportReviewMode;
@@ -131,10 +134,13 @@ function deterministicActionPlan(ctx: ReportContext, defects: ReportDefect[]): A
 }
 
 function findingDefect(finding: ValidationFinding, index: number): ReportDefect {
+  const reviewableReadinessGap = REVIEWABLE_PREFLIGHT_CODES.has(finding.code);
   return {
     id: `deterministic-${finding.code}-${index + 1}`,
     category: finding.code,
-    severity: finding.blocksExport ? 'critical' : finding.severity === 'error' ? 'major' : 'minor',
+    severity: finding.blocksExport && !reviewableReadinessGap
+      ? 'critical'
+      : finding.severity === 'error' ? 'major' : 'minor',
     source: 'deterministic_validator',
     description: finding.message,
     evidenceIds: [],
@@ -339,6 +345,16 @@ function addCompleted(state: ReportAgentState, roles: ReportAgentRole[]): void {
   state.pendingAgents = state.pendingAgents.filter(role => !roles.includes(role as ReportAgentRole));
 }
 
+function uniqueFindings(findings: ValidationFinding[]): ValidationFinding[] {
+  const seen = new Set<string>();
+  return findings.filter(finding => {
+    const key = `${finding.code}:${finding.message}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export async function orchestrateReportAgents(
   input: ReportOrchestratorInput,
 ): Promise<ReportOrchestrationArtifacts> {
@@ -348,11 +364,14 @@ export async function orchestrateReportAgents(
   const contextValidation = validateReportContext(input.context);
   const reportValidation = validateGeneratedReport(input.context, input.generatedSections);
   const combinedValidation = {
-    errors: [...contextValidation.errors, ...reportValidation.errors],
-    warnings: [...contextValidation.warnings, ...reportValidation.warnings],
+    errors: uniqueFindings([...contextValidation.errors, ...reportValidation.errors]),
+    warnings: uniqueFindings([...contextValidation.warnings, ...reportValidation.warnings]),
     exportAllowed: contextValidation.exportAllowed && reportValidation.exportAllowed,
   };
   const initialFindings = [...combinedValidation.errors, ...combinedValidation.warnings];
+  const hardPreflightBlockers = combinedValidation.errors.filter(finding =>
+    finding.blocksExport && !REVIEWABLE_PREFLIGHT_CODES.has(finding.code),
+  );
   const state: ReportAgentState = {
     reportContextHash: hash,
     currentIteration: 0,
@@ -363,8 +382,7 @@ export async function orchestrateReportAgents(
       : Object.keys(REPORT_AGENT_DEFINITIONS),
     defects: initialFindings.map(findingDefect),
     unresolvedConflicts: [],
-    deterministicBlockers: combinedValidation.errors
-      .filter(finding => finding.blocksExport)
+    deterministicBlockers: hardPreflightBlockers
       .map(finding => `${finding.code}: ${finding.message}`),
     agentWarnings: [],
     qualityScore: null,
@@ -374,7 +392,7 @@ export async function orchestrateReportAgents(
   const repairHistory: RepairHistoryEntry[] = [];
   const conflicts: AgentConflict[] = [];
 
-  if (!combinedValidation.exportAllowed) {
+  if (hardPreflightBlockers.length > 0) {
     return {
       state,
       outputs,
@@ -536,18 +554,20 @@ export async function orchestrateReportAgents(
   let rendered = await input.render({ draft: editedDraft, iteration: 0 });
   if (mode === 'standard') {
     const finalValidation = validateGeneratedReport(input.context, rendered.generatedSections);
+    const hardFinalBlockers = finalValidation.errors.filter(finding =>
+      finding.blocksExport && !REVIEWABLE_PREFLIGHT_CODES.has(finding.code),
+    );
     const authoritativeScore = scoreReportQuality({
       ctx: input.context,
       validation: finalValidation,
     });
     state.qualityScore = authoritativeScore.totalScore;
-    state.exportStatus = finalValidation.exportAllowed
+    state.exportStatus = hardFinalBlockers.length === 0
       ? /reference\/demo|reference-demo/i.test(input.context.evidenceProvenance)
         ? 'demonstration_only'
         : 'internal_only'
       : 'blocked';
-    state.deterministicBlockers = finalValidation.errors
-      .filter(finding => finding.blocksExport)
+    state.deterministicBlockers = hardFinalBlockers
       .map(finding => `${finding.code}: ${finding.message}`);
     return {
       state,
