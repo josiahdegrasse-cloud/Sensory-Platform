@@ -10,3 +10,9 @@ export { scoreReportQuality } from './score';
 export type { ScoreInputs, RenderDefect } from './score';
 export { runQcPipeline } from './pipeline';
 export type { QcPipelineInput, QcPipelineResult } from './pipeline';
+export {
+  validateVersion7ContextDefects,
+  validateVersion7GeneratedDefects,
+  validateVersion7RenderedDefects,
+} from './version-7-regressions';
+export type { RenderedReportInspection } from './version-7-regressions';

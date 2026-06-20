@@ -33,6 +33,8 @@ export interface PdfContext {
   accent: Rgb;
   organizationName: string;
   productName: string;
+  /** Mandatory page-level provenance warning, rendered on every page. */
+  documentWarning?: string;
   /** PDF layout: navy/blue editorial (default) or the cream/sage masthead. */
   template?: 'standard' | 'editorial-sage';
 }
@@ -199,7 +201,12 @@ export function chapterBanner(ctx: PdfContext, chapter: string, title: string, y
  * Branded footer applied to every page with a quiet publication-style folio.
  */
 export function renderFooter(ctx: PdfContext, page: number, reportFooter?: string) {
-  const { doc, width, height, margin, primary, accent, template } = ctx;
+  const { doc, width, height, margin, primary, accent, template, documentWarning } = ctx;
+  if (documentWarning) {
+    setText(doc, AMBER, 6.5, 'bold');
+    const warning = doc.splitTextToSize(documentWarning, width - margin * 2 - 42) as string[];
+    doc.text(warning.slice(0, 1), margin, height - 34);
+  }
   if (template === 'editorial-sage') {
     setText(doc, BODY_SAGE, 7);
     doc.text(reportFooter || 'Confidential commercialization report', margin, height - 19);

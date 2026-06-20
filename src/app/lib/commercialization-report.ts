@@ -65,6 +65,21 @@ export interface CommercializationReportSnapshot {
     launchRecommendation: string;
     claimCaution: string;
   };
+  agentReview?: {
+    mode: 'standard' | 'full';
+    runAt: string;
+    reportContextHash: string;
+    exportStatus: string;
+    qualityScore: number | null;
+    estimatedCostUsd: number;
+    usage: Array<{
+      role: string;
+      model: string;
+      inputTokens: number;
+      outputTokens: number;
+    }>;
+    artifacts: Record<string, unknown>;
+  };
   generatedAt: string;
 }
 

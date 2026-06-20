@@ -1,6 +1,10 @@
 import { classifyStatement, findUnsupportedClaims } from './claims';
 import { findDuplicateParagraphs, lintText, type LintFinding } from './lint';
 import { isIssfReproduced } from './methodology';
+import {
+  validateVersion7ContextDefects,
+  validateVersion7GeneratedDefects,
+} from './version-7-regressions';
 import type {
   ReportContext,
   ValidationFinding,
@@ -55,6 +59,7 @@ export function validateReportContext(ctx: ReportContext): ValidationResult {
   const dimensionValidation = validateDimensionEvidenceConsistency(ctx);
   errors.push(...dimensionValidation.errors);
   warnings.push(...dimensionValidation.warnings);
+  errors.push(...validateVersion7ContextDefects(ctx));
 
   // — claims must cite real bundle evidence —
   for (const claim of ctx.claims) {
@@ -178,7 +183,9 @@ export function validateGeneratedReport(ctx: ReportContext, generated: Generated
   lintFindings.push(...findDuplicateParagraphs(generated.sections));
 
   for (const finding of lintFindings) {
-    if (finding.code === 'malformed-sentence' || finding.code === 'placeholder') {
+    if (finding.code === 'malformed-sentence'
+      || finding.code === 'placeholder'
+      || finding.code.startsWith('raw-')) {
       errors.push(err(finding.code, finding.message, 16));
     } else if (finding.code === 'duplicate-paragraph') {
       warnings.push(warn(finding.code, finding.message, 6));
@@ -186,6 +193,7 @@ export function validateGeneratedReport(ctx: ReportContext, generated: Generated
       warnings.push(warn(finding.code, finding.message, 4));
     }
   }
+  errors.push(...validateVersion7GeneratedDefects(ctx, generated));
 
   const blocking = errors.some(e => e.blocksExport);
   return { errors, warnings, exportAllowed: !blocking };

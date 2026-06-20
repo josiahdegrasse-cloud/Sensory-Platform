@@ -37,6 +37,7 @@ import {
 import { getCommercializationProjectProfile } from '../data/coconut-cheddar-profile';
 import { buildReportContext, type ApprovalStatus, type SensoryAugmentation } from '../lib/report-qc';
 import type { GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
+import { ReportAgentReviewPanel } from './report-agent-review-panel';
 
 /**
  * The Commercialization Report — the final stage of the project journey.
@@ -340,6 +341,13 @@ export function CommercializationReportPage() {
             : sensoryProvenance === 'reference'
               ? 'This report still uses reference/demo sensory data. Collect live panel responses before approving it as a client deliverable.'
               : undefined}
+        />
+      )}
+
+      {savedReport && pdfInput && reportContext && (
+        <ReportAgentReviewPanel
+          report={savedReport}
+          input={{ ...pdfInput, reportContext }}
         />
       )}
 

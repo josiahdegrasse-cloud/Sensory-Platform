@@ -93,6 +93,11 @@ export async function buildCommercializationReportPdf(input: CommercializationRe
     accent,
     organizationName: input.organizationName || 'Food Platform',
     productName: input.snapshot.product.sampleName,
+    documentWarning: !input.reportContext
+      ? 'INTERNAL PREVIEW — VALIDATED REPORT CONTEXT NOT ATTACHED'
+      : /reference\/demo|reference-demo/i.test(input.reportContext.evidenceProvenance)
+        ? 'REFERENCE / DEMONSTRATION EVIDENCE — NOT APPROVED FOR EXTERNAL USE'
+        : undefined,
     template,
   };
 
@@ -146,32 +151,39 @@ export async function buildCommercializationReportPdf(input: CommercializationRe
   // quality report. Critical errors set qc.exportAllowed=false.
   let qc: QcPipelineResult | undefined;
   if (input.reportContext) {
-    const exec = buildExecutiveReadout(input);
-    const method = buildMethodEvidence(input);
-    const concept = buildConceptPackaging(input);
-    const plan = buildCommercializationPlan(input);
-    const appendix = buildAppendix(input);
-    const generated: GeneratedSections = {
-      sections: [
-        { label: 'Decision', text: `${buildDecisionSnapshot(input).reportTitle}. ${buildDecisionSnapshot(input).decisionSubheading}` },
-        { label: 'Executive rationale', text: `${exec.decision} ${exec.rationale}` },
-        { label: 'Executive recommendation', text: exec.commercialImplication },
-        { label: 'Next move', text: exec.nextMove },
-        { label: 'Methodology', text: `${method.issfFormula}. ${method.gateLogic}. ${method.instrumentalNote}` },
-        { label: 'Concept hypothesis', text: `${concept.positioning} ${concept.targetConsumer} ${concept.consumerNeed} ${concept.usageOccasion} ${concept.productPromise}` },
-        { label: 'Packaging rationale', text: concept.packagingDirection },
-        { label: 'Execution plan', text: plan.rows.map(row => `${row.workstream}: ${row.currentRead}. ${row.requiredAction}. ${row.statusOwner}.`).join(' ') },
-        { label: 'Risks and limitations', text: buildRisks(input).claimsNote },
-        { label: 'Traceability and approval', text: `${appendix.rows.map(row => row.join(': ')).join('. ')}. ${appendix.approvalNote}` },
-      ],
-    };
+    const generated = buildGeneratedReportSections(input);
     qc = runQcPipeline({ ctx: input.reportContext, generated });
   }
 
   return { doc, filename, qc };
 }
 
+export function buildGeneratedReportSections(input: CommercializationReportPdfInput): GeneratedSections {
+  const exec = buildExecutiveReadout(input);
+  const method = buildMethodEvidence(input);
+  const concept = buildConceptPackaging(input);
+  const plan = buildCommercializationPlan(input);
+  const appendix = buildAppendix(input);
+  return {
+    sections: [
+      { label: 'Decision', text: `${buildDecisionSnapshot(input).reportTitle}. ${buildDecisionSnapshot(input).decisionSubheading}` },
+      { label: 'Executive rationale', text: `${exec.decision} ${exec.rationale}` },
+      { label: 'Executive recommendation', text: exec.commercialImplication },
+      { label: 'Next move', text: exec.nextMove },
+      { label: 'Methodology', text: `${method.issfFormula}. ${method.gateLogic}. ${method.instrumentalNote}` },
+      { label: 'Concept hypothesis', text: `${concept.positioning} ${concept.targetConsumer} ${concept.consumerNeed} ${concept.usageOccasion} ${concept.productPromise}` },
+      { label: 'Packaging rationale', text: concept.packagingDirection },
+      { label: 'Execution plan', text: plan.rows.map(row => `${row.workstream}: ${row.currentRead}. ${row.requiredAction}. ${row.statusOwner}.`).join(' ') },
+      { label: 'Risks and limitations', text: buildRisks(input).claimsNote },
+      { label: 'Traceability and approval', text: `${appendix.rows.map(row => row.join(': ')).join('. ')}. ${appendix.approvalNote}` },
+    ],
+  };
+}
+
 export async function downloadCommercializationReportPdf(input: CommercializationReportPdfInput) {
+  if (!input.reportContext) {
+    throw new Error('Report export blocked: a validated ReportContext is required. Open the report workspace to rebuild and authorize this version.');
+  }
   const { doc, filename, qc } = await buildCommercializationReportPdf(input);
   // Critical QC errors block export (only enforced when a typed context is supplied).
   if (qc && !qc.exportAllowed) {

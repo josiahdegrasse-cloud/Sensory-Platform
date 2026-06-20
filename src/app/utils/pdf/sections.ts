@@ -487,7 +487,7 @@ export function buildCommercializationPlan(input: CommercializationReportPdfInpu
       workstream: action.workstream,
       currentRead: `${action.status} · Owner: ${action.owner ?? 'Not assigned'} · Due: ${action.dueDate ?? 'not scheduled'}`,
       requiredAction: `${action.requiredAction}\nCompletion evidence: ${action.completionEvidence}\nPass: ${action.passingThreshold}`,
-      statusOwner: `Priority: high · Gate: ${action.nextGate} · Dependencies: source evidence and cross-functional review`,
+      statusOwner: `Priority: high · Gate: ${action.nextGate} · Dependencies: ${actionDependency(action.workstream)}`,
     })) : [
       ['Product formulation', prescription ? `GO with open action: ${prescription.target}` : 'GO formulation; no saved corrective prescription', prescription?.action || 'Lock the tested formula and define scale-up tolerances.', 'Open · R&D'],
       ['Sensory validation', `${snapshot.decision.issfScore.toFixed(1)} ISSF; ${snapshot.decision.confidence.toFixed(0)}% confidence`, 'Confirm the product at pilot scale against the saved decision profile.', 'Open · Sensory'],
@@ -501,6 +501,15 @@ export function buildCommercializationPlan(input: CommercializationReportPdfInpu
       ? 'Next gate: pilot-scale sensory confirmation plus broader target-consumer concept validation.'
       : 'Next gate: pilot-scale sensory confirmation plus cross-functional packaging, claims, and buyer-story approval.',
   };
+}
+
+function actionDependency(workstream: string): string {
+  if (/texture|formulation|pilot/i.test(workstream)) return 'pilot batch, locked process conditions, and sensory panel availability';
+  if (/consumer|concept|price/i.test(workstream)) return 'approved stimulus, target-segment screener, and fieldwork sample';
+  if (/pack/i.test(workstream)) return 'validated proposition, pack architecture, and claims review';
+  if (/claim|legal/i.test(workstream)) return 'claim matrix, substantiation files, and legal reviewer';
+  if (/shelf|stability/i.test(workstream)) return 'production-representative packs, storage protocol, and test schedule';
+  return 'named source evidence and the accountable next-gate reviewer';
 }
 
 export function buildRisks(input: CommercializationReportPdfInput): RisksData {
@@ -582,7 +591,9 @@ export function buildAppendix(input: CommercializationReportPdfInput): AppendixD
       ['Concept visual provenance', snapshot.concept.packagingImageAiGenerated
         ? `${packagingProvenanceLabel(snapshot)} · AI-generated directional visual; prompt metadata is retained with the source project.`
         : snapshot.concept.packagingImageUrl ? 'User-supplied concept visual; source approval should be confirmed.' : 'No concept visual attached.'],
-      ['Evidence populations', ctx ? `${ctx.dimensions[0]?.population ?? 'Sensory panel not documented'}; concept test n=${ctx.concept.responseCount}; instrumental findings n=${ctx.instrumental.findings.length}.` : `Concept test n=${snapshot.evidence.responseCount}.`],
+      ['Evidence populations', ctx
+        ? `${ctx.dimensions[0]?.population ?? 'Sensory panel not documented'}; concept test n=${ctx.concept.responseCount}; ${ctx.instrumental.findings.length} instrumental finding${ctx.instrumental.findings.length === 1 ? '' : 's'} recorded. Replicate counts are stated per instrumental source where available.`
+        : `Concept test n=${snapshot.evidence.responseCount}.`],
       ['Evidence provenance', ctx?.evidenceProvenance ?? 'Not documented.'],
       ['Instrumental evidence', ctx?.instrumental.absenceNote ?? (ctx?.instrumental.findings.map(item => `${item.source}: ${item.finding}`).join(' | ') || 'Not itemized.')],
       ['AI provenance', ctx?.imageProvenance.aiGenerated ? 'AI-generated concept visual labeled directional; prompt metadata retained with source project.' : 'No AI-generated report visual used.'],

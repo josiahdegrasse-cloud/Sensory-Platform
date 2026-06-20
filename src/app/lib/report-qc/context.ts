@@ -449,7 +449,9 @@ function buildConceptStrategy(
       usageOccasion: hypothesis.usageOccasion,
       productPromise: hypothesis.productPromise,
       reasonsToBelieve: hypothesis.reasonsToBelieve,
-      priceHypothesis: hypothesis.priceHypothesis,
+      priceHypothesis: responseCount === 0
+        ? `Hypothesis — ${hypothesis.priceHypothesis} Validation required; no willingness-to-pay evidence has been collected.`
+        : hypothesis.priceHypothesis,
       packagingHypothesis: hypothesis.packagingHypothesis,
       unknowns: profile.claimsBoundary.prohibitedUntilValidated,
       conceptTestObjective: hypothesis.validationQuestions.join(' '),

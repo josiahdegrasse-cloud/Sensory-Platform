@@ -239,6 +239,8 @@ export interface MethodologyEvidence {
   weightedBase: number;
   instrumentSignal: number | null;
   gatePenalty: number;
+  /** Deterministic treatment of expected-but-unobserved inputs. */
+  missingDataPolicy: string;
   formula: string;
   /** ISSF reproduced from the contributions, for the consistency check. */
   reproducedIssf: number;

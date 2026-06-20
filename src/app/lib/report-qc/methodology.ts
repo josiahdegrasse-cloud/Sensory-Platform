@@ -59,6 +59,7 @@ export function buildMethodology(input: {
     weightedBase,
     instrumentSignal: input.instrumentSignal,
     gatePenalty: input.gatePenalty,
+    missingDataPolicy: 'Expected texture cues not captured by the study receive zero contribution under the versioned completeness-penalty rule; they remain labeled missing and are never represented as measured zero.',
     formula: input.instrumentSignal === null
       ? 'Instrument signal unavailable; the stored ISSF cannot be fully reproduced from the report snapshot.'
       : `ISSF = (${weightedBase.toFixed(1)} × 0.86) + (${input.instrumentSignal.toFixed(1)} × 0.14) − ${input.gatePenalty.toFixed(1)} = ${reproducedIssf.toFixed(1)}`,
@@ -123,7 +124,7 @@ export function buildTextureBreakdown(intensity: Record<string, number>, foodTyp
   const reproduced = Math.max(0, Math.min(100, (posAvg / 10) * 105 - (negAvg / 10) * 45));
 
   const explanation = missing.length
-    ? `Texture ${score}/100 (threshold ${threshold}) = (${posAvg.toFixed(2)}/10 × 105) − (${negAvg.toFixed(2)}/10 × 45) = ${reproduced.toFixed(1)}. Creamy and smooth are high; missing ${missing.join(' and ')} count as 0 across the expected cues (${positiveKeys.join(', ')}). The low composite reflects missing structure evidence, not poor creaminess.`
+    ? `Texture ${score}/100 (threshold ${threshold}) = (${posAvg.toFixed(2)}/10 × 105) − (${negAvg.toFixed(2)}/10 × 45) = ${reproduced.toFixed(1)}. Creamy and smooth are high; unobserved ${missing.join(' and ')} receive zero contribution under the documented completeness-penalty rule across expected cues (${positiveKeys.join(', ')}). They remain missing values, not measured zeros. The low composite reflects incomplete structure evidence, not poor creaminess.`
     : `Texture ${score}/100 (threshold ${threshold}) = (${posAvg.toFixed(2)}/10 × 105) − (${negAvg.toFixed(2)}/10 × 45) = ${reproduced.toFixed(1)}, using positive cues (${positiveKeys.join(', ')}) net of negative cues.`;
 
   return { rawMetrics: [...positiveMetrics, ...negativeMetrics], explanation };

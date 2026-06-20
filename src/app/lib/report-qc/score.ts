@@ -27,6 +27,20 @@ const CODE_CATEGORY: Record<string, QualityCategory> = {
   'missing-score-explanation': 'evidenceCompleteness',
   'calculation-mismatch': 'governance',
   'missing-confidence-calculation': 'governance',
+  'missing-metric-zero-imputation': 'evidenceCompleteness',
+  'duplicate-method-id': 'governance',
+  'contradictory-commercialization-go': 'decisionClarity',
+  'texture-recommendation-evidence-conflict': 'evidenceCompleteness',
+  'unexplained-numeric-transformation': 'governance',
+  'sensory-composite-issf-conflation': 'governance',
+  'unsupported-packaging-appeal': 'claimSupport',
+  'unexplained-price-range': 'commercialUsefulness',
+  'sensory-consumer-population-conflation': 'claimSupport',
+  'instrumental-finding-count-as-sample-size': 'evidenceCompleteness',
+  'generic-repeated-dependency': 'actionability',
+  'broken-issf-formula-glyph': 'visualReadability',
+  'demo-warning-not-page-visible': 'visualReadability',
+  'action-plan-density': 'visualReadability',
   'empty-section': 'evidenceCompleteness',
   'unsupported-claim': 'claimSupport',
   'unsupported-consumer-language': 'claimSupport',
@@ -105,6 +119,11 @@ export function scoreReportQuality(input: ScoreInputs): QualityScore {
   if (codes.has('empty-section') || codes.has('malformed-sentence')) cap(84);
   if (codes.has('missing-limitations')) cap(79);
   if (codes.has('missing-approval-status')) cap(89);
+  if (codes.has('missing-metric-zero-imputation')) cap(69);
+  if (codes.has('contradictory-commercialization-go')) cap(69);
+  if (codes.has('unexplained-numeric-transformation') || codes.has('sensory-composite-issf-conflation')) cap(74);
+  if (codes.has('unsupported-packaging-appeal') || codes.has('sensory-consumer-population-conflation')) cap(69);
+  if (codes.has('broken-issf-formula-glyph') || codes.has('demo-warning-not-page-visible') || codes.has('action-plan-density')) cap(69);
   const criticalRender = (input.renderDefects ?? []).some(d => d.blocksExport);
   if (criticalRender) { cap(0); blockers.push('Critical rendering defect — export blocked.'); }
 

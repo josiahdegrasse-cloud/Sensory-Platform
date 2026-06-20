@@ -116,7 +116,7 @@ describe('report-qc: validation guards', () => {
       sections: [{ label: 'Packaging', text: 'The chosen packaging direction is not grounded by the evidence bundle.' }],
     };
     const result = runQcPipeline({ ctx, generated: sections });
-    expect(result.score.warnings.some(w => /evidence bundle/i.test(w))).toBe(true);
+    expect(result.score.blockers.some(w => /evidence bundle/i.test(w))).toBe(true);
   });
 
   it('blocks export when an action has no owner', () => {
@@ -155,7 +155,8 @@ describe('report-qc: validation guards', () => {
 
   it('explains positive visible texture cues and the low composite', () => {
     const texture = coconutCheddarContext().dimensions.find(d => d.key === 'texture')!;
-    expect(texture.calculationExplanation).toMatch(/missing firm and spreadable count as 0/i);
+    expect(texture.calculationExplanation).toMatch(/unobserved firm and spreadable receive zero contribution/i);
+    expect(texture.calculationExplanation).toMatch(/not measured zeros/i);
     expect(texture.calculationExplanation).toContain('42.7');
     expect(validateDimensionEvidenceConsistency(coconutCheddarContext()).exportAllowed).toBe(true);
   });
@@ -217,7 +218,7 @@ describe('report-qc: validation guards', () => {
       { label: 'Three', text: 'Deterministic candidate decision across samples.' },
     ] } });
     expect(result.score.warnings.some(item => /duplicate-paragraph/.test(item))).toBe(true);
-    expect(result.score.warnings.some(item => /raw-deterministic/.test(item))).toBe(true);
+    expect(result.score.blockers.some(item => /raw-deterministic/.test(item))).toBe(true);
   });
 
   it('requires AI visual provenance and a directional label', () => {
