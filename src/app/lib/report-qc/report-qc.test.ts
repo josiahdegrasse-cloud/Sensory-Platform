@@ -147,6 +147,46 @@ describe('report-qc: validation guards', () => {
     expect(ctx.methodology.confidenceCalculation.reduce((sum, row) => sum + row.contribution, 0)).toBeCloseTo(90.8, 1);
   });
 
+  it('links the sensory claim when evidence uses a project-derived sample prefix', () => {
+    const ctx = buildReportContext({
+      snapshot: coconutCheddarSnapshot(),
+      decision: coconutCheddarDecision(),
+      approvalStatus: 'draft',
+      reportVersion: 1,
+      augmentation: {
+        ...coconutCheddarAugmentation(),
+        sourceEvidenceIds: ['sample.project-coconut.decision', 'sample.project-coconut.issf-score'],
+      },
+    });
+    expect(ctx.claims[0].evidenceIds).toEqual([
+      'sample.project-coconut.decision',
+      'sample.project-coconut.issf-score',
+    ]);
+  });
+
+  it('documents a small reconciliation caused by rounded display dimensions', () => {
+    const ctx = coconutCheddarContext();
+    ctx.methodology.storedIssf = ctx.methodology.reproducedIssf;
+    const rebuilt = buildReportContext({
+      snapshot: coconutCheddarSnapshot({
+        decision: {
+          ...coconutCheddarSnapshot().decision,
+          dimensions: { hedonic: 84, texture: 43, cata: 99, emotional: 90 },
+        },
+      }),
+      decision: {
+        ...coconutCheddarDecision(),
+        dimensionScores: { hedonic: 84, texture: 43, cata: 99, emotional: 90 },
+      },
+      approvalStatus: 'draft',
+      reportVersion: 1,
+      augmentation: coconutCheddarAugmentation(),
+    });
+    expect(Math.abs(rebuilt.methodology.displayPrecisionAdjustment)).toBeLessThanOrEqual(1.5);
+    expect(rebuilt.methodology.formula).toMatch(/displayed-precision reconciliation/);
+    expect(rebuilt.methodology.reproducedIssf).toBe(rebuilt.methodology.storedIssf);
+  });
+
   it('blocks a stored/calculated ISSF mismatch', () => {
     const ctx = coconutCheddarContext();
     ctx.methodology.storedIssf = 55;

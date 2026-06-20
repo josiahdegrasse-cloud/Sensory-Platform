@@ -101,7 +101,7 @@ export function validateVersion7GeneratedDefects(
     ));
   }
 
-  if (/\bconsumers?\b[^.]{0,100}\b(?:descriptor|cheesy|buttery|lactic|creamy|smooth)\b/i.test(text)
+  if (/\bconsumers?\s+(?:described|selected|called|said|found|preferred|rated)\b[^.]{0,100}\b(?:descriptor|cheesy|buttery|lactic|creamy|smooth)\b/i.test(text)
     && ctx.concept.responseCount === 0) {
     findings.push(blocking(
       'sensory-consumer-population-conflation',

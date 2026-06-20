@@ -141,6 +141,11 @@ describe('report-qc: Version 7 defect regressions', () => {
     );
 
     expectBlockingDetector(findings, 'sensory-consumer-population-conflation');
+    const bounded = validateVersion7GeneratedDefects(
+      coconutCheddarContext(),
+      sections('Run target-consumer concept validation before using sensory descriptors in external copy.'),
+    );
+    expect(bounded.some(finding => finding.code === 'sensory-consumer-population-conflation')).toBe(false);
   });
 
   it('detects a demo warning hidden from a rendered page as demo-warning-not-page-visible', () => {

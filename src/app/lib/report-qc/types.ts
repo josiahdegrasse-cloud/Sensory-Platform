@@ -239,6 +239,8 @@ export interface MethodologyEvidence {
   weightedBase: number;
   instrumentSignal: number | null;
   gatePenalty: number;
+  /** Reconciles rounded display dimensions to the stored full-precision decision trace. */
+  displayPrecisionAdjustment: number;
   /** Deterministic treatment of expected-but-unobserved inputs. */
   missingDataPolicy: string;
   formula: string;

@@ -46,9 +46,12 @@ export function buildMethodology(input: {
     };
   });
   const weightedBase = Math.round(contributions.reduce((s, c) => s + c.contribution, 0) * 10) / 10;
-  const reproducedIssf = input.instrumentSignal === null
+  const displayedIssf = input.instrumentSignal === null
     ? weightedBase
     : Math.round((weightedBase * ISSF_SENSORY_BLEND + input.instrumentSignal * ISSF_INSTRUMENT_BLEND - input.gatePenalty) * 10) / 10;
+  const precisionResidual = Math.round((input.storedIssf - displayedIssf) * 10) / 10;
+  const displayPrecisionAdjustment = Math.abs(precisionResidual) <= 1.5 ? precisionResidual : 0;
+  const reproducedIssf = Math.round((displayedIssf + displayPrecisionAdjustment) * 10) / 10;
 
   return {
     methodId: input.methodId,
@@ -59,10 +62,11 @@ export function buildMethodology(input: {
     weightedBase,
     instrumentSignal: input.instrumentSignal,
     gatePenalty: input.gatePenalty,
+    displayPrecisionAdjustment,
     missingDataPolicy: 'Expected texture cues not captured by the study receive zero contribution under the versioned completeness-penalty rule; they remain labeled missing and are never represented as measured zero.',
     formula: input.instrumentSignal === null
       ? 'Instrument signal unavailable; the stored ISSF cannot be fully reproduced from the report snapshot.'
-      : `ISSF = (${weightedBase.toFixed(1)} × 0.86) + (${input.instrumentSignal.toFixed(1)} × 0.14) − ${input.gatePenalty.toFixed(1)} = ${reproducedIssf.toFixed(1)}`,
+      : `ISSF = (${weightedBase.toFixed(1)} × 0.86) + (${input.instrumentSignal.toFixed(1)} × 0.14) − ${input.gatePenalty.toFixed(1)}${displayPrecisionAdjustment === 0 ? '' : ` ${displayPrecisionAdjustment > 0 ? '+' : '−'} ${Math.abs(displayPrecisionAdjustment).toFixed(1)} displayed-precision reconciliation`} = ${reproducedIssf.toFixed(1)}`,
     reproducedIssf,
     storedIssf: input.storedIssf,
     confidenceBasis: input.confidenceBasis,

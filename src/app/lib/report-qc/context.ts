@@ -327,13 +327,18 @@ function buildClaims(snapshot: CommercializationReportSnapshot, sourceEvidenceId
   const sample = snapshot.product.sampleId;
   const decisionId = `sample.${sample.toLowerCase()}.decision`;
   const issfId = `sample.${sample.toLowerCase()}.issf-score`;
-  const has = (id: string) => sourceEvidenceIds.includes(id);
+  const firstMatchingEvidence = (exactId: string, suffix: string) =>
+    sourceEvidenceIds.find(id => id === exactId)
+    ?? sourceEvidenceIds.find(id => id.endsWith(suffix));
   return [
     {
       id: 'claim.sensory-go',
       claim: `${snapshot.product.sampleName} achieved a sensory GO at ISSF ${snapshot.decision.issfScore.toFixed(1)}.`,
       claimType: 'sensory',
-      evidenceIds: [decisionId, issfId].filter(has),
+      evidenceIds: [
+        firstMatchingEvidence(decisionId, '.decision'),
+        firstMatchingEvidence(issfId, '.issf-score'),
+      ].filter((id): id is string => Boolean(id)),
       confidence: snapshot.decision.confidence / 100,
       permittedWording: ['sensory GO', 'meets the sensory screening threshold'],
       prohibitedWording: ['consumer-approved', 'market-ready', 'best-in-class'],
