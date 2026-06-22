@@ -202,10 +202,6 @@ export function SurveyAnalysis() {
   const averageHedonic = activeHedonic.length
     ? activeHedonic.reduce((sum, item) => sum + item.score, 0) / activeHedonic.length
     : 0;
-  const averageIntensity = activeIntensity.length
-    ? activeIntensity.reduce((sum, item) => sum + item.value, 0) / activeIntensity.length
-    : 0;
-  const emotionalBalance = activeEmotions.positive - activeEmotions.negative;
   const strongestHedonic = [...activeHedonic].sort((a, b) => b.score - a.score)[0];
   const weakestHedonic = [...activeHedonic].sort((a, b) => a.score - b.score)[0];
   const keyStrength = usingLiveData
@@ -387,12 +383,6 @@ export function SurveyAnalysis() {
               strength={strength}
               keyStrength={keyStrength}
               keyConcern={keyConcern}
-              likingMetrics={activeHedonic.map(item => ({ label: item.category, score: item.score }))}
-              descriptors={activeCata.map(item => ({ label: item.attribute, percentage: item.percentage }))}
-              emotionalBalance={emotionalBalance}
-              averageIntensity={averageIntensity}
-              intensityMax={usingLiveData ? 5 : 10}
-              comments={comments}
               overviewEvidence={overviewEvidence}
               likingContent={<HedonicTab activeHedonicData={activeHedonic} activeAvgHedonic={averageHedonic.toFixed(1)} activePanelistN={panelN} usingLiveData={usingLiveData} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}
               descriptorContent={<CATATab activeCataAttributes={activeCata} activePanelistN={panelN} usingLiveData={usingLiveData} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}

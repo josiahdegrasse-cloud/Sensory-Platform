@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, LabelList,
@@ -10,7 +10,7 @@ import { DataProvenanceBadge } from './data-provenance-badge';
 import { useAdminConceptTests, useConceptTestResponses } from '../lib/hooks';
 import type { ConceptTest, ConceptQuestion, ConceptResponse } from '../lib/database';
 import {
-  AlertTriangle, CheckCircle2, Layers, Megaphone, MessageSquare, ShoppingBag, Sparkles, Target, Trophy, Users,
+  AlertTriangle, CheckCircle2, ChevronDown, Layers, Megaphone, MessageSquare, Search, ShoppingBag, Sparkles, Target, Trophy, Users,
 } from 'lucide-react';
 import { InsightInterpretationBlock } from './insights-ui';
 import { TEMPORARY_CHEESE_DEMO_LABEL } from '../data/temporary-cheese-demo';
@@ -25,11 +25,32 @@ export function ConceptTestAnalysis({ projectTests, minimumResponses = 12 }: {
   const { data: allTests = [], isLoading } = useAdminConceptTests();
   const tests = projectTests ?? allTests;
   const [selectedTestId, setSelectedTestId] = useState('');
+  const [testQuery, setTestQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | ConceptTest['status']>('all');
+  const [testSort, setTestSort] = useState<'newest' | 'name' | 'status'>('newest');
   const activeTestId = tests.some(test => test.id === selectedTestId)
     ? selectedTestId
     : tests[0]?.id || '';
   const selectedTest = tests.find(t => t.id === activeTestId);
   const { data: responses = [], isLoading: responsesLoading } = useConceptTestResponses(activeTestId || undefined);
+  const visibleTests = useMemo(() => {
+    const query = testQuery.trim().toLowerCase();
+    return [...tests]
+      .filter(test => (
+        (statusFilter === 'all' || test.status === statusFilter)
+        && (
+          !query
+          || test.name.toLowerCase().includes(query)
+          || test.category.toLowerCase().includes(query)
+          || test.projectName?.toLowerCase().includes(query)
+        )
+      ))
+      .sort((a, b) => {
+        if (testSort === 'name') return a.name.localeCompare(b.name);
+        if (testSort === 'status') return a.status.localeCompare(b.status) || a.name.localeCompare(b.name);
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+  }, [statusFilter, testQuery, testSort, tests]);
 
   if (isLoading) {
     return <div className="text-center py-16 text-slate-500">Loading concept tests…</div>;
@@ -47,40 +68,75 @@ export function ConceptTestAnalysis({ projectTests, minimumResponses = 12 }: {
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader className="border-b border-slate-100">
-          <CardTitle className="text-lg">Choose a concept test</CardTitle>
-          <p className="text-sm text-slate-600">Select a launched concept to update every result below.</p>
-        </CardHeader>
-        <CardContent className="pt-4">
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {tests.map(test => {
+    <div className="grid gap-5 lg:grid-cols-[16rem_minmax(0,1fr)]">
+      <aside className="self-start overflow-hidden rounded-xl border border-slate-200 bg-white lg:sticky lg:top-24">
+        <div className="border-b border-slate-100 p-4">
+          <h3 className="text-sm font-bold text-slate-950">Concept tests</h3>
+          <p className="mt-1 text-xs text-slate-500">Filter the study list, then inspect one concept at a time.</p>
+          <div className="relative mt-3">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
+            <input
+              value={testQuery}
+              onChange={event => setTestQuery(event.target.value)}
+              placeholder="Search concepts"
+              aria-label="Search concept tests"
+              className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-xs text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            />
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <select
+              value={statusFilter}
+              onChange={event => setStatusFilter(event.target.value as typeof statusFilter)}
+              aria-label="Filter concept tests by status"
+              className="h-9 min-w-0 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            >
+              <option value="all">All statuses</option>
+              <option value="active">Active</option>
+              <option value="completed">Completed</option>
+              <option value="approved">Approved</option>
+              <option value="review">In review</option>
+              <option value="draft">Draft</option>
+              <option value="archived">Archived</option>
+            </select>
+            <select
+              value={testSort}
+              onChange={event => setTestSort(event.target.value as typeof testSort)}
+              aria-label="Sort concept tests"
+              className="h-9 min-w-0 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            >
+              <option value="newest">Newest</option>
+              <option value="name">Name</option>
+              <option value="status">Status</option>
+            </select>
+          </div>
+        </div>
+        <div className="max-h-[32rem] space-y-1 overflow-y-auto p-2">
+            {visibleTests.map(test => {
               const isSelected = test.id === activeTestId;
               return (
                 <button
                   key={test.id}
                   onClick={() => setSelectedTestId(test.id)}
-                  className={`p-3 rounded-lg border-2 text-left transition-all ${
-                    isSelected ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:border-slate-300 bg-white'
+                  aria-current={isSelected ? 'true' : undefined}
+                  className={`w-full rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                    isSelected ? 'border-blue-200 bg-blue-50' : 'border-transparent bg-white hover:border-slate-200 hover:bg-slate-50'
                   }`}
                 >
-                  <div className="font-bold text-slate-900 text-sm leading-tight truncate">{test.name}</div>
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <Badge variant="outline" className="text-[10px]">{test.category}</Badge>
-                    <Badge className={`text-[10px] text-white ${
-                      test.status === 'active' ? 'bg-emerald-500' : test.status === 'completed' ? 'bg-slate-500' : 'bg-amber-500'
-                    }`}>
-                      {test.status}
-                    </Badge>
+                  <div className={`truncate text-sm font-bold ${isSelected ? 'text-blue-950' : 'text-slate-900'}`}>{test.name}</div>
+                  <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                    <span className="truncate">{test.category}</span>
+                    <span className="shrink-0 capitalize">{test.status}</span>
                   </div>
                 </button>
               );
             })}
-          </div>
-        </CardContent>
-      </Card>
+            {visibleTests.length === 0 && (
+              <p className="px-3 py-8 text-center text-xs text-slate-500">No concept tests match these filters.</p>
+            )}
+        </div>
+      </aside>
 
+      <div className="min-w-0">
       {responsesLoading ? (
         <div className="text-center py-16 text-slate-500">Loading responses…</div>
       ) : !selectedTest || responses.length === 0 ? (
@@ -93,6 +149,7 @@ export function ConceptTestAnalysis({ projectTests, minimumResponses = 12 }: {
       ) : (
         <ConceptResultsPanel test={selectedTest} responses={responses} minimumResponses={minimumResponses} />
       )}
+      </div>
     </div>
   );
 }
@@ -127,7 +184,7 @@ function ConceptResultsPanel({ test, responses, minimumResponses }: {
   return (
     <div className="space-y-4">
       <Card className="overflow-hidden border border-slate-200">
-        <div className="border-b border-blue-100 bg-gradient-to-br from-blue-50 via-white to-emerald-50 p-5">
+        <div className="border-b border-slate-100 bg-slate-50 p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-3xl">
               <div className="flex flex-wrap items-center gap-2">
@@ -147,7 +204,7 @@ function ConceptResultsPanel({ test, responses, minimumResponses }: {
                 </div>
               )}
             </div>
-            <div className="rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm lg:min-w-[14rem]">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 lg:min-w-[14rem]">
               <DataProvenanceBadge provenance="live" n={responses.length} />
               <div className="mt-3 text-3xl font-bold text-slate-950">{responses.length}</div>
               <p className="text-sm text-slate-600">of {test.panelSize} invited panelists responded</p>
@@ -156,59 +213,64 @@ function ConceptResultsPanel({ test, responses, minimumResponses }: {
         </div>
 
         <CardContent className="space-y-5 pt-5">
-          <div className="grid gap-3 md:grid-cols-3">
-            <ConceptMetricCard
-              icon={Users}
+          <div className="grid overflow-hidden rounded-xl border border-slate-200 bg-white sm:grid-cols-3 sm:divide-x sm:divide-slate-200">
+            <ConceptMetric
               label="Evidence coverage"
               value={`${responses.length}/${minimumResponses}`}
-              detail={responses.length >= minimumResponses ? 'Meets decision minimum' : 'Needs more responses'}
-              tone={responses.length >= minimumResponses ? 'success' : 'warning'}
+              detail={responses.length >= minimumResponses ? 'Meets decision minimum' : `${Math.max(0, minimumResponses - responses.length)} more needed`}
+              icon={Users}
             />
-            <ConceptMetricCard
-              icon={Sparkles}
-              label="Appeal signal"
+            <ConceptMetric
+              label="Appeal"
               value={appealMetric ? `${appealMetric.average.toFixed(1)}/9` : '—'}
-              detail={appealMetric ? `${appealMetric.count} rated · ${shortQuestion(appealMetric.question)}` : 'No appeal scale found'}
-              tone={appealMetric && appealMetric.average >= 7 ? 'success' : 'neutral'}
+              detail={appealMetric ? `${appealMetric.count} ratings` : 'Question not found'}
+              icon={Sparkles}
             />
-            <ConceptMetricCard
-              icon={ShoppingBag}
+            <ConceptMetric
               label="Purchase intent"
               value={purchaseMetric ? `${purchaseMetric.average.toFixed(1)}/9` : '—'}
-              detail={purchaseMetric ? `${purchaseMetric.count} rated · directional` : 'No purchase question found'}
-              tone={purchaseMetric && purchaseMetric.average >= 7 ? 'success' : 'neutral'}
+              detail={purchaseMetric ? `${purchaseMetric.count} ratings, directional` : 'Question not found'}
+              icon={ShoppingBag}
             />
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-3">
-            <SignalCard
-              icon={Trophy}
-              eyebrow="Strongest signal"
-              title={strongestScale ? `${shortQuestion(strongestScale.question)}: ${strongestScale.average.toFixed(1)}/9` : topSelection ? topSelection.option : 'No signal yet'}
-              body={strongestScale
-                ? `${strongestScale.count} panelists answered this scale question.`
-                : topSelection
-                  ? `${topSelection.count} picks (${topSelection.percentage}%) make this the leading response.`
-                  : 'Responses have not established a clear concept strength yet.'}
-            />
-            <SignalCard
-              icon={Target}
-              eyebrow="Message to use"
-              title={topSelection ? topSelection.option : test.keyBenefits || 'Benefit language pending'}
-              body={topSelection
-                ? 'Use this as the first copy direction to explore, not a final product claim.'
-                : 'The concept needs choice or benefit responses before the strongest message is clear.'}
-            />
-            <SignalCard
-              icon={evidenceIsLimited ? AlertTriangle : CheckCircle2}
-              eyebrow={evidenceIsLimited ? 'Evidence gap' : 'Decision readiness'}
-              title={evidenceIsLimited ? `Collect ${Math.max(0, minimumResponses - responses.length)} more responses` : 'Enough responses for a first read'}
-              body={evidenceIsLimited
-                ? 'Treat concept preference and purchase intent as directional until the response minimum is met.'
-                : weakestScale
-                  ? `Watch the lowest scale: ${shortQuestion(weakestScale.question)} at ${weakestScale.average.toFixed(1)}/9.`
-                  : 'Use the question detail below to confirm the launch story.'}
-            />
+          <div className="rounded-xl border border-slate-200">
+            <div className="border-b border-slate-100 px-4 py-3">
+              <h4 className="text-sm font-bold text-slate-950">Food developer read</h4>
+              <p className="mt-0.5 text-xs text-slate-500">Translate concept feedback into what to keep, change, and validate next.</p>
+            </div>
+            <dl className="divide-y divide-slate-100 px-4">
+              <DeveloperReadRow
+                icon={Trophy}
+                label="Protect"
+                title={strongestScale ? `${shortQuestion(strongestScale.question)}: ${strongestScale.average.toFixed(1)}/9` : topSelection ? topSelection.option : 'No clear strength yet'}
+                body={strongestScale
+                  ? `${strongestScale.count} panelists rated this dimension.`
+                  : topSelection
+                    ? `${topSelection.count} selections (${topSelection.percentage}%) make this the current lead.`
+                    : 'More responses are needed before preserving a specific concept element.'}
+              />
+              <DeveloperReadRow
+                icon={Target}
+                label="Build the story around"
+                title={topSelection ? topSelection.option : test.keyBenefits || 'Benefit language pending'}
+                body={topSelection
+                  ? 'Use this as the first message direction to develop and validate, not as a finished claim.'
+                  : 'Choice and ranking responses have not established a leading message yet.'}
+              />
+              <DeveloperReadRow
+                icon={evidenceIsLimited ? AlertTriangle : CheckCircle2}
+                label={evidenceIsLimited ? 'Validate next' : 'Watch during development'}
+                title={evidenceIsLimited
+                  ? `Collect ${Math.max(0, minimumResponses - responses.length)} more responses`
+                  : weakestScale
+                    ? `${shortQuestion(weakestScale.question)}: ${weakestScale.average.toFixed(1)}/9`
+                    : 'Confirm the concept story in the question detail'}
+                body={evidenceIsLimited
+                  ? 'Keep preference and purchase conclusions directional until the response minimum is met.'
+                  : 'Use the detailed responses below to identify the weakest part of the proposition.'}
+              />
+            </dl>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -234,30 +296,35 @@ function ConceptResultsPanel({ test, responses, minimumResponses }: {
 
       <Card className="border border-slate-200">
         <CardHeader className="border-b border-slate-100">
-          <CardTitle className="text-base">Question breakdown</CardTitle>
+          <CardTitle className="text-base">Detailed evidence</CardTitle>
           <p className="text-sm text-slate-600">
-            Results are grouped by job so appeal, purchase intent, message preference, visual direction, and comments do not blur together.
+            Open only the evidence area you need. Each group keeps its response coverage attached.
           </p>
         </CardHeader>
-        <CardContent className="space-y-6 pt-5">
-          {groupedQuestions.map(group => (
-            <section key={group.id} className="space-y-3">
-              <div>
-                <h4 className="text-sm font-bold text-slate-950">{group.title}</h4>
-                <p className="text-xs text-slate-500">{group.description}</p>
-              </div>
-              <div className="grid gap-3">
+        <CardContent className="space-y-3 pt-5">
+          {groupedQuestions.map((group, index) => (
+            <details key={group.id} open={index === 0} className="group rounded-xl border border-slate-200 bg-white">
+              <summary className="flex cursor-pointer list-none items-start justify-between gap-3 rounded-xl px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span>
+                  <span className="block text-sm font-bold text-slate-950">{group.title}</span>
+                  <span className="mt-0.5 block text-xs leading-5 text-slate-500">
+                    {group.description} · {group.questions.length} question{group.questions.length === 1 ? '' : 's'}
+                  </span>
+                </span>
+                <ChevronDown className="mt-1 size-4 shrink-0 text-slate-500 transition-transform group-open:rotate-180" aria-hidden />
+              </summary>
+              <div className="grid gap-3 border-t border-slate-100 bg-slate-50 p-3">
                 {group.questions.map(question => (
-                  <QuestionResultCard
-                    key={question.id}
-                    question={question}
-                    responses={responses}
-                    images={validImages}
-                    evidenceIsLimited={evidenceIsLimited}
-                  />
-                ))}
+                    <QuestionResultCard
+                      key={question.id}
+                      question={question}
+                      responses={responses}
+                      images={validImages}
+                      evidenceIsLimited={evidenceIsLimited}
+                    />
+                  ))}
               </div>
-            </section>
+            </details>
           ))}
         </CardContent>
       </Card>
@@ -272,48 +339,46 @@ function ConceptResultsPanel({ test, responses, minimumResponses }: {
   );
 }
 
-function ConceptMetricCard({
-  icon: Icon, label, value, detail, tone = 'neutral',
+function ConceptMetric({
+  icon: Icon, label, value, detail,
 }: {
   icon: typeof Users;
   label: string;
   value: string;
   detail: string;
-  tone?: 'neutral' | 'success' | 'warning';
 }) {
-  const toneClass = tone === 'success'
-    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-    : tone === 'warning'
-      ? 'border-amber-200 bg-amber-50 text-amber-700'
-      : 'border-blue-100 bg-blue-50 text-blue-700';
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className={`mb-3 inline-flex rounded-lg border p-2 ${toneClass}`}>
+    <div className="flex items-start gap-3 border-b border-slate-200 p-4 last:border-b-0 sm:border-b-0">
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700 ring-1 ring-blue-100">
         <Icon className="size-4" aria-hidden />
       </div>
-      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 text-2xl font-bold text-slate-950">{value}</p>
-      <p className="mt-1 text-xs text-slate-500">{detail}</p>
+      <div>
+        <p className="text-xs font-semibold text-slate-600">{label}</p>
+        <p className="mt-0.5 text-xl font-bold tabular-nums text-slate-950">{value}</p>
+        <p className="mt-0.5 text-xs text-slate-500">{detail}</p>
+      </div>
     </div>
   );
 }
 
-function SignalCard({
-  icon: Icon, eyebrow, title, body,
+function DeveloperReadRow({
+  icon: Icon, label, title, body,
 }: {
   icon: typeof Trophy;
-  eyebrow: string;
+  label: string;
   title: string;
   body: string;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+    <div className="grid gap-2 py-4 sm:grid-cols-[10rem_minmax(0,1fr)]">
+      <dt className="flex items-center gap-2 text-xs font-bold text-slate-600">
         <Icon className="size-4 text-blue-600" aria-hidden />
-        {eyebrow}
-      </div>
-      <p className="mt-2 text-sm font-bold text-slate-950">{title}</p>
-      <p className="mt-1 text-sm leading-5 text-slate-600">{body}</p>
+        {label}
+      </dt>
+      <dd>
+        <p className="text-sm font-bold text-slate-950">{title}</p>
+        <p className="mt-1 text-sm leading-5 text-slate-600">{body}</p>
+      </dd>
     </div>
   );
 }
