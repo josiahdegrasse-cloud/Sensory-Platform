@@ -149,12 +149,16 @@ export function renderMethodEvidencePage(ctx: PdfContext, data: MethodEvidenceDa
     columnStyles: { 0: { cellWidth: 220, fontStyle: 'bold' }, 1: { cellWidth: 80 }, 2: { cellWidth: 80 }, 3: { cellWidth: contentWidth - 380 } },
   });
   y = ((doc as PdfDocument & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y) + 14;
+  const issfText = `${data.issfFormula}. ${data.gateLogic}`;
+  setText(doc, SLATE_700, 7.5);
+  const issfLines = doc.splitTextToSize(issfText, contentWidth - 28) as string[];
+  const issfBoxHeight = 35 + issfLines.length * 10 + 10;
   doc.setFillColor(...SLATE_50);
-  doc.roundedRect(margin, y, contentWidth, 72, 8, 8, 'F');
+  doc.roundedRect(margin, y, contentWidth, issfBoxHeight, 8, 8, 'F');
   setText(doc, accent, 7, 'bold');
   doc.text('ISSF REPRODUCTION AND CRITICAL-GATE LOGIC', margin + 14, y + 18);
-  paragraph(doc, `${data.issfFormula}. ${data.gateLogic}`, margin + 14, y + 35, contentWidth - 28, { color: SLATE_700, size: 7.5, lineHeight: 10 });
-  y += 84;
+  paragraph(doc, issfText, margin + 14, y + 35, contentWidth - 28, { color: SLATE_700, size: 7.5, lineHeight: 10 });
+  y += issfBoxHeight + 12;
   autoTable(doc, {
     startY: y,
     head: [['Model-confidence input', 'Score × weight', 'Contribution']],

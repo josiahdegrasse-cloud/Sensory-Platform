@@ -390,7 +390,7 @@ export function Stage4Enhanced() {
                   conceptSeed: {
                     name: confirmedDecisionForSelection.sampleName,
                     category: foodType !== 'all' ? formatFoodTypeLabel(foodType) : undefined,
-                    description: `A new product concept inspired by ${confirmedDecisionForSelection.sampleName}, which received a confirmed GO decision for commercialization.`,
+                    description: `A new product concept inspired by ${confirmedDecisionForSelection.sampleName}, which received a confirmed GO sensory screening outcome supporting continued development. Commercialization is not yet approved.`,
                     sourceDecision: {
                       id: confirmedDecisionForSelection.sampleId,
                       sampleName: confirmedDecisionForSelection.sampleName,

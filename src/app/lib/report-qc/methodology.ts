@@ -66,12 +66,12 @@ export function buildMethodology(input: {
     missingDataPolicy: 'Expected texture cues not captured by the study receive zero contribution under the versioned completeness-penalty rule; they remain labeled missing and are never represented as measured zero.',
     formula: input.instrumentSignal === null
       ? 'Instrument signal unavailable; the stored ISSF cannot be fully reproduced from the report snapshot.'
-      : `ISSF = (${weightedBase.toFixed(1)} × 0.86) + (${input.instrumentSignal.toFixed(1)} × 0.14) − ${input.gatePenalty.toFixed(1)}${displayPrecisionAdjustment === 0 ? '' : ` ${displayPrecisionAdjustment > 0 ? '+' : '−'} ${Math.abs(displayPrecisionAdjustment).toFixed(1)} displayed-precision reconciliation`} = ${reproducedIssf.toFixed(1)}`,
+      : `ISSF = (${weightedBase.toFixed(1)} × 0.86) + (${input.instrumentSignal.toFixed(1)} × 0.14) - ${input.gatePenalty.toFixed(1)}${displayPrecisionAdjustment === 0 ? '' : ` ${displayPrecisionAdjustment > 0 ? '+' : '-'} ${Math.abs(displayPrecisionAdjustment).toFixed(1)} displayed-precision reconciliation`} = ${reproducedIssf.toFixed(1)}`,
     reproducedIssf,
     storedIssf: input.storedIssf,
     confidenceBasis: input.confidenceBasis,
     confidenceCalculation: input.confidenceCalculation,
-    conditionalReason: `${input.weakestDimensionLabel} (${input.weakestScore}/100) is below the ${input.thresholds.readiness}/100 readiness line. A sub-readiness critical dimension caps the outcome at conditional advancement: the sensory screening supports continued development, but not unrestricted GO or launch.`,
+    conditionalReason: `${input.weakestDimensionLabel} (${Math.round(input.weakestScore)}/100) is below the ${input.thresholds.readiness}/100 readiness line. A sub-readiness critical dimension caps the outcome at conditional advancement: the sensory screening supports continued development, but not unrestricted GO or launch.`,
   };
 }
 
@@ -128,8 +128,8 @@ export function buildTextureBreakdown(intensity: Record<string, number>, foodTyp
   const reproduced = Math.max(0, Math.min(100, (posAvg / 10) * 105 - (negAvg / 10) * 45));
 
   const explanation = missing.length
-    ? `Texture ${score}/100 (threshold ${threshold}) = (${posAvg.toFixed(2)}/10 × 105) − (${negAvg.toFixed(2)}/10 × 45) = ${reproduced.toFixed(1)}. Creamy and smooth are high; unobserved ${missing.join(' and ')} receive zero contribution under the documented completeness-penalty rule across expected cues (${positiveKeys.join(', ')}). They remain missing values, not measured zeros. The low composite reflects incomplete structure evidence, not poor creaminess.`
-    : `Texture ${score}/100 (threshold ${threshold}) = (${posAvg.toFixed(2)}/10 × 105) − (${negAvg.toFixed(2)}/10 × 45) = ${reproduced.toFixed(1)}, using positive cues (${positiveKeys.join(', ')}) net of negative cues.`;
+    ? `Texture ${score}/100 (threshold ${threshold}) = (${posAvg.toFixed(2)}/10 × 105) - (${negAvg.toFixed(2)}/10 × 45) = ${reproduced.toFixed(1)}. Creamy and smooth are high; unobserved ${missing.join(' and ')} receive zero contribution under the documented completeness-penalty rule across expected cues (${positiveKeys.join(', ')}). They remain missing values, not measured zeros. The low composite reflects incomplete structure evidence, not poor creaminess.`
+    : `Texture ${score}/100 (threshold ${threshold}) = (${posAvg.toFixed(2)}/10 × 105) - (${negAvg.toFixed(2)}/10 × 45) = ${reproduced.toFixed(1)}, using positive cues (${positiveKeys.join(', ')}) net of negative cues.`;
 
   return { rawMetrics: [...positiveMetrics, ...negativeMetrics], explanation };
 }

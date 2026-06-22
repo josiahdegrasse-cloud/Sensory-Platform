@@ -121,8 +121,14 @@ export function renderDecisionSnapshotPage(
   doc.text('01', width - margin, 260, { align: 'right' });
   const imageX = width - margin - 190;
   const leftWidth = imageX - margin - 22;
-  setDisplayText(doc, SLATE_950, 22, 'bold');
-  const reportTitleLines = doc.splitTextToSize(data.reportTitle, leftWidth) as string[];
+  let titleSize = 22;
+  setDisplayText(doc, SLATE_950, titleSize, 'bold');
+  let reportTitleLines = doc.splitTextToSize(data.reportTitle, leftWidth) as string[];
+  while (reportTitleLines.length > 2 && titleSize > 14) {
+    titleSize -= 1;
+    setDisplayText(doc, SLATE_950, titleSize, 'bold');
+    reportTitleLines = doc.splitTextToSize(data.reportTitle, leftWidth) as string[];
+  }
   doc.text(reportTitleLines.slice(0, 2), margin, 250, { lineHeightFactor: 1.05 });
 
   if (images.packaging) {
