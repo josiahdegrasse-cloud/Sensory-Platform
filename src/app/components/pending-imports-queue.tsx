@@ -407,21 +407,7 @@ export function PendingImportsQueue() {
       </CardHeader>
 
       <CardContent className="pt-0 space-y-3">
-        {isEmpty ? (
-          <div
-            onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-            className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed py-8 transition-colors ${
-              isDragging ? 'border-blue-400 bg-blue-50' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-            }`}
-          >
-            <Upload className={`size-8 mb-2 ${isDragging ? 'text-blue-500' : 'text-slate-300'}`} />
-            <p className="text-sm font-medium text-slate-700">Drop an instrument export here</p>
-            <p className="mt-0.5 text-xs text-slate-500">CSV up to 5 MB · auto-parsed and queued for review</p>
-          </div>
-        ) : (
+        {!isEmpty && (
           <div
             onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
