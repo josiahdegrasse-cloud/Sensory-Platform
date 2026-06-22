@@ -481,10 +481,10 @@ export function CommercializationReportBuilder({
                       title={evidenceBundle ? 'Draft the narrative from the evidence bundle with AI' : 'No evidence bundle available for this sample'}
                     >
                       <Sparkles className="size-4" />
-                      {generateNarrative.isPending ? 'Drafting…' : 'Draft with AI (beta)'}
+                      {generateNarrative.isPending ? 'Drafting…' : 'Quick AI draft (optional)'}
                     </Button>
                     <span className="text-xs text-slate-500">
-                      AI writes each section using only the cited evidence. Review before saving.
+                      Optional fast first pass. After you save, use “Write report (full multi-agent)” on the report page to rewrite it to a professional standard.
                     </span>
                     {aiEval && (
                       <span className={`text-xs font-semibold ${aiEval.passed ? 'text-emerald-700' : 'text-amber-700'}`}>

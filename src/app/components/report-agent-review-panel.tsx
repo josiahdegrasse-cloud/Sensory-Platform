@@ -156,10 +156,10 @@ export function ReportAgentReviewPanel({
         <div className="max-w-2xl">
           <div className="flex items-center gap-2">
             <Bot className="size-5 text-slate-700" aria-hidden />
-            <h2 className="font-semibold text-slate-950">AI report review</h2>
+            <h2 className="font-semibold text-slate-950">Multi-agent report writer</h2>
           </div>
           <p className="mt-1 text-sm text-slate-600">
-            Use the standard review while drafting. Run the full release review only before sending a report outside your team.
+            Write the report to a professional standard with the full multi-agent pipeline. Use the quicker standard review while editing, or the full release review before sending a report outside your team.
           </p>
           <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
             <CircleDollarSign className="size-3.5" aria-hidden />
@@ -168,13 +168,13 @@ export function ReportAgentReviewPanel({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => runReview('standard')} disabled={Boolean(runningMode) || createReport.isPending}>
+          <Button onClick={() => runReview('full')} disabled={Boolean(runningMode) || createReport.isPending}>
+            <ShieldAlert className="size-4" aria-hidden />
+            {runningMode === 'full' ? 'Writing report…' : 'Write report (full multi-agent)'}
+          </Button>
+          <Button variant="outline" onClick={() => runReview('standard')} disabled={Boolean(runningMode) || createReport.isPending}>
             <Bot className="size-4" aria-hidden />
             {runningMode === 'standard' ? 'Running standard review…' : 'Run standard review'}
-          </Button>
-          <Button variant="outline" onClick={() => runReview('full')} disabled={Boolean(runningMode) || createReport.isPending}>
-            <ShieldAlert className="size-4" aria-hidden />
-            {runningMode === 'full' ? 'Running release review…' : 'Run full release review'}
           </Button>
         </div>
       </div>
