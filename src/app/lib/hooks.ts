@@ -4,7 +4,8 @@ import {
   fetchPanelists, fetchPanelistReliability,
   fetchAllResponses, fetchUserResponses,
   fetchConceptTestsForPanelist, fetchUserConceptResponses,
-  fetchConceptTestsForAdmin, fetchConceptResponsesForTest,
+  fetchConceptTestsForAdmin, fetchConceptTestsForStudyDashboard, fetchConceptResponsesForTest,
+  fetchConceptResponseCounts,
   fetchCommercializationReports, createCommercializationReport, updateCommercializationReportStatus,
   fetchEvidenceBundles, saveEvidenceBundle, generateReportNarrative, type ReportNarrativeRequest,
   fetchConceptTest, fetchConceptGenerationSettings, updateConceptGenerationSettings,
@@ -45,6 +46,8 @@ export const queryKeys = {
   conceptResponses: (userId: string) => ['conceptResponses', userId] as const,
   conceptTest: (id: string) => ['conceptTest', id] as const,
   adminConceptTests: ['adminConceptTests'] as const,
+  studyConceptTests: ['studyConceptTests'] as const,
+  conceptResponseCounts: ['conceptResponseCounts'] as const,
   conceptTestResponses: (id: string) => ['conceptTestResponses', id] as const,
   commercializationReports: ['commercializationReports'] as const,
   evidenceBundles: (projectId?: string) => ['evidenceBundles', projectId ?? 'all'] as const,
@@ -125,6 +128,14 @@ export function useConceptTest(conceptId: string | undefined) {
 
 export function useAdminConceptTests() {
   return useQuery({ queryKey: queryKeys.adminConceptTests, queryFn: fetchConceptTestsForAdmin })
+}
+
+export function useStudyConceptTests() {
+  return useQuery({ queryKey: queryKeys.studyConceptTests, queryFn: fetchConceptTestsForStudyDashboard })
+}
+
+export function useConceptResponseCounts() {
+  return useQuery({ queryKey: queryKeys.conceptResponseCounts, queryFn: fetchConceptResponseCounts })
 }
 
 export function useConceptTestResponses(conceptId: string | undefined) {

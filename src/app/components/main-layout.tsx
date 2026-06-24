@@ -407,7 +407,7 @@ export function MainLayout() {
 
   const getAdminNavItems = () => [
     { path: "/stage1",         label: "Instruments",        icon: FlaskConical },
-    { path: "/admin",           label: "Configure",          icon: ClipboardList },
+    { path: "/admin",           label: "Studies",            icon: ClipboardList },
     { path: "/survey-analysis", label: "Insights",          icon: BarChart3 },
     { path: "/decision",        label: "Final Decision",    icon: GitMerge },
     { path: "/concept-testing", label: "Concept Testing",   icon: Lightbulb },

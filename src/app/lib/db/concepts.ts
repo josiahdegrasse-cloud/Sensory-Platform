@@ -301,6 +301,15 @@ export async function fetchConceptTestsForAdmin(): Promise<ConceptTest[]> {
   return Promise.all((data ?? []).map(row => hydrateConceptTestImages(toConceptTest(row), true)));
 }
 
+export async function fetchConceptTestsForStudyDashboard(): Promise<ConceptTest[]> {
+  const { data, error } = await supabase
+    .from('concept_tests')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw dbError(error);
+  return Promise.all((data ?? []).map(row => hydrateConceptTestImages(toConceptTest(row), true)));
+}
+
 export async function insertConceptResponse(
   userId: string,
   conceptTestId: string,
@@ -341,6 +350,18 @@ export async function fetchConceptResponsesForTest(conceptTestId: string): Promi
     answers: (row.answers as Record<string, string | number | string[]>) ?? {},
     createdAt: row.created_at as string,
   }));
+}
+
+export async function fetchConceptResponseCounts(): Promise<Record<string, number>> {
+  const { data, error } = await supabase
+    .from('concept_responses')
+    .select('concept_test_id');
+  if (error) throw dbError(error);
+  return (data ?? []).reduce<Record<string, number>>((counts, row) => {
+    const id = row.concept_test_id as string;
+    counts[id] = (counts[id] ?? 0) + 1;
+    return counts;
+  }, {});
 }
 
 function toCommercializationReport(row: Record<string, unknown>): CommercializationReportRecord {

@@ -66,11 +66,19 @@ export interface CommercializationReportSnapshot {
     claimCaution: string;
   };
   agentReview?: {
-    mode: 'standard' | 'full';
-    runAt: string;
+    mode: 'standard' | 'full' | 'quick_draft' | 'full_release_review';
+    runAt?: string;
+    runTimestamp?: string;
     reportContextHash: string;
+    status?: 'passed' | 'partial' | 'blocked';
     exportStatus: string;
     qualityScore: number | null;
+    agentsRun?: string[];
+    criticalBlockers?: string[];
+    warnings?: string[];
+    polishSuggestions?: string[];
+    evidenceAudit?: Record<string, unknown>;
+    modelUsage?: unknown;
     estimatedCostUsd: number;
     usage: Array<{
       role: string;

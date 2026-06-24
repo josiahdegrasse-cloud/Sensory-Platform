@@ -172,7 +172,7 @@ export function SurveyAnalysis() {
           headline={`No analyzable samples for ${activeLabel}`}
           body="This project does not have panel or reference evidence available to interpret yet."
           cta={{ label: 'Open project overview', to: '/project' }}
-          secondaryCta={{ label: 'Configure questionnaires', to: '/admin' }}
+          secondaryCta={{ label: 'Open Studies', to: '/admin' }}
         />
       </div>
     );

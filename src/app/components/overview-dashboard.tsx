@@ -1,7 +1,7 @@
 import { Card, CardContent } from "./ui/card";
 import { Link } from "react-router";
 import {
-  FlaskConical, BarChart3, GitMerge, Settings,
+  FlaskConical, BarChart3, GitMerge, ClipboardList,
   Lightbulb, ChevronRight, FolderKanban, Plus, ArrowRight, FileText,
 } from "lucide-react";
 import { useFoodType } from "../contexts/food-type-context";
@@ -30,9 +30,9 @@ const MODULES: Module[] = [
   },
   {
     path: "/admin",
-    label: "Configure",
-    description: "Create products, customize attributes, and manage your panel",
-    icon: Settings,
+    label: "Studies",
+    description: "Create, launch, preview, and monitor sensory and concept studies",
+    icon: ClipboardList,
   },
   {
     path: "/survey-analysis",

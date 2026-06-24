@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import { Link } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -13,24 +14,41 @@ import {
   useInsertProduct, useUpdateProduct, useDeleteProduct,
   useUpdatePanelistId, useAllResponses, useImportBatches,
   useUpdateImportBatchStatus, useDeleteImportBatch,
+  useStudyConceptTests, useConceptResponseCounts,
 } from '../lib/hooks';
 import {
-  Plus, Settings, Trash2, Save, CheckCircle2, FolderOpen, Layers,
+  Plus, Settings, Trash2, Save, CheckCircle2, Layers,
   ClipboardList, Users, AlertCircle, Search, Activity, FlaskConical, Archive, RotateCcw,
-  Upload, Database,
+  Upload, Database, Eye, ArrowRight, Lightbulb, PlayCircle,
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { PanelistPerformancePanel } from './panelist-performance';
 import { formatFoodTypeLabel } from '../lib/food-intelligence';
 import { notifyPanelistsOfSurveys } from '../lib/database';
-import {
-  filterAssignablePanelists,
-  getAssignmentSummary,
-  getProductAssignmentMode,
-} from '../lib/assignments';
+import { filterAssignablePanelists } from '../lib/assignments';
 import { SurveyConfigurationSheet } from './survey-configuration-sheet';
+import { buildStudySummaries, type StudyLifecycleStatus, type StudyType } from '../lib/studies';
 
 type AdminTab = 'products' | 'panelists' | 'imports';
+type StudyStatusFilter = 'all' | StudyLifecycleStatus;
+type StudyTypeFilter = 'all' | StudyType;
+
+const studyStatusStyles: Record<StudyLifecycleStatus, string> = {
+  draft: 'bg-slate-100 text-slate-700 border-slate-200',
+  active: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  closed: 'bg-blue-100 text-blue-700 border-blue-200',
+  archived: 'bg-amber-100 text-amber-700 border-amber-200',
+};
+
+function getStudyTypeMeta(type: StudyType): { label: string; className: string; icon: React.ElementType } {
+  if (type === 'multi_sample') {
+    return { label: 'Multi-Sample Sensory', className: 'bg-purple-50 text-purple-700 border-purple-200', icon: Layers };
+  }
+  if (type === 'concept_test') {
+    return { label: 'Concept Test', className: 'bg-orange-50 text-orange-700 border-orange-200', icon: Lightbulb };
+  }
+  return { label: 'Product Sensory', className: 'bg-blue-50 text-blue-700 border-blue-200', icon: ClipboardList };
+}
 
 export function AdminConfig() {
   const [activeTab, setActiveTab] = useState<AdminTab>('products');
@@ -38,6 +56,8 @@ export function AdminConfig() {
   const { data: panelists = [] } = usePanelists();
   const { data: allResponses = [] } = useAllResponses();
   const { data: importBatches = [] } = useImportBatches(activeTab === 'products' || activeTab === 'imports');
+  const { data: conceptStudies = [] } = useStudyConceptTests();
+  const { data: conceptResponseCounts = {} } = useConceptResponseCounts();
 
   const insertProductMutation = useInsertProduct();
   const updateProductMutation = useUpdateProduct();
@@ -61,7 +81,8 @@ export function AdminConfig() {
   const selectedBatchId = subCategory?.startsWith('batch:') ? subCategory.replace('batch:', '') : null;
 
   // List filters
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'completed' | 'archived'>('all');
+  const [filterStatus, setFilterStatus] = useState<StudyStatusFilter>('all');
+  const [filterType, setFilterType] = useState<StudyTypeFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Create modal
@@ -92,16 +113,6 @@ export function AdminConfig() {
 
   // ── Computed stats ────────────────────────────────────────────────────────────
 
-  const sessionsByProduct = allResponses.reduce<Record<string, number>>((acc, r) => {
-    acc[r.productId] = (acc[r.productId] ?? 0) + 1;
-    return acc;
-  }, {});
-
-  const lastActivityByProduct = allResponses.reduce<Record<string, string>>((acc, r) => {
-    if (!acc[r.productId] || r.timestamp > acc[r.productId]) acc[r.productId] = r.timestamp;
-    return acc;
-  }, {});
-
   // Category-aware attribute sets for the sidebar editor and create modal
   const selectedProductCategory = products.find(p => p.id === selectedProduct)?.category ?? '';
   const selectedProductRecord = products.find(p => p.id === selectedProduct) ?? null;
@@ -109,50 +120,52 @@ export function AdminConfig() {
   const modalStdAttrs = getDefaultCataAttributes(newProductCategory);
   const activePanelists = filterAssignablePanelists(panelists);
 
-  const foodTypeProducts = products.filter(p => matchFoodType(p.category) === foodType);
-  const scopedProducts = foodTypeProducts.filter(p => !selectedBatchId || p.sourceImportBatchId === selectedBatchId);
-  const scopedActiveCount = scopedProducts.filter(p => p.status === 'active').length;
-  const scopedCompletedCount = scopedProducts.filter(p => p.status === 'completed').length;
-  const scopedArchivedCount = scopedProducts.filter(p => p.status === 'archived').length;
-  const scopedSessions = scopedProducts.reduce((sum, product) => sum + (sessionsByProduct[product.id] ?? 0), 0);
-  const filteredProducts = products
-    .filter(p => filterStatus === 'archived' ? p.status === 'archived' : (filterStatus === 'all' ? p.status !== 'archived' : p.status === filterStatus))
-    .filter(p =>
+  const allStudySummaries = useMemo(() => buildStudySummaries({
+    products,
+    concepts: conceptStudies,
+    responses: allResponses,
+    conceptResponseCounts,
+    importBatches,
+  }), [allResponses, conceptResponseCounts, conceptStudies, importBatches, products]);
+  const scopedConceptStudyIds = useMemo(() => new Set(
+    conceptStudies
+      .filter(concept => {
+        if (concept.foodTypeSlug && concept.foodTypeSlug !== foodType) return false;
+        if (subCategory && !subCategory.startsWith('batch:') && concept.category !== subCategory) return false;
+        return true;
+      })
+      .map(concept => concept.id)
+  ), [conceptStudies, foodType, subCategory]);
+  const scopedStudySummaries = allStudySummaries.filter(study => {
+    if (study.type === 'concept_test') return scopedConceptStudyIds.has(study.id);
+    const product = products.find(p => p.id === study.id);
+    if (!product || matchFoodType(product.category) !== foodType) return false;
+    if (selectedBatchId) return product.sourceImportBatchId === selectedBatchId;
+    if (subCategory && product.category !== subCategory) return false;
+    return true;
+  });
+  const filteredStudies = scopedStudySummaries
+    .filter(study => filterStatus === 'all' ? study.status !== 'archived' : study.status === filterStatus)
+    .filter(study => filterType === 'all' || study.type === filterType)
+    .filter(study =>
       !searchQuery.trim() ||
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.category.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-    .filter(p => {
-      if (matchFoodType(p.category) !== foodType) return false;
-      if (selectedBatchId) return p.sourceImportBatchId === selectedBatchId;
-      if (subCategory && p.category !== subCategory) return false;
-      return true;
-    });
-  const importBatchById = new Map(importBatches.map(batch => [batch.id, batch]));
-  const productProjectGroups = filteredProducts.reduce<Array<{ key: string; label: string; products: Product[]; source: 'import' | 'manual' }>>((groups, product) => {
-    const key = product.sourceImportBatchId ?? 'manual';
-    const existing = groups.find(group => group.key === key);
-    const batch = product.sourceImportBatchId ? importBatchById.get(product.sourceImportBatchId) : null;
-    const label = batch
-      ? `${batch.fileName.replace(/\.csv$/i, '')}`
-      : `${currentFoodTypeLabel} manual surveys`;
-    if (existing) existing.products.push(product);
-    else groups.push({ key, label, products: [product], source: batch ? 'import' : 'manual' });
-    return groups;
-  }, []);
-
-  const getSurveyWorkflowStatus = (product: Product) => {
-    if (product.status === 'archived') {
-      return { label: 'Archived', className: 'bg-amber-100 text-amber-700 border-amber-200' };
-    }
-    if (product.status === 'completed') {
-      return { label: 'Complete', className: 'bg-slate-100 text-slate-700 border-slate-200' };
-    }
-    if (getProductAssignmentMode(product) === 'selected') {
-      return { label: 'Assigned', className: 'bg-blue-100 text-blue-700 border-blue-200' };
-    }
-    return { label: 'Open to all', className: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
-  };
+      study.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      study.linkedLabel.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      study.sourceImportBatchName?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  const studyCounts = scopedStudySummaries.reduce<Record<StudyStatusFilter, number>>((counts, study) => {
+    counts[study.status] += 1;
+    if (study.status !== 'archived') counts.all += 1;
+    return counts;
+  }, { all: 0, draft: 0, active: 0, closed: 0, archived: 0 });
+  const activeStudyCount = scopedStudySummaries.filter(study => study.status === 'active').length;
+  const closedStudyCount = scopedStudySummaries.filter(study => study.status === 'closed').length;
+  const blockerCount = scopedStudySummaries.reduce(
+    (sum, study) => sum + study.blockers.filter(blocker => blocker.severity === 'blocker').length,
+    0
+  );
+  const totalStudyResponses = scopedStudySummaries.reduce((sum, study) => sum + study.responseCount, 0);
+  const productById = new Map(products.map(product => [product.id, product]));
   const recoverableImportCount = importBatches.filter(batch => batch.status !== 'active').length;
 
   // ── Sample handlers ───────────────────────────────────────────────────────────
@@ -170,13 +183,13 @@ export function AdminConfig() {
 
   // ── Modal helpers ─────────────────────────────────────────────────────────────
 
-  const openCreateModal = () => {
+  const openCreateModal = (initialType: 'single' | 'multi' | 'calibration' = 'single') => {
     setShowCreateModal(true);
     setCreateStep('form');
     setPendingProduct(null);
     setNewProductName('');
     setNewProductCategory(currentFoodTypeLabel);
-    setProductType('single');
+    setProductType(initialType);
     setSamples([{ id: '1', code: '', label: '' }]);
     setCustomAttributes(getDefaultCataAttributes(currentFoodTypeLabel));
     setReferenceScores({ overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 });
@@ -400,7 +413,7 @@ export function AdminConfig() {
   // ── Render ────────────────────────────────────────────────────────────────────
 
   const tabs: { id: AdminTab; label: string; icon: React.ElementType }[] = [
-    { id: 'products',  label: 'Surveys',  icon: ClipboardList },
+    { id: 'products',  label: 'Studies',  icon: ClipboardList },
     { id: 'panelists', label: 'Panelists', icon: Users },
     { id: 'imports',   label: 'Imports',   icon: Upload },
   ];
@@ -408,8 +421,8 @@ export function AdminConfig() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Configure {currentFoodTypeLabel} Surveys</h1>
-        <p className="text-sm text-slate-500 mt-1">Build, assign, archive, and tune panel questionnaires by food type.</p>
+        <h1 className="text-2xl font-semibold text-slate-900">Studies</h1>
+        <p className="text-sm text-slate-500 mt-1">Run product sensory, multi-sample, and concept studies from one operating view.</p>
       </div>
 
       {/* Tab bar */}
@@ -447,45 +460,62 @@ export function AdminConfig() {
         </Alert>
       )}
 
-      {/* ── Products tab ── */}
+      {/* ── Studies tab ── */}
       {activeTab === 'products' && <>
 
-      {/* Stats strip */}
+      <div className="grid gap-3 md:grid-cols-3">
+        <button
+          type="button"
+          onClick={() => openCreateModal('single')}
+          className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 text-left transition hover:border-blue-400 hover:bg-blue-50"
+        >
+          <div className="flex items-center gap-2 font-semibold text-blue-900"><ClipboardList className="size-4" />Product Sensory Study</div>
+          <p className="mt-1 text-xs text-blue-800/80">Single-sample sensory questionnaire with structured hedonic, CATA, intensity, and emotion data.</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => openCreateModal('multi')}
+          className="rounded-xl border border-purple-200 bg-purple-50/70 p-4 text-left transition hover:border-purple-400 hover:bg-purple-50"
+        >
+          <div className="flex items-center gap-2 font-semibold text-purple-900"><Layers className="size-4" />Multi-Sample Sensory Study</div>
+          <p className="mt-1 text-xs text-purple-800/80">Compare coded samples with ranking, discrimination, and sensory profiles.</p>
+        </button>
+        <Link
+          to="/concept-testing"
+          className="rounded-xl border border-orange-200 bg-orange-50/70 p-4 text-left transition hover:border-orange-400 hover:bg-orange-50"
+        >
+          <div className="flex items-center gap-2 font-semibold text-orange-900"><Lightbulb className="size-4" />Concept Test</div>
+          <p className="mt-1 text-xs text-orange-800/80">Evaluate positioning, purchase intent, imagery, pricing, and market fit.</p>
+        </Link>
+      </div>
+
       <div className="flex items-center gap-5 px-5 py-3 bg-white border border-slate-200 rounded-xl shadow-sm flex-wrap">
         <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${scopedActiveCount > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
-          <span className="text-sm font-bold text-slate-900">{scopedActiveCount}</span>
-          <span className="text-sm text-slate-500">active {currentFoodTypeLabel.toLowerCase()} survey{scopedActiveCount !== 1 ? 's' : ''}</span>
+          <div className={`w-2 h-2 rounded-full ${activeStudyCount > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+          <span className="text-sm font-bold text-slate-900">{activeStudyCount}</span>
+          <span className="text-sm text-slate-500">active studies</span>
         </div>
         <div className="w-px h-4 bg-slate-200" />
         <div className="flex items-center gap-2">
           <Users className="size-3.5 text-slate-400" />
           <span className="text-sm font-bold text-slate-900">{activePanelists.length}</span>
-          <span className="text-sm text-slate-500">active panelist{activePanelists.length !== 1 ? 's' : ''}</span>
+          <span className="text-sm text-slate-500">active panelists</span>
         </div>
         <div className="w-px h-4 bg-slate-200" />
         <div className="flex items-center gap-2">
           <Activity className="size-3.5 text-slate-400" />
-          <span className="text-sm font-bold text-slate-900">{scopedSessions}</span>
-          <span className="text-sm text-slate-500">total session{scopedSessions !== 1 ? 's' : ''}</span>
+          <span className="text-sm font-bold text-slate-900">{totalStudyResponses}</span>
+          <span className="text-sm text-slate-500">total responses</span>
         </div>
         <div className="w-px h-4 bg-slate-200" />
-        <span className="text-sm text-slate-500">{scopedCompletedCount} completed</span>
+        <span className="text-sm text-slate-500">{closedStudyCount} closed · {blockerCount} launch blocker{blockerCount !== 1 ? 's' : ''}</span>
       </div>
 
-      {/* Products + Attribute Config — full-height split pane */}
-      <div
-        className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden"
-        style={{
-          height: 'calc(100vh - 265px)',
-          minHeight: '600px',
-        }}
-      >
-        {/* Toolbar */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50/60">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex-wrap">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs bg-white">
-              {(['all', 'active', 'completed', 'archived'] as const).map(s => (
+              {(['all', 'draft', 'active', 'closed', 'archived'] as const).map(s => (
                 <button
                   key={s}
                   onClick={() => setFilterStatus(s)}
@@ -493,157 +523,165 @@ export function AdminConfig() {
                     filterStatus === s ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
                   }`}
                 >
-                  {s === 'all' ? `All (${scopedProducts.filter(p => p.status !== 'archived').length})`
-                    : s === 'active' ? `Active (${scopedActiveCount})`
-                    : s === 'completed' ? `Done (${scopedCompletedCount})`
-                    : `Archived (${scopedArchivedCount})`}
+                  {s === 'all' ? `All (${studyCounts.all})` : `${s} (${studyCounts[s]})`}
+                </button>
+              ))}
+            </div>
+            <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs bg-white">
+              {([
+                ['all', 'All types'],
+                ['product_sensory', 'Product'],
+                ['multi_sample', 'Multi'],
+                ['concept_test', 'Concept'],
+              ] as const).map(([type, label]) => (
+                <button
+                  key={type}
+                  onClick={() => setFilterType(type)}
+                  className={`px-3 py-1.5 font-semibold transition-colors border-r border-slate-200 last:border-r-0 ${
+                    filterType === type ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {label}
                 </button>
               ))}
             </div>
             <div className="relative">
               <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <Input
-                placeholder="Search products…"
+                placeholder="Search studies…"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="pl-8 h-8 text-sm w-48"
+                className="pl-8 h-8 text-sm w-56"
               />
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700 h-8 text-sm">
-              <Plus className="size-3.5 mr-1.5" />New Survey
-            </Button>
-          </div>
+          <Button onClick={() => openCreateModal('single')} className="bg-blue-600 hover:bg-blue-700 h-8 text-sm">
+            <Plus className="size-3.5 mr-1.5" />New Study
+          </Button>
         </div>
 
-        <div className="h-[calc(100%-53px)] overflow-y-auto">
-          {/* Survey / sample list */}
-          <div className="p-4 space-y-5">
-              {filteredProducts.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 text-slate-400">
-                  <ClipboardList className="size-10 mb-2 opacity-40" />
-                  <p className="text-sm">
-                    {foodTypeProducts.length === 0 ? `No ${currentFoodTypeLabel.toLowerCase()} surveys yet` : 'No surveys match filter'}
-                  </p>
-                </div>
-              ) : productProjectGroups.map((group, groupIndex) => {
-                const assignedCount = group.products.filter(product => getProductAssignmentMode(product) === 'selected').length;
-                const openCount = group.products.filter(product => product.status === 'active' && getProductAssignmentMode(product) === 'open').length;
-                const completedProjectCount = group.products.filter(product => product.status === 'completed').length;
-                const archivedProjectCount = group.products.filter(product => product.status === 'archived').length;
+        <div className="p-4">
+          {filteredStudies.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 py-12 text-center">
+              <ClipboardList className="size-10 mb-3 text-slate-300" />
+              <p className="text-sm font-semibold text-slate-700">
+                {scopedStudySummaries.length === 0 ? `No ${currentFoodTypeLabel.toLowerCase()} studies yet` : 'No studies match the current filters'}
+              </p>
+              <p className="mt-1 max-w-md text-xs text-slate-500">
+                Start with a product sensory study, a multi-sample comparison, or a concept test. Each template stays structured for scoring and reporting.
+              </p>
+              <div className="mt-4 flex gap-2">
+                <Button size="sm" onClick={() => openCreateModal('single')}><Plus className="size-3.5 mr-1" />Product sensory</Button>
+                <Button size="sm" variant="outline" onClick={() => openCreateModal('multi')}><Layers className="size-3.5 mr-1" />Multi-sample</Button>
+                <Button size="sm" variant="outline" asChild><Link to="/concept-testing"><Lightbulb className="size-3.5 mr-1" />Concept test</Link></Button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+              {filteredStudies.map(study => {
+                const meta = getStudyTypeMeta(study.type);
+                const Icon = meta.icon;
+                const product = productById.get(study.id);
+                const isProductStudy = study.type !== 'concept_test' && product;
+                const blockerPreview = study.blockers.slice(0, 3);
                 return (
-                <div key={group.key} className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-                  <div className="flex items-center justify-between gap-4 border-b border-slate-200 pb-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${group.source === 'import' ? 'bg-blue-600' : 'bg-slate-700'}`}>
-                        <FolderOpen className="size-5 text-white" />
-                      </div>
+                  <div key={`${study.type}-${study.id}`} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-200 hover:shadow-md">
+                    <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
-                          {group.source === 'import' ? `Imported project ${groupIndex + 1}` : 'Manual surveys'}
+                        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                          <Badge variant="outline" className={`text-[10px] ${meta.className}`}><Icon className="mr-1 size-3" />{meta.label}</Badge>
+                          <Badge variant="outline" className={`text-[10px] capitalize ${studyStatusStyles[study.status]}`}>{study.status}</Badge>
+                          {product?.blinded && <Badge className="bg-slate-800 text-[10px]">Blinded</Badge>}
                         </div>
-                        <h2 className="truncate text-base font-semibold text-slate-900">{group.label}</h2>
-                        <div className="mt-1 flex flex-wrap gap-1.5 text-[11px]">
-                          <span className="rounded-full bg-white px-2 py-0.5 font-semibold text-slate-600 ring-1 ring-slate-200">{group.products.length} sample{group.products.length === 1 ? '' : 's'}</span>
-                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700 ring-1 ring-emerald-200">{openCount} open to all</span>
-                          <span className="rounded-full bg-blue-50 px-2 py-0.5 font-semibold text-blue-700 ring-1 ring-blue-200">{assignedCount} assigned</span>
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-600 ring-1 ring-slate-200">{completedProjectCount} complete</span>
-                          {archivedProjectCount > 0 && (
-                            <span className="rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-700 ring-1 ring-amber-200">{archivedProjectCount} archived</span>
-                          )}
+                        <h2 className="truncate text-base font-bold text-slate-900">{study.name}</h2>
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                          <span>{study.linkedLabel}</span>
+                          <span>{study.assignmentLabel}</span>
+                          <span>{study.responseCount} response{study.responseCount !== 1 ? 's' : ''}</span>
+                          {study.sourceImportBatchName && <span className="truncate">Source: {study.sourceImportBatchName.replace(/\.csv$/i, '')}</span>}
+                        </div>
+                      </div>
+                      {isProductStudy && (
+                        <button onClick={() => setSelectedProduct(study.id)} className="shrink-0 rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+                          Configure
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
+                      <div className="flex items-start gap-2">
+                        <PlayCircle className="mt-0.5 size-4 shrink-0 text-blue-600" />
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">{study.nextAction.label}</p>
+                          <p className="text-xs text-slate-500">{study.nextAction.description}</p>
                         </div>
                       </div>
                     </div>
-                    <Badge variant="outline" className="shrink-0 text-xs">
-                      {openCount > 0 ? 'Open access included' : 'Selected assignments'}
-                    </Badge>
+
+                    {blockerPreview.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {blockerPreview.map(blocker => (
+                          <span key={blocker.id} className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                            blocker.severity === 'blocker'
+                              ? 'bg-rose-50 text-rose-700 ring-1 ring-rose-200'
+                              : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
+                          }`}>
+                            {blocker.label}
+                          </span>
+                        ))}
+                        {study.blockers.length > blockerPreview.length && (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">+{study.blockers.length - blockerPreview.length} more</span>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <Button size="sm" variant="outline" asChild className="h-8 text-xs">
+                        <Link to={study.previewPath}><Eye className="mr-1 size-3.5" />Preview as Panelist</Link>
+                      </Button>
+                      {isProductStudy ? (
+                        <>
+                          {product.status === 'archived' ? (
+                            <>
+                              <Button size="sm" variant="outline" onClick={() => handleUnarchiveProduct(product.id)} className="h-8 text-xs border-emerald-300 text-emerald-700">
+                                <RotateCcw className="mr-1 size-3.5" />Restore
+                              </Button>
+                              {confirmDeleteId === product.id ? (
+                                <>
+                                  <Button size="sm" onClick={() => handleDeleteProduct(product.id)} className="h-8 text-xs bg-rose-600 hover:bg-rose-700">Confirm delete</Button>
+                                  <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteId(null)} className="h-8 text-xs">Cancel</Button>
+                                </>
+                              ) : (
+                                <Button size="sm" variant="outline" onClick={() => setConfirmDeleteId(product.id)} className="h-8 text-xs border-rose-300 text-rose-600 hover:bg-rose-50">
+                                  <Trash2 className="mr-1 size-3.5" />Delete
+                                </Button>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <Button size="sm" variant="outline" onClick={() => handleToggleProductStatus(product.id)} className="h-8 text-xs">
+                                {product.status === 'active' ? 'Close study' : 'Reopen study'}
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => handleArchiveProduct(product.id)} className="h-8 text-xs border-amber-300 text-amber-700 hover:bg-amber-50">
+                                <Archive className="mr-1 size-3.5" />Archive
+                              </Button>
+                              <Button size="sm" onClick={() => setSelectedProduct(product.id)} className="h-8 text-xs bg-blue-600 hover:bg-blue-700">
+                                <Settings className="mr-1 size-3.5" />Configure
+                              </Button>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <Button size="sm" asChild className="h-8 bg-orange-600 text-xs hover:bg-orange-700">
+                          <Link to="/concept-testing">Open concept setup<ArrowRight className="ml-1 size-3.5" /></Link>
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {group.products.map(product => {
-                      const sessions = sessionsByProduct[product.id] ?? 0;
-                      const lastActive = lastActivityByProduct[product.id];
-                      const attrs = product.customAttributes ?? DEFAULT_CATA_ATTRIBUTES;
-                      const previewAttrs = attrs.slice(0, 4);
-                      const extraCount = attrs.length - 4;
-                      const workflowStatus = getSurveyWorkflowStatus(product);
-                      return (
-                        <div
-                          key={product.id}
-                          className={`rounded-lg border-2 transition-all relative overflow-hidden ${
-                            selectedProduct === product.id
-                              ? 'border-blue-600 bg-blue-50'
-                              : 'border-slate-200 hover:border-blue-300 bg-white'
-                          }`}
-                        >
-                          <div className={`absolute left-0 top-0 bottom-0 w-1 ${product.status === 'active' ? 'bg-emerald-500' : product.status === 'archived' ? 'bg-amber-400' : 'bg-slate-300'}`} />
-                          <div className="p-4 pl-5">
-                            <div className="flex items-start justify-between gap-2 mb-1.5">
-                              <button onClick={() => setSelectedProduct(product.id)} className="text-left flex-1 min-w-0">
-                                <div className="font-bold text-slate-900 truncate flex items-center gap-2 flex-wrap">
-                                  {product.name}
-                                  {product.sourceSampleId && <Badge variant="outline" className="text-[10px] px-1.5 py-0">{product.sourceSampleId}</Badge>}
-                                  {product.blinded && <Badge className="bg-slate-800 text-[10px] px-1.5 py-0">Blinded</Badge>}
-                                </div>
-                                <div className="text-xs text-slate-500 mt-0.5">{product.category}</div>
-                                <div className="text-[11px] text-slate-400 mt-0.5">
-                                  {getAssignmentSummary('product', product, panelists).label}
-                                </div>
-                              </button>
-                              <Badge variant="outline" className={`text-[10px] px-1.5 py-0.5 flex-shrink-0 ${workflowStatus.className}`}>
-                                {workflowStatus.label}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center gap-3 mb-2 text-xs text-slate-500">
-                              <span className="flex items-center gap-1"><Activity className="size-3 text-slate-400" />{sessions} session{sessions !== 1 ? 's' : ''}</span>
-                              <span>·</span>
-                              {lastActive ? <span>Last: {new Date(lastActive).toLocaleDateString()}</span> : <span className="italic">No activity yet</span>}
-                            </div>
-                            <div className="flex flex-wrap gap-1 mb-3">
-                              {previewAttrs.map(attr => (
-                                <span key={attr} className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded-full">{attr}</span>
-                              ))}
-                              {extraCount > 0 && <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded-full">+{extraCount} more</span>}
-                            </div>
-                            {product.status === 'archived' ? (
-                              <div className="flex items-center gap-1.5">
-                                <Button size="sm" variant="outline" onClick={() => handleUnarchiveProduct(product.id)} className="h-7 text-xs flex-1 border-emerald-600 text-emerald-700">
-                                  <RotateCcw className="size-3 mr-1" />Restore
-                                </Button>
-                                {confirmDeleteId === product.id ? (
-                                  <div className="flex gap-1">
-                                    <Button size="sm" onClick={() => handleDeleteProduct(product.id)} className="h-7 text-xs bg-rose-600 hover:bg-rose-700 px-2">Confirm</Button>
-                                    <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteId(null)} className="h-7 text-xs px-2">Cancel</Button>
-                                  </div>
-                                ) : (
-                                  <Button size="sm" variant="outline" onClick={() => setConfirmDeleteId(product.id)} className="h-7 text-xs border-rose-300 text-rose-600 hover:bg-rose-50">
-                                    <Trash2 className="size-3 mr-1" />Delete
-                                  </Button>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-1.5">
-                                <Button size="sm" variant="outline" onClick={() => handleToggleProductStatus(product.id)} className={`h-7 text-xs flex-1 ${product.status !== 'active' ? 'border-emerald-600 text-emerald-700' : ''}`}>
-                                  {product.status === 'active' ? 'Mark Complete' : 'Reopen'}
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => handleArchiveProduct(product.id)} className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 px-2" title="Archive product">
-                                  <Archive className="size-3" />
-                                </Button>
-                                <Button size="sm" onClick={() => setSelectedProduct(product.id)} className="h-7 text-xs flex-shrink-0 bg-blue-600 hover:bg-blue-700">
-                                  <Settings className="size-3 mr-1" />Configure
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
                 );
               })}
             </div>
-
+          )}
         </div>
       </div>
 
@@ -849,7 +887,7 @@ export function AdminConfig() {
           <DialogHeader>
             <div className="flex items-center justify-between pr-6">
               <DialogTitle className="flex items-center gap-2">
-                {createStep === 'form' && <><Plus className="size-5 text-blue-600" />New Product</>}
+                {createStep === 'form' && <><Plus className="size-5 text-blue-600" />New Study</>}
                 {createStep === 'review' && <><CheckCircle2 className="size-5 text-purple-600" />Step 1: Review Details</>}
                 {createStep === 'configure' && <><Settings className="size-5 text-purple-600" />Step 2: Configure Questionnaire</>}
               </DialogTitle>
@@ -865,7 +903,7 @@ export function AdminConfig() {
             {createStep === 'form' && (
               <>
                 <div className="space-y-3">
-                  <Label className="text-base font-bold text-slate-900">Product Type</Label>
+                  <Label className="text-base font-bold text-slate-900">Study Type</Label>
                   <div className="grid grid-cols-3 gap-3">
                     {([
                       { type: 'single' as const, icon: ClipboardList, label: 'Single Sample', desc: 'Full evaluation: CATA, intensity, hedonic, and emotional response', color: 'blue' },
@@ -925,7 +963,7 @@ export function AdminConfig() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="productName">Product Name</Label>
+                    <Label htmlFor="productName">Study Name</Label>
                     <Input id="productName" placeholder={productType === 'single' ? 'e.g., Coconut Cheddar v3.0' : 'e.g., Coconut Cheddar Comparison'} value={newProductName} onChange={e => setNewProductName(e.target.value)} />
                   </div>
                   <div className="space-y-2">
@@ -998,7 +1036,7 @@ export function AdminConfig() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                      <div className="text-sm text-slate-600 mb-1">Product Name</div>
+                      <div className="text-sm text-slate-600 mb-1">Study Name</div>
                       <div className="font-bold text-slate-900 text-lg flex items-center gap-2 flex-wrap">
                         {pendingProduct.name}
                         {pendingProduct.isMultiSample && <Badge className="bg-purple-600"><Layers className="size-3 mr-1" />Multi-Sample</Badge>}
@@ -1025,7 +1063,7 @@ export function AdminConfig() {
                   <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
                     <div className="text-sm font-semibold text-slate-700 mb-3">What happens next</div>
                     <ul className="text-sm text-slate-600 space-y-2">
-                      <li className="flex items-start gap-2"><CheckCircle2 className="size-4 text-emerald-600 flex-shrink-0 mt-0.5" />Product created and set to "Open for Evaluation"</li>
+                      <li className="flex items-start gap-2"><CheckCircle2 className="size-4 text-emerald-600 flex-shrink-0 mt-0.5" />Study created through the existing product questionnaire flow and set active</li>
                       <li className="flex items-start gap-2"><CheckCircle2 className="size-4 text-emerald-600 flex-shrink-0 mt-0.5" />Configure which attributes panelists will evaluate</li>
                       <li className="flex items-start gap-2"><CheckCircle2 className="size-4 text-emerald-600 flex-shrink-0 mt-0.5" />{pendingProduct.isMultiSample ? 'Panelists evaluate each sample and rank them' : 'Panelists see this product in their questionnaire'}</li>
                     </ul>
@@ -1101,7 +1139,7 @@ export function AdminConfig() {
                 <div className="flex gap-3 pt-4 border-t">
                   <Button variant="outline" onClick={closeCreateModal} className="flex-1">Cancel</Button>
                   <Button onClick={finalizeProductCreation} className="flex-1 bg-emerald-600 hover:bg-emerald-700">
-                    <Save className="size-5 mr-2" />Create Product & Save Configuration
+                    <Save className="size-5 mr-2" />Create Study & Save Configuration
                   </Button>
                 </div>
               </>

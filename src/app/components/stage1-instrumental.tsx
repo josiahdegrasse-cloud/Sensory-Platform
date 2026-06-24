@@ -854,7 +854,7 @@ export function Stage1Instrumental() {
             {/* Name and confirm */}
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
               <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Name this food project</p>
-              <p className="text-xs text-slate-500">This becomes the project folder in Configure, with one questionnaire created per sample.</p>
+              <p className="text-xs text-slate-500">This becomes a project group in Studies, with one questionnaire created per sample.</p>
               <input
                 type="text"
                 value={batchName}

@@ -336,11 +336,15 @@ export function CommercializationReportPage() {
       {savedReport && savedReport.status !== 'archived' && (
         <ReportApprovalBar
           report={savedReport}
-          blockedReason={usingTemporaryDemo
-            ? 'This report includes temporary synthetic cheese evidence. Replace it with collected client data before approval.'
-            : sensoryProvenance === 'reference'
-              ? 'This report still uses reference/demo sensory data. Collect live panel responses before approving it as a client deliverable.'
-              : undefined}
+          blockedReason={snapshot?.agentReview?.criticalBlockers?.[0]
+            ? `Agent/QC blocker: ${snapshot.agentReview.criticalBlockers[0]}`
+            : snapshot?.agentReview?.status === 'blocked'
+              ? 'The orchestrated report workflow marked this draft as blocked. Generate a safer draft or resolve the QC blockers before approval.'
+              : usingTemporaryDemo
+                ? 'This report includes temporary synthetic cheese evidence. Replace it with collected client data before approval.'
+                : sensoryProvenance === 'reference'
+                  ? 'This report still uses reference/demo sensory data. Collect live panel responses before approving it as a client deliverable.'
+                  : undefined}
         />
       )}
 

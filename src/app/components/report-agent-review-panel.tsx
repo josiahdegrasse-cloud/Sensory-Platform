@@ -1,32 +1,19 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Bot, CheckCircle2, CircleDollarSign, ShieldAlert } from 'lucide-react';
 import type { CommercializationReportRecord } from '../lib/database';
 import type { CommercializationReportSnapshot } from '../lib/commercialization-report';
 import {
   createMeteredReportAgentRunner,
   estimateReportAgentCost,
-  orchestrateReportAgents,
-  applyAgentDraftToSnapshot,
-  buildPageText,
   hashReportContext,
-  renderAgentReviewedReport,
-  type ReportOrchestrationArtifacts,
-  type ReportReviewMode,
+  runCommercializationReportOrchestrator,
+  REPORT_AGENT_WORKFLOW_STEPS,
+  type ReportAgentMode,
+  type ReportOrchestratorResult,
 } from '../lib/report-agents';
-import { buildGeneratedReportSections, type CommercializationReportPdfInput } from '../utils/commercialization-report-export';
+import type { CommercializationReportPdfInput } from '../utils/commercialization-report-export';
 import { useCreateCommercializationReport } from '../lib/hooks';
 import { Button } from './ui/button';
-
-function isReusableReview(value: unknown): value is ReportOrchestrationArtifacts {
-  if (!value || typeof value !== 'object') return false;
-  const artifacts = value as Partial<ReportOrchestrationArtifacts>;
-  return Boolean(
-    artifacts.finalDraft
-    && artifacts.state
-    && artifacts.state.completedAgents.length > 0
-    && artifacts.state.qualityScore !== null,
-  );
-}
 
 export function ReportAgentReviewPanel({
   report,
@@ -36,119 +23,110 @@ export function ReportAgentReviewPanel({
   input: CommercializationReportPdfInput & { reportContext: NonNullable<CommercializationReportPdfInput['reportContext']> };
 }) {
   const createReport = useCreateCommercializationReport();
-  const [runningMode, setRunningMode] = useState<ReportReviewMode | null>(null);
+  const [runningMode, setRunningMode] = useState<ReportAgentMode | null>(null);
   const [error, setError] = useState('');
-  const [result, setResult] = useState<ReportOrchestrationArtifacts | null>(null);
+  const [result, setResult] = useState<ReportOrchestratorResult | null>(null);
   const [cost, setCost] = useState<number | null>(null);
   const [savedVersion, setSavedVersion] = useState<number | null>(null);
-  const [cacheHit, setCacheHit] = useState(false);
-  const [lastReview, setLastReview] = useState<{
-    mode: ReportReviewMode;
-    hash: string;
-    artifacts: ReportOrchestrationArtifacts;
-    cost: number;
-    version: number;
-  } | null>(null);
+  const [contextChanged, setContextChanged] = useState(false);
 
-  const runReview = async (mode: ReportReviewMode) => {
+  useEffect(() => {
+    let active = true;
+    const previousHash = input.snapshot.agentReview?.reportContextHash;
+    if (!previousHash) {
+      setContextChanged(false);
+      return;
+    }
+    hashReportContext(input.reportContext)
+      .then(currentHash => {
+        if (active) setContextChanged(previousHash !== currentHash);
+      })
+      .catch(() => {
+        if (active) setContextChanged(false);
+      });
+    return () => { active = false; };
+  }, [input.reportContext, input.snapshot.agentReview?.reportContextHash]);
+
+  const runReview = async (mode: ReportAgentMode) => {
     setRunningMode(mode);
     setError('');
     setResult(null);
     setCost(null);
     setSavedVersion(null);
-    setCacheHit(false);
     const metered = createMeteredReportAgentRunner();
     try {
       const currentHash = await hashReportContext(input.reportContext);
-      const persistedCache = input.snapshot.agentReview;
-      const persistedCoversMode = persistedCache?.mode === mode
-        || (persistedCache?.mode === 'full' && mode === 'standard');
-      const localCoversMode = lastReview?.mode === mode
-        || (lastReview?.mode === 'full' && mode === 'standard');
-      if (lastReview
-        && localCoversMode
-        && lastReview.hash === currentHash
-        && isReusableReview(lastReview.artifacts)) {
-        setResult(lastReview.artifacts);
-        setCost(0);
-        setCacheHit(true);
-        setSavedVersion(lastReview.version);
-        return;
-      }
-      if (persistedCache
-        && persistedCoversMode
-        && persistedCache.reportContextHash === currentHash
-        && isReusableReview(persistedCache.artifacts)) {
-        setResult(persistedCache.artifacts);
-        setCost(0);
-        setCacheHit(true);
-        setSavedVersion(report.version);
-        return;
-      }
-      const generatedSections = buildGeneratedReportSections(input);
-      const artifacts = await orchestrateReportAgents({
+      const previousHash = input.snapshot.agentReview?.reportContextHash ?? null;
+      const changed = Boolean(previousHash && previousHash !== currentHash);
+      setContextChanged(changed);
+
+      const orchestrated = await runCommercializationReportOrchestrator({
         mode,
-        context: input.reportContext,
-        generatedSections,
-        pageText: buildPageText(generatedSections),
+        reportInput: input,
         runner: metered.runner,
-        render: async ({ draft }) => renderAgentReviewedReport({
-          baseInput: input,
-          draft,
-        }),
+        previousContextHash: previousHash,
       });
       const estimatedCostUsd = estimateReportAgentCost(metered.usage);
-      setResult(artifacts);
+      const enriched: ReportOrchestratorResult = {
+        ...orchestrated,
+        metadata: {
+          ...orchestrated.metadata,
+          estimatedCost: estimatedCostUsd,
+          modelUsage: metered.usage,
+          contextChanged: changed,
+        },
+      };
+      setResult(enriched);
       setCost(estimatedCostUsd);
 
-      if (artifacts.finalDraft) {
-        const revisedSnapshot: CommercializationReportSnapshot = {
-          ...applyAgentDraftToSnapshot(input.snapshot, artifacts.finalDraft),
-          agentReview: {
-            mode,
-            runAt: new Date().toISOString(),
-            reportContextHash: artifacts.state.reportContextHash,
-            exportStatus: artifacts.state.exportStatus,
-            qualityScore: artifacts.state.qualityScore,
-            estimatedCostUsd,
-            usage: metered.usage.map(item => ({
-              role: item.role,
-              model: item.model,
-              inputTokens: item.inputTokens,
-              outputTokens: item.outputTokens,
-            })),
-            artifacts: artifacts as unknown as Record<string, unknown>,
-          },
-        };
-        const saved = await createReport.mutateAsync({
-          decisionRecordId: report.decisionRecordId,
-          conceptTestId: report.conceptTestId,
-          packagingImageId: report.packagingImageId,
-          title: report.title,
-          reportSnapshot: revisedSnapshot as unknown as Record<string, unknown>,
-          evidenceBundleId: report.evidenceBundleId,
-        });
-        setSavedVersion(saved.version);
-        setLastReview({
+      const revisedSnapshot: CommercializationReportSnapshot = {
+        ...enriched.snapshot,
+        agentReview: {
           mode,
-          hash: artifacts.state.reportContextHash,
-          artifacts,
-          cost: estimatedCostUsd,
-          version: saved.version,
-        });
-      }
+          runTimestamp: enriched.generatedAt,
+          reportContextHash: enriched.reportContextHash,
+          status: enriched.status,
+          exportStatus: enriched.status,
+          qualityScore: enriched.qc.qualityScore,
+          agentsRun: enriched.metadata.agentsRun,
+          criticalBlockers: enriched.qc.criticalBlockers,
+          warnings: enriched.qc.warnings,
+          polishSuggestions: enriched.qc.polishSuggestions,
+          evidenceAudit: enriched.evidenceAudit as unknown as Record<string, unknown>,
+          modelUsage: metered.usage,
+          estimatedCostUsd,
+          usage: metered.usage.map(item => ({
+            role: item.role,
+            model: item.model,
+            inputTokens: item.inputTokens,
+            outputTokens: item.outputTokens,
+          })),
+          artifacts: enriched as unknown as Record<string, unknown>,
+        },
+      };
+      const saved = await createReport.mutateAsync({
+        decisionRecordId: report.decisionRecordId,
+        conceptTestId: report.conceptTestId,
+        packagingImageId: report.packagingImageId,
+        title: report.title,
+        reportSnapshot: revisedSnapshot as unknown as Record<string, unknown>,
+        evidenceBundleId: report.evidenceBundleId,
+      });
+      setSavedVersion(saved.version);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'The full agent review could not be completed.');
+      setError(reason instanceof Error ? reason.message : 'The orchestrated report workflow could not be completed.');
     } finally {
       setRunningMode(null);
     }
   };
 
-  const releaseTone = result?.state.exportStatus === 'client_ready'
+  const releaseTone = result?.status === 'passed'
     ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-    : result?.state.exportStatus === 'blocked'
+    : result?.status === 'blocked'
       ? 'border-rose-200 bg-rose-50 text-rose-900'
       : 'border-amber-200 bg-amber-50 text-amber-900';
+
+  const completedAgents = new Set(result?.metadata.agentsRun ?? []);
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5">
@@ -156,34 +134,56 @@ export function ReportAgentReviewPanel({
         <div className="max-w-2xl">
           <div className="flex items-center gap-2">
             <Bot className="size-5 text-slate-700" aria-hidden />
-            <h2 className="font-semibold text-slate-950">Multi-agent report writer</h2>
+            <h2 className="font-semibold text-slate-950">Report Orchestrator</h2>
           </div>
           <p className="mt-1 text-sm text-slate-600">
-            Write the report to a professional standard with the full multi-agent pipeline. Use the quicker standard review while editing, or the full release review before sending a report outside your team.
+            A central orchestrator coordinates specialist agents, then deterministic QC decides what is safe to save, approve, and export.
           </p>
           <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
             <CircleDollarSign className="size-3.5" aria-hidden />
-            Standard: approximately $0.08-$0.30. Full release: approximately $0.40-$1.25.
-            An unchanged report reuses its last review at no additional API cost.
+            Quick Draft: approximately $0.08-$0.30. Full Agent Draft: approximately $0.40-$1.25.
+            Deterministic evidence remains the source of truth.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => runReview('full')} disabled={Boolean(runningMode) || createReport.isPending}>
+          <Button onClick={() => runReview('full_release_review')} disabled={Boolean(runningMode) || createReport.isPending}>
             <ShieldAlert className="size-4" aria-hidden />
-            {runningMode === 'full' ? 'Writing report…' : 'Write report (full multi-agent)'}
+            {runningMode === 'full_release_review' ? 'Running full workflow…' : 'Full Agent Draft'}
           </Button>
-          <Button variant="outline" onClick={() => runReview('standard')} disabled={Boolean(runningMode) || createReport.isPending}>
+          <Button variant="outline" onClick={() => runReview('quick_draft')} disabled={Boolean(runningMode) || createReport.isPending}>
             <Bot className="size-4" aria-hidden />
-            {runningMode === 'standard' ? 'Running standard review…' : 'Run standard review'}
+            {runningMode === 'quick_draft' ? 'Drafting…' : 'Quick Draft'}
           </Button>
         </div>
       </div>
 
+      {contextChanged && (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          New project evidence or metadata is available since this report version was created. Generate a new draft version to include updated evidence.
+        </div>
+      )}
+
+      {(runningMode || result) && (
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          {REPORT_AGENT_WORKFLOW_STEPS.map(([key, label]) => {
+            const done = key === 'deterministic_qc'
+              ? Boolean(result)
+              : completedAgents.has(key as never);
+            return (
+              <div key={key} className={`rounded-lg border px-3 py-2 text-xs ${done ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : runningMode ? 'border-blue-200 bg-blue-50 text-blue-800' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
+                <div className="font-semibold">{label}</div>
+                <div>{done ? 'Complete' : runningMode ? 'Queued / running' : 'Waiting'}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {runningMode && (
         <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-          {runningMode === 'standard'
-            ? 'Four focused passes are running through OpenAI. This usually takes under a minute; keep this page open.'
-            : 'The complete independent release review is running through OpenAI. This usually takes one to three minutes; keep this page open.'}
+          {runningMode === 'quick_draft'
+            ? 'The orchestrator is running a lower-cost internal draft workflow. Keep this page open.'
+            : 'The orchestrator is running the full release-review workflow with specialist agents, claims review, critic review, and deterministic QC. Keep this page open.'}
         </div>
       )}
       {error && (
@@ -198,35 +198,37 @@ export function ReportAgentReviewPanel({
             <div className="flex items-center gap-2">
               <CheckCircle2 className="size-4" aria-hidden />
               <span className="text-sm font-semibold">
-                Review complete: {result.state.exportStatus.replace(/_/g, ' ')}
+                Orchestrator result: {result.status.replace(/_/g, ' ')}
               </span>
             </div>
             <span className="text-xs font-semibold">
-              Quality {result.state.qualityScore ?? 'N/A'}/100
+              Quality {result.qc.qualityScore}/100
               {cost !== null ? ` · API cost $${cost.toFixed(2)}` : ''}
             </span>
           </div>
           <p className="mt-1 text-xs">
-            {result.state.completedAgents.length} specialist passes completed
-            {savedVersion ? ` · saved as draft version ${savedVersion}` : ' · no revised version was saved'}
-            {cacheHit ? ' · reused cached review' : ''}
-            {result.state.defects.filter(defect => defect.status === 'open').length
-              ? ` · ${result.state.defects.filter(defect => defect.status === 'open').length} open defects`
-              : ''}
+            {result.metadata.agentsRun.length} specialist stages coordinated
+            {savedVersion ? ` · generated draft applied and saved as version ${savedVersion}` : ' · no revised version was saved'}
+            {result.metadata.retries ? ` · ${result.metadata.retries} repair/retry pass${result.metadata.retries === 1 ? '' : 'es'}` : ''}
           </p>
-          {result.state.deterministicBlockers.length > 0 && (
-            <ul className="mt-2 space-y-1 text-xs">
-              {result.state.deterministicBlockers.slice(0, 5).map(blocker => (
+          <div className="mt-3 grid gap-3 md:grid-cols-4">
+            <div><strong>{result.evidenceAudit.supportedClaims.length}</strong><span className="ml-1 text-xs">supported claims</span></div>
+            <div><strong>{result.evidenceAudit.directionalClaims.length}</strong><span className="ml-1 text-xs">directional claims</span></div>
+            <div><strong>{result.evidenceAudit.unsupportedClaims.length}</strong><span className="ml-1 text-xs">unsupported claims</span></div>
+            <div><strong>{result.evidenceAudit.missingEvidence.length}</strong><span className="ml-1 text-xs">missing evidence notes</span></div>
+          </div>
+          {result.qc.criticalBlockers.length > 0 && (
+            <ul className="mt-3 space-y-1 text-xs">
+              {result.qc.criticalBlockers.slice(0, 5).map(blocker => (
                 <li key={blocker}>• {blocker}</li>
               ))}
             </ul>
           )}
-          {result.state.deterministicBlockers.length === 0
-            && result.state.defects.some(defect => defect.status === 'open') && (
-              <p className="mt-2 text-xs">
-                Open readiness gaps remain in the saved draft. They do not prevent internal review, but must be resolved before external release.
-              </p>
-            )}
+          {result.qc.criticalBlockers.length === 0 && result.qc.warnings.length > 0 && (
+            <p className="mt-2 text-xs">
+              Warnings remain. The draft is saved for internal review, but approval/export still depends on deterministic QC and approval gates.
+            </p>
+          )}
         </div>
       )}
     </section>
