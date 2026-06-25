@@ -1,94 +1,133 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { formatDistanceToNow } from 'date-fns';
-import { ArrowLeft, Activity, FolderKanban } from 'lucide-react';
+import {
+  Activity,
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  Circle,
+  ClipboardCheck,
+  FileText,
+  FolderKanban,
+  ListChecks,
+  Lock,
+  TriangleAlert,
+} from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { StageEmptyState } from './stage-empty-state';
 import { useFoodType } from '../contexts/food-type-context';
 import {
-  useAdminConceptTests, useAuditEvents, useCommercializationReports,
-  useDecisionRecords, useImportBatches, useInstrumentalDataset, useWorkspaceSettings,
+  useAdminConceptTests,
+  useAuditEvents,
+  useCommercializationReports,
+  useDecisionRecords,
+  useImportBatches,
+  useInstrumentalDataset,
+  useWorkspaceSettings,
 } from '../lib/hooks';
-import { useProjectStatus } from '../lib/use-project-status';
-import { ProjectStatusBadge, toneTextClasses } from './project-status-badge';
-import { ProjectJourneyNav } from './project-journey-nav';
+import { ProjectStatusBadge, toneClasses, toneSolidClasses } from './project-status-badge';
 import { NextActionCard } from './next-action-card';
-import { ReportPreviewCard } from './report-preview-card';
-import { DataProvenanceBadge } from './data-provenance-badge';
 import { ProductHistoryTimeline } from './product-history-timeline';
 import { buildProductTimeline } from '../lib/product-history';
+import { useProjectWorkflow } from '../lib/workflow/use-project-workflow';
+import {
+  workflowStatusLabel,
+  workflowTone,
+  workflowToneToSemanticTone,
+} from '../lib/workflow/workflow-actions';
 import type { AuditEventRecord } from '../lib/database';
-import type { ProjectStatusSummary } from '../lib/project-status';
+import type { WorkflowStageSummary } from '../lib/workflow/workflow-types';
 
-/**
- * Evidence strip: six quiet, equal cells. Deliberately not the hero-metric
- * template — slate values at text-lg, provenance under each number so every
- * figure says where it came from.
- */
-function EvidenceCell({ label, value, sub, valueClassName, title }: {
-  label: string;
-  value: string;
-  sub?: React.ReactNode;
-  valueClassName?: string;
-  title?: string;
-}) {
+function CountCell({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex flex-col gap-1 min-w-0" title={title}>
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</span>
-      <span className={`text-lg font-semibold leading-tight ${valueClassName ?? 'text-slate-900'}`}>{value}</span>
-      {sub}
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+      <div className="text-lg font-semibold text-slate-950">{value}</div>
+      <div className="text-xs text-slate-500">{label}</div>
     </div>
   );
 }
 
-function EvidenceStrip({ status }: { status: ProjectStatusSummary }) {
-  const muted = 'text-slate-400';
-  return (
-    <Card className="border border-slate-200 bg-white">
-      <CardContent className="py-4">
-        <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3 lg:grid-cols-6">
-          <EvidenceCell
-            label="Panel responses"
-            value={status.responseTarget > 0 ? `${status.responseCompleted}/${status.responseTarget}` : '—'}
-            valueClassName={status.responseCompleted === 0 ? muted : undefined}
-            sub={status.responseCompleted > 0 && <DataProvenanceBadge provenance="live" n={status.responseCompleted} />}
-          />
-          <EvidenceCell
-            label="ISSF score"
-            value={status.issfScore !== null ? status.issfScore.toFixed(0) : '—'}
-            valueClassName={status.issfScore === null ? muted : undefined}
-          />
-          <EvidenceCell
-            label="Decision"
-            value={status.decisionStatus}
-            valueClassName={status.decisionStatus === 'Not started' ? muted : toneTextClasses(status.decisionTone)}
-          />
-          <EvidenceCell
-            label="Confidence"
-            value={status.confidence ?? '—'}
-            valueClassName={status.confidence === null ? muted : status.confidence === 'High' ? 'text-emerald-700' : status.confidence === 'Low' ? 'text-amber-700' : undefined}
-            title={status.confidenceFactors.join('\n')}
-          />
-          <EvidenceCell
-            label="Winning concept"
-            value={status.conceptName ?? '—'}
-            valueClassName={status.conceptName ? 'text-slate-900 text-sm self-center' : muted}
-          />
-          <EvidenceCell
-            label="Data completeness"
-            value={`${status.datasetsPresent}/${status.datasetsExpected} sets`}
-            valueClassName={status.datasetsPresent === 0 ? muted : undefined}
-            sub={status.datasetsPresent > 0 && <DataProvenanceBadge provenance="imported" />}
-          />
-        </div>
-      </CardContent>
-    </Card>
-  );
+function stageIcon(stage: WorkflowStageSummary) {
+  if (stage.status === 'complete') return CheckCircle2;
+  if (stage.status === 'blocked') return Lock;
+  if (stage.status === 'needs_review') return TriangleAlert;
+  if (stage.status === 'ready') return ClipboardCheck;
+  if (stage.status === 'in_progress') return ListChecks;
+  return Circle;
 }
 
-function humanizeEventType(eventType: string): string {
-  const text = eventType.replace(/[._-]+/g, ' ').trim();
-  return text.charAt(0).toUpperCase() + text.slice(1);
+function StageCard({ stage }: { stage: WorkflowStageSummary }) {
+  const tone = workflowToneToSemanticTone(workflowTone(stage.status));
+  const Icon = stageIcon(stage);
+  const canNavigate = stage.status !== 'blocked' || stage.nextActionRoute;
+  return (
+    <article className="rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className={`flex size-9 shrink-0 items-center justify-center rounded-lg border ${toneClasses(tone)}`}>
+            <Icon className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-slate-950">{stage.label}</h3>
+            <p className="mt-1 text-sm text-slate-600">{stage.detail}</p>
+          </div>
+        </div>
+        <ProjectStatusBadge label={workflowStatusLabel(stage.status)} tone={tone} showIcon={false} />
+      </div>
+
+      {(stage.completedItems.length > 0 || stage.blockers.length > 0 || stage.warnings.length > 0) && (
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Exists</p>
+            {stage.completedItems.length === 0 ? (
+              <p className="mt-1 text-xs text-slate-400">Nothing recorded yet.</p>
+            ) : (
+              <ul className="mt-1 space-y-1 text-xs text-slate-600">
+                {stage.completedItems.slice(0, 3).map(item => <li key={item}>• {item}</li>)}
+              </ul>
+            )}
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Blocked by</p>
+            {stage.blockers.length === 0 ? (
+              <p className="mt-1 text-xs text-slate-400">No blockers.</p>
+            ) : (
+              <ul className="mt-1 space-y-1 text-xs text-rose-700">
+                {stage.blockers.slice(0, 3).map(item => <li key={item}>• {item}</li>)}
+              </ul>
+            )}
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Watch</p>
+            {stage.warnings.length === 0 ? (
+              <p className="mt-1 text-xs text-slate-400">No warnings.</p>
+            ) : (
+              <ul className="mt-1 space-y-1 text-xs text-amber-700">
+                {stage.warnings.slice(0, 3).map(item => <li key={item}>• {item}</li>)}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-4 flex justify-end border-t border-slate-100 pt-3">
+        {canNavigate ? (
+          <Link
+            to={stage.nextActionRoute}
+            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-950"
+          >
+            {stage.nextActionLabel}
+            <ArrowRight className="size-3.5" />
+          </Link>
+        ) : (
+          <span className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-400">
+            {stage.nextActionLabel}
+          </span>
+        )}
+      </div>
+    </article>
+  );
 }
 
 function RecentActivity({ events, projectScoped }: { events: AuditEventRecord[]; projectScoped: boolean }) {
@@ -102,7 +141,7 @@ function RecentActivity({ events, projectScoped }: { events: AuditEventRecord[];
             {!projectScoped && <span className="text-[11px] font-normal text-slate-400">(workspace-wide)</span>}
           </h3>
           <Link to="/settings" className="text-xs font-semibold text-blue-700 hover:text-blue-900">
-            View full audit log
+            View audit log
           </Link>
         </div>
         {events.length === 0 ? (
@@ -111,8 +150,8 @@ function RecentActivity({ events, projectScoped }: { events: AuditEventRecord[];
           <ul className="divide-y divide-slate-100">
             {events.map(event => (
               <li key={event.id} className="flex items-baseline justify-between gap-3 py-1.5 text-xs">
-                <span className="text-slate-700 min-w-0 truncate">
-                  {humanizeEventType(event.eventType)}
+                <span className="min-w-0 truncate text-slate-700">
+                  {event.eventType.replace(/[._-]+/g, ' ')}
                   {event.actorName && <span className="text-slate-400"> · {event.actorName}</span>}
                 </span>
                 <span className="shrink-0 text-slate-400">
@@ -132,18 +171,13 @@ function NoProjectState() {
     <StageEmptyState
       icon={FolderKanban}
       headline="No project selected"
-      body="Pick a project from the dashboard, or import instrument data to start a new one."
-      cta={{ label: 'Back to dashboard', to: '/' }}
-      secondaryCta={{ label: 'Import data', to: '/stage1' }}
+      body="Pick a project from the sidebar or import instrumental data to start the workflow."
+      cta={{ label: 'Import data', to: '/stage1' }}
+      secondaryCta={{ label: 'Back to dashboard', to: '/' }}
     />
   );
 }
 
-/**
- * The home base for one project: identity, where it sits in the workflow,
- * the evidence collected so far, the next best action, and the report payoff.
- * Reached via /project (current selection) or /project/:batchId.
- */
 export function ProjectCommandCenter() {
   const { batchId } = useParams<{ batchId: string }>();
   const { foodType, subCategory, setSelection } = useFoodType();
@@ -158,41 +192,40 @@ export function ProjectCommandCenter() {
 
   const routedBatch = batchId ? importBatches.find(batch => batch.id === batchId) ?? null : null;
 
-  // Visiting /project/:batchId pins the global selection to that project so the
-  // sidebar and every stage page agree on which project is open.
   useEffect(() => {
     if (routedBatch && subCategory !== `batch:${routedBatch.id}`) {
       setSelection(routedBatch.foodTypeSlug, `batch:${routedBatch.id}`);
     }
-    // setSelection is a stable-enough setter; re-running on selection echo is harmless.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routedBatch?.id]);
 
   const effectiveFoodType = routedBatch?.foodTypeSlug ?? foodType;
   const effectiveBatchId = routedBatch?.id
     ?? (subCategory?.startsWith('batch:') ? subCategory.replace('batch:', '') : null);
-  const status = useProjectStatus(effectiveFoodType, effectiveBatchId);
-  const batch = routedBatch ?? (effectiveBatchId ? importBatches.find(b => b.id === effectiveBatchId) ?? null : null);
+  const workflow = useProjectWorkflow(effectiveFoodType, effectiveBatchId);
+  const batch = routedBatch ?? (effectiveBatchId ? importBatches.find(item => item.id === effectiveBatchId) ?? null : null);
 
   const batchSamples = useMemo(() => {
     if (!effectiveBatchId || !instrumentalDataset) return [];
-    return instrumentalDataset.eTongueData.filter(s => s.importBatchId === effectiveBatchId);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return instrumentalDataset.eTongueData.filter(sample => sample.importBatchId === effectiveBatchId);
   }, [effectiveBatchId, instrumentalDataset]);
 
   const historySampleId = selectedHistorySampleId ?? batchSamples[0]?.sampleId ?? null;
-  const historySampleName = batchSamples.find(s => s.sampleId === historySampleId)?.sampleName ?? historySampleId ?? '';
+  const historySampleName = batchSamples.find(sample => sample.sampleId === historySampleId)?.sampleName ?? historySampleId ?? '';
   const productTimeline = useMemo(() => {
     if (!historySampleId) return null;
     return buildProductTimeline(
-      historySampleId, historySampleName,
-      importBatches, decisionRecords, conceptTests, reports,
+      historySampleId,
+      historySampleName,
+      importBatches,
+      decisionRecords,
+      conceptTests,
+      reports,
     );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [historySampleId, importBatches, decisionRecords, conceptTests, reports]);
+  }, [conceptTests, decisionRecords, historySampleId, historySampleName, importBatches, reports]);
 
   const { projectEvents, projectScoped } = useMemo(() => {
-    const needles = [effectiveBatchId, status.projectName, effectiveFoodType].filter(Boolean) as string[];
+    const needles = [effectiveBatchId, workflow.projectName, effectiveFoodType].filter(Boolean) as string[];
     const matched = auditEvents.filter(event => {
       const haystack = `${event.entityId ?? ''} ${JSON.stringify(event.metadata)}`;
       return needles.some(needle => haystack.includes(needle));
@@ -200,62 +233,120 @@ export function ProjectCommandCenter() {
     return matched.length > 0
       ? { projectEvents: matched.slice(0, 5), projectScoped: true }
       : { projectEvents: auditEvents.slice(0, 5), projectScoped: false };
-  }, [auditEvents, effectiveBatchId, effectiveFoodType, status.projectName]);
+  }, [auditEvents, effectiveBatchId, effectiveFoodType, workflow.projectName]);
 
   if (!effectiveFoodType || effectiveFoodType === 'all') {
     return (
-      <div className="max-w-5xl mx-auto">
+      <div className="mx-auto max-w-5xl">
         <NoProjectState />
       </div>
     );
   }
 
   const contextLine = [
-    status.foodTypeLabel,
+    workflow.foodTypeLabel,
     workspaceSettings?.organizationName,
     batch && `Imported ${new Date(batch.createdAt).toLocaleDateString()}`,
     batch && `${batch.sampleCount} sample${batch.sampleCount === 1 ? '' : 's'}`,
   ].filter(Boolean).join(' · ');
+  const overallTone = workflowToneToSemanticTone(workflow.overallTone);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5">
+    <div className="mx-auto max-w-6xl space-y-6">
       <div>
-        <Link to="/" className="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-slate-700 transition-colors">
+        <Link to="/" className="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 transition-colors hover:text-slate-700">
           <ArrowLeft className="size-3.5" aria-hidden /> All projects
         </Link>
-        <div className="mt-2 flex items-center gap-3 flex-wrap">
-          <h1 className="text-2xl font-semibold text-slate-900">{status.projectName}</h1>
-          <ProjectStatusBadge label={status.statusLabel} tone={status.statusTone} />
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-semibold text-slate-950">{workflow.projectName}</h1>
+          <ProjectStatusBadge label={workflow.overallStatusLabel} tone={overallTone} />
         </div>
-        <p className="mt-1 text-sm text-slate-500">{contextLine}</p>
+        <p className="mt-1 max-w-3xl text-sm text-slate-600">
+          {contextLine || 'A guided overview of what exists, what is blocked, and what to do next.'}
+        </p>
       </div>
 
-      <Card className="border border-slate-200 bg-white">
-        <CardContent className="py-3">
-          <ProjectJourneyNav stages={status.stages} />
-        </CardContent>
-      </Card>
+      <NextActionCard
+        projectName={workflow.projectName}
+        action={{
+          label: workflow.nextAction.label,
+          description: workflow.nextAction.description,
+          path: workflow.nextAction.route,
+          tone: workflowToneToSemanticTone(workflow.nextAction.tone),
+        }}
+      />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
-        <div className="lg:col-span-2 space-y-5">
-          <NextActionCard projectName={status.projectName} action={status.nextAction} />
-          {status.warnings.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {status.warnings.map(warning => (
-                <ProjectStatusBadge key={warning} label={warning} tone="warning" className="font-medium" />
-              ))}
-            </div>
-          )}
-          <details className="rounded-lg border border-slate-200 bg-white">
-            <summary className="cursor-pointer list-none px-5 py-4 text-sm font-bold text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500">
-              Project evidence at a glance
-              <span className="ml-2 font-normal text-slate-500">Responses, decision, confidence, concepts, and imported data</span>
-            </summary>
-            <div className="border-t border-slate-100"><EvidenceStrip status={status} /></div>
-          </details>
-          <RecentActivity events={projectEvents} projectScoped={projectScoped} />
+      <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
+        <CountCell label="samples" value={workflow.counts.importedSamples} />
+        <CountCell label="studies" value={workflow.counts.activeStudies} />
+        <CountCell label="responses" value={workflow.counts.responsesCollected} />
+        <CountCell label="decisions" value={workflow.counts.decisionsRecorded} />
+        <CountCell label="concepts" value={workflow.counts.conceptsActive} />
+        <CountCell label="reports" value={workflow.counts.reportsSaved} />
+      </div>
+
+      {(workflow.blockers.length > 0 || workflow.warnings.length > 0) && (
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-rose-900">
+              <TriangleAlert className="size-4" /> Blockers
+            </h2>
+            {workflow.blockers.length === 0 ? (
+              <p className="mt-2 text-sm text-rose-700">No blockers.</p>
+            ) : (
+              <ul className="mt-2 space-y-1 text-sm text-rose-800">
+                {workflow.blockers.slice(0, 5).map(item => <li key={item}>• {item}</li>)}
+              </ul>
+            )}
+          </div>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+              <TriangleAlert className="size-4" /> Warnings
+            </h2>
+            {workflow.warnings.length === 0 ? (
+              <p className="mt-2 text-sm text-amber-700">No warnings.</p>
+            ) : (
+              <ul className="mt-2 space-y-1 text-sm text-amber-800">
+                {workflow.warnings.slice(0, 5).map(item => <li key={item}>• {item}</li>)}
+              </ul>
+            )}
+          </div>
         </div>
-        <ReportPreviewCard status={status} />
+      )}
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-slate-950">Workflow stages</h2>
+            <p className="text-sm text-slate-500">Data → Studies → Responses → Insights → Decision → Concept → Report.</p>
+          </div>
+          <Link
+            to={workflow.nextAction.route}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-opacity hover:opacity-90 ${toneSolidClasses(workflowToneToSemanticTone(workflow.nextAction.tone))}`}
+          >
+            {workflow.nextAction.label}
+            <ArrowRight className="size-3.5" />
+          </Link>
+        </div>
+        <div className="grid gap-4">
+          {workflow.stages.map(item => <StageCard key={item.id} stage={item} />)}
+        </div>
+      </section>
+
+      <div className="grid gap-5 lg:grid-cols-3">
+        <RecentActivity events={projectEvents} projectScoped={projectScoped} />
+        <Card className="border border-slate-200 bg-white lg:col-span-2">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-2">
+              <FileText className="size-4 text-slate-400" />
+              <h2 className="text-sm font-semibold text-slate-950">Report readiness link</h2>
+            </div>
+            <p className="mt-2 text-sm text-slate-600">
+              The Report stage uses the saved-report context builder, so strict PDF export readiness,
+              reference/demo evidence, missing concept evidence, and approval blockers are reflected here.
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {productTimeline && (
@@ -265,12 +356,12 @@ export function ProjectCommandCenter() {
               <span className="text-xs font-semibold text-slate-500">Sample</span>
               <select
                 value={historySampleId ?? ''}
-                onChange={e => setSelectedHistorySampleId(e.target.value)}
+                onChange={event => setSelectedHistorySampleId(event.target.value)}
                 className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                {batchSamples.map(s => (
-                  <option key={s.sampleId} value={s.sampleId}>
-                    {s.sampleName ?? s.sampleId}
+                {batchSamples.map(sample => (
+                  <option key={sample.sampleId} value={sample.sampleId}>
+                    {sample.sampleName ?? sample.sampleId}
                   </option>
                 ))}
               </select>

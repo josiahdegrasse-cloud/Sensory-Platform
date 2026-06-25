@@ -10,6 +10,7 @@ import {
   downloadCommercializationReportPdf,
   type CommercializationReportPdfInput,
 } from '../utils/commercialization-report-export';
+import { canMutateReportVersion } from '../lib/report-context-builder';
 import type { CommercializationReportRecord } from '../lib/database';
 import type { CommercializationReportSnapshot } from '../lib/commercialization-report';
 
@@ -32,6 +33,7 @@ export function ReportNarrativePanel({
   const [draft, setDraft] = useState(snapshot.narrative);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const canMutate = canMutateReportVersion(report);
 
   const changed = useMemo(
     () => narrativeFields.some(([key]) => draft[key] !== snapshot.narrative[key]),
@@ -40,6 +42,10 @@ export function ReportNarrativePanel({
 
   const saveVersion = async () => {
     setError('');
+    if (!canMutate) {
+      setError('Approved report versions are locked. Reopen the report before making narrative changes.');
+      return;
+    }
     try {
       await createReport.mutateAsync({
         decisionRecordId: report.decisionRecordId,
@@ -80,6 +86,7 @@ export function ReportNarrativePanel({
                 setSaved(false);
                 setDraft(current => ({ ...current, [key]: event.target.value }));
               }}
+              readOnly={!canMutate}
               className="mt-1 min-h-24 bg-white"
             />
           </div>
@@ -92,8 +99,8 @@ export function ReportNarrativePanel({
         </p>
       )}
       <div className="mt-5 flex justify-end border-t border-slate-100 pt-4">
-        <Button disabled={!changed || createReport.isPending} onClick={saveVersion}>
-          <FilePlus2 className="size-4" />{createReport.isPending ? 'Saving version…' : 'Save new version'}
+        <Button disabled={!canMutate || !changed || createReport.isPending} onClick={saveVersion}>
+          <FilePlus2 className="size-4" />{!canMutate ? 'Approved version locked' : createReport.isPending ? 'Saving version…' : 'Save new version'}
         </Button>
       </div>
     </div>

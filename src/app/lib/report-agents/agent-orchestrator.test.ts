@@ -59,4 +59,17 @@ describe('commercialization report agent orchestration contract', () => {
       'Deterministic QC',
     ]);
   });
+
+  it('orders staged workflow gates before and after narrative writing', () => {
+    const steps = REPORT_AGENT_WORKFLOW_STEPS.map(([key]) => key);
+    const evidenceAudit = steps.indexOf('evidence_auditor');
+    const claimsCompliance = steps.indexOf('claims_compliance');
+    const sectionWriting = steps.indexOf('section_writer');
+    const qcCritic = steps.indexOf('qc_critic');
+
+    expect(evidenceAudit).toBeGreaterThanOrEqual(0);
+    expect(evidenceAudit).toBeLessThan(sectionWriting);
+    expect(claimsCompliance).toBeLessThan(sectionWriting);
+    expect(qcCritic).toBeGreaterThan(sectionWriting);
+  });
 });

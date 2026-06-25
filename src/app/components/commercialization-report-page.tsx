@@ -35,9 +35,9 @@ import {
   TEMPORARY_CHEESE_DEMO_LABEL,
 } from '../data/temporary-cheese-demo';
 import { getCommercializationProjectProfile } from '../data/coconut-cheddar-profile';
-import { buildReportContext, type ApprovalStatus, type SensoryAugmentation } from '../lib/report-qc';
-import type { GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
 import { ReportAgentReviewPanel } from './report-agent-review-panel';
+import { buildReportContextForWorkspace } from '../lib/report-context-builder';
+import { ReportReadinessPanel } from './report-readiness-panel';
 
 /**
  * The Commercialization Report — the final stage of the project journey.
@@ -123,62 +123,30 @@ export function CommercializationReportPage() {
     return reports.find(report => report.decisionRecordId === focusDecision.id) ?? null;
   }, [reports, focusDecision, requestedReport]);
   const snapshot = (savedReport?.reportSnapshot as unknown as CommercializationReportSnapshot | undefined) ?? null;
-  const reportContext = useMemo(() => {
-    if (!snapshot || !reportEvidenceBundle) return undefined;
-    const sp = reportEvidenceBundle.sensoryProfile;
-    const augmentation: SensoryAugmentation = {
-      panelSize: sp?.panelSize ?? null,
-      sourceEvidenceIds: reportEvidenceBundle.evidence.map(record => record.id),
-      sensoryDescriptors: (sp?.descriptors ?? []).map(descriptor => ({
-        ...descriptor,
-        sampleSize: sp?.panelSize ?? 0,
-        percentage: sp?.panelSize ? descriptor.count / sp.panelSize * 100 : 0,
-      })),
-      dimensions: Object.fromEntries(
-        Object.entries(sp?.dimensionMeasures ?? {}).map(([key, measures]) => [
-          key,
-          { measures, agreement: null, benchmark: null },
-        ]),
-      ),
-      intensity: sp?.intensity,
-      foodTypeSlug: sp?.foodTypeSlug ?? effectiveFoodType,
-      instrumentalFindings: sp?.instrumentalFindings,
-      instrumentSignal: sp?.instrumentSignal,
-      gatePenalty: sp?.gatePenalty,
-      confidenceCalculation: sp?.confidenceCalculation,
-    };
-    const liveDecision: GoStopTweakDecision = {
-      sampleId: snapshot.product.sampleId,
-      sampleName: snapshot.product.sampleName,
-      issfScore: snapshot.decision.issfScore,
-      confidenceScore: snapshot.decision.confidence,
-      decision: snapshot.decision.outcome,
-      recommendation: snapshot.decision.recommendation,
-      costSavings: 0,
-      timeline: 'pilot validation',
-      riskLevel: 'medium',
-      details: [],
-      dimensionScores: snapshot.decision.dimensions,
-      gates: snapshot.decision.gates ?? [],
-      prescriptions: snapshot.decision.prescriptions,
-      decisionFingerprint: snapshot.decision.fingerprint,
-      methodVersion: snapshot.decision.methodVersion,
-    };
-    const approvalStatus: ApprovalStatus = savedReport?.status === 'approved'
-      ? 'approved'
-      : savedReport?.status === 'review'
-        ? 'in_review'
-        : 'draft';
-    return buildReportContext({
+  const reportContextBuild = useMemo(() => {
+    if (!snapshot || !savedReport || !focusDecision) return null;
+    return buildReportContextForWorkspace({
+      report: savedReport,
       snapshot,
-      decision: liveDecision,
-      approvalStatus,
-      reportVersion: savedReport?.version ?? 1,
-      readinessThreshold: 60,
-      augmentation,
-      commercialProfile: reportEvidenceBundle.commercialProfile,
+      decisionRecord: {
+        id: snapshot.decision.recordId,
+        timestamp: focusDecision.timestamp,
+        sampleId: focusDecision.sampleId,
+        sampleName: focusDecision.sampleName,
+        decision: focusDecision.decision,
+        issfScore: focusDecision.issfScore,
+        confidence: focusDecision.confidence,
+        user: focusDecision.user,
+        note: focusDecision.note,
+        methodVersion: focusDecision.methodVersion,
+        decisionFingerprint: focusDecision.decisionFingerprint,
+      },
+      evidenceBundle: reportEvidenceBundle ?? null,
+      evidenceBundleStatus: savedReport.evidenceBundleId ? 'linked' : 'rebuilt',
     });
-  }, [effectiveFoodType, reportEvidenceBundle, savedReport, snapshot]);
+  }, [focusDecision, reportEvidenceBundle, savedReport, snapshot]);
+  const reportContext = reportContextBuild?.reportContext ?? undefined;
+  const reportReadiness = reportContextBuild?.readiness ?? null;
 
   const foodTypeLabel = formatFoodTypeLabel(effectiveFoodType);
   const decisionTone: SemanticTone = !focusDecision ? 'neutral'
@@ -346,6 +314,10 @@ export function CommercializationReportPage() {
                   ? 'This report still uses reference/demo sensory data. Collect live panel responses before approving it as a client deliverable.'
                   : undefined}
         />
+      )}
+
+      {savedReport && reportReadiness && (
+        <ReportReadinessPanel readiness={reportReadiness} />
       )}
 
       {savedReport && pdfInput && reportContext && (

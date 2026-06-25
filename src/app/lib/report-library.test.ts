@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildReportLibrary, filterReportLibrary } from './report-library';
 import type { CommercializationReportRecord, ConceptTest, DecisionRecord } from './database';
+import type { ReportReadiness } from './report-context-builder';
 
 function report(overrides: Partial<CommercializationReportRecord>): CommercializationReportRecord {
   return {
@@ -94,5 +95,40 @@ describe('report library', () => {
     expect(filterReportLibrary(entries, 'seeded', 'all')).toHaveLength(1);
     expect(filterReportLibrary(entries, '', 'review')).toHaveLength(1);
     expect(filterReportLibrary(entries, 'missing', 'all')).toHaveLength(0);
+  });
+
+  it('adds export readiness and evidence provenance to library entries', () => {
+    const readiness = {
+      exportReady: true,
+      approvalReady: false,
+      blockers: [],
+      warnings: ['Claims review is still pending.'],
+      evidenceProvenance: {
+        sensory: 'live',
+        instrumental: 'live',
+        concept: 'none',
+        purchaseIntent: 'none',
+      },
+      evidenceBundleStatus: 'linked',
+      sensoryStatus: 'Live sensory evidence',
+      instrumentalStatus: 'Instrumental evidence included',
+      conceptStatus: 'Missing concept evidence',
+      purchaseIntentStatus: 'Purchase intent not available',
+      approvalBlockers: ['Concept evidence missing.'],
+      exportBlockers: [],
+      qcWarnings: ['Claims review is still pending.'],
+      agentStatus: 'partial',
+    } satisfies ReportReadiness;
+
+    const entries = buildReportLibrary([
+      report({ id: 'ready-report' }),
+    ], decisions, concepts, { 'ready-report': readiness });
+
+    expect(entries[0]).toMatchObject({
+      exportReady: true,
+      approvalReady: false,
+      warnings: ['Claims review is still pending.'],
+      evidenceProvenance: { sensory: 'live', concept: 'none' },
+    });
   });
 });

@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import {
-  Archive, Download, FileText, FolderOpen, Search,
+  AlertTriangle, Archive, Download, FileText, FolderOpen, Search,
   ShieldCheck, Sparkles, Undo2,
 } from 'lucide-react';
+import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import {
@@ -14,14 +15,14 @@ import { useAuth } from '../contexts/auth-context';
 import { useFoodType } from '../contexts/food-type-context';
 import {
   useAdminConceptTests, useCommercializationReports, useDecisionRecords,
-  useUpdateCommercializationReportStatus, useWorkspaceSettings,
+  useUpdateCommercializationReportStatus,
 } from '../lib/hooks';
-import {
-  DEFAULT_REPORT_ORGANIZATION_NAME, DEFAULT_REPORT_WORKSPACE_NAME,
-  resolveReportLogoUrl,
-} from '../lib/commercialization-report';
 import { buildReportLibrary, filterReportLibrary } from '../lib/report-library';
-import { downloadCommercializationReportPdf } from '../utils/commercialization-report-export';
+import {
+  buildSavedReportExportContext,
+  downloadSavedReportPdf,
+  type ReportReadiness,
+} from '../lib/report-context-builder';
 import type { CommercializationReportRecord } from '../lib/database';
 import type { SemanticTone } from '../lib/project-status';
 
@@ -35,22 +36,123 @@ const statusTone: Record<CommercializationReportRecord['status'], SemanticTone> 
   archived: 'neutral',
 };
 
+const statusLabel: Record<CommercializationReportRecord['status'], string> = {
+  draft: 'Draft',
+  review: 'In review',
+  approved: 'Approved',
+  archived: 'Archived',
+};
+
+function ReadinessBadges({
+  entry,
+  loading,
+}: {
+  entry: ReturnType<typeof buildReportLibrary>[number];
+  loading: boolean;
+}) {
+  const isReferenceEvidence = Object.values(entry.evidenceProvenance).some(value => value === 'reference');
+  const missingConceptEvidence = entry.evidenceProvenance.concept === 'none';
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      <Badge
+        variant={entry.exportReady ? 'default' : 'outline'}
+        className={entry.exportReady ? 'bg-emerald-600 text-white' : 'border-amber-200 bg-amber-50 text-amber-700'}
+      >
+        {entry.exportReady ? 'Export ready' : loading ? 'Checking context' : 'Needs context'}
+      </Badge>
+      {isReferenceEvidence && (
+        <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">
+          Demo/reference evidence
+        </Badge>
+      )}
+      {missingConceptEvidence && (
+        <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">
+          Missing concept evidence
+        </Badge>
+      )}
+      <Badge
+        variant="outline"
+        className={entry.latest.status === 'approved'
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+          : entry.latest.status === 'review'
+            ? 'border-amber-200 bg-amber-50 text-amber-700'
+            : 'border-slate-200 bg-slate-50 text-slate-600'}
+      >
+        {statusLabel[entry.latest.status]}
+      </Badge>
+    </div>
+  );
+}
+
 export function ReportsPage() {
   const { user } = useAuth();
   const { setSelection } = useFoodType();
   const { data: reports = [], isLoading } = useCommercializationReports();
   const { data: decisions = [] } = useDecisionRecords();
   const { data: concepts = [] } = useAdminConceptTests();
-  const { data: settings } = useWorkspaceSettings();
   const updateStatus = useUpdateCommercializationReportStatus();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [exportingId, setExportingId] = useState('');
+  const [readinessLoading, setReadinessLoading] = useState<Record<string, boolean>>({});
+  const [readinessByReportId, setReadinessByReportId] = useState<Record<string, ReportReadiness>>({});
   const [error, setError] = useState('');
 
-  const entries = useMemo(
+  const baseEntries = useMemo(
     () => buildReportLibrary(reports, decisions, concepts),
     [reports, decisions, concepts],
+  );
+  const reportIdsToCheck = useMemo(
+    () => baseEntries.map(entry => entry.latest.id).join('|'),
+    [baseEntries],
+  );
+
+  useEffect(() => {
+    let active = true;
+    const ids = baseEntries
+      .map(entry => entry.latest.id)
+      .filter(id => !readinessByReportId[id] && !readinessLoading[id]);
+
+    ids.forEach(id => {
+      setReadinessLoading(current => ({ ...current, [id]: true }));
+      buildSavedReportExportContext(id)
+        .then(result => {
+          if (!active) return;
+          setReadinessByReportId(current => ({ ...current, [id]: result.readiness }));
+        })
+        .catch(() => {
+          if (!active) return;
+          setReadinessByReportId(current => ({
+            ...current,
+            [id]: {
+              exportReady: false,
+              approvalReady: false,
+              blockers: ['Saved report context needs review before export.'],
+              warnings: [],
+              evidenceProvenance: { sensory: 'none', instrumental: 'none', concept: 'none', purchaseIntent: 'none' },
+              evidenceBundleStatus: 'missing',
+              sensoryStatus: 'Needs review',
+              instrumentalStatus: 'Needs review',
+              conceptStatus: 'Needs review',
+              purchaseIntentStatus: 'Needs review',
+              approvalBlockers: ['Saved report context needs review before approval.'],
+              exportBlockers: ['Saved report context needs review before export.'],
+              qcWarnings: [],
+              agentStatus: 'not_run',
+            },
+          }));
+        })
+        .finally(() => {
+          if (active) setReadinessLoading(current => ({ ...current, [id]: false }));
+        });
+    });
+
+    return () => { active = false; };
+  }, [baseEntries, readinessByReportId, readinessLoading, reportIdsToCheck]);
+
+  const entries = useMemo(
+    () => buildReportLibrary(reports, decisions, concepts, readinessByReportId),
+    [reports, decisions, concepts, readinessByReportId],
   );
   const visibleEntries = useMemo(
     () => filterReportLibrary(entries, search, status),
@@ -75,27 +177,16 @@ export function ReportsPage() {
   };
 
   const download = async (entry: ReturnType<typeof buildReportLibrary>[number]) => {
-    if (!entry.snapshot) return;
     setExportingId(entry.latest.id);
     setError('');
     try {
-      await downloadCommercializationReportPdf({
-        snapshot: entry.snapshot,
-        organizationName: settings?.organizationName ?? DEFAULT_REPORT_ORGANIZATION_NAME,
-        workspaceName: settings?.workspaceName ?? DEFAULT_REPORT_WORKSPACE_NAME,
-        reportFooter: settings?.reportFooter,
-        version: entry.latest.version,
-        status: entry.latest.status,
-        logoUrl: resolveReportLogoUrl(
-          settings?.organizationName ?? DEFAULT_REPORT_ORGANIZATION_NAME,
-          settings?.logoUrl,
-        ),
-        primaryColor: settings?.primaryColor,
-        accentColor: settings?.accentColor,
-        reportTemplate: settings?.reportTemplate,
-      });
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to export the report.');
+      const result = await downloadSavedReportPdf(entry.latest.id);
+      setReadinessByReportId(current => ({ ...current, [entry.latest.id]: result.readiness }));
+      if (!result.ok) {
+        setError('This report needs review before PDF export. Open the report workspace to rebuild context and resolve blockers.');
+      }
+    } catch {
+      setError('This report needs review before PDF export. Open the report workspace to rebuild context and resolve blockers.');
     } finally {
       setExportingId('');
     }
@@ -178,6 +269,13 @@ export function ReportsPage() {
                   <p className="mt-2 text-xs text-slate-400">
                     Version {entry.latest.version} of {entry.versions.length} · Updated {new Date(entry.latest.updatedAt).toLocaleDateString()} · {entry.decision} decision
                   </p>
+                  <ReadinessBadges entry={entry} loading={Boolean(readinessLoading[entry.latest.id])} />
+                  {entry.blockers.length > 0 && (
+                    <p className="mt-2 flex items-center gap-1.5 text-xs text-amber-700">
+                      <AlertTriangle className="size-3.5" />
+                      {entry.blockers[0]}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -187,14 +285,25 @@ export function ReportsPage() {
                   >
                     <Button size="sm" variant="outline"><FolderOpen className="size-4" />Open report</Button>
                   </Link>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={!entry.snapshot || exportingId === entry.latest.id}
-                    onClick={() => download(entry)}
-                  >
-                    <Download className="size-4" />{exportingId === entry.latest.id ? 'Preparing…' : 'Download PDF'}
-                  </Button>
+                  {entry.exportReady ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={exportingId === entry.latest.id}
+                      onClick={() => download(entry)}
+                    >
+                      <Download className="size-4" />{exportingId === entry.latest.id ? 'Preparing…' : 'Download PDF'}
+                    </Button>
+                  ) : (
+                    <Link
+                      to={`/report?report=${entry.latest.id}`}
+                      onClick={() => setSelection(entry.foodType, null)}
+                    >
+                      <Button size="sm" variant="outline" disabled={Boolean(readinessLoading[entry.latest.id])}>
+                        {readinessLoading[entry.latest.id] ? 'Checking…' : entry.blockers.length ? 'Needs Review' : 'Open to Export'}
+                      </Button>
+                    </Link>
+                  )}
                   {entry.latest.status === 'review' && (
                     <Link
                       to={`/report?report=${entry.latest.id}`}

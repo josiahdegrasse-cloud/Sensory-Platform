@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
-import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Tag, Archive, Trash2, Undo2, Database, ChevronDown, ChevronRight, Settings, AlertCircle, AlertTriangle, X, FileText } from "lucide-react";
+import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Tag, Archive, Trash2, Undo2, Database, ChevronDown, ChevronRight, Settings, AlertCircle, AlertTriangle, X, FileText, FolderKanban } from "lucide-react";
 import { useAuth } from "../contexts/auth-context";
 import { useEffect, useMemo, useState } from "react";
 import { useFoodType } from "../contexts/food-type-context";
@@ -406,6 +406,7 @@ export function MainLayout() {
   };
 
   const getAdminNavItems = () => [
+    { path: "/project",        label: "Workflow",           icon: FolderKanban },
     { path: "/stage1",         label: "Instruments",        icon: FlaskConical },
     { path: "/admin",           label: "Studies",            icon: ClipboardList },
     { path: "/survey-analysis", label: "Insights",          icon: BarChart3 },

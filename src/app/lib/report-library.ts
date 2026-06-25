@@ -1,5 +1,6 @@
 import type { CommercializationReportRecord, ConceptTest, DecisionRecord } from './database';
 import type { CommercializationReportSnapshot } from './commercialization-report';
+import type { ReportReadiness } from './report-context-builder';
 
 export interface ReportLibraryEntry {
   key: string;
@@ -10,6 +11,12 @@ export interface ReportLibraryEntry {
   foodType: string;
   conceptName: string;
   decision: string;
+  exportReady: boolean;
+  approvalReady: boolean;
+  blockers: string[];
+  warnings: string[];
+  evidenceProvenance: ReportReadiness['evidenceProvenance'];
+  readiness?: ReportReadiness;
 }
 
 function asSnapshot(report: CommercializationReportRecord): CommercializationReportSnapshot | null {
@@ -22,6 +29,7 @@ export function buildReportLibrary(
   reports: CommercializationReportRecord[],
   decisions: DecisionRecord[],
   concepts: ConceptTest[],
+  readinessByReportId: Record<string, ReportReadiness> = {},
 ): ReportLibraryEntry[] {
   const decisionsById = new Map(decisions.map(decision => [decision.id, decision]));
   const conceptsById = new Map(concepts.map(concept => [concept.id, concept]));
@@ -42,6 +50,7 @@ export function buildReportLibrary(
       const snapshot = asSnapshot(latest);
       const decision = decisionsById.get(latest.decisionRecordId);
       const concept = conceptsById.get(latest.conceptTestId);
+      const readiness = readinessByReportId[latest.id];
 
       return {
         key,
@@ -52,6 +61,12 @@ export function buildReportLibrary(
         foodType: snapshot?.product.foodType ?? concept?.foodTypeSlug ?? 'Uncategorized',
         conceptName: snapshot?.concept.name ?? concept?.name ?? 'Concept not available',
         decision: snapshot?.decision.outcome ?? decision?.decision ?? 'Unknown',
+        exportReady: readiness?.exportReady ?? false,
+        approvalReady: readiness?.approvalReady ?? false,
+        blockers: readiness?.blockers ?? (snapshot ? [] : ['Saved report snapshot is incomplete.']),
+        warnings: readiness?.warnings ?? [],
+        evidenceProvenance: readiness?.evidenceProvenance ?? { sensory: 'none', instrumental: 'none', concept: 'none', purchaseIntent: 'none' },
+        readiness,
       };
     })
     .sort((a, b) => new Date(b.latest.updatedAt).getTime() - new Date(a.latest.updatedAt).getTime());
