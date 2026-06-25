@@ -5,6 +5,26 @@ import { useArchiveFoodType, useDeleteFoodType, useFoodTypes, useRestoreFoodType
 
 export type FoodType = string;
 type FoodTypeStatus = 'active' | 'archived' | 'deleted';
+
+// Persisted selection (food type + subCategory) so the current project/batch
+// survives a reload instead of resetting to 'cheese' every time (discovery §C5).
+// The /project/:batchId route remains the source of truth — it writes into the
+// context, the context persists; nothing reads this back to drive the route, so
+// there is no update loop.
+const SELECTION_STORAGE_KEY = 'sensory.foodTypeSelection';
+
+function readPersistedSelection(): { foodType: FoodType; subCategory: string | null } | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(SELECTION_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { foodType?: string; subCategory?: string | null };
+    if (!parsed.foodType) return null;
+    return { foodType: parsed.foodType, subCategory: parsed.subCategory ?? null };
+  } catch {
+    return null;
+  }
+}
 interface LocalFoodTypeRecord {
   type: string;
   status: FoodTypeStatus;
@@ -64,8 +84,9 @@ const FoodTypeContext = createContext<FoodTypeContextValue>({
 });
 
 export function FoodTypeProvider({ children }: { children: ReactNode }) {
-  const [foodType, setFoodType] = useState<FoodType>('cheese');
-  const [subCategory, setSubCategory] = useState<string | null>(null);
+  const persistedSelection = useMemo(readPersistedSelection, []);
+  const [foodType, setFoodType] = useState<FoodType>(persistedSelection?.foodType ?? 'cheese');
+  const [subCategory, setSubCategory] = useState<string | null>(persistedSelection?.subCategory ?? null);
   const [localFoodTypeRecords, setLocalFoodTypeRecords] = useState<LocalFoodTypeRecord[]>([]);
   const [actionError, setActionError] = useState('');
   const { isAuthenticated, user } = useAuth();
@@ -106,6 +127,16 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
     setFoodType(ft);
     setSubCategory(sub);
   };
+
+  // Mirror the current selection into localStorage so a reload restores it.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(SELECTION_STORAGE_KEY, JSON.stringify({ foodType, subCategory }));
+    } catch {
+      // Storage may be unavailable (private mode / quota) — selection just won't persist.
+    }
+  }, [foodType, subCategory]);
 
   const registerFoodTypes = useCallback((types: string[]) => {
     setLocalFoodTypeRecords(prev => registerActiveFoodTypes(prev, types));

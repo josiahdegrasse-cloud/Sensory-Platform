@@ -2,6 +2,7 @@ import { CHART_CHROME } from '../styles/tokens';
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useFoodType } from "../contexts/food-type-context";
+import { parseBatchSelection } from "../lib/project-identity";
 import { useAuth } from "../contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
@@ -166,7 +167,8 @@ export function Stage1Instrumental() {
     const canonicalType = t === 'dairy' || t === 'pbca' ? 'cheese' : t;
     if (archivedFoodTypes.includes(canonicalType)) return false;
     if (deletedFoodTypes.includes(canonicalType)) return false;
-    if (subCategory?.startsWith('batch:')) return s.importBatchId === subCategory.replace('batch:', '');
+    const batchSelection = parseBatchSelection(subCategory);
+    if (batchSelection) return s.importBatchId === batchSelection;
     if (foodType === 'all') return true;
     if (foodType === 'bread')  return t === 'bread'  || s.sampleId.toUpperCase().startsWith('B');
     if (foodType === 'cheese') return t === 'dairy'  || t === 'pbca' || s.sampleId.toUpperCase().startsWith('S') || s.sampleId.toUpperCase().startsWith('D');

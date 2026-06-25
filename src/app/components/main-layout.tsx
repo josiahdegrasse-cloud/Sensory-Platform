@@ -3,6 +3,7 @@ import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Ta
 import { useAuth } from "../contexts/auth-context";
 import { useEffect, useMemo, useState } from "react";
 import { useFoodType } from "../contexts/food-type-context";
+import { parseBatchSelection, encodeBatchSelection } from "../lib/project-identity";
 import { useDeleteImportBatch, useImportBatches, useInstrumentalDataset, usePendingImports, useProducts, useUpdateImportBatchStatus, useWorkspaceSettings } from "../lib/hooks";
 import { matchFoodType } from "../contexts/food-type-context";
 import { useProjectStatus } from "../lib/use-project-status";
@@ -54,7 +55,7 @@ function CategorySidebar() {
   const label = (ft: string) =>
     ft === 'cheese' ? 'Cheese' : ft === 'bread' ? 'Bread' : capitalize(ft);
   const activeTypeLabel = label(foodType);
-  const selectedBatchId = subCategory?.startsWith('batch:') ? subCategory.replace('batch:', '') : null;
+  const selectedBatchId = parseBatchSelection(subCategory);
   const selectedSamples = useMemo(() => {
     const samples = instrumentalDataset?.eTongueData ?? [];
     return samples.filter(sample =>
@@ -143,7 +144,7 @@ function CategorySidebar() {
                     </button>
                   )}
                   <button
-                    onClick={() => setSelection(ft, singleProject ? `batch:${singleProject.id}` : null)}
+                    onClick={() => setSelection(ft, singleProject ? encodeBatchSelection(singleProject.id) : null)}
                     title={singleProject?.fileName}
                     className={`min-w-0 flex-1 text-left py-1.5 text-sm ${hasMultipleProjects ? 'px-1' : 'px-2.5'}`}
                   >
@@ -168,27 +169,34 @@ function CategorySidebar() {
                     </button>
                   </div>
                 </div>
-                {hasMultipleProjects && expanded && (
-                  <div className="ml-5 mt-0.5 space-y-0.5 border-l border-slate-100 pl-2">
-                    {projects.map((project, index) => (
+                {hasMultipleProjects && expanded && (() => {
+                  // A batch with a real project shows its project name; a legacy/
+                  // unassigned batch is still shown, just clearly not called a
+                  // "project". Assigned rows are grouped above unassigned ones.
+                  const assigned = projects.filter(project => project.projectId);
+                  const unassigned = projects.filter(project => !project.projectId);
+                  const renderRow = (project: typeof projects[number]) => {
+                    const fallbackName = project.fileName.replace(/\.csv$/i, '');
+                    const displayName = project.projectName ?? `Unassigned: ${fallbackName}`;
+                    return (
                       <div
                         key={project.id}
                         className={`group/project flex items-center gap-1 rounded-md ${selectedBatchId === project.id ? 'bg-slate-100' : 'hover:bg-slate-50'}`}
                       >
                         <button
                           type="button"
-                          onClick={() => setSelection(ft, `batch:${project.id}`)}
-                          title={project.fileName}
-                          className={`min-w-0 flex-1 truncate px-2 py-1 text-left text-xs ${selectedBatchId === project.id ? 'font-semibold text-slate-800' : 'text-slate-500 group-hover/project:text-slate-800'}`}
+                          onClick={() => setSelection(ft, encodeBatchSelection(project.id))}
+                          title={project.projectName ?? project.fileName}
+                          className={`min-w-0 flex-1 truncate px-2 py-1 text-left text-xs ${selectedBatchId === project.id ? 'font-semibold text-slate-800' : `${project.projectId ? 'text-slate-500' : 'text-slate-400 italic'} group-hover/project:text-slate-800`}`}
                         >
-                          Project {index + 1}: {project.fileName.replace(/\.csv$/i, '')}
+                          {displayName}
                         </button>
                         <button
                           type="button"
-                          title={`Archive ${project.fileName}`}
+                          title={`Archive ${displayName}`}
                           onClick={(event) => {
                             event.stopPropagation();
-                            setPendingProjectAction({ id: project.id, label: project.fileName.replace(/\.csv$/i, ''), action: 'archive' });
+                            setPendingProjectAction({ id: project.id, label: displayName, action: 'archive' });
                           }}
                           className="p-1 text-slate-300 hover:text-amber-700"
                         >
@@ -196,19 +204,30 @@ function CategorySidebar() {
                         </button>
                         <button
                           type="button"
-                          title={`Delete ${project.fileName}`}
+                          title={`Delete ${displayName}`}
                           onClick={(event) => {
                             event.stopPropagation();
-                            setPendingProjectAction({ id: project.id, label: project.fileName.replace(/\.csv$/i, ''), action: 'delete' });
+                            setPendingProjectAction({ id: project.id, label: displayName, action: 'delete' });
                           }}
                           className="p-1 pr-1.5 text-slate-300 hover:text-rose-700"
                         >
                           <Trash2 className="size-3" />
                         </button>
                       </div>
-                    ))}
-                  </div>
-                )}
+                    );
+                  };
+                  return (
+                    <div className="ml-5 mt-0.5 space-y-0.5 border-l border-slate-100 pl-2">
+                      {assigned.map(renderRow)}
+                      {assigned.length > 0 && unassigned.length > 0 && (
+                        <div className="mt-1 border-t border-slate-100 px-2 pt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                          Unassigned batches
+                        </div>
+                      )}
+                      {unassigned.map(renderRow)}
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}
@@ -370,7 +389,7 @@ function FoodTypeBadge() {
   const { foodType, subCategory } = useFoodType();
   const { data: importBatches = [] } = useImportBatches();
   const typeLabel = foodType === 'cheese' ? 'Cheese' : foodType === 'bread' ? 'Bread' : capitalize(foodType);
-  const batchId = subCategory?.startsWith('batch:') ? subCategory.replace('batch:', '') : null;
+  const batchId = parseBatchSelection(subCategory);
   const batch = batchId ? importBatches.find(item => item.id === batchId) : null;
   const label = batch ? batch.fileName.replace(/\.csv$/i, '') : (subCategory ?? typeLabel);
   return (

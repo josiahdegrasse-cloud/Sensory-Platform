@@ -17,6 +17,7 @@ import {
 import { Card, CardContent } from './ui/card';
 import { StageEmptyState } from './stage-empty-state';
 import { useFoodType } from '../contexts/food-type-context';
+import { parseBatchSelection, encodeBatchSelection } from '../lib/project-identity';
 import {
   useAdminConceptTests,
   useAuditEvents,
@@ -36,7 +37,7 @@ import {
   workflowTone,
   workflowToneToSemanticTone,
 } from '../lib/workflow/workflow-actions';
-import type { AuditEventRecord } from '../lib/database';
+import type { AuditEventRecord, ImportBatchRecord } from '../lib/database';
 import type { WorkflowStageSummary } from '../lib/workflow/workflow-types';
 
 function CountCell({ label, value }: { label: string; value: number }) {
@@ -178,6 +179,84 @@ function NoProjectState() {
   );
 }
 
+type PickerProject = { projectId: string; projectName: string; foodTypeSlug: string; batchId: string };
+
+/**
+ * Shown on /project when no specific project/batch is in scope. Lists the live
+ * (active) projects to choose from and is explicit about how many batches are
+ * not yet linked to a project, rather than rendering a blank or stale page.
+ */
+function ProjectPicker({
+  importBatches,
+  onOpen,
+}: {
+  importBatches: ImportBatchRecord[];
+  onOpen: (batch: ImportBatchRecord) => void;
+}) {
+  // One entry per real project (active batches that carry a project link),
+  // keyed by projectId so a multi-batch project shows once via its latest batch.
+  const projects = useMemo(() => {
+    const byProject = new Map<string, PickerProject>();
+    importBatches
+      .filter(batch => batch.status === 'active' && batch.projectId)
+      .forEach(batch => {
+        if (byProject.has(batch.projectId!)) return;
+        byProject.set(batch.projectId!, {
+          projectId: batch.projectId!,
+          projectName: batch.projectName ?? batch.fileName.replace(/\.csv$/i, ''),
+          foodTypeSlug: batch.foodTypeSlug,
+          batchId: batch.id,
+        });
+      });
+    return [...byProject.values()];
+  }, [importBatches]);
+
+  const unassignedCount = useMemo(
+    () => importBatches.filter(batch => !batch.projectId).length,
+    [importBatches],
+  );
+
+  if (projects.length === 0) return <NoProjectState />;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-950">Choose a project</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Pick one of your live projects to open its command center.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {projects.map(project => {
+          const batch = importBatches.find(item => item.id === project.batchId);
+          return (
+            <button
+              key={project.projectId}
+              type="button"
+              onClick={() => batch && onOpen(batch)}
+              className="group flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:border-blue-300 hover:bg-blue-50/40"
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold text-slate-900">{project.projectName}</span>
+                <span className="mt-0.5 block text-xs text-slate-500">{project.foodTypeSlug}</span>
+              </span>
+              <ArrowLeft className="size-4 rotate-180 text-slate-300 transition-colors group-hover:text-blue-600" aria-hidden />
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+        <Link to="/stage1" className="font-semibold text-blue-700 hover:text-blue-800">Import data to start a new project</Link>
+        {unassignedCount > 0 && (
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
+            {unassignedCount} batch{unassignedCount === 1 ? '' : 'es'} not yet linked to a project
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ProjectCommandCenter() {
   const { batchId } = useParams<{ batchId: string }>();
   const { foodType, subCategory, setSelection } = useFoodType();
@@ -193,15 +272,14 @@ export function ProjectCommandCenter() {
   const routedBatch = batchId ? importBatches.find(batch => batch.id === batchId) ?? null : null;
 
   useEffect(() => {
-    if (routedBatch && subCategory !== `batch:${routedBatch.id}`) {
-      setSelection(routedBatch.foodTypeSlug, `batch:${routedBatch.id}`);
+    if (routedBatch && subCategory !== encodeBatchSelection(routedBatch.id)) {
+      setSelection(routedBatch.foodTypeSlug, encodeBatchSelection(routedBatch.id));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routedBatch?.id]);
 
   const effectiveFoodType = routedBatch?.foodTypeSlug ?? foodType;
-  const effectiveBatchId = routedBatch?.id
-    ?? (subCategory?.startsWith('batch:') ? subCategory.replace('batch:', '') : null);
+  const effectiveBatchId = routedBatch?.id ?? parseBatchSelection(subCategory);
   const workflow = useProjectWorkflow(effectiveFoodType, effectiveBatchId);
   const batch = routedBatch ?? (effectiveBatchId ? importBatches.find(item => item.id === effectiveBatchId) ?? null : null);
 
@@ -235,10 +313,13 @@ export function ProjectCommandCenter() {
       : { projectEvents: auditEvents.slice(0, 5), projectScoped: false };
   }, [auditEvents, effectiveBatchId, effectiveFoodType, workflow.projectName]);
 
-  if (!effectiveFoodType || effectiveFoodType === 'all') {
+  if (!effectiveBatchId || !effectiveFoodType || effectiveFoodType === 'all') {
     return (
       <div className="mx-auto max-w-5xl">
-        <NoProjectState />
+        <ProjectPicker
+          importBatches={importBatches}
+          onOpen={batch => setSelection(batch.foodTypeSlug, encodeBatchSelection(batch.id))}
+        />
       </div>
     );
   }

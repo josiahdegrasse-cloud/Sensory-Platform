@@ -9,6 +9,7 @@ import { Checkbox } from './ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { type Product, DEFAULT_CATA_ATTRIBUTES, getDefaultCataAttributes } from '../data/mock-users';
 import { useFoodType, matchFoodType } from '../contexts/food-type-context';
+import { parseBatchSelection } from '../lib/project-identity';
 import {
   useProducts, usePanelists,
   useInsertProduct, useUpdateProduct, useDeleteProduct,
@@ -78,7 +79,7 @@ export function AdminConfig() {
 
   const { foodType, subCategory } = useFoodType();
   const currentFoodTypeLabel = formatFoodTypeLabel(foodType);
-  const selectedBatchId = subCategory?.startsWith('batch:') ? subCategory.replace('batch:', '') : null;
+  const selectedBatchId = parseBatchSelection(subCategory);
 
   // List filters
   const [filterStatus, setFilterStatus] = useState<StudyStatusFilter>('all');
@@ -131,7 +132,7 @@ export function AdminConfig() {
     conceptStudies
       .filter(concept => {
         if (concept.foodTypeSlug && concept.foodTypeSlug !== foodType) return false;
-        if (subCategory && !subCategory.startsWith('batch:') && concept.category !== subCategory) return false;
+        if (subCategory && parseBatchSelection(subCategory) === null && concept.category !== subCategory) return false;
         return true;
       })
       .map(concept => concept.id)

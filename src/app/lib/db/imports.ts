@@ -320,6 +320,10 @@ export interface ImportBatchRecord {
   sampleCount: number;
   /** What changed in this reformulation vs. the prior version (from TweakPrescription). */
   reformulationNotes?: string | null;
+  /** The real project this batch belongs to, if any (null = legacy/unassigned batch). */
+  projectId?: string | null;
+  /** The real project's display name, when this batch is linked to one. */
+  projectName?: string | null;
 }
 
 export async function fetchImportBatches(): Promise<ImportBatchRecord[]> {
@@ -327,8 +331,9 @@ export async function fetchImportBatches(): Promise<ImportBatchRecord[]> {
     .from('import_batches')
     .select(`
       id, file_name, row_count, recognized_columns, ignored_columns,
-      detection_confidence, status, imported_by, imported_at,
+      detection_confidence, status, imported_by, imported_at, project_id,
       food_types(slug, label),
+      projects(name),
       profiles(name),
       instrumental_samples(count)
     `)
@@ -356,6 +361,7 @@ export async function fetchImportBatches(): Promise<ImportBatchRecord[]> {
     const ft = row.food_types as { slug?: string; label?: string } | null;
     const profile = row.profiles as { name?: string } | null;
     const countArr = row.instrumental_samples as { count?: number }[] | null;
+    const project = row.projects as { name?: string } | null;
     return {
       id: row.id as string,
       foodTypeSlug: ft?.slug ?? 'generic',
@@ -371,6 +377,8 @@ export async function fetchImportBatches(): Promise<ImportBatchRecord[]> {
       createdAt: row.imported_at as string,
       sampleCount: countArr?.[0]?.count ?? Number(row.row_count ?? 0),
       reformulationNotes: (row.reformulation_notes as string) ?? null,
+      projectId: (row.project_id as string) ?? null,
+      projectName: project?.name ?? null,
     };
   });
 }

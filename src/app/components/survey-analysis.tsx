@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/auth-context';
 import { useFoodType, sampleMatchesFoodType } from '../contexts/food-type-context';
+import { parseBatchSelection } from '../lib/project-identity';
 import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from '../data/enhanced-sensory';
 import {
   useAdminConceptTests,
@@ -82,7 +83,7 @@ function buildImportedProfiles(dataset: ReturnType<typeof useInstrumentalDataset
 export function SurveyAnalysis() {
   const { user } = useAuth();
   const { foodType, subCategory } = useFoodType();
-  const importBatchId = subCategory?.startsWith('batch:') ? subCategory.replace('batch:', '') : null;
+  const importBatchId = parseBatchSelection(subCategory);
   const status = useProjectStatus(foodType, importBatchId);
   const { data: products = [] } = useProducts();
   const { data: instrumentalDataset } = useInstrumentalDataset(user?.role === 'admin');
