@@ -54,13 +54,13 @@ function buildLiveAggregation(products: Product[], responses: QuestionnaireRespo
 }
 
 function importedProfile(
-  projectId: string,
+  sampleId: string,
   dataset: InstrumentalDataset,
   products: Product[],
   responses: QuestionnaireResponse[],
   minimumResponses: number,
 ): EnhancedSensoryProfile | null {
-  const sample = dataset.eTongueData.find(item => item.sampleId === projectId);
+  const sample = dataset.eTongueData.find(item => item.sampleId === sampleId);
   if (!sample) return null;
   const aggregation = buildLiveAggregation(products, responses).find(item =>
     item.sourceSampleId === sample.sampleId ||
@@ -116,19 +116,19 @@ function importedProfile(
   };
 }
 
-export async function buildEvidenceBundle(projectId: string, createdBy = 'system') {
+export async function buildEvidenceBundle(sampleId: string, createdBy = 'system') {
   const [settings, dataset, products, responses] = await Promise.all([
     fetchWorkspaceSettings(),
     fetchInstrumentalDataset(),
     fetchProducts(),
     fetchAllResponses({ limit: 1000 }),
   ]);
-  const reference = ENHANCED_SENSORY_DATA.find(profile => profile.sampleId === projectId);
-  const imported = importedProfile(projectId, dataset, products, responses, settings.decisionMinResponses);
+  const reference = ENHANCED_SENSORY_DATA.find(profile => profile.sampleId === sampleId);
+  const imported = importedProfile(sampleId, dataset, products, responses, settings.decisionMinResponses);
   const profile = reference ?? imported;
-  const foodTypeSlug = dataset.eTongueData.find(sample => sample.sampleId === projectId)?.type ?? 'cheese';
+  const foodTypeSlug = dataset.eTongueData.find(sample => sample.sampleId === sampleId)?.type ?? 'cheese';
   return buildEvidenceBundleFromProfiles({
-    projectId,
+    projectId: sampleId,
     profiles: profile ? [profile] : [],
     foodTypeSlug,
     createdBy,

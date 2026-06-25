@@ -5,6 +5,7 @@ import {
   Lightbulb, ChevronRight, FolderKanban, Plus, ArrowRight, FileText,
 } from "lucide-react";
 import { useFoodType } from "../contexts/food-type-context";
+import { encodeBatchSelection } from "../lib/project-identity";
 import { useWorkspaceSettings } from "../lib/hooks";
 import { useProjectStatusList, type ProjectStatusListEntry } from "../lib/use-project-status";
 import { ProjectCard } from "./project-card";
@@ -208,7 +209,7 @@ function ActiveProjects() {
   }
 
   const open = (entry: ProjectStatusListEntry) =>
-    setSelection(entry.batch.foodTypeSlug, `batch:${entry.batch.id}`);
+    setSelection(entry.batch.foodTypeSlug, encodeBatchSelection(entry.batch.id));
 
   // Needs-attention projects first, then most recently imported.
   const sorted = [...projects].sort((a, b) => {

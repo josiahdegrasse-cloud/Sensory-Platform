@@ -246,7 +246,7 @@ Deno.serve(async (req: Request) => {
       .eq('org_id', orgId)
       .eq('created_by', profile.id)
       .eq('concept_name', clean(body.conceptName))
-      .eq('project_name', projectName)
+      .eq('concept_folder_name', projectName)
       .in('status', ['generating', 'completed']);
     if (body.conceptTestId) {
       generationCountQuery = generationCountQuery.eq('concept_test_id', body.conceptTestId);
@@ -268,7 +268,7 @@ Deno.serve(async (req: Request) => {
         org_id: orgId,
         concept_test_id: body.conceptTestId || null,
         created_by: profile.id,
-        project_name: projectName,
+        concept_folder_name: projectName,
         food_type_slug: foodTypeSlug,
         concept_name: clean(body.conceptName),
         mode: primaryMode,

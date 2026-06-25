@@ -162,7 +162,7 @@ function toConceptTest(row: Record<string, unknown>): ConceptTest {
     questions: (row.questions as ConceptQuestion[]) ?? [],
     panelSize: (row.panel_size as number) ?? 50,
     assignedPanelistIds: (row.assigned_panelist_ids as string[]) ?? [],
-    projectName: (row.project_name as string) ?? 'Project 1',
+    projectName: (row.concept_folder_name as string) ?? 'Project 1',
     foodTypeSlug: (row.food_type_slug as string) ?? '',
     approvalNotes: (row.approval_notes as string) ?? '',
     status: (row.status as ConceptTest['status']) ?? 'active',
@@ -231,7 +231,7 @@ export async function insertConceptTest(
       questions: test.questions,
       panel_size: test.panelSize,
       assigned_panelist_ids: test.assignedPanelistIds,
-      project_name: test.projectName ?? 'Project 1',
+      concept_folder_name: test.projectName ?? 'Project 1',
       food_type_slug: test.foodTypeSlug ?? '',
       approval_notes: test.approvalNotes ?? '',
       status: test.status,
@@ -386,7 +386,7 @@ function toCommercializationReport(row: Record<string, unknown>): Commercializat
 function toEvidenceBundle(row: Record<string, unknown>): EvidenceBundleRecord {
   return {
     id: row.id as string,
-    projectId: row.project_id as string,
+    projectId: row.sample_id as string,
     version: Number(row.version),
     schemaVersion: row.schema_version as string,
     sourceDataVersion: row.source_data_version as string,
@@ -444,7 +444,7 @@ export async function fetchEvidenceBundles(projectId?: string): Promise<Evidence
     .from('evidence_bundles')
     .select('*')
     .order('version', { ascending: false });
-  if (projectId) query = query.eq('project_id', projectId);
+  if (projectId) query = query.eq('sample_id', projectId);
   const { data, error } = await query;
   if (error && /evidence_bundles|schema cache|does not exist/i.test(error.message ?? '')) return [];
   if (error) throw dbError(error);
@@ -458,7 +458,7 @@ export async function saveEvidenceBundle(input: {
   payload: Record<string, unknown>;
 }): Promise<EvidenceBundleRecord> {
   const { data, error } = await supabase.rpc('create_evidence_bundle', {
-    target_project_id: input.projectId,
+    target_sample_id: input.projectId,
     target_schema_version: input.schemaVersion,
     target_source_data_version: input.sourceDataVersion,
     target_payload: input.payload,
@@ -568,7 +568,7 @@ function toConceptImageGeneration(row: Record<string, unknown>): ConceptImageGen
   return {
     id: row.id as string,
     conceptTestId: (row.concept_test_id as string) ?? null,
-    projectName: (row.project_name as string) ?? 'Project 1',
+    projectName: (row.concept_folder_name as string) ?? 'Project 1',
     foodTypeSlug: (row.food_type_slug as string) ?? '',
     conceptName: (row.concept_name as string) ?? '',
     mode: (row.mode as string) ?? 'packaging',
@@ -704,11 +704,11 @@ export async function fetchConceptImageGenerations(): Promise<ConceptImageGenera
 
 export async function fetchConceptProjectSummaries(): Promise<ConceptProjectSummary[]> {
   const [conceptsResult, generationsResult] = await Promise.all([
-    supabase.from('concept_tests').select('project_name, image_urls'),
-    supabase.from('concept_image_generations').select('project_name, estimated_cost, requested_count'),
+    supabase.from('concept_tests').select('concept_folder_name, image_urls'),
+    supabase.from('concept_image_generations').select('concept_folder_name, estimated_cost, requested_count'),
   ]);
   if (conceptsResult.error) {
-    if (conceptsResult.error.message?.includes('project_name')) return [];
+    if (conceptsResult.error.message?.includes('concept_folder_name')) return [];
     throw dbError(conceptsResult.error);
   }
   if (generationsResult.error) {
@@ -726,13 +726,13 @@ export async function fetchConceptProjectSummaries(): Promise<ConceptProjectSumm
   };
 
   (conceptsResult.data ?? []).forEach(row => {
-    const summary = ensure((row.project_name as string) ?? 'Project 1');
+    const summary = ensure((row.concept_folder_name as string) ?? 'Project 1');
     summary.conceptCount += 1;
     summary.imageCount += ((row.image_urls as string[]) ?? []).length;
   });
 
   (generationsResult.data ?? []).forEach(row => {
-    const summary = ensure((row.project_name as string) ?? 'Project 1');
+    const summary = ensure((row.concept_folder_name as string) ?? 'Project 1');
     summary.estimatedSpend += Number(row.estimated_cost ?? 0);
     summary.imageCount += Number(row.requested_count ?? 0);
   });

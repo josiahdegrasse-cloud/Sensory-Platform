@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, useLocation } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFoodType, sampleMatchesFoodType, matchFoodType } from "../contexts/food-type-context";
+import { parseBatchSelection } from "../lib/project-identity";
 import { Card, CardContent } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -44,7 +45,7 @@ export function Stage4Enhanced() {
   const { data: workspaceSettings } = useWorkspaceSettings();
   const { data: decisionRecords = [] } = useDecisionRecords();
   const { liveAggregations } = useSurveyData();
-  const selectedBatchId = subCategory?.startsWith('batch:') ? subCategory.replace('batch:', '') : null;
+  const selectedBatchId = parseBatchSelection(subCategory);
   const [selectedSample, setSelectedSample] = useState<string>("");
   const [showAuditTrail, setShowAuditTrail] = useState(false);
   const [logRefreshKey, setLogRefreshKey] = useState(0);

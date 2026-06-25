@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router';
 import { FileText } from 'lucide-react';
 import { useAuth } from '../contexts/auth-context';
 import { useFoodType, sampleMatchesFoodType } from '../contexts/food-type-context';
+import { parseBatchSelection } from '../lib/project-identity';
 import { useProjectStatus } from '../lib/use-project-status';
 import { ProjectHeader } from './project-header';
 import {
@@ -51,7 +52,7 @@ export function CommercializationReportPage() {
   const { user } = useAuth();
   const { foodType, subCategory } = useFoodType();
   const [searchParams] = useSearchParams();
-  const importBatchId = subCategory?.startsWith('batch:') ? subCategory.replace('batch:', '') : null;
+  const importBatchId = parseBatchSelection(subCategory);
   const status = useProjectStatus(foodType, importBatchId);
 
   const { data: decisionRecords = [] } = useDecisionRecords();
