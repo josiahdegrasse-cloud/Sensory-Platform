@@ -5,11 +5,14 @@ import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { ProjectStatusBadge } from './project-status-badge';
-import { useUpdateImportBatchName } from '../lib/hooks';
+import { useRenameProject, useUpdateImportBatchName } from '../lib/hooks';
 import type { ProjectStatusSummary } from '../lib/project-status';
 
 interface ProjectCardProps {
   projectId: string;
+  /** The real project id, when this batch is linked to one. Renames target the
+   *  project's name; without it, renames fall back to the import batch name. */
+  realProjectId?: string | null;
   status: ProjectStatusSummary;
   /** Command Center path for this project; the card title links to it. */
   projectPath?: string;
@@ -20,8 +23,10 @@ interface ProjectCardProps {
  * Action-oriented summary of a single project / import batch. Answers:
  * what is this, where is it in the workflow, what needs attention, what's next.
  */
-export function ProjectCard({ projectId, status, projectPath, onOpen }: ProjectCardProps) {
+export function ProjectCard({ projectId, realProjectId, status, projectPath, onOpen }: ProjectCardProps) {
   const updateName = useUpdateImportBatchName();
+  const renameProjectMutation = useRenameProject();
+  const isRenaming = updateName.isPending || renameProjectMutation.isPending;
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(status.projectName);
   const [error, setError] = useState('');
@@ -38,14 +43,20 @@ export function ProjectCard({ projectId, status, projectPath, onOpen }: ProjectC
 
   const saveRename = async () => {
     const nextName = draftName.trim();
-    if (!nextName || nextName === status.projectName || updateName.isPending) {
+    if (!nextName || nextName === status.projectName || isRenaming) {
       if (!nextName) setError('Project name is required.');
       else setEditing(false);
       return;
     }
     setError('');
     try {
-      await updateName.mutateAsync({ id: projectId, name: nextName });
+      // Linked to a real project → rename the project entity; otherwise fall back
+      // to renaming the underlying import batch (legacy/unassigned).
+      if (realProjectId) {
+        await renameProjectMutation.mutateAsync({ id: realProjectId, name: nextName });
+      } else {
+        await updateName.mutateAsync({ id: projectId, name: nextName });
+      }
       setEditing(false);
     } catch (renameError) {
       setError(renameError instanceof Error ? renameError.message : 'Unable to rename this project.');
@@ -83,7 +94,7 @@ export function ProjectCard({ projectId, status, projectPath, onOpen }: ProjectC
                   aria-label="Project name"
                   className="h-9 bg-white text-base font-semibold"
                 />
-                <Button type="button" size="sm" variant="outline" onMouseDown={event => event.preventDefault()} onClick={() => void saveRename()} disabled={updateName.isPending}>
+                <Button type="button" size="sm" variant="outline" onMouseDown={event => event.preventDefault()} onClick={() => void saveRename()} disabled={isRenaming}>
                   <Check className="size-4" />
                 </Button>
                 <Button type="button" size="sm" variant="ghost" onMouseDown={event => event.preventDefault()} onClick={cancelRename}>

@@ -11,6 +11,7 @@ import {
   fetchConceptTest, fetchConceptGenerationSettings, updateConceptGenerationSettings,
   fetchConceptImageGenerations, fetchConceptProjectSummaries, fetchConceptLabDiagnostics,
   fetchFoodTypes, fetchInstrumentalDataset, fetchImportBatches,
+  fetchProjects, createProject, renameProject, assignBatchToProject,
   fetchWorkspaceSettings, updateWorkspaceSettings, fetchAuditEvents,
   fetchDecisionRecords,
   fetchPublicWorkspaceConfig,
@@ -59,6 +60,7 @@ export const queryKeys = {
   foodTypes: ['foodTypes'] as const,
   instrumentalDataset: ['instrumentalDataset'] as const,
   importBatches: ['importBatches'] as const,
+  projects: ['projects'] as const,
   workspaceSettings: ['workspaceSettings'] as const,
   publicWorkspaceConfig: ['publicWorkspaceConfig'] as const,
   orgEmailDomains: ['orgEmailDomains'] as const,
@@ -527,6 +529,48 @@ export function useDeleteImportBatch() {
       qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
       qc.invalidateQueries({ queryKey: queryKeys.products })
       qc.invalidateQueries({ queryKey: queryKeys.activeProducts })
+    },
+  })
+}
+
+export function useProjects(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.projects,
+    queryFn: fetchProjects,
+    enabled,
+  })
+}
+
+export function useCreateProject() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ name, foodTypeId }: { name: string; foodTypeId: string }) =>
+      createProject(name, foodTypeId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.projects })
+    },
+  })
+}
+
+export function useRenameProject() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) => renameProject(id, name),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.projects })
+      qc.invalidateQueries({ queryKey: queryKeys.importBatches })
+    },
+  })
+}
+
+export function useAssignBatchToProject() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ batchId, projectId }: { batchId: string; projectId: string | null }) =>
+      assignBatchToProject(batchId, projectId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.importBatches })
+      qc.invalidateQueries({ queryKey: queryKeys.projects })
     },
   })
 }

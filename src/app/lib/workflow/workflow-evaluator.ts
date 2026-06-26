@@ -27,7 +27,8 @@ function activeBatch(input: WorkflowEvaluatorInput) {
 
 function projectName(input: WorkflowEvaluatorInput) {
   const batch = activeBatch(input);
-  return batch ? batch.fileName.replace(/\.csv$/i, '') : `${formatFoodTypeLabel(input.foodType)} Project`;
+  if (batch) return batch.projectName ?? batch.fileName.replace(/\.csv$/i, '');
+  return `${formatFoodTypeLabel(input.foodType)} Project`;
 }
 
 function stage(input: StageDraft): WorkflowStageSummary {
