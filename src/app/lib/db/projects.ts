@@ -1,0 +1,65 @@
+import { supabase } from '../supabase';
+import { dbError } from './shared';
+import type { Database } from './database.types';
+
+type Tables = Database['public']['Tables'];
+
+export interface ProjectRecord {
+  id: string;
+  name: string;
+  foodTypeId: string;
+  status: 'active' | 'archived' | 'deleted';
+  startedAt: string;
+  createdAt: string;
+}
+
+function toProject(row: Tables['projects']['Row']): ProjectRecord {
+  return {
+    id: row.id,
+    name: row.name,
+    foodTypeId: row.food_type_id,
+    status: row.status as ProjectRecord['status'],
+    startedAt: row.started_at as string,
+    createdAt: row.created_at as string,
+  };
+}
+
+/** Live (non-deleted) projects, newest first. Returns [] if the table is absent. */
+export async function fetchProjects(): Promise<ProjectRecord[]> {
+  const { data, error } = await supabase
+    .from('projects')
+    .select('*')
+    .neq('status', 'deleted')
+    .order('started_at', { ascending: false });
+  if (error && /projects|schema cache|does not exist/i.test(error.message ?? '')) return [];
+  if (error) throw dbError(error);
+  return (data ?? []).map(toProject);
+}
+
+/** Create a project. org_id is stamped server-side by the set_org_id trigger. */
+export async function createProject(name: string, foodTypeId: string): Promise<ProjectRecord> {
+  const { data, error } = await supabase
+    .from('projects')
+    .insert({ name: name.trim(), food_type_id: foodTypeId })
+    .select()
+    .single();
+  if (error) throw dbError(error);
+  return toProject(data);
+}
+
+export async function renameProject(id: string, name: string): Promise<void> {
+  const { error } = await supabase
+    .from('projects')
+    .update({ name: name.trim(), updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw dbError(error);
+}
+
+/** Link (or unlink, with null) an import batch to a project. */
+export async function assignBatchToProject(batchId: string, projectId: string | null): Promise<void> {
+  const { error } = await supabase
+    .from('import_batches')
+    .update({ project_id: projectId })
+    .eq('id', batchId);
+  if (error) throw dbError(error);
+}

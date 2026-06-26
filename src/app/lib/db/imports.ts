@@ -323,6 +323,8 @@ export interface ImportBatchRecord {
   sampleCount: number;
   /** What changed in this reformulation vs. the prior version (from TweakPrescription). */
   reformulationNotes?: string | null;
+  /** The food type FK — used when creating a project from this batch. */
+  foodTypeId?: string | null;
   /** The real project this batch belongs to, if any (null = legacy/unassigned batch). */
   projectId?: string | null;
   /** The real project's display name, when this batch is linked to one. */
@@ -334,7 +336,7 @@ export async function fetchImportBatches(): Promise<ImportBatchRecord[]> {
     .from('import_batches')
     .select(`
       id, file_name, row_count, recognized_columns, ignored_columns,
-      detection_confidence, status, imported_by, imported_at, project_id,
+      detection_confidence, status, imported_by, imported_at, project_id, food_type_id,
       food_types(slug, label),
       projects(name),
       profiles(name),
@@ -380,6 +382,7 @@ export async function fetchImportBatches(): Promise<ImportBatchRecord[]> {
       createdAt: row.imported_at as string,
       sampleCount: countArr?.[0]?.count ?? Number(row.row_count ?? 0),
       reformulationNotes: (row.reformulation_notes as string) ?? null,
+      foodTypeId: (row.food_type_id as string) ?? null,
       projectId: (row.project_id as string) ?? null,
       projectName: project?.name ?? null,
     };

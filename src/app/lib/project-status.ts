@@ -104,7 +104,8 @@ function pickProjectName(input: ComputeProjectStatusInput): string {
   const batch = input.importBatchId
     ? input.importBatches.find(b => b.id === input.importBatchId)
     : input.importBatches.find(b => b.foodTypeSlug === input.foodType && b.status === 'active');
-  if (batch) return batch.fileName.replace(/\.csv$/i, '');
+  // Prefer the real project's name; fall back to the batch file name, then food type.
+  if (batch) return batch.projectName ?? batch.fileName.replace(/\.csv$/i, '');
   return `${formatFoodTypeLabel(input.foodType)} Project`;
 }
 

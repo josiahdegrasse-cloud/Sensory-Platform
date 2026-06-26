@@ -4,6 +4,7 @@
 export * from './db/shared';
 export * from './db/products';
 export * from './db/imports';
+export * from './db/projects';
 export * from './db/pending-imports';
 export * from './db/responses';
 export * from './db/templates';
