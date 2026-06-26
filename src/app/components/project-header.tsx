@@ -7,6 +7,7 @@ import { useProjectStatus } from '../lib/use-project-status';
 import { useImportBatches } from '../lib/hooks';
 import { ProjectStatusBadge } from './project-status-badge';
 import { ProjectJourneyNav } from './project-journey-nav';
+import { AssignProjectControl } from './assign-project-control';
 
 /**
  * Persistent project context bar shown across the admin workflow pages
@@ -51,17 +52,14 @@ export function ProjectHeader() {
             )}
           </div>
           <p className="mt-0.5 text-xs text-slate-500">{status.foodTypeLabel}</p>
-          {isUnassignedBatch && (
-            <div className="mt-1 flex items-center gap-2">
+          {isUnassignedBatch && currentBatch && (
+            <div className="mt-1">
               <span className="text-xs text-amber-700">No project assigned to this batch yet.</span>
-              <button
-                type="button"
-                disabled
-                title="Assigning a batch to a project is coming soon."
-                className="cursor-not-allowed rounded border border-slate-200 px-1.5 py-0.5 text-[11px] font-medium text-slate-400"
-              >
-                Assign project
-              </button>
+              <AssignProjectControl
+                batchId={currentBatch.id}
+                foodTypeId={currentBatch.foodTypeId ?? null}
+                defaultName={status.projectName}
+              />
             </div>
           )}
         </div>

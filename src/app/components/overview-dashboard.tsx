@@ -231,6 +231,7 @@ function ActiveProjects() {
             <ProjectCard
               key={entry.batch.id}
               projectId={entry.batch.id}
+              realProjectId={entry.batch.projectId}
               status={entry.status}
               projectPath={`/project/${entry.batch.id}`}
               onOpen={() => open(entry)}
