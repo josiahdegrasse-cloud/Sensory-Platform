@@ -7,6 +7,9 @@ import {
   slugifyFoodType,
 } from '../food-intelligence';
 import { asJson, dbError, isMissingFoodImportSchema } from './shared';
+import type { Database } from './database.types';
+
+type Tables = Database['public']['Tables'];
 
 export interface FoodTypeRecord {
   id: string;
@@ -172,15 +175,15 @@ async function seedDemoResponsesForImport(input: {
   if (error) throw dbError(error);
 }
 
-function toFoodType(row: Record<string, unknown>): FoodTypeRecord {
+function toFoodType(row: Tables['food_types']['Row']): FoodTypeRecord {
   return {
-    id: row.id as string,
-    slug: row.slug as string,
-    label: row.label as string,
+    id: row.id,
+    slug: row.slug,
+    label: row.label,
     status: row.status as 'active' | 'archived' | 'deleted',
     source: row.source as 'system' | 'import' | 'manual',
-    aliases: (row.aliases as string[]) ?? [],
-    createdBy: (row.created_by as string) ?? null,
+    aliases: row.aliases ?? [],
+    createdBy: row.created_by ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };

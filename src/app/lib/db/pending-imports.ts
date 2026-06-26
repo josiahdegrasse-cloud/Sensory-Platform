@@ -1,5 +1,8 @@
 import { supabase } from '../supabase';
-import { dbError, edgeFunctionErrorMessage } from './shared';
+import { dbError, edgeFunctionErrorMessage, fromJson } from './shared';
+import type { Database } from './database.types';
+
+type Tables = Database['public']['Tables'];
 
 export interface PendingImportParsePreview {
   headers: string[];
@@ -37,18 +40,18 @@ export interface DriveImportResult {
   errors: { name: string; message: string }[];
 }
 
-function toPendingImport(row: Record<string, unknown>): PendingImportRecord {
+function toPendingImport(row: Tables['pending_imports']['Row']): PendingImportRecord {
   return {
-    id: row.id as string,
-    storagePath: row.storage_path as string,
-    fileName: row.file_name as string,
+    id: row.id,
+    storagePath: row.storage_path,
+    fileName: row.file_name,
     status: row.status as PendingImportRecord['status'],
-    matchedBatchId: (row.matched_batch_id as string) ?? null,
-    parsePreview: (row.parse_preview as PendingImportParsePreview) ?? null,
-    errorMessage: (row.error_message as string) ?? null,
-    uploadedBy: (row.uploaded_by as string) ?? null,
+    matchedBatchId: row.matched_batch_id ?? null,
+    parsePreview: fromJson<PendingImportParsePreview>(row.parse_preview) ?? null,
+    errorMessage: row.error_message ?? null,
+    uploadedBy: row.uploaded_by ?? null,
     source: (row.source as PendingImportRecord['source']) ?? 'upload',
-    sourceFileId: (row.source_file_id as string) ?? null,
+    sourceFileId: row.source_file_id ?? null,
     createdAt: row.created_at as string,
   };
 }
@@ -61,7 +64,7 @@ export async function fetchPendingImports(): Promise<PendingImportRecord[]> {
     .order('created_at', { ascending: false })
     .limit(50);
   if (error) throw dbError(error);
-  return (data ?? []).map(row => toPendingImport(row as Record<string, unknown>));
+  return (data ?? []).map(toPendingImport);
 }
 
 export async function dismissPendingImport(id: string): Promise<void> {
@@ -120,7 +123,8 @@ export async function uploadAndQueueImport(
     body: { storagePath },
   });
   if (invokeError) throw new Error(`Processing failed: ${await edgeFunctionErrorMessage(invokeError, invokeError.message)}`);
-  return toPendingImport(data as Record<string, unknown>);
+  // Edge-function responses aren't schema-typed; assert the row shape it returns.
+  return toPendingImport(data as Tables['pending_imports']['Row']);
 }
 
 // Lists CSVs in the org's connected Google Drive folder via the drive-sync

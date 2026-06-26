@@ -1,7 +1,9 @@
 import { supabase } from '../supabase';
-import { dbError, insertAuditEvent } from './shared';
+import { dbError, fromJson, insertAuditEvent } from './shared';
 import { validateCompanyDomain } from '../company-email';
 import type { Database } from './database.types';
+
+type Tables = Database['public']['Tables'];
 
 export interface WorkspaceSettings {
   workspaceName: string;
@@ -147,7 +149,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
   };
 }
 
-function toWorkspaceSettings(row: Record<string, unknown>): WorkspaceSettings {
+function toWorkspaceSettings(row: Tables['workspace_settings']['Row']): WorkspaceSettings {
   return {
     workspaceName: (row.workspace_name as string) ?? 'Sensory Analysis Workspace',
     organizationName: (row.organization_name as string) ?? 'New Food Innovation',
@@ -289,7 +291,7 @@ export async function updateWorkspaceSettings(
   // so the client never has to know which tenant it is writing.
   const { data, error } = await supabase.rpc('upsert_workspace_settings', { patch });
   if (error) throw dbError(error);
-  const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown>;
+  const row = (Array.isArray(data) ? data[0] : data) as Tables['workspace_settings']['Row'];
 
   await insertAuditEvent({
     actorId: actorId ?? null,
@@ -408,7 +410,7 @@ export async function fetchAuditEvents(limit = 80): Promise<AuditEventRecord[]> 
       eventType: row.event_type as string,
       entityType: row.entity_type as string,
       entityId: (row.entity_id as string) ?? null,
-      metadata: (row.metadata as Record<string, unknown>) ?? {},
+      metadata: fromJson<Record<string, unknown>>(row.metadata) ?? {},
       createdAt: row.created_at as string,
     };
   });

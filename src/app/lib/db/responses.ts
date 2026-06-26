@@ -1,16 +1,19 @@
 import { supabase } from '../supabase';
 import type { QuestionnaireResponse } from '../../data/mock-users';
-import { dbError } from './shared';
+import { dbError, fromJson } from './shared';
+import type { Database } from './database.types';
 
-function toResponse(row: Record<string, unknown>): QuestionnaireResponse {
-  const rawComments = (row.comments as string) ?? '';
+type Tables = Database['public']['Tables'];
+
+function toResponse(row: Tables['responses']['Row']): QuestionnaireResponse {
+  const rawComments = row.comments ?? '';
 
   // Prefer dedicated columns (migration 004); fall back to JSON-in-comments for
   // rows written before that migration ran.
-  let sessionType = (row.session_type as string | undefined) ?? undefined;
-  let sampleCode = (row.sample_code as string | undefined) ?? undefined;
-  let differentSample = (row.different_sample as string | undefined) ?? undefined;
-  let ranking = Array.isArray(row.ranking) ? (row.ranking as string[]) : undefined;
+  let sessionType = row.session_type ?? undefined;
+  let sampleCode = row.sample_code ?? undefined;
+  let differentSample = row.different_sample ?? undefined;
+  let ranking = row.ranking ?? undefined;
   let comments = rawComments;
 
   if (!sessionType && rawComments) {
@@ -27,17 +30,17 @@ function toResponse(row: Record<string, unknown>): QuestionnaireResponse {
   }
 
   return {
-    id: row.id as string,
-    userId: row.user_id as string,
-    productId: row.product_id as string,
+    id: row.id,
+    userId: row.user_id,
+    productId: row.product_id,
     timestamp: row.created_at as string,
-    runNumber: (row.run_number as number) ?? 1,
-    cataAttributes: (row.cata_attributes as string[]) || [],
-    intensityRatings: (row.intensity_ratings as Record<string, number>) || {},
-    hedonicScores: (row.hedonic_scores as QuestionnaireResponse['hedonicScores']) || {
+    runNumber: row.run_number ?? 1,
+    cataAttributes: fromJson<string[]>(row.cata_attributes) || [],
+    intensityRatings: fromJson<Record<string, number>>(row.intensity_ratings) || {},
+    hedonicScores: fromJson<QuestionnaireResponse['hedonicScores']>(row.hedonic_scores) || {
       overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5,
     },
-    emotionalProfile: (row.emotional_profile as Record<string, number>) || {},
+    emotionalProfile: fromJson<Record<string, number>>(row.emotional_profile) || {},
     comments,
     sessionType,
     sampleCode,
