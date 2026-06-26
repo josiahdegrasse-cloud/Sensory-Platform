@@ -350,8 +350,8 @@ export async function buildSavedReportExportContext(reportId: string): Promise<R
     const blockers = ['Saved report snapshot is missing required commercialization fields.'];
     return { ok: false, report, snapshot: null, blockers, warnings: [], readiness: emptyReadiness(blockers) };
   }
-  let evidenceBundle: EvidenceBundle | null = null;
-  let evidenceBundleStatus: ReportReadiness['evidenceBundleStatus'] = 'missing';
+  let evidenceBundle: EvidenceBundle | null;
+  let evidenceBundleStatus: ReportReadiness['evidenceBundleStatus'];
   try {
     const evidenceRecords = await fetchEvidenceBundles(snapshot.product.sampleId);
     const linked = report.evidenceBundleId

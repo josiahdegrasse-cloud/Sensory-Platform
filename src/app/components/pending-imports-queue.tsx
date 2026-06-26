@@ -268,6 +268,7 @@ function ImportQueueItem({
       {rejecting && (
         <div className="pl-6 space-y-2">
           <input
+            // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional: this input only renders when the admin clicks "dismiss", so focusing it is the expected next action
             autoFocus
             type="text"
             value={rejectReason}
