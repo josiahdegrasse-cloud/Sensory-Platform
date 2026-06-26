@@ -38,6 +38,11 @@ export default tseslint.config(
       // Derived-state syncing in effects is widespread and working; surface as
       // warnings to burn down rather than blocking CI.
       'react-hooks/set-state-in-effect': 'warn',
+      // React-compiler advisories that flag working patterns (selecting an icon
+      // component per-render, referencing a useCallback before its declaration in
+      // an effect that only runs after mount). Not runtime bugs — warn, don't block.
+      'react-hooks/static-components': 'warn',
+      'react-hooks/immutability': 'warn',
       // jsx-a11y can't see through Radix `asChild`/`Slot` or recognize a Radix
       // Switch as a labelable control, so nested-control labels read as false
       // positives. Keep as a warning so genuine cases still surface.

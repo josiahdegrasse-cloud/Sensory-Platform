@@ -84,7 +84,7 @@ const FoodTypeContext = createContext<FoodTypeContextValue>({
 });
 
 export function FoodTypeProvider({ children }: { children: ReactNode }) {
-  const persistedSelection = useMemo(readPersistedSelection, []);
+  const persistedSelection = useMemo(() => readPersistedSelection(), []);
   const [foodType, setFoodType] = useState<FoodType>(persistedSelection?.foodType ?? 'cheese');
   const [subCategory, setSubCategory] = useState<string | null>(persistedSelection?.subCategory ?? null);
   const [localFoodTypeRecords, setLocalFoodTypeRecords] = useState<LocalFoodTypeRecord[]>([]);
