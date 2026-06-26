@@ -159,8 +159,19 @@ function deterministicRepairOwner(code: string): string {
   return 'professional_report_writer';
 }
 
-function allowedEvidenceIds(ctx: ReportContext): string[] {
-  return ctx.sourceEvidenceIds;
+export function allowedEvidenceIds(ctx: ReportContext): string[] {
+  // An agent may cite any id present in the context it was shown — the source
+  // evidence records PLUS the deterministic gates, limitations, claims, and
+  // dimensions surfaced in its packet (e.g. the scientific_skeptic grounding a
+  // challenge in a failing gate like "sensory.qc" or a stated limitation like
+  // "weak-dimension"). Only ids outside this whole set are fabricated citations.
+  return [
+    ...ctx.sourceEvidenceIds,
+    ...ctx.gates.map(gate => gate.id),
+    ...ctx.limitations.map(limitation => limitation.id),
+    ...ctx.claims.map(claim => claim.id),
+    ...ctx.dimensions.map(dimension => dimension.key),
+  ];
 }
 
 async function invoke<R extends ReportAgentRole>(

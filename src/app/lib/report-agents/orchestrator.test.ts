@@ -7,9 +7,28 @@ import type {
   ReportAgentTask,
   ReportRenderResult,
 } from './types';
-import { orchestrateReportAgents } from './orchestrator';
+import { orchestrateReportAgents, allowedEvidenceIds } from './orchestrator';
 import { REPORT_AGENT_DEFINITIONS } from './roles';
 import { validateAgentResult } from './result-validation';
+
+describe('allowedEvidenceIds', () => {
+  it('authorizes the gates and limitations the agents are shown, not just source evidence', () => {
+    const ctx = coconutCheddarContext();
+    const allowed = new Set(allowedEvidenceIds(ctx));
+
+    // Regression: the scientific_skeptic is shown gates + limitations and cites
+    // them (e.g. "sensory.qc", "weak-dimension"); those must be citeable, not
+    // rejected as "unauthorized evidence id(s)".
+    expect(ctx.gates.length).toBeGreaterThan(0);
+    ctx.gates.forEach(gate => expect(allowed.has(gate.id)).toBe(true));
+    expect(ctx.limitations.length).toBeGreaterThan(0);
+    ctx.limitations.forEach(limitation => expect(allowed.has(limitation.id)).toBe(true));
+    // Still includes the real source-evidence record ids.
+    ctx.sourceEvidenceIds.forEach(id => expect(allowed.has(id)).toBe(true));
+    // A truly fabricated id is still rejected.
+    expect(allowed.has('totally-made-up-id')).toBe(false);
+  });
+});
 
 const cleanSections = {
   sections: [
