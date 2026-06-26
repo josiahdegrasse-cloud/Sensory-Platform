@@ -1,35 +1,38 @@
 import { supabase } from '../supabase';
 import type { Product, HedonicReferenceScores } from '../../data/mock-users';
-import { dbError } from './shared';
+import { asJson, dbError, fromJson } from './shared';
+import type { Database } from './database.types';
 
-function toProduct(row: Record<string, unknown>): Product {
+type Tables = Database['public']['Tables'];
+
+function toProduct(row: Tables['products']['Row']): Product {
   return {
-    id: row.id as string,
-    name: row.name as string,
-    category: row.category as string,
+    id: row.id,
+    name: row.name,
+    category: row.category,
     createdDate: row.created_at as string,
     status: row.status as Product['status'],
-    customAttributes: (row.custom_attributes as string[]) ?? undefined,
-    isMultiSample: (row.is_multi_sample as boolean) ?? false,
-    samples: (row.samples as Product['samples']) ?? undefined,
-    isCalibration: (row.is_calibration as boolean) ?? false,
-    referenceScores: (row.reference_scores as HedonicReferenceScores) ?? null,
-    assignedPanelistIds: (row.assigned_panelist_ids as string[]) ?? [],
-    sourceImportBatchId: (row.source_import_batch_id as string) ?? null,
-    sourceSampleId: (row.source_sample_id as string) ?? null,
+    customAttributes: (row.custom_attributes as string[] | null) ?? undefined,
+    isMultiSample: row.is_multi_sample ?? false,
+    samples: fromJson<Product['samples']>(row.samples) ?? undefined,
+    isCalibration: row.is_calibration ?? false,
+    referenceScores: fromJson<HedonicReferenceScores>(row.reference_scores) ?? null,
+    assignedPanelistIds: row.assigned_panelist_ids ?? [],
+    sourceImportBatchId: row.source_import_batch_id ?? null,
+    sourceSampleId: row.source_sample_id ?? null,
   };
 }
 
-function fromProduct(p: Omit<Product, 'id' | 'createdDate'>) {
+function fromProduct(p: Omit<Product, 'id' | 'createdDate'>): Tables['products']['Insert'] {
   return {
     name: p.name,
     category: p.category,
     status: p.status,
     custom_attributes: p.customAttributes ?? null,
     is_multi_sample: p.isMultiSample ?? false,
-    samples: p.samples ?? null,
+    samples: asJson(p.samples ?? null),
     is_calibration: p.isCalibration ?? false,
-    reference_scores: p.referenceScores ?? null,
+    reference_scores: asJson(p.referenceScores ?? null),
     assigned_panelist_ids: p.assignedPanelistIds ?? [],
     source_import_batch_id: p.sourceImportBatchId ?? null,
     source_sample_id: p.sourceSampleId ?? null,
@@ -79,15 +82,15 @@ export async function updateProduct(
   id: string,
   updates: Partial<Omit<Product, 'id' | 'createdDate'>>,
 ): Promise<Product> {
-  const patch: Record<string, unknown> = {};
+  const patch: Tables['products']['Update'] = {};
   if (updates.name !== undefined) patch.name = updates.name;
   if (updates.category !== undefined) patch.category = updates.category;
   if (updates.status !== undefined) patch.status = updates.status;
   if (updates.customAttributes !== undefined) patch.custom_attributes = updates.customAttributes;
   if (updates.isMultiSample !== undefined) patch.is_multi_sample = updates.isMultiSample;
-  if (updates.samples !== undefined) patch.samples = updates.samples;
+  if (updates.samples !== undefined) patch.samples = asJson(updates.samples);
   if (updates.isCalibration !== undefined) patch.is_calibration = updates.isCalibration;
-  if (updates.referenceScores !== undefined) patch.reference_scores = updates.referenceScores;
+  if (updates.referenceScores !== undefined) patch.reference_scores = asJson(updates.referenceScores);
   if (updates.assignedPanelistIds !== undefined) patch.assigned_panelist_ids = updates.assignedPanelistIds;
   if (updates.sourceImportBatchId !== undefined) patch.source_import_batch_id = updates.sourceImportBatchId;
   if (updates.sourceSampleId !== undefined) patch.source_sample_id = updates.sourceSampleId;

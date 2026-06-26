@@ -61,7 +61,7 @@ async function loadProfile(supabaseUser: SupabaseUser): Promise<ProfileResult> {
       role: data.role as 'admin' | 'panelist',
       name: data.name ?? supabaseUser.email ?? '',
       panelistId: data.panelist_id ?? undefined,
-      status: data.status ?? 'active',
+      status: (data.status ?? 'active') as 'active' | 'archived' | 'inactive',
       consentAcceptedAt: data.consent_accepted_at ?? null,
       consentVersion: data.consent_version ?? null,
     },

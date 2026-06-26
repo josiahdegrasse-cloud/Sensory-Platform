@@ -1,5 +1,8 @@
 import { supabase } from '../supabase';
-import { dbError } from './shared';
+import { dbError, fromJson } from './shared';
+import type { Database } from './database.types';
+
+type Tables = Database['public']['Tables'];
 
 export interface Template {
   id: string;
@@ -8,11 +11,11 @@ export interface Template {
   createdDate: string;
 }
 
-function toTemplate(row: Record<string, unknown>): Template {
+function toTemplate(row: Tables['templates']['Row']): Template {
   return {
-    id: row.id as string,
-    name: row.name as string,
-    attributes: (row.attributes as string[]) || [],
+    id: row.id,
+    name: row.name,
+    attributes: fromJson<string[]>(row.attributes) ?? [],
     createdDate: row.created_at as string,
   };
 }

@@ -1,5 +1,8 @@
 import { supabase } from '../supabase';
-import { dbError, edgeFunctionErrorMessage } from './shared';
+import { asJson, dbError, edgeFunctionErrorMessage, fromJson } from './shared';
+import type { Database } from './database.types';
+
+type Tables = Database['public']['Tables'];
 
 export interface ConceptQuestion {
   id: string;
@@ -148,28 +151,28 @@ export interface ConceptLabDiagnostics {
   messages: string[];
 }
 
-function toConceptTest(row: Record<string, unknown>): ConceptTest {
+function toConceptTest(row: Tables['concept_tests']['Row']): ConceptTest {
   return {
-    id: row.id as string,
-    name: row.name as string,
-    category: (row.category as string) ?? '',
-    description: (row.description as string) ?? '',
-    imageUrls: (row.image_urls as string[]) ?? [],
-    imageIds: (row.generated_image_ids as string[]) ?? [],
-    targetMarket: (row.target_market as string) ?? '',
-    pricePoint: (row.price_point as string) ?? '',
-    keyBenefits: (row.key_benefits as string) ?? '',
-    questions: (row.questions as ConceptQuestion[]) ?? [],
-    panelSize: (row.panel_size as number) ?? 50,
-    assignedPanelistIds: (row.assigned_panelist_ids as string[]) ?? [],
-    projectName: (row.concept_folder_name as string) ?? 'Project 1',
-    foodTypeSlug: (row.food_type_slug as string) ?? '',
-    approvalNotes: (row.approval_notes as string) ?? '',
+    id: row.id,
+    name: row.name,
+    category: row.category ?? '',
+    description: row.description ?? '',
+    imageUrls: row.image_urls ?? [],
+    imageIds: row.generated_image_ids ?? [],
+    targetMarket: row.target_market ?? '',
+    pricePoint: row.price_point ?? '',
+    keyBenefits: row.key_benefits ?? '',
+    questions: fromJson<ConceptQuestion[]>(row.questions) ?? [],
+    panelSize: row.panel_size ?? 50,
+    assignedPanelistIds: row.assigned_panelist_ids ?? [],
+    projectName: row.concept_folder_name ?? 'Project 1',
+    foodTypeSlug: row.food_type_slug ?? '',
+    approvalNotes: row.approval_notes ?? '',
     status: (row.status as ConceptTest['status']) ?? 'active',
     createdAt: row.created_at as string,
-    launchedAt: (row.launched_at as string) ?? null,
-    archivedAt: (row.archived_at as string) ?? null,
-    variantDimensions: (row.variant_dimensions as Record<string, string | null>) ?? {},
+    launchedAt: row.launched_at ?? null,
+    archivedAt: row.archived_at ?? null,
+    variantDimensions: fromJson<Record<string, string | null>>(row.variant_dimensions) ?? {},
   };
 }
 
@@ -190,12 +193,12 @@ async function hydrateConceptTestImages(test: ConceptTest, includeMeta = false):
     .in('id', test.imageIds)
     .order('sort_order', { ascending: true });
   if (error) throw dbError(error);
-  const rows = (data ?? []) as Record<string, unknown>[];
+  const rows = data ?? [];
   const signed = await Promise.all(rows.map(async row => ({
     row,
     url: await createConceptImageSignedUrl(
-      (row.storage_path as string) ?? null,
-      (row.image_url as string) ?? '',
+      row.storage_path,
+      row.image_url ?? '',
     ),
   })));
   const visible = signed.filter(entry => entry.url);
@@ -203,13 +206,13 @@ async function hydrateConceptTestImages(test: ConceptTest, includeMeta = false):
   if (!includeMeta) return { ...test, imageUrls };
   // Metadata stays on admin fetch paths only; panelists get bare image URLs.
   const imageMeta: ConceptImageMeta[] = visible.map(({ row }) => ({
-    id: row.id as string,
-    mode: (row.mode as string) ?? 'packaging',
-    promptStyle: (row.prompt_style as string) ?? '',
-    model: (row.model as string) ?? '',
-    quality: (row.quality as string) ?? '',
+    id: row.id,
+    mode: row.mode ?? 'packaging',
+    promptStyle: row.prompt_style ?? '',
+    model: row.model ?? '',
+    quality: row.quality ?? '',
     reviewStatus: toReviewStatus(row),
-    createdAt: (row.created_at as string) ?? '',
+    createdAt: row.created_at ?? '',
   }));
   return { ...test, imageUrls, imageMeta };
 }
@@ -228,7 +231,7 @@ export async function insertConceptTest(
       target_market: test.targetMarket,
       price_point: test.pricePoint,
       key_benefits: test.keyBenefits,
-      questions: test.questions,
+      questions: asJson(test.questions),
       panel_size: test.panelSize,
       assigned_panelist_ids: test.assignedPanelistIds,
       concept_folder_name: test.projectName ?? 'Project 1',
@@ -364,34 +367,34 @@ export async function fetchConceptResponseCounts(): Promise<Record<string, numbe
   }, {});
 }
 
-function toCommercializationReport(row: Record<string, unknown>): CommercializationReportRecord {
+function toCommercializationReport(row: Tables['commercialization_reports']['Row']): CommercializationReportRecord {
   return {
-    id: row.id as string,
-    decisionRecordId: row.decision_record_id as string,
-    conceptTestId: row.concept_test_id as string,
-    packagingImageId: (row.packaging_image_id as string) ?? null,
-    evidenceBundleId: (row.evidence_bundle_id as string) ?? null,
+    id: row.id,
+    decisionRecordId: row.decision_record_id,
+    conceptTestId: row.concept_test_id,
+    packagingImageId: row.packaging_image_id ?? null,
+    evidenceBundleId: row.evidence_bundle_id ?? null,
     status: row.status as CommercializationReportRecord['status'],
     version: Number(row.version),
-    title: row.title as string,
-    reportSnapshot: (row.report_snapshot as Record<string, unknown>) ?? {},
-    createdBy: row.created_by as string,
-    approvedBy: (row.approved_by as string) ?? null,
-    approvedAt: (row.approved_at as string) ?? null,
+    title: row.title,
+    reportSnapshot: fromJson<Record<string, unknown>>(row.report_snapshot) ?? {},
+    createdBy: row.created_by,
+    approvedBy: row.approved_by ?? null,
+    approvedAt: row.approved_at ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
 }
 
-function toEvidenceBundle(row: Record<string, unknown>): EvidenceBundleRecord {
+function toEvidenceBundle(row: Tables['evidence_bundles']['Row']): EvidenceBundleRecord {
   return {
-    id: row.id as string,
-    projectId: row.sample_id as string,
+    id: row.id,
+    projectId: row.sample_id,
     version: Number(row.version),
-    schemaVersion: row.schema_version as string,
-    sourceDataVersion: row.source_data_version as string,
-    payload: (row.payload as Record<string, unknown>) ?? {},
-    createdBy: row.created_by as string,
+    schemaVersion: row.schema_version,
+    sourceDataVersion: row.source_data_version,
+    payload: fromJson<Record<string, unknown>>(row.payload) ?? {},
+    createdBy: row.created_by,
     createdAt: row.created_at as string,
   };
 }
@@ -417,12 +420,14 @@ export async function createCommercializationReport(input: {
   const { data, error } = await supabase.rpc('create_commercialization_report', {
     target_decision_record_id: input.decisionRecordId,
     target_concept_test_id: input.conceptTestId,
-    target_packaging_image_id: input.packagingImageId,
+    // The SQL function accepts NULL here (it handles a missing packaging image);
+    // the generated arg type is non-null because the param has no default.
+    target_packaging_image_id: input.packagingImageId as string,
     target_title: input.title,
-    target_report_snapshot: input.reportSnapshot,
+    target_report_snapshot: asJson(input.reportSnapshot),
   });
   if (error) throw dbError(error);
-  const report = toCommercializationReport(data as Record<string, unknown>);
+  const report = toCommercializationReport(data as Tables['commercialization_reports']['Row']);
 
   // Link the evidence bundle backing this report. Done as a follow-up update
   // (rather than threading through the SECURITY DEFINER RPC) — RLS lets the
@@ -434,7 +439,7 @@ export async function createCommercializationReport(input: {
       .eq('id', report.id)
       .select()
       .maybeSingle();
-    if (!linkError && linked) return toCommercializationReport(linked as Record<string, unknown>);
+    if (!linkError && linked) return toCommercializationReport(linked);
   }
   return report;
 }
@@ -461,10 +466,10 @@ export async function saveEvidenceBundle(input: {
     target_sample_id: input.projectId,
     target_schema_version: input.schemaVersion,
     target_source_data_version: input.sourceDataVersion,
-    target_payload: input.payload,
+    target_payload: asJson(input.payload),
   });
   if (error) throw dbError(error);
-  return toEvidenceBundle(data as Record<string, unknown>);
+  return toEvidenceBundle(data as Tables['evidence_bundles']['Row']);
 }
 
 export interface ReportNarrativeRequest {
@@ -510,13 +515,13 @@ export async function updateCommercializationReportStatus(input: {
   if (error) throw dbError(error);
 }
 
-function toConceptSettings(row: Record<string, unknown>): ConceptGenerationSettings {
+function toConceptSettings(row: Tables['concept_generation_settings']['Row']): ConceptGenerationSettings {
   return {
-    id: row.id as string,
-    defaultImageCount: (row.default_image_count as number) ?? 4,
-    maxImagesPerConcept: (row.max_images_per_concept as number) ?? 4,
+    id: row.id,
+    defaultImageCount: row.default_image_count ?? 4,
+    maxImagesPerConcept: row.max_images_per_concept ?? 4,
     defaultQuality: (row.default_quality as ConceptGenerationSettings['defaultQuality']) ?? 'medium',
-    defaultModel: (row.default_model as string) ?? 'gpt-image-1.5',
+    defaultModel: row.default_model ?? 'gpt-image-1.5',
     estimatedCostPerImage: Number(row.estimated_cost_per_image ?? 0.034),
     monthlyBudget: Number(row.monthly_budget ?? 50),
     promptStyle: (row.prompt_style as ConceptGenerationSettings['promptStyle']) ?? 'balanced',
@@ -538,51 +543,53 @@ function defaultConceptSettings(): ConceptGenerationSettings {
 
 // Before the concept_image_metadata migration the review_status column does
 // not exist, so derive a sensible status from the legacy columns.
-function toReviewStatus(row: Record<string, unknown>): ConceptImageReviewStatus {
+function toReviewStatus(row: Tables['concept_images']['Row']): ConceptImageReviewStatus {
   const status = row.review_status as ConceptImageReviewStatus | undefined;
   if (status === 'draft' || status === 'selected' || status === 'approved' || status === 'rejected') return status;
   if (row.archived_at) return 'rejected';
   return row.selected_for_panelists ? 'selected' : 'draft';
 }
 
-function toConceptGeneratedImage(row: Record<string, unknown>): ConceptGeneratedImage {
+function toConceptGeneratedImage(row: Tables['concept_images']['Row']): ConceptGeneratedImage {
   return {
-    id: row.id as string,
+    id: row.id,
     generationId: row.generation_id as string,
-    conceptTestId: (row.concept_test_id as string) ?? null,
-    imageUrl: row.image_url as string,
-    storagePath: (row.storage_path as string) ?? null,
-    selectedForPanelists: (row.selected_for_panelists as boolean) ?? false,
-    sortOrder: (row.sort_order as number) ?? 0,
-    mode: (row.mode as string) ?? 'packaging',
-    promptStyle: (row.prompt_style as string) ?? '',
+    conceptTestId: row.concept_test_id ?? null,
+    imageUrl: row.image_url,
+    storagePath: row.storage_path ?? null,
+    selectedForPanelists: row.selected_for_panelists ?? false,
+    sortOrder: row.sort_order ?? 0,
+    mode: row.mode ?? 'packaging',
+    promptStyle: row.prompt_style ?? '',
     reviewStatus: toReviewStatus(row),
-    model: (row.model as string) ?? 'gpt-image-1.5',
-    quality: (row.quality as string) ?? 'medium',
-    performanceSummary: (row.performance_summary as Record<string, unknown>) ?? {},
+    model: row.model ?? 'gpt-image-1.5',
+    quality: row.quality ?? 'medium',
+    performanceSummary: fromJson<Record<string, unknown>>(row.performance_summary) ?? {},
     createdAt: row.created_at as string,
   };
 }
 
-function toConceptImageGeneration(row: Record<string, unknown>): ConceptImageGeneration {
+function toConceptImageGeneration(
+  row: Tables['concept_image_generations']['Row'] & { concept_images?: Tables['concept_images']['Row'][] },
+): ConceptImageGeneration {
   return {
-    id: row.id as string,
-    conceptTestId: (row.concept_test_id as string) ?? null,
-    projectName: (row.concept_folder_name as string) ?? 'Project 1',
-    foodTypeSlug: (row.food_type_slug as string) ?? '',
-    conceptName: (row.concept_name as string) ?? '',
-    mode: (row.mode as string) ?? 'packaging',
-    prompt: (row.prompt as string) ?? '',
-    promptStyle: (row.prompt_style as string) ?? 'balanced',
-    model: (row.model as string) ?? 'gpt-image-1.5',
-    quality: (row.quality as string) ?? 'medium',
-    requestedCount: (row.requested_count as number) ?? 4,
+    id: row.id,
+    conceptTestId: row.concept_test_id ?? null,
+    projectName: row.concept_folder_name ?? 'Project 1',
+    foodTypeSlug: row.food_type_slug ?? '',
+    conceptName: row.concept_name ?? '',
+    mode: row.mode,
+    prompt: row.prompt,
+    promptStyle: row.prompt_style,
+    model: row.model,
+    quality: row.quality,
+    requestedCount: row.requested_count ?? 4,
     status: (row.status as ConceptImageGeneration['status']) ?? 'completed',
-    errorMessage: (row.error_message as string) ?? null,
+    errorMessage: row.error_message ?? null,
     estimatedCost: Number(row.estimated_cost ?? 0),
     createdAt: row.created_at as string,
     images: Array.isArray(row.concept_images)
-      ? (row.concept_images as Record<string, unknown>[]).map(toConceptGeneratedImage)
+      ? row.concept_images.map(toConceptGeneratedImage)
       : [],
   };
 }
@@ -661,7 +668,7 @@ export async function updateConceptGenerationSettings(
     return toConceptSettings(data);
   }
 
-  const patch: Record<string, unknown> = {
+  const patch: Tables['concept_generation_settings']['Update'] = {
     updated_at: new Date().toISOString(),
   };
   if (updates.defaultImageCount !== undefined) patch.default_image_count = updates.defaultImageCount;

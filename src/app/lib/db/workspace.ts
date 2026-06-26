@@ -1,6 +1,9 @@
 import { supabase } from '../supabase';
-import { dbError, insertAuditEvent } from './shared';
+import { dbError, fromJson, insertAuditEvent } from './shared';
 import { validateCompanyDomain } from '../company-email';
+import type { Database } from './database.types';
+
+type Tables = Database['public']['Tables'];
 
 export interface WorkspaceSettings {
   workspaceName: string;
@@ -146,7 +149,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
   };
 }
 
-function toWorkspaceSettings(row: Record<string, unknown>): WorkspaceSettings {
+function toWorkspaceSettings(row: Tables['workspace_settings']['Row']): WorkspaceSettings {
   return {
     workspaceName: (row.workspace_name as string) ?? 'Sensory Analysis Workspace',
     organizationName: (row.organization_name as string) ?? 'New Food Innovation',
@@ -211,7 +214,9 @@ export async function fetchWorkspaceSettings(): Promise<WorkspaceSettings> {
 // tenant by subdomain; with none it returns platform defaults.
 export async function fetchPublicWorkspaceConfig(orgSlug?: string): Promise<PublicWorkspaceConfig> {
   const { data, error } = await supabase.rpc('get_public_workspace_config', {
-    org_slug: orgSlug ?? null,
+    // The arg defaults to NULL in SQL, so omitting (undefined) is equivalent to
+    // the previous explicit null — but satisfies the generated optional-arg type.
+    org_slug: orgSlug ?? undefined,
   });
   if (error) {
     if (/get_public_workspace_config|schema cache|does not exist/i.test(error.message ?? '')) {
@@ -286,7 +291,7 @@ export async function updateWorkspaceSettings(
   // so the client never has to know which tenant it is writing.
   const { data, error } = await supabase.rpc('upsert_workspace_settings', { patch });
   if (error) throw dbError(error);
-  const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown>;
+  const row = (Array.isArray(data) ? data[0] : data) as Tables['workspace_settings']['Row'];
 
   await insertAuditEvent({
     actorId: actorId ?? null,
@@ -337,7 +342,11 @@ export async function addOrgEmailDomain(input: string, actorId?: string | null):
   const result = validateCompanyDomain(input);
   if ('error' in result) throw new Error(result.error);
 
-  const { error } = await supabase.from('org_email_domains').insert({ domain: result.domain });
+  // org_id is stamped by the set_org_id BEFORE INSERT trigger, so it is omitted
+  // here on purpose; the generated Insert type can't see the trigger.
+  const { error } = await supabase
+    .from('org_email_domains')
+    .insert({ domain: result.domain } as Database['public']['Tables']['org_email_domains']['Insert']);
   if (error) {
     if (/duplicate key|already exists/i.test(error.message ?? '')) {
       throw new Error(`${result.domain} is already registered — a domain can only belong to one workspace.`);
@@ -401,7 +410,7 @@ export async function fetchAuditEvents(limit = 80): Promise<AuditEventRecord[]> 
       eventType: row.event_type as string,
       entityType: row.entity_type as string,
       entityId: (row.entity_id as string) ?? null,
-      metadata: (row.metadata as Record<string, unknown>) ?? {},
+      metadata: fromJson<Record<string, unknown>>(row.metadata) ?? {},
       createdAt: row.created_at as string,
     };
   });
