@@ -1,6 +1,27 @@
 import { supabase } from '../supabase';
+import type { Json } from './database.types';
 
 export const CURRENT_CONSENT_VERSION = '2026-06-05-v1';
+
+/**
+ * Boundary cast for values written to `jsonb` columns. These values are
+ * JSON-serializable at runtime, but their concrete app types (domain interfaces,
+ * Record<string, unknown>, …) don't structurally satisfy the generated `Json`
+ * type, which requires a recursive index signature. This names that conversion
+ * at the single point it happens — the DB write — instead of scattering casts.
+ */
+export function asJson(value: unknown): Json {
+  return value as Json;
+}
+
+/**
+ * Boundary cast for READING a `jsonb` column back into a known app shape. The DB
+ * stores it as `Json`; the caller asserts the shape it was written with. Symmetric
+ * to {@link asJson}.
+ */
+export function fromJson<T>(value: Json | null | undefined): T {
+  return value as T;
+}
 
 export function dbError(error: { message?: string; code?: string }): Error {
   return new Error(error.message || `Database error (code: ${error.code ?? 'unknown'})`);
@@ -63,7 +84,7 @@ export async function insertAuditEvent(input: {
     event_type: input.eventType,
     entity_type: input.entityType,
     entity_id: input.entityId ?? null,
-    metadata: input.metadata ?? {},
+    metadata: asJson(input.metadata ?? {}),
   });
   if (error && !/audit_events|schema cache|does not exist/i.test(error.message ?? '')) throw dbError(error);
 }

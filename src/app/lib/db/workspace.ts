@@ -1,6 +1,7 @@
 import { supabase } from '../supabase';
 import { dbError, insertAuditEvent } from './shared';
 import { validateCompanyDomain } from '../company-email';
+import type { Database } from './database.types';
 
 export interface WorkspaceSettings {
   workspaceName: string;
@@ -211,7 +212,9 @@ export async function fetchWorkspaceSettings(): Promise<WorkspaceSettings> {
 // tenant by subdomain; with none it returns platform defaults.
 export async function fetchPublicWorkspaceConfig(orgSlug?: string): Promise<PublicWorkspaceConfig> {
   const { data, error } = await supabase.rpc('get_public_workspace_config', {
-    org_slug: orgSlug ?? null,
+    // The arg defaults to NULL in SQL, so omitting (undefined) is equivalent to
+    // the previous explicit null — but satisfies the generated optional-arg type.
+    org_slug: orgSlug ?? undefined,
   });
   if (error) {
     if (/get_public_workspace_config|schema cache|does not exist/i.test(error.message ?? '')) {
@@ -337,7 +340,11 @@ export async function addOrgEmailDomain(input: string, actorId?: string | null):
   const result = validateCompanyDomain(input);
   if ('error' in result) throw new Error(result.error);
 
-  const { error } = await supabase.from('org_email_domains').insert({ domain: result.domain });
+  // org_id is stamped by the set_org_id BEFORE INSERT trigger, so it is omitted
+  // here on purpose; the generated Insert type can't see the trigger.
+  const { error } = await supabase
+    .from('org_email_domains')
+    .insert({ domain: result.domain } as Database['public']['Tables']['org_email_domains']['Insert']);
   if (error) {
     if (/duplicate key|already exists/i.test(error.message ?? '')) {
       throw new Error(`${result.domain} is already registered — a domain can only belong to one workspace.`);

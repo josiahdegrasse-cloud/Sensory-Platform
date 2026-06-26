@@ -1,5 +1,8 @@
 import { supabase } from '../supabase';
-import { dbError, edgeFunctionErrorMessage } from './shared';
+import { asJson, dbError, edgeFunctionErrorMessage, fromJson } from './shared';
+import type { Database } from './database.types';
+
+type Tables = Database['public']['Tables'];
 
 export interface ConceptQuestion {
   id: string;
@@ -228,7 +231,7 @@ export async function insertConceptTest(
       target_market: test.targetMarket,
       price_point: test.pricePoint,
       key_benefits: test.keyBenefits,
-      questions: test.questions,
+      questions: asJson(test.questions),
       panel_size: test.panelSize,
       assigned_panelist_ids: test.assignedPanelistIds,
       concept_folder_name: test.projectName ?? 'Project 1',
@@ -417,9 +420,11 @@ export async function createCommercializationReport(input: {
   const { data, error } = await supabase.rpc('create_commercialization_report', {
     target_decision_record_id: input.decisionRecordId,
     target_concept_test_id: input.conceptTestId,
-    target_packaging_image_id: input.packagingImageId,
+    // The SQL function accepts NULL here (it handles a missing packaging image);
+    // the generated arg type is non-null because the param has no default.
+    target_packaging_image_id: input.packagingImageId as string,
     target_title: input.title,
-    target_report_snapshot: input.reportSnapshot,
+    target_report_snapshot: asJson(input.reportSnapshot),
   });
   if (error) throw dbError(error);
   const report = toCommercializationReport(data as Record<string, unknown>);
@@ -461,7 +466,7 @@ export async function saveEvidenceBundle(input: {
     target_sample_id: input.projectId,
     target_schema_version: input.schemaVersion,
     target_source_data_version: input.sourceDataVersion,
-    target_payload: input.payload,
+    target_payload: asJson(input.payload),
   });
   if (error) throw dbError(error);
   return toEvidenceBundle(data as Record<string, unknown>);
@@ -661,7 +666,7 @@ export async function updateConceptGenerationSettings(
     return toConceptSettings(data);
   }
 
-  const patch: Record<string, unknown> = {
+  const patch: Tables['concept_generation_settings']['Update'] = {
     updated_at: new Date().toISOString(),
   };
   if (updates.defaultImageCount !== undefined) patch.default_image_count = updates.defaultImageCount;

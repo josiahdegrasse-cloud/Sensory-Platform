@@ -6,7 +6,7 @@ import {
   getDefaultIntensityAttributesForFoodType,
   slugifyFoodType,
 } from '../food-intelligence';
-import { dbError, isMissingFoodImportSchema } from './shared';
+import { asJson, dbError, isMissingFoodImportSchema } from './shared';
 
 export interface FoodTypeRecord {
   id: string;
@@ -469,7 +469,7 @@ export async function insertInstrumentalImport(input: InstrumentalImportInput): 
     .map(byte => byte.toString(16).padStart(2, '0'))
     .join('');
   const { data: batchId, error } = await supabase.rpc('create_instrumental_import', {
-    payload: {
+    payload: asJson({
       idempotencyKey,
       fileName: input.fileName,
       rowCount: input.rowCount,
@@ -480,7 +480,7 @@ export async function insertInstrumentalImport(input: InstrumentalImportInput): 
       gcmsData: input.gcmsData,
       compositionData: input.compositionData,
       customAttributes: getDefaultCataAttributesForFoodType(input.detection.slug),
-    },
+    }),
   });
   if (error) throw dbError(error);
   if (typeof batchId === 'string') {
