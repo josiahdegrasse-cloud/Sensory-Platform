@@ -12,6 +12,8 @@ import {
 import { useConceptTest, useInsertConceptResponse } from '../lib/hooks';
 import { CheckCircle2, ChevronLeft, ChevronRight, Image as ImageIcon, AlertCircle, Megaphone } from 'lucide-react';
 
+const SCALE_MIDPOINT = 5;
+
 export function ConceptSurvey() {
   const { conceptId } = useParams();
   const { user } = useAuth();
@@ -33,7 +35,13 @@ export function ConceptSurvey() {
 
   const handleSubmit = async () => {
     if (!user?.id || !conceptId) return;
-    const unanswered = test?.questions.filter(q => q.required && (answers[q.id] === undefined || answers[q.id] === null || (typeof answers[q.id] === 'string' && !(answers[q.id] as string).trim()) || (Array.isArray(answers[q.id]) && (answers[q.id] as string[]).length === 0)));
+    const completedAnswers = { ...answers };
+    test?.questions.forEach(question => {
+      if (question.type === 'scale' && completedAnswers[question.id] === undefined) {
+        completedAnswers[question.id] = SCALE_MIDPOINT;
+      }
+    });
+    const unanswered = test?.questions.filter(q => q.required && (completedAnswers[q.id] === undefined || completedAnswers[q.id] === null || (typeof completedAnswers[q.id] === 'string' && !(completedAnswers[q.id] as string).trim()) || (Array.isArray(completedAnswers[q.id]) && (completedAnswers[q.id] as string[]).length === 0)));
     if (unanswered && unanswered.length > 0) {
       setError(`Please answer all required questions before submitting (${unanswered.length} remaining).`);
       return;
@@ -41,7 +49,7 @@ export function ConceptSurvey() {
     setSubmitting(true);
     setError('');
     try {
-      await insertResponse.mutateAsync({ userId: user.id, conceptTestId: conceptId!, answers });
+      await insertResponse.mutateAsync({ userId: user.id, conceptTestId: conceptId!, answers: completedAnswers });
       setSubmitted(true);
     } catch {
       setError('Failed to submit. Please try again.');
@@ -59,6 +67,21 @@ export function ConceptSurvey() {
       <div className="max-w-2xl mx-auto py-16 text-center space-y-4">
         <p className="text-slate-500">Concept test not found.</p>
         <Button variant="outline" onClick={() => navigate('/panelist')}>Back to Dashboard</Button>
+      </div>
+    );
+  }
+
+  if (test.status !== 'active') {
+    return (
+      <div className="max-w-2xl mx-auto py-16 text-center space-y-4">
+        <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto">
+          <AlertCircle className="size-8 text-slate-500" />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-900">This concept test is closed.</h2>
+        <p className="text-slate-600">No further responses are being accepted for this study.</p>
+        <Button variant="outline" onClick={() => navigate('/panelist')}>
+          Back to Dashboard
+        </Button>
       </div>
     );
   }
@@ -269,6 +292,7 @@ function QuestionCard({
 }
 
 function ScaleInput({ value, onChange }: { value: number | undefined; onChange: (v: number) => void }) {
+  const currentValue = value ?? SCALE_MIDPOINT;
   return (
     <div className="space-y-2">
       <div className="flex justify-between text-xs text-slate-400">
@@ -282,7 +306,7 @@ function ScaleInput({ value, onChange }: { value: number | undefined; onChange: 
             type="button"
             onClick={() => onChange(n)}
             className={`flex-1 py-2 rounded-md text-sm font-bold border-2 transition-all ${
-              value === n
+              currentValue === n
                 ? 'bg-orange-500 border-orange-500 text-white shadow-sm'
                 : 'border-slate-200 text-slate-600 hover:border-orange-300 hover:text-orange-600'
             }`}
