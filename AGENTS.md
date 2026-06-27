@@ -4,10 +4,10 @@ Context for any Codex session (high, medium, or low reasoning effort) working in
 
 ## What this is
 
-The Sensory Platform is a Next.js + Supabase SaaS app for New Food Innovation (NFI), a UK food
-consultancy. It manages import batches, sensory studies, concept tests, decision records, and
-commercialization reports across a workflow: **Data → Studies → Responses → Insights → Decision →
-Concept → Report**.
+The Sensory Platform is a React + Vite + React Router + Supabase SaaS app for New Food Innovation
+(NFI), a UK food consultancy. It manages import batches, sensory studies, concept tests, decision
+records, and commercialization reports across a workflow: **Data → Studies → Responses → Insights
+→ Decision → Concept → Report**.
 
 Core entities: `projects`, food-type-scoped studies (e.g. Bread, Cheese), machine/instrumental
 samples (E-tongue, GC-MS, composition), surveys/responses, GO/TWEAK/STOP decisions, concept tests,
@@ -67,7 +67,9 @@ and commercialization reports.
 
 ## Stack notes
 
-- Next.js + Supabase (Postgres)
+- React + Vite + React Router + Supabase (Postgres)
+- This is not a Next.js app; routing and build assumptions should follow Vite + React Router unless
+  the repo is intentionally migrated later.
 - Status line / progress reporting conventions follow the weekly NFI update format (8 phases,
   commit-level granularity) — keep commit messages and PR descriptions consistent with that if
   asked to summarize work for the weekly update.
