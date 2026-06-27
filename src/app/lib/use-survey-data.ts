@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ESSENSE25_EMOTIONS, type QuestionnaireResponse } from "../data/mock-users";
+import { ESSENSE25_EMOTIONS, type QuestionnaireResponse } from "../data/survey-domain";
 import { useAllResponses, useProducts } from "./hooks";
 
 export interface LiveAggregation {

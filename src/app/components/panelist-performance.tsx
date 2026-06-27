@@ -18,7 +18,7 @@ import {
 } from '../utils/panelist-metrics';
 import { useAllResponses, useProducts, usePanelists, useUpdatePanelistTrainingLevel } from '../lib/hooks';
 import type { PanelistInfo } from '../lib/database';
-import type { QuestionnaireResponse } from '../data/mock-users';
+import type { QuestionnaireResponse } from '../data/survey-domain';
 
 // ── Tier config ───────────────────────────────────────────────────────────────
 

@@ -5,7 +5,7 @@ import type {
   ImportBatchRecord,
   InstrumentalDataset,
 } from '../database';
-import type { Product } from '../../data/mock-users';
+import type { Product } from '../study-types';
 import type { ReportReadiness } from '../report-context-builder';
 
 export type WorkflowStageId =

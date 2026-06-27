@@ -27,7 +27,7 @@ import { getConceptReadiness } from './concept-testing/concept-readiness';
 import { buildTailoredConceptQuestions, defaultConceptPanelistIds } from './concept-testing/smart-defaults';
 import { ProjectHeader } from './project-header';
 import { Badge } from './ui/badge';
-import { TEMPORARY_CHEESE_DEMO_LABEL } from '../data/temporary-cheese-demo';
+import { TEMPORARY_CHEESE_DEMO_LABEL } from '../data/demo/temporary-cheese-demo';
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 

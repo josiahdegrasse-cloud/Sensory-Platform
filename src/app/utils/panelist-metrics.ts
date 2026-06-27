@@ -1,4 +1,4 @@
-import type { QuestionnaireResponse } from '../data/mock-users';
+import type { QuestionnaireResponse } from '../data/survey-domain';
 
 export type TrainingLevel = 'screened' | 'trained' | 'certified' | 'expert';
 

@@ -1,5 +1,5 @@
 import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from '../data/enhanced-sensory';
-import { ESSENSE25_EMOTIONS, type Product, type QuestionnaireResponse } from '../data/mock-users';
+import { ESSENSE25_EMOTIONS, type Product, type QuestionnaireResponse } from '../data/survey-domain';
 import {
   fetchAllResponses,
   fetchInstrumentalDataset,

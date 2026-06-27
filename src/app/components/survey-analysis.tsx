@@ -44,7 +44,7 @@ import {
   InsightsPrototypeWorkspace,
   type InsightsPrototypeOption,
 } from './insights-prototype-workspace';
-import { TEMPORARY_CHEESE_PRODUCT } from '../data/temporary-cheese-demo';
+import { TEMPORARY_CHEESE_PRODUCT } from '../data/demo/temporary-cheese-demo';
 
 function buildImportedProfiles(dataset: ReturnType<typeof useInstrumentalDataset>['data']): EnhancedSensoryProfile[] {
   return (dataset?.eTongueData ?? []).map(sample => {

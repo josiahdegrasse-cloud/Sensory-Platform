@@ -34,7 +34,7 @@ import {
 import {
   TEMPORARY_CHEESE_DECISION,
   TEMPORARY_CHEESE_DEMO_LABEL,
-} from '../data/temporary-cheese-demo';
+} from '../data/demo/temporary-cheese-demo';
 import { getCommercializationProjectProfile } from '../data/coconut-cheddar-profile';
 import { ReportAgentReviewPanel } from './report-agent-review-panel';
 import { buildReportContextForWorkspace } from '../lib/report-context-builder';

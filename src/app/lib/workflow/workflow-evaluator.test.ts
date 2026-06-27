@@ -7,7 +7,7 @@ import type {
   ImportBatchRecord,
   InstrumentalDataset,
 } from '../database';
-import type { Product } from '../../data/mock-users';
+import type { Product } from '../../data/survey-domain';
 import type { ReportReadiness } from '../report-context-builder';
 
 const batch: ImportBatchRecord = {

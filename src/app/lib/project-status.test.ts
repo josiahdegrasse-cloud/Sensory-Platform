@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { computeProjectStatus } from './project-status';
 import type { DecisionRecord } from './db/workspace';
-import type { Product } from '../data/mock-users';
+import type { Product } from '../data/survey-domain';
 
 const cheeseSample = {
   sampleId: 'S1',

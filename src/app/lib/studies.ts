@@ -1,4 +1,4 @@
-import type { Product, QuestionnaireResponse } from '../data/mock-users';
+import type { Product, QuestionnaireResponse } from '../data/survey-domain';
 import type { ConceptTest, ImportBatchRecord } from './database';
 
 export type StudyType = 'product_sensory' | 'multi_sample' | 'concept_test';

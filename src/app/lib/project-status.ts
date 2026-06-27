@@ -1,5 +1,5 @@
 import type { ImportBatchRecord, InstrumentalDataset, DecisionRecord, ConceptTest, CommercializationReportRecord } from './database';
-import type { Product } from '../data/mock-users';
+import type { Product } from '../data/survey-domain';
 import { formatFoodTypeLabel } from './food-intelligence';
 import { sampleMatchesFoodType } from '../contexts/food-type-context';
 

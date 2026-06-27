@@ -6,7 +6,7 @@ import {
   fRatioLabel,
   deviationLabel,
 } from './panelist-metrics'
-import type { QuestionnaireResponse } from '../data/mock-users'
+import type { QuestionnaireResponse } from '../data/survey-domain'
 
 function makeResponse(overrides: Partial<QuestionnaireResponse> = {}): QuestionnaireResponse {
   return {

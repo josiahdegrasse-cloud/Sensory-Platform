@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Product, QuestionnaireResponse } from '../data/mock-users';
+import type { Product, QuestionnaireResponse } from '../data/survey-domain';
 import type { ConceptTest } from './database';
 import {
   adaptConceptToStudySummary,

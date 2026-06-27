@@ -13,7 +13,7 @@ import {
   AlertTriangle, CheckCircle2, ChevronDown, Layers, Megaphone, MessageSquare, Search, ShoppingBag, Sparkles, Target, Trophy, Users,
 } from 'lucide-react';
 import { InsightInterpretationBlock } from './insights-ui';
-import { TEMPORARY_CHEESE_DEMO_LABEL } from '../data/temporary-cheese-demo';
+import { TEMPORARY_CHEESE_DEMO_LABEL } from '../data/demo/temporary-cheese-demo';
 import { summarizeConceptResponses } from '../lib/commercialization-report';
 
 const CONCEPT_ACCENT = '#2563eb';
