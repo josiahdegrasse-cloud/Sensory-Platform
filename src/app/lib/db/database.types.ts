@@ -1216,6 +1216,8 @@ export type Database = {
       products: {
         Row: {
           assigned_panelist_ids: string[] | null
+          blind_code: string | null
+          blinded: boolean
           category: string
           created_at: string | null
           custom_attributes: Json | null
@@ -1234,6 +1236,8 @@ export type Database = {
         }
         Insert: {
           assigned_panelist_ids?: string[] | null
+          blind_code?: string | null
+          blinded?: boolean
           category: string
           created_at?: string | null
           custom_attributes?: Json | null
@@ -1252,6 +1256,8 @@ export type Database = {
         }
         Update: {
           assigned_panelist_ids?: string[] | null
+          blind_code?: string | null
+          blinded?: boolean
           category?: string
           created_at?: string | null
           custom_attributes?: Json | null
@@ -1414,6 +1420,7 @@ export type Database = {
           id: string
           intensity_ratings: Json | null
           org_id: string | null
+          presentation_order: string[] | null
           product_id: string
           ranking: string[] | null
           run_number: number
@@ -1431,6 +1438,7 @@ export type Database = {
           id?: string
           intensity_ratings?: Json | null
           org_id?: string | null
+          presentation_order?: string[] | null
           product_id: string
           ranking?: string[] | null
           run_number?: number
@@ -1448,6 +1456,7 @@ export type Database = {
           id?: string
           intensity_ratings?: Json | null
           org_id?: string | null
+          presentation_order?: string[] | null
           product_id?: string
           ranking?: string[] | null
           run_number?: number
