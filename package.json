@@ -9,6 +9,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:demo-boundaries": "vitest run src/app/data/demo-boundaries.test.ts",
+    "test:migration-drift": "bash scripts/test-migration-drift.sh",
+    "agent:status": "bash scripts/agent-worktree-summary.sh",
     "test:watch": "vitest",
     "test:e2e": "playwright test --config config/playwright.config.ts",
     "db:types": "supabase gen types typescript --linked > src/app/lib/db/database.types.ts"

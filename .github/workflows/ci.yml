@@ -28,16 +28,21 @@ jobs:
       - name: Typecheck
         run: npx pnpm@10 run typecheck
 
+      - name: Demo boundary gate
+        run: npx pnpm@10 run test:demo-boundaries
+
       # Fail if src/app/lib/db/database.types.ts has drifted from the live schema
       # (e.g. a migration was applied without re-running `npm run db:types`). The
       # typed Supabase client only protects code when these types are current.
-      # Skips with a warning until SUPABASE_ACCESS_TOKEN is set, so it can't block
-      # its own PR. This Supabase CLI setup is shared with the migration-drift
-      # guard (Guard 1) further down.
+      # PRs without secrets warn and skip because fork/PR secrets may be
+      # unavailable. Pushes to main fail closed if secrets are missing.
       - name: Set up Supabase CLI
         uses: supabase/setup-cli@v1
         with:
           version: 2.90.0
+
+      - name: Test migration drift parser
+        run: npx pnpm@10 run test:migration-drift
 
       - name: Check database.types.ts is in sync with the schema
         env:
@@ -45,8 +50,12 @@ jobs:
           SUPABASE_PROJECT_REF: golkgpeqenyqrcyawjdt
         run: |
           if [ -z "${SUPABASE_ACCESS_TOKEN}" ]; then
-            echo "::warning::SUPABASE_ACCESS_TOKEN not set — skipping database.types.ts drift check."
-            echo "Add it in repo Settings → Secrets and variables → Actions to enable this guard."
+            if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+              echo "::error::SUPABASE_ACCESS_TOKEN is required on main to run database.types.ts drift check."
+              echo "::error::Add it in repo Settings → Secrets and variables → Actions."
+              exit 1
+            fi
+            echo "::warning::SUPABASE_ACCESS_TOKEN not set — skipping database.types.ts drift check for this non-main run."
             exit 0
           fi
           supabase link --project-ref "${SUPABASE_PROJECT_REF}"
@@ -72,9 +81,8 @@ jobs:
 
       # Guard 1 (deploy-ordering): fail if the linked project's schema is AHEAD of
       # this branch — i.e. a migration is applied on prod but missing here. That is
-      # the shape of the 2026-06-25 outage. Skips (with a warning) until the
-      # SUPABASE_ACCESS_TOKEN secret is added, so it can't lock out its own PR.
-      # (The Supabase CLI is already set up above for the types-drift check.)
+      # the shape of the 2026-06-25 outage. PRs without secrets warn and skip;
+      # pushes to main fail closed if secrets are missing.
       - name: Check migration drift (prod schema must not be ahead of this branch)
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -82,8 +90,12 @@ jobs:
           SUPABASE_PROJECT_REF: golkgpeqenyqrcyawjdt
         run: |
           if [ -z "${SUPABASE_ACCESS_TOKEN}" ]; then
-            echo "::warning::SUPABASE_ACCESS_TOKEN not set — skipping migration drift check."
-            echo "Add it in repo Settings → Secrets and variables → Actions to enable Guard 1."
+            if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+              echo "::error::SUPABASE_ACCESS_TOKEN is required on main to run migration drift check."
+              echo "::error::Add it in repo Settings → Secrets and variables → Actions."
+              exit 1
+            fi
+            echo "::warning::SUPABASE_ACCESS_TOKEN not set — skipping migration drift check for this non-main run."
             exit 0
           fi
           supabase link --project-ref "${SUPABASE_PROJECT_REF}"
