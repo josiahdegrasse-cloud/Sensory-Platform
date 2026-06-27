@@ -667,14 +667,14 @@ export function AdminConfig() {
                                 <Archive className="mr-1 size-3.5" />Archive
                               </Button>
                               <Button size="sm" onClick={() => setSelectedProduct(product.id)} className="h-8 text-xs bg-blue-600 hover:bg-blue-700">
-                                <Settings className="mr-1 size-3.5" />Configure
+                                <Edit2 className="mr-1 size-3.5" />Edit survey
                               </Button>
                             </>
                           )}
                         </>
                       ) : (
                         <Button size="sm" asChild className="h-8 bg-orange-600 text-xs hover:bg-orange-700">
-                          <Link to="/concept-testing">Open concept setup<ArrowRight className="ml-1 size-3.5" /></Link>
+                          <Link to="/concept-testing"><Edit2 className="mr-1 size-3.5" />Edit concept<ArrowRight className="ml-1 size-3.5" /></Link>
                         </Button>
                       )}
                     </div>
