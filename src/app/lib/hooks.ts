@@ -18,7 +18,7 @@ import {
   fetchOrgEmailDomains, addOrgEmailDomain, removeOrgEmailDomain,
   insertProduct, updateProduct, updateProductAssignments, deleteProduct,
   insertTemplate, deleteTemplate, updatePanelistId, updatePanelistTrainingLevel, updatePanelistStatus,
-  insertConceptTest, insertConceptResponse,
+  insertConceptTest, updateConceptTestStatus, insertConceptResponse,
   insertInstrumentalImport, archiveFoodTypeRecord, restoreFoodTypeRecord, deleteFoodTypeRecord, updateImportBatchStatus, updateImportBatchName, deleteImportBatch,
   fetchPendingImports, dismissPendingImport, markPendingImportImported, uploadAndQueueImport,
   rejectPendingImport, listDriveFiles, importDriveFiles,
@@ -29,7 +29,7 @@ import {
   type PendingImportRecord,
 } from './database'
 import type { TrainingLevel } from '../utils/panelist-metrics'
-import type { Product } from '../data/mock-users'
+import type { Product } from './study-types'
 import { getTenantSlug } from './tenant'
 import { buildEvidenceBundle } from './report-evidence-source'
 
@@ -405,6 +405,23 @@ export function useInsertConceptTest() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['conceptTests'] })
       qc.invalidateQueries({ queryKey: ['conceptTest'] })
+    },
+  })
+}
+
+export function useUpdateConceptTestStatus() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: ConceptTest['status'] }) =>
+      updateConceptTestStatus(id, status),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: queryKeys.adminConceptTests }),
+        qc.invalidateQueries({ queryKey: queryKeys.studyConceptTests }),
+        qc.invalidateQueries({ queryKey: queryKeys.conceptResponseCounts }),
+        qc.invalidateQueries({ queryKey: ['conceptTests'] }),
+        qc.invalidateQueries({ queryKey: ['conceptTest'] }),
+      ])
     },
   })
 }

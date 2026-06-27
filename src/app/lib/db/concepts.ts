@@ -251,6 +251,26 @@ export async function insertConceptTest(
   return hydrateConceptTestImages(concept);
 }
 
+export async function updateConceptTestStatus(
+  id: string,
+  status: ConceptTest['status'],
+): Promise<ConceptTest> {
+  const now = new Date().toISOString();
+  const patch = {
+    status,
+    launched_at: status === 'active' ? now : undefined,
+    archived_at: status === 'archived' ? now : null,
+  };
+  const { data, error } = await supabase
+    .from('concept_tests')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw dbError(error);
+  return hydrateConceptTestImages(toConceptTest(data), true);
+}
+
 export async function fetchConceptTest(id: string): Promise<ConceptTest | null> {
   const { data, error } = await supabase
     .from('concept_tests')
