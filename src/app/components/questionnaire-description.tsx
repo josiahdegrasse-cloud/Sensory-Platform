@@ -2,11 +2,12 @@ import { useParams, useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { useAuth } from '../contexts/auth-context';
-import { type Product } from '../data/mock-users';
+import { type Product } from '../data/survey-domain';
 import { fetchProduct } from '../lib/database';
 import { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle2, Clock, ClipboardList } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
+import { getBlindStudyCategoryLabel, getBlindStudyDisplayName } from '../lib/blind-study';
 
 export function QuestionnaireDescription() {
   const { productId } = useParams<{ productId: string }>();
@@ -33,15 +34,18 @@ export function QuestionnaireDescription() {
     );
   }
 
+  const displayName = getBlindStudyDisplayName(product);
+  const categoryLabel = getBlindStudyCategoryLabel(product);
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300">
+      <Card className="border border-slate-200 bg-white">
         <CardHeader>
           <CardTitle className="text-2xl">Questionnaire Information</CardTitle>
           <div className="space-y-1 text-sm text-slate-600">
-            <p><strong>Product:</strong> {product.name}</p>
-            <p><strong>Category:</strong> {product.category}</p>
+            <p><strong>{product.blinded ? 'Sample' : 'Product'}:</strong> {displayName}</p>
+            <p><strong>Category:</strong> {categoryLabel}</p>
             <p><strong>Your Panelist ID:</strong> {user?.panelistId}</p>
           </div>
         </CardHeader>
@@ -51,19 +55,19 @@ export function QuestionnaireDescription() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ClipboardList className="size-6 text-blue-600" />
+            <ClipboardList className="size-6 text-slate-500" />
             What You'll Be Evaluating
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-slate-700">
-            You will evaluate <strong>{product.name}</strong> across four key areas.
+            You will evaluate <strong>{displayName}</strong> across four key areas.
             This questionnaire helps us understand the sensory characteristics and consumer appeal of this product.
           </p>
 
           <div className="grid gap-4">
-            <div className="flex items-start gap-3 p-4 bg-purple-50 rounded-lg border border-purple-200">
-              <div className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold flex-shrink-0">1</div>
+            <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold flex-shrink-0">1</div>
               <div>
                 <h4 className="font-bold text-slate-900">Flavor & Aroma Attributes (CATA)</h4>
                 <p className="text-sm text-slate-600 mt-1">
@@ -72,8 +76,8 @@ export function QuestionnaireDescription() {
               </div>
             </div>
 
-            <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold flex-shrink-0">2</div>
+            <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold flex-shrink-0">2</div>
               <div>
                 <h4 className="font-bold text-slate-900">Intensity Ratings</h4>
                 <p className="text-sm text-slate-600 mt-1">
@@ -82,8 +86,8 @@ export function QuestionnaireDescription() {
               </div>
             </div>
 
-            <div className="flex items-start gap-3 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
-              <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold flex-shrink-0">3</div>
+            <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold flex-shrink-0">3</div>
               <div>
                 <h4 className="font-bold text-slate-900">Hedonic Scores</h4>
                 <p className="text-sm text-slate-600 mt-1">
@@ -92,8 +96,8 @@ export function QuestionnaireDescription() {
               </div>
             </div>
 
-            <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-lg border border-amber-200">
-              <div className="w-8 h-8 rounded-full bg-amber-600 text-white flex items-center justify-center font-bold flex-shrink-0">4</div>
+            <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold flex-shrink-0">4</div>
               <div>
                 <h4 className="font-bold text-slate-900">Emotional Response</h4>
                 <p className="text-sm text-slate-600 mt-1">
@@ -106,10 +110,10 @@ export function QuestionnaireDescription() {
       </Card>
 
       {/* Important Information */}
-      <Card className="border-2 border-amber-300 bg-amber-50">
+      <Card className="border border-slate-200 bg-slate-50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Clock className="size-5 text-amber-600" />
+            <Clock className="size-5 text-slate-500" />
             Before You Begin
           </CardTitle>
         </CardHeader>
@@ -152,7 +156,7 @@ export function QuestionnaireDescription() {
         </Button>
         <Button
           onClick={() => navigate(`/questionnaire/${productId}`)}
-          className="flex-1 bg-blue-600 hover:bg-blue-700"
+          className="flex-1 bg-slate-900 hover:bg-slate-800"
         >
           <ClipboardList className="size-4 mr-2" />
           Start Questionnaire

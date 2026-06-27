@@ -1,24 +1,35 @@
-import { useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
 import { useAuth } from '../contexts/auth-context';
-import { DEFAULT_CATA_ATTRIBUTES, ESSENSE25_EMOTIONS, type Product } from '../data/mock-users';
+import { ESSENSE25_EMOTIONS, getDefaultCataAttributes, type Product } from '../data/survey-domain';
 import { fetchProduct, fetchLatestUserResponse, insertResponse } from '../lib/database';
 import { CATA_DEFINITIONS, INTENSITY_DEFINITIONS, HEDONIC_DEFINITIONS, EMOTION_DEFINITIONS } from '../data/attribute-definitions';
 import { AlertCircle, CheckCircle2, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
 import { AttributeTooltip } from './attribute-tooltip';
+import { getBlindStudyCategoryLabel, getBlindStudyDisplayName, getPanelistSampleOrder } from '../lib/blind-study';
 
 function sliderFill(value: number, min: number, max: number, color: string): React.CSSProperties {
   const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
   return { background: `linear-gradient(to right, ${color} 0%, ${color} ${pct}%, #e2e8f0 ${pct}%, #e2e8f0 100%)` };
 }
 
+const SLIDER_MIN = 1;
+const SLIDER_MAX = 9;
+const SLIDER_MIDPOINT = 5;
+
 type Step = 'intro' | 'sample' | 'cleanse' | 'discrimination' | 'ranking' | 'confirmation' | 'submitted';
+
+const DEFAULT_MULTI_SAMPLES = [
+  { id: '1', code: '341', label: 'Sample 1' },
+  { id: '2', code: '872', label: 'Sample 2' },
+  { id: '3', code: '529', label: 'Sample 3' },
+];
 
 interface SampleResponse {
   sampleId: string;
@@ -52,12 +63,11 @@ export function MultiSampleQuestionnaire() {
   const [currentSampleIndex, setCurrentSampleIndex] = useState(0);
   const [alreadyCompleted, setAlreadyCompleted] = useState(false);
 
-  // Get samples from product data
-  const samples = product?.samples || [
-    { id: '1', code: '341', label: 'Sample 1' },
-    { id: '2', code: '872', label: 'Sample 2' },
-    { id: '3', code: '529', label: 'Sample 3' }
-  ];
+  const samples = useMemo(() => {
+    if (!product?.samples?.length) return DEFAULT_MULTI_SAMPLES;
+    if (!product.blinded) return product.samples;
+    return getPanelistSampleOrder(product.id, user?.id ?? user?.panelistId ?? '', product.samples);
+  }, [product, user?.id, user?.panelistId]);
   
   // Responses for each sample
   const [sampleResponses, setSampleResponses] = useState<SampleResponse[]>([]);
@@ -103,9 +113,10 @@ export function MultiSampleQuestionnaire() {
     return () => { if (cleanseIntervalRef.current) clearInterval(cleanseIntervalRef.current); };
   }, [currentStep]);
 
-  const cataAttributes = product?.customAttributes || DEFAULT_CATA_ATTRIBUTES;
+  const cataAttributes = product?.customAttributes || getDefaultCataAttributes(product?.category ?? '');
   // Intensity shows only what the panelist selected in CATA (same pattern as single-sample form)
   const intensityAttributes = selectedCata.length > 0 ? selectedCata : cataAttributes.slice(0, 8);
+  const emotionAttributes = [...ESSENSE25_EMOTIONS.positive, ...ESSENSE25_EMOTIONS.negative];
 
   useEffect(() => {
     if (!user?.id || !productId) return;
@@ -129,13 +140,19 @@ export function MultiSampleQuestionnaire() {
   };
 
   const saveSampleResponse = () => {
+    const completedIntensityRatings = Object.fromEntries(
+      intensityAttributes.map(attr => [attr, intensityRatings[attr] ?? SLIDER_MIDPOINT]),
+    );
+    const completedEmotions = Object.fromEntries(
+      emotionAttributes.map(emotion => [emotion, emotions[emotion] ?? SLIDER_MIDPOINT]),
+    );
     const response: SampleResponse = {
       sampleId: samples[currentSampleIndex].id,
       sampleCode: samples[currentSampleIndex].code,
       cataAttributes: selectedCata,
-      intensityRatings,
+      intensityRatings: completedIntensityRatings,
       hedonicScores,
-      emotions
+      emotions: completedEmotions
     };
     
     setSampleResponses(prev => [...prev, response]);
@@ -210,13 +227,12 @@ export function MultiSampleQuestionnaire() {
           intensityRatings: response.intensityRatings,
           hedonicScores: response.hedonicScores,
           emotionalProfile: response.emotions,
-          comments: JSON.stringify({
-            sessionType: `${samples.length}-sample-sequential`,
-            sampleCode: response.sampleCode,
-            differentSample,
-            ranking,
-            comments: '',
-          }),
+          sessionType: `${samples.length}-sample-sequential`,
+          sampleCode: response.sampleCode,
+          differentSample,
+          ranking,
+          presentationOrder: samples.map(sample => sample.code),
+          comments: '',
         });
       }
       setCurrentStep('submitted');
@@ -239,6 +255,30 @@ export function MultiSampleQuestionnaire() {
     );
   }
 
+  const displayName = getBlindStudyDisplayName(product);
+  const categoryLabel = getBlindStudyCategoryLabel(product);
+
+  if (product.status === 'completed') {
+    return (
+      <div className="max-w-4xl mx-auto">
+        <Card className="border border-slate-200 bg-white">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="size-6 text-slate-500" />
+              This study is closed
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-slate-700">
+              No further responses are being accepted for <strong>{displayName}</strong>.
+            </p>
+            <Button variant="outline" onClick={() => navigate('/panelist')}>Back to Dashboard</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (alreadyCompleted) {
     return (
       <div className="max-w-4xl mx-auto">
@@ -251,7 +291,7 @@ export function MultiSampleQuestionnaire() {
           </CardHeader>
           <CardContent>
             <p className="text-slate-700 mb-4">
-              You have already completed the multi-sample evaluation for <strong>{product.name}</strong>.
+              You have already completed the multi-sample evaluation for <strong>{displayName}</strong>.
             </p>
             <Button onClick={() => navigate('/panelist')}>
               Return to Dashboard
@@ -266,8 +306,8 @@ export function MultiSampleQuestionnaire() {
   if (currentStep === 'intro') {
     return (
       <div className="max-w-4xl mx-auto">
-        <Card className="border-2 border-blue-300">
-          <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50">
+        <Card className="border border-slate-200 bg-white">
+          <CardHeader className="border-b border-slate-100 bg-white">
             <CardTitle className="text-2xl">Multi-Sample Sequential Evaluation</CardTitle>
           </CardHeader>
           <CardContent className="pt-6 space-y-4">
@@ -283,25 +323,30 @@ export function MultiSampleQuestionnaire() {
               </ol>
             </div>
 
-            <div className="p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
-              <p className="text-sm text-blue-900 font-medium mb-2 flex items-center gap-1.5"><AlertCircle className="size-3.5" />Blind Evaluation Protocol</p>
+            <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <p className="text-sm text-slate-900 font-medium mb-2 flex items-center gap-1.5">
+                <AlertCircle className="size-3.5" />
+                {product.blinded ? 'Blind Evaluation Protocol' : 'Coded Evaluation Protocol'}
+              </p>
               <p className="text-sm text-slate-700">
-                Sample identities are concealed to ensure unbiased evaluation. You will only see 3-digit codes during this test. Do not discuss or attempt to identify samples.
+                {product.blinded
+                  ? 'Sample identities are concealed to ensure unbiased evaluation. You will only see 3-digit codes during this test. Do not discuss or attempt to identify samples.'
+                  : 'Use the assigned 3-digit codes when answering sample, discrimination, and ranking questions.'}
               </p>
             </div>
             
-            <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
               <div className="flex items-center justify-between mb-2">
-                <h4 className="font-bold text-purple-900">Session Information:</h4>
+                <h4 className="font-bold text-slate-900">Session Information:</h4>
                 {product.blinded ? (
-                  <Badge className="bg-slate-900 text-white text-xs tracking-wider">BLINDED</Badge>
+                  <Badge variant="outline" className="border-slate-300 text-slate-700 text-xs tracking-wider">BLINDED</Badge>
                 ) : (
-                  <Badge variant="outline" className="text-xs text-amber-700 border-amber-300 bg-amber-50">UNBLINDED</Badge>
+                  <Badge variant="outline" className="text-xs text-slate-700 border-slate-300 bg-white">UNBLINDED</Badge>
                 )}
               </div>
               <div className="text-sm space-y-1 text-slate-700">
-                <p><strong>Study:</strong> {product.blinded ? "Blinded Study" : product.name}</p>
-                <p><strong>Category:</strong> {product.blinded ? "Concealed" : product.category}</p>
+                <p><strong>Study:</strong> {displayName}</p>
+                <p><strong>Category:</strong> {categoryLabel}</p>
                 <p><strong>Panelist ID:</strong> {user?.panelistId}</p>
                 <p><strong>Samples:</strong> {samples.length}</p>
                 <p><strong>Estimated time:</strong> {15 + (samples.length - 3) * 5}-{20 + (samples.length - 3) * 5} minutes</p>
@@ -310,7 +355,7 @@ export function MultiSampleQuestionnaire() {
             
             <Button 
               onClick={() => setCurrentStep('sample')} 
-              className="w-full bg-blue-600 hover:bg-blue-700 text-lg py-6"
+              className="w-full bg-slate-900 hover:bg-slate-800 text-lg py-6"
             >
               Begin Evaluation
               <ChevronRight className="size-5 ml-2" />
@@ -329,20 +374,20 @@ export function MultiSampleQuestionnaire() {
     return (
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Progress indicator */}
-        <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300">
+        <Card className="border border-slate-200 bg-white">
           <CardContent className="pt-4">
             <div className="flex items-center justify-between mb-2">
               <div>
-                <h3 className="font-bold text-slate-900">Evaluating Sample: <span className="text-purple-600">{currentSample.code}</span></h3>
+                <h3 className="font-bold text-slate-900">Evaluating Sample: <span className="text-slate-900">{currentSample.code}</span></h3>
                 <p className="text-sm text-slate-600">{currentSampleIndex + 1} of {samples.length} samples completed</p>
               </div>
-              <div className="w-16 h-16 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-xl flex-shrink-0">
+              <div className="w-16 h-16 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xl flex-shrink-0">
                 {currentSample.code}
               </div>
             </div>
             <div className="w-full bg-slate-200 rounded-full h-2">
               <div
-                className="bg-purple-600 h-2 rounded-full transition-all"
+                className="bg-slate-800 h-2 rounded-full transition-all"
                 style={{ width: `${progress}%` }}
               ></div>
             </div>
@@ -386,7 +431,7 @@ export function MultiSampleQuestionnaire() {
           <CardHeader>
             <CardTitle>2. Intensity Ratings</CardTitle>
             <p className="text-sm text-slate-600">
-              Rate the intensity of each attribute on a scale from 1 (not present) to 5 (extremely intense).
+              Rate the intensity of each attribute on a scale from 1 (not present) to 9 (extremely intense).
             </p>
           </CardHeader>
           <CardContent>
@@ -400,19 +445,19 @@ export function MultiSampleQuestionnaire() {
                         definition={INTENSITY_DEFINITIONS[attr] || CATA_DEFINITIONS[attr] || 'Rate the intensity'}
                       />
                     </Label>
-                    <span className="text-sm font-bold text-purple-600">
-                      {intensityRatings[attr] ?? 1}
+                    <span className="text-sm font-bold text-slate-900">
+                      {intensityRatings[attr] ?? SLIDER_MIDPOINT}
                     </span>
                   </div>
                   <input
                     type="range"
-                    min="1"
-                    max="9"
+                    min={SLIDER_MIN}
+                    max={SLIDER_MAX}
                     step="1"
-                    value={intensityRatings[attr] ?? 1}
+                    value={intensityRatings[attr] ?? SLIDER_MIDPOINT}
                     onChange={(e) => handleIntensityChange(attr, parseInt(e.target.value))}
-                    style={sliderFill(intensityRatings[attr] ?? 1, 1, 9, '#9333ea')}
-                    className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                    style={sliderFill(intensityRatings[attr] ?? SLIDER_MIDPOINT, SLIDER_MIN, SLIDER_MAX, '#334155')}
+                    className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-slate-700"
                   />
                   <div className="flex justify-between text-xs text-slate-500">
                     <span>1 — Not present</span>
@@ -444,17 +489,17 @@ export function MultiSampleQuestionnaire() {
                         definition={HEDONIC_DEFINITIONS[aspect] || 'Rate your liking'}
                       />
                     </Label>
-                    <span className="text-sm font-bold text-blue-600">{value} / 9</span>
+                    <span className="text-sm font-bold text-slate-900">{value} / 9</span>
                   </div>
                   <input
                     type="range"
-                    min="1"
-                    max="9"
+                    min={SLIDER_MIN}
+                    max={SLIDER_MAX}
                     step="1"
                     value={value}
                     onChange={(e) => setHedonicScores(prev => ({ ...prev, [aspect]: parseInt(e.target.value) }))}
-                    style={sliderFill(value, 1, 9, '#2563eb')}
-                    className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    style={sliderFill(value, SLIDER_MIN, SLIDER_MAX, '#334155')}
+                    className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-slate-700"
                   />
                   <div className="flex justify-between text-xs text-slate-500">
                     <span>Dislike extremely (1)</span>
@@ -490,17 +535,17 @@ export function MultiSampleQuestionnaire() {
                           />
                         </Label>
                         <span className="text-xs font-bold text-emerald-600">
-                          {emotions[emotion] || 0}
+                          {emotions[emotion] ?? SLIDER_MIDPOINT}
                         </span>
                       </div>
                       <input
                         type="range"
-                        min="1"
-                        max="9"
+                        min={SLIDER_MIN}
+                        max={SLIDER_MAX}
                         step="1"
-                        value={emotions[emotion] ?? 1}
+                        value={emotions[emotion] ?? SLIDER_MIDPOINT}
                         onChange={(e) => handleEmotionChange(emotion, parseInt(e.target.value))}
-                        style={sliderFill(emotions[emotion] ?? 1, 1, 9, '#059669')}
+                        style={sliderFill(emotions[emotion] ?? SLIDER_MIDPOINT, SLIDER_MIN, SLIDER_MAX, '#059669')}
                         className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-emerald-600"
                       />
                     </div>
@@ -520,17 +565,17 @@ export function MultiSampleQuestionnaire() {
                           />
                         </Label>
                         <span className="text-xs font-bold text-rose-600">
-                          {emotions[emotion] || 0}
+                          {emotions[emotion] ?? SLIDER_MIDPOINT}
                         </span>
                       </div>
                       <input
                         type="range"
-                        min="1"
-                        max="9"
+                        min={SLIDER_MIN}
+                        max={SLIDER_MAX}
                         step="1"
-                        value={emotions[emotion] ?? 1}
+                        value={emotions[emotion] ?? SLIDER_MIDPOINT}
                         onChange={(e) => handleEmotionChange(emotion, parseInt(e.target.value))}
-                        style={sliderFill(emotions[emotion] ?? 1, 1, 9, '#e11d48')}
+                        style={sliderFill(emotions[emotion] ?? SLIDER_MIDPOINT, SLIDER_MIN, SLIDER_MAX, '#e11d48')}
                         className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-rose-600"
                       />
                     </div>
@@ -542,11 +587,11 @@ export function MultiSampleQuestionnaire() {
         </Card>
 
         {/* Continue Button */}
-        <Card className="bg-gradient-to-r from-emerald-50 to-blue-50 border-2 border-emerald-300">
+        <Card className="border border-slate-200 bg-slate-50">
           <CardContent className="pt-6">
             <Button 
               onClick={handleContinueFromSample}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-lg py-6"
+              className="w-full bg-slate-900 hover:bg-slate-800 text-lg py-6"
             >
               {currentSampleIndex < samples.length - 1 ? 'Continue to Next Sample' : 'Continue to Discrimination Test'}
               <ChevronRight className="size-5 ml-2" />
@@ -562,9 +607,9 @@ export function MultiSampleQuestionnaire() {
     const nextSampleCode = samples[currentSampleIndex + 1]?.code ?? '';
     return (
       <div className="max-w-4xl mx-auto">
-        <Card className="border-2 border-blue-300 bg-gradient-to-br from-blue-50 to-slate-50">
+        <Card className="border border-slate-200 bg-white">
           <CardHeader className="text-center pb-4">
-            <CardTitle className="text-2xl text-blue-900">Palate Cleanse Required</CardTitle>
+            <CardTitle className="text-2xl text-slate-900">Palate Cleanse Required</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6 text-center">
             <p className="text-slate-700 text-base">
@@ -572,7 +617,7 @@ export function MultiSampleQuestionnaire() {
             </p>
             <div className="flex items-center justify-center">
               <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl font-bold border-4 ${
-                cleanseCountdown > 0 ? 'border-blue-400 text-blue-700 bg-blue-100' : 'border-emerald-400 text-emerald-700 bg-emerald-100'
+                cleanseCountdown > 0 ? 'border-slate-300 text-slate-700 bg-slate-50' : 'border-emerald-300 text-emerald-700 bg-emerald-50'
               }`}>
                 {cleanseCountdown > 0 ? cleanseCountdown : <CheckCircle2 className="size-10" />}
               </div>
@@ -580,7 +625,7 @@ export function MultiSampleQuestionnaire() {
             <Button
               onClick={handleContinueFromCleanse}
               disabled={cleanseCountdown > 0}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-lg py-6 disabled:opacity-50"
+              className="w-full bg-slate-900 hover:bg-slate-800 text-lg py-6 disabled:opacity-50"
             >
               {cleanseCountdown > 0
                 ? `Wait ${cleanseCountdown}s…`
@@ -596,16 +641,16 @@ export function MultiSampleQuestionnaire() {
   if (currentStep === 'discrimination') {
     return (
       <div className="max-w-4xl mx-auto space-y-6">
-        <Card className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300">
+        <Card className="border border-slate-200 bg-white">
           <CardContent className="pt-4">
-            <Badge className="bg-amber-600 text-white text-lg px-4 py-2">
+            <Badge variant="outline" className="border-slate-300 text-slate-700 text-lg px-4 py-2">
               Step 4/5
             </Badge>
           </CardContent>
         </Card>
 
-        <Card className="border-2 border-amber-400">
-          <CardHeader className="bg-amber-50">
+        <Card className="border border-slate-200">
+          <CardHeader className="bg-white">
             <CardTitle className="text-2xl">Discrimination Task</CardTitle>
             <p className="text-slate-600 mt-2">
               You have just tasted {samples.length} samples. One of them is different from the others.
@@ -621,19 +666,19 @@ export function MultiSampleQuestionnaire() {
                     onClick={() => setDifferentSample(sample.code)}
                     className={`p-6 rounded-lg border-2 transition-all ${
                       differentSample === sample.code
-                        ? 'border-amber-600 bg-amber-100 shadow-lg'
-                        : 'border-slate-300 bg-white hover:border-amber-400'
+                        ? 'border-slate-900 bg-slate-50'
+                        : 'border-slate-300 bg-white hover:border-slate-500'
                     }`}
                   >
                     <div className="text-3xl font-bold text-slate-900 mb-2">{sample.code}</div>
                     {differentSample === sample.code && (
-                      <CheckCircle2 className="size-6 text-amber-600 mx-auto" />
+                      <CheckCircle2 className="size-6 text-slate-700 mx-auto" />
                     )}
                   </button>
                 ))}
               </div>
               
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mt-4">
+              <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mt-4">
                 <p className="text-sm text-slate-700">
                   <strong>Note:</strong> Consider differences in taste, texture, aroma, and appearance when making your selection.
                 </p>
@@ -649,12 +694,12 @@ export function MultiSampleQuestionnaire() {
           </Alert>
         )}
 
-        <Card className="bg-gradient-to-r from-emerald-50 to-blue-50 border-2 border-emerald-300">
+        <Card className="border border-slate-200 bg-slate-50">
           <CardContent className="pt-6">
             <Button
               onClick={handleContinueFromDiscrimination}
               disabled={!differentSample}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-lg py-6 disabled:opacity-50"
+              className="w-full bg-slate-900 hover:bg-slate-800 text-lg py-6 disabled:opacity-50"
             >
               Continue to Ranking
               <ChevronRight className="size-5 ml-2" />
@@ -669,16 +714,16 @@ export function MultiSampleQuestionnaire() {
   if (currentStep === 'ranking') {
     return (
       <div className="max-w-4xl mx-auto space-y-6">
-        <Card className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300">
+        <Card className="border border-slate-200 bg-white">
           <CardContent className="pt-4">
-            <Badge className="bg-purple-600 text-white text-lg px-4 py-2">
+            <Badge variant="outline" className="border-slate-300 text-slate-700 text-lg px-4 py-2">
               Step 5/5
             </Badge>
           </CardContent>
         </Card>
 
-        <Card className="border-2 border-purple-400">
-          <CardHeader className="bg-purple-50">
+        <Card className="border border-slate-200">
+          <CardHeader className="bg-white">
             <CardTitle className="text-2xl">Preference Ranking</CardTitle>
             <p className="text-slate-600 mt-2">
               Rank all {samples.length} samples from <strong>BEST</strong> to <strong>WORST</strong> based on overall preference
@@ -707,14 +752,14 @@ export function MultiSampleQuestionnaire() {
                           disabled={isUsed}
                           className={`p-4 rounded-lg border-2 transition-all ${
                             isSelected
-                              ? 'border-purple-600 bg-purple-100 shadow-lg'
+                              ? 'border-slate-900 bg-slate-50'
                               : isUsed
                               ? 'border-slate-200 bg-slate-100 opacity-50 cursor-not-allowed'
-                              : 'border-slate-300 bg-white hover:border-purple-400'
+                              : 'border-slate-300 bg-white hover:border-slate-500'
                           }`}
                         >
                           <div className="text-2xl font-bold text-slate-900">{sample.code}</div>
-                          {isSelected && <CheckCircle2 className="size-5 text-purple-600 mx-auto mt-2" />}
+                          {isSelected && <CheckCircle2 className="size-5 text-slate-700 mx-auto mt-2" />}
                           {isUsed && <div className="text-xs text-slate-500 mt-1">Already ranked</div>}
                         </button>
                       );
@@ -725,9 +770,9 @@ export function MultiSampleQuestionnaire() {
               })}
 
               {ranking.length === samples.length && (
-                <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
-                  <p className="text-sm font-bold text-emerald-900">
-                    <CheckCircle2 className="size-4 inline mr-1.5 text-emerald-600" />Your ranking: {ranking.map((code, i) => `${code}${i === 0 ? ' (Best)' : i === ranking.length - 1 ? ' (Worst)' : ''}`).join(' → ')}
+                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                  <p className="text-sm font-bold text-slate-900">
+                    <CheckCircle2 className="size-4 inline mr-1.5 text-slate-600" />Your ranking: {ranking.map((code, i) => `${code}${i === 0 ? ' (Best)' : i === ranking.length - 1 ? ' (Worst)' : ''}`).join(' → ')}
                   </p>
                 </div>
               )}
@@ -742,12 +787,12 @@ export function MultiSampleQuestionnaire() {
           </Alert>
         )}
 
-        <Card className="bg-gradient-to-r from-emerald-50 to-blue-50 border-2 border-emerald-300">
+        <Card className="border border-slate-200 bg-slate-50">
           <CardContent className="pt-6">
             <Button
               onClick={handleContinueFromRanking}
               disabled={ranking.length !== samples.length}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-lg py-6 disabled:opacity-50"
+              className="w-full bg-slate-900 hover:bg-slate-800 text-lg py-6 disabled:opacity-50"
             >
               Review & Confirm
               <ChevronRight className="size-5 ml-2" />
@@ -762,7 +807,7 @@ export function MultiSampleQuestionnaire() {
   if (currentStep === 'confirmation') {
     return (
       <div className="max-w-6xl mx-auto space-y-6">
-        <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300">
+        <Card className="border border-slate-200 bg-white">
           <CardHeader>
             <CardTitle className="text-2xl">Review Your Responses</CardTitle>
             <p className="text-slate-600">Please review all information before final submission. Your responses will be securely recorded and available to study administrators.</p>
@@ -771,10 +816,10 @@ export function MultiSampleQuestionnaire() {
 
         {/* Sample responses */}
         {sampleResponses.map((response) => (
-          <Card key={response.sampleCode} className="border-2 border-slate-300">
+          <Card key={response.sampleCode} className="border border-slate-200">
             <CardHeader className="bg-slate-50">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-lg flex-shrink-0">
+                <div className="w-12 h-12 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-lg flex-shrink-0">
                   {response.sampleCode}
                 </div>
                 <CardTitle>Sample Code: {response.sampleCode}</CardTitle>
@@ -786,7 +831,7 @@ export function MultiSampleQuestionnaire() {
                   <h4 className="font-bold text-slate-900 mb-2">CATA Attributes Selected:</h4>
                   <div className="flex flex-wrap gap-2">
                     {response.cataAttributes.map(attr => (
-                      <Badge key={attr} className="bg-blue-600">{attr}</Badge>
+                      <Badge key={attr} variant="outline" className="border-slate-300 text-slate-700">{attr}</Badge>
                     ))}
                   </div>
                 </div>
@@ -796,7 +841,7 @@ export function MultiSampleQuestionnaire() {
                     {Object.entries(response.hedonicScores).map(([aspect, value]) => (
                       <div key={aspect} className="flex justify-between">
                         <span className="capitalize text-slate-700">{aspect}:</span>
-                        <span className="font-bold text-blue-600">{value}/9</span>
+                        <span className="font-bold text-slate-900">{value}/9</span>
                       </div>
                     ))}
                   </div>
@@ -807,15 +852,15 @@ export function MultiSampleQuestionnaire() {
         ))}
 
         {/* Discrimination & Ranking */}
-        <Card className="border-2 border-amber-300">
-          <CardHeader className="bg-amber-50">
+        <Card className="border border-slate-200">
+          <CardHeader className="bg-white">
             <CardTitle>Discrimination & Ranking</CardTitle>
           </CardHeader>
           <CardContent className="pt-4">
             <div className="space-y-3">
               <div>
                 <span className="font-bold text-slate-900">Different Sample: </span>
-                <Badge className="bg-amber-600 text-lg">{differentSample}</Badge>
+                <Badge variant="outline" className="border-slate-300 text-lg text-slate-700">{differentSample}</Badge>
               </div>
               <div>
                 <span className="font-bold text-slate-900">Preference Ranking: </span>
@@ -828,11 +873,11 @@ export function MultiSampleQuestionnaire() {
         </Card>
 
         {/* Submit */}
-        <Card className="bg-gradient-to-r from-emerald-50 to-blue-50 border-2 border-emerald-300">
+        <Card className="border border-slate-200 bg-slate-50">
           <CardContent className="pt-6 space-y-4">
-            <Alert className="border-blue-300 bg-blue-50">
-              <AlertCircle className="size-4 text-blue-600" />
-              <AlertDescription className="text-blue-900">
+            <Alert className="border-slate-300 bg-white">
+              <AlertCircle className="size-4 text-slate-500" />
+              <AlertDescription className="text-slate-700">
                 <strong>Important:</strong> Once submitted, you cannot edit your responses. Please review all information carefully.
               </AlertDescription>
             </Alert>
@@ -847,7 +892,7 @@ export function MultiSampleQuestionnaire() {
             <Button
               onClick={handleFinalSubmit}
               disabled={isSubmitting}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-lg py-6 disabled:opacity-70"
+              className="w-full bg-slate-900 hover:bg-slate-800 text-lg py-6 disabled:opacity-70"
             >
               <CheckCircle2 className="size-5 mr-2" />
               {isSubmitting ? 'Submitting…' : 'Submit Final Questionnaire'}
@@ -862,7 +907,7 @@ export function MultiSampleQuestionnaire() {
   if (currentStep === 'submitted') {
     return (
       <div className="max-w-4xl mx-auto">
-        <Card className="border-2 border-emerald-300 bg-emerald-50">
+        <Card className="border border-slate-200 bg-slate-50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckCircle2 className="size-6 text-emerald-600" />
@@ -871,7 +916,7 @@ export function MultiSampleQuestionnaire() {
           </CardHeader>
           <CardContent>
             <p className="text-slate-700 mb-2">
-              Thank you for completing the 3-sample sequential evaluation for <strong>{product.name}</strong>.
+              Thank you for completing the {samples.length}-sample sequential evaluation for <strong>{displayName}</strong>.
             </p>
             <p className="text-sm text-slate-600">
               Redirecting to dashboard...

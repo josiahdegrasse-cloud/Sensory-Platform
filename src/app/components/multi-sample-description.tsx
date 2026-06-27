@@ -2,11 +2,12 @@ import { useParams, useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { useAuth } from '../contexts/auth-context';
-import { type Product } from '../data/mock-users';
+import { type Product } from '../data/survey-domain';
 import { fetchProduct } from '../lib/database';
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle2, Clock, Layers, Target, Trophy, Lock } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
+import { getBlindStudyCategoryLabel, getBlindStudyDisplayName, getPanelistSampleOrder } from '../lib/blind-study';
 
 export function MultiSampleDescription() {
   const { productId } = useParams<{ productId: string }>();
@@ -19,6 +20,12 @@ export function MultiSampleDescription() {
     if (!productId) return;
     fetchProduct(productId).then(p => { setProduct(p); setLoading(false); }).catch(() => setLoading(false));
   }, [productId]);
+
+  const orderedSamples = useMemo(() => {
+    if (!product?.isMultiSample || !product.samples) return [];
+    if (!product.blinded) return product.samples;
+    return getPanelistSampleOrder(product.id, user?.id ?? user?.panelistId ?? '', product.samples);
+  }, [product, user?.id, user?.panelistId]);
 
   if (loading) return <div className="max-w-4xl mx-auto p-8 text-slate-500">Loading…</div>;
 
@@ -44,47 +51,77 @@ export function MultiSampleDescription() {
     );
   }
 
+  const displayName = getBlindStudyDisplayName(product);
+  const categoryLabel = getBlindStudyCategoryLabel(product);
+  const sampleCount = orderedSamples.length;
+
+  if (product.status === 'completed') {
+    return (
+      <div className="max-w-4xl mx-auto">
+        <Card className="border border-slate-200 bg-white">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="size-6 text-slate-500" />
+              This study is closed
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-slate-700">
+              No further responses are being accepted for <strong>{displayName}</strong>.
+            </p>
+            <Button variant="outline" onClick={() => navigate('/panelist')}>Back to Dashboard</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <Card className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300">
+      <Card className="border border-slate-200 bg-white">
         <CardHeader>
           <div className="flex items-center gap-2 mb-2">
-            <Layers className="size-6 text-purple-600" />
+            <Layers className="size-6 text-slate-500" />
             <CardTitle className="text-2xl">Multi-Sample Evaluation</CardTitle>
           </div>
           <div className="space-y-1 text-sm text-slate-600">
-            <p><strong>Study:</strong> {product.name}</p>
-            <p><strong>Category:</strong> {product.category}</p>
+            <p><strong>Study:</strong> {displayName}</p>
+            <p><strong>Category:</strong> {categoryLabel}</p>
             <p><strong>Your Panelist ID:</strong> {user?.panelistId}</p>
-            <p><strong>Number of Samples:</strong> {product.samples.length}</p>
+            <p><strong>Number of Samples:</strong> {sampleCount}</p>
           </div>
         </CardHeader>
       </Card>
 
       {/* Samples Information */}
-      <Card className="border-2 border-purple-300">
+      <Card className="border border-slate-200">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Layers className="size-6 text-purple-600" />
+            <Layers className="size-6 text-slate-500" />
             Samples You'll Evaluate
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-slate-700 mb-4">
-            You will taste and evaluate <strong>{product.samples.length} different samples</strong> in this session.
+            You will taste and evaluate <strong>{sampleCount} different samples</strong> in this session.
             Each sample is identified by a unique 3-digit code.
           </p>
-          <div className="p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
-            <p className="text-sm text-blue-900 font-medium mb-3 flex items-center gap-1.5"><Lock className="size-3.5" />Blind Evaluation</p>
+          <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <p className="text-sm text-slate-900 font-medium mb-3 flex items-center gap-1.5">
+              <Lock className="size-3.5" />
+              {product.blinded ? 'Blind Evaluation' : 'Coded Evaluation'}
+            </p>
             <p className="text-sm text-slate-700">
-              Sample identities are concealed to ensure unbiased evaluation. You will only see sample codes during the test.
+              {product.blinded
+                ? 'Sample identities are concealed to ensure unbiased evaluation. You will only see sample codes during the test.'
+                : 'Use the sample codes shown here when evaluating and ranking each sample.'}
             </p>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            {product.samples.map((sample, idx) => (
-              <div key={sample.id} className="flex flex-col items-center gap-2 p-4 bg-purple-50 rounded-lg border-2 border-purple-300">
-                <div className="w-14 h-14 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-xl flex-shrink-0">
+            {orderedSamples.map((sample, idx) => (
+              <div key={sample.id} className="flex flex-col items-center gap-2 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="w-14 h-14 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xl flex-shrink-0">
                   {sample.code}
                 </div>
                 <div className="text-xs text-slate-600 font-medium">Sample {idx + 1}</div>
@@ -105,8 +142,8 @@ export function MultiSampleDescription() {
           </p>
 
           <div className="grid gap-4">
-            <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold flex-shrink-0">1-{product.samples.length}</div>
+            <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold flex-shrink-0">1-{sampleCount}</div>
               <div>
                 <h4 className="font-bold text-slate-900">Sequential Sample Evaluation</h4>
                 <p className="text-sm text-slate-600 mt-1">
@@ -121,12 +158,12 @@ export function MultiSampleDescription() {
               </div>
             </div>
 
-            <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-lg border border-amber-200">
-              <div className="w-8 h-8 rounded-full bg-amber-600 text-white flex items-center justify-center font-bold flex-shrink-0">{product.samples.length + 1}</div>
+            <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold flex-shrink-0">{sampleCount + 1}</div>
               <div>
                 <h4 className="font-bold text-slate-900 flex items-center gap-2">
                   Discrimination Test
-                  <Target className="size-4 text-amber-600" />
+                  <Target className="size-4 text-slate-500" />
                 </h4>
                 <p className="text-sm text-slate-600 mt-1">
                   Identify which sample is different from the others based on taste, texture, aroma, and appearance.
@@ -134,15 +171,15 @@ export function MultiSampleDescription() {
               </div>
             </div>
 
-            <div className="flex items-start gap-3 p-4 bg-purple-50 rounded-lg border border-purple-200">
-              <div className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold flex-shrink-0">{product.samples.length + 2}</div>
+            <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold flex-shrink-0">{sampleCount + 2}</div>
               <div>
                 <h4 className="font-bold text-slate-900 flex items-center gap-2">
                   Preference Ranking
-                  <Trophy className="size-4 text-purple-600" />
+                  <Trophy className="size-4 text-slate-500" />
                 </h4>
                 <p className="text-sm text-slate-600 mt-1">
-                  Rank all {product.samples.length} samples from <strong>best to worst</strong> based on your overall preference.
+                  Rank all {sampleCount} samples from <strong>best to worst</strong> based on your overall preference.
                 </p>
               </div>
             </div>
@@ -151,10 +188,10 @@ export function MultiSampleDescription() {
       </Card>
 
       {/* Important Information */}
-      <Card className="border-2 border-amber-300 bg-amber-50">
+      <Card className="border border-slate-200 bg-slate-50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Clock className="size-5 text-amber-600" />
+            <Clock className="size-5 text-slate-500" />
             Before You Begin
           </CardTitle>
         </CardHeader>
@@ -162,7 +199,7 @@ export function MultiSampleDescription() {
           <div className="flex items-start gap-2">
             <CheckCircle2 className="size-5 text-emerald-600 flex-shrink-0 mt-0.5" />
             <p className="text-sm text-slate-700">
-              <strong>Estimated Time:</strong> {15 + (product.samples.length - 3) * 5}-{20 + (product.samples.length - 3) * 5} minutes
+              <strong>Estimated Time:</strong> {15 + (sampleCount - 3) * 5}-{20 + (sampleCount - 3) * 5} minutes
             </p>
           </div>
           <div className="flex items-start gap-2">
@@ -178,7 +215,7 @@ export function MultiSampleDescription() {
             </p>
           </div>
           <div className="flex items-start gap-2">
-            <AlertCircle className="size-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <AlertCircle className="size-5 text-slate-500 flex-shrink-0 mt-0.5" />
             <p className="text-sm text-slate-700">
               <strong>Cannot edit after submission</strong> - please review carefully before final submit
             </p>
@@ -197,7 +234,7 @@ export function MultiSampleDescription() {
         </Button>
         <Button
           onClick={() => navigate(`/multi-sample/${productId}`)}
-          className="flex-1 bg-purple-600 hover:bg-purple-700"
+          className="flex-1 bg-slate-900 hover:bg-slate-800"
         >
           <Layers className="size-4 mr-2" />
           Begin Multi-Sample Evaluation

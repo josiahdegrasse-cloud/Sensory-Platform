@@ -1,11 +1,17 @@
 import { supabase } from '../supabase';
-import type { QuestionnaireResponse } from '../../data/mock-users';
+import type { QuestionnaireResponse } from '../../data/survey-domain';
 import { dbError, fromJson } from './shared';
 import type { Database } from './database.types';
 
 type Tables = Database['public']['Tables'];
+type ResponseRow = Tables['responses']['Row'] & {
+  presentation_order?: string[] | null;
+};
+type ResponseInsert = Tables['responses']['Insert'] & {
+  presentation_order?: string[] | null;
+};
 
-function toResponse(row: Tables['responses']['Row']): QuestionnaireResponse {
+function toResponse(row: ResponseRow): QuestionnaireResponse {
   const rawComments = row.comments ?? '';
 
   // Prefer dedicated columns (migration 004); fall back to JSON-in-comments for
@@ -14,6 +20,7 @@ function toResponse(row: Tables['responses']['Row']): QuestionnaireResponse {
   let sampleCode = row.sample_code ?? undefined;
   let differentSample = row.different_sample ?? undefined;
   let ranking = row.ranking ?? undefined;
+  let presentationOrder = row.presentation_order ?? undefined;
   let comments = rawComments;
 
   if (!sessionType && rawComments) {
@@ -24,6 +31,7 @@ function toResponse(row: Tables['responses']['Row']): QuestionnaireResponse {
         sampleCode = meta.sampleCode as string | undefined;
         differentSample = meta.differentSample as string | undefined;
         ranking = Array.isArray(meta.ranking) ? (meta.ranking as string[]) : undefined;
+        presentationOrder = Array.isArray(meta.presentationOrder) ? (meta.presentationOrder as string[]) : presentationOrder;
         comments = meta.comments ?? '';
       }
     } catch { /* plain-text comment, not JSON */ }
@@ -46,6 +54,7 @@ function toResponse(row: Tables['responses']['Row']): QuestionnaireResponse {
     sampleCode,
     differentSample,
     ranking,
+    presentationOrder,
   };
 }
 
@@ -124,22 +133,25 @@ export async function insertResponse(
     const runNumber =
       existing && existing.length > 0 ? (existing[0].run_number as number) + 1 : 1;
 
+    const insertPayload: ResponseInsert = {
+      user_id: response.userId,
+      product_id: response.productId,
+      run_number: runNumber,
+      cata_attributes: response.cataAttributes,
+      intensity_ratings: response.intensityRatings,
+      hedonic_scores: response.hedonicScores,
+      emotional_profile: response.emotionalProfile,
+      comments: response.comments ?? null,
+      session_type: response.sessionType ?? null,
+      sample_code: response.sampleCode ?? null,
+      different_sample: response.differentSample ?? null,
+      ranking: response.ranking ?? null,
+      presentation_order: response.presentationOrder ?? null,
+    };
+
     const { data, error } = await supabase
       .from('responses')
-      .insert({
-        user_id: response.userId,
-        product_id: response.productId,
-        run_number: runNumber,
-        cata_attributes: response.cataAttributes,
-        intensity_ratings: response.intensityRatings,
-        hedonic_scores: response.hedonicScores,
-        emotional_profile: response.emotionalProfile,
-        comments: response.comments ?? null,
-        session_type: response.sessionType ?? null,
-        sample_code: response.sampleCode ?? null,
-        different_sample: response.differentSample ?? null,
-        ranking: response.ranking ?? null,
-      })
+      .insert(insertPayload as Tables['responses']['Insert'])
       .select()
       .single();
 

@@ -1,5 +1,5 @@
-import { AlertTriangle, Layers, Plus, Save, Trash2, Users } from 'lucide-react';
-import type { Product } from '../data/mock-users';
+import { AlertTriangle, Layers, Lock, Plus, Save, Trash2, Users } from 'lucide-react';
+import type { Product } from '../data/survey-domain';
 import type { PanelistInfo } from '../lib/database';
 import { getAssignmentSummary } from '../lib/assignments';
 import { Badge } from './ui/badge';
@@ -70,6 +70,12 @@ export function SurveyConfigurationSheet({
                 Multi-sample
               </Badge>
             )}
+            {product?.blinded && (
+              <Badge className="bg-slate-900">
+                <Lock className="mr-1 size-3" aria-hidden />
+                Blinded
+              </Badge>
+            )}
           </div>
           <SheetDescription>
             Choose who receives this survey and which attributes they evaluate.
@@ -78,6 +84,33 @@ export function SurveyConfigurationSheet({
 
         {product && assignment && (
           <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
+            {product.blinded && (
+              <section className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4" aria-labelledby="blind-study-heading">
+                <h3 id="blind-study-heading" className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                  <Lock className="size-4 text-slate-700" aria-hidden />
+                  Blind study codes
+                </h3>
+                <p className="text-sm text-slate-600">
+                  Panelists see coded sample identities only. The internal product name, category, and labels remain visible to administrators.
+                </p>
+                {product.isMultiSample && product.samples?.length ? (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {product.samples.map(sample => (
+                      <div key={sample.id} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                        <span className="font-bold tracking-wider text-slate-900">{sample.code}</span>
+                        <span className="ml-2 text-slate-600">{sample.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : product.blindCode ? (
+                  <div className="inline-flex rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+                    <span className="text-slate-600">Panelist sample code:</span>
+                    <span className="ml-2 font-bold tracking-wider text-slate-900">{product.blindCode}</span>
+                  </div>
+                ) : null}
+              </section>
+            )}
+
             <section className="space-y-3" aria-labelledby="panel-assignment-heading">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
