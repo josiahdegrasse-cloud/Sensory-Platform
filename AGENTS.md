@@ -1,106 +1,73 @@
-# Sensory Analysis Dashboard - Codex Operating Guide
+# AGENTS.md — Sensory Platform
 
-This project is a React/Vite sensory analysis dashboard with Supabase-backed workflows. Work like a senior engineer: keep the scope tight, preserve user work, and use Ruflo only when it adds real leverage.
+Context for any Codex session (high, medium, or low reasoning effort) working in this repo.
 
-## Core Rules
+## What this is
 
-- Do exactly what was asked; avoid opportunistic refactors.
-- Always read a file before editing it.
-- Prefer editing existing files over creating new ones.
-- Do not create documentation files unless explicitly requested.
-- Do not save working files, experiments, or tests in the repo root. Use `/src`, `/tests`, `/docs`, `/config`, or `/scripts`.
-- Never commit secrets, credentials, `.env` files, local databases, build output, or OS metadata.
-- Never add `Co-Authored-By` trailers unless `.codex/settings.json` explicitly enables attribution.
-- Keep files under 500 lines where practical. If a necessary change would exceed that, split by existing domain boundaries.
-- Validate input at system boundaries: routes, forms, uploads/imports, Supabase calls, edge functions, CSV parsing, and external data.
-- Preserve unrelated user changes in the worktree. Stage and commit only files touched for the requested task.
+The Sensory Platform is a Next.js + Supabase SaaS app for New Food Innovation (NFI), a UK food
+consultancy. It manages import batches, sensory studies, concept tests, decision records, and
+commercialization reports across a workflow: **Data → Studies → Responses → Insights → Decision →
+Concept → Report**.
 
-## Default Workflow
+Core entities: `projects`, food-type-scoped studies (e.g. Bread, Cheese), machine/instrumental
+samples (E-tongue, GC-MS, composition), surveys/responses, GO/TWEAK/STOP decisions, concept tests,
+and commercialization reports.
 
-1. Inspect the relevant files with `rg`, `rg --files`, `sed`, or focused reads.
-2. Decide the smallest safe implementation path.
-3. Make scoped edits with `apply_patch`.
-4. Run the relevant verification for the files changed.
-5. Review the diff before committing or pushing.
+## Hard rules — do not violate these
 
-Use direct work for simple changes. Bring in Ruflo memory, routing, agents, or swarms only when the task is complex, risky, repeated, or spans multiple areas.
+1. **Schema leads, app code follows. Never the reverse.**
+   The `projects` table (and any other core table) is the single source of truth for "project"
+   identity. Do not invent ad-hoc identifiers, shadow state, or client-side workarounds that
+   duplicate what the database already models. If app code needs something the schema doesn't
+   support yet, the fix is a migration — not a workaround.
 
-## Ruflo Decision Ladder
+2. **`database.types.ts` must be generated from the live schema, never hand-edited.**
+   If you touch any table, regenerate types from Supabase rather than patching the `.ts` file by
+   hand. Hand-edited types that drift from the real schema are exactly the failure mode that
+   caused the prior production outage on this project — do not reintroduce it.
 
-| Task shape | Approach |
-| --- | --- |
-| Single-file edit, small bug, copy tweak, config tweak | Work directly. No swarm. |
-| 2-3 related files or unclear existing pattern | Use `memory_search` if past patterns may matter; optionally use guidance/routing. |
-| Feature work, cross-module refactor, API/data model change | Use Ruflo guidance and consider a small agent team. |
-| Security, auth, RLS, secrets, data privacy, permissions | Use security-focused review; verify boundary validation and least privilege. |
-| Performance-sensitive dashboards, large data processing, imports | Use performance review and measure before/after where possible. |
-| 5+ file changes or architecture uncertainty | Use a coordinated swarm with named agents and explicit handoffs. |
+3. **Mandatory stop-and-report checkpoint before fixing schema/type mismatches.**
+   If you discover a mismatch between the live schema and `database.types.ts`, or between a
+   migration and app code that depends on it, **stop and report the discrepancy before touching
+   anything**. Do not silently patch around it. Summarize: what's mismatched, what depends on it,
+   and the proposed fix — then wait for confirmation before applying it.
 
-## Ruflo Tools
+4. **No schema changes ship without a corresponding CI gate check.**
+   Every migration must keep the CI gate (which prevents schema from leading app code without a
+   matching types regeneration) green. If you add or modify a migration, also verify or update the
+   CI step that checks `database.types.ts` is in sync.
 
-Use `ToolSearch` first when looking for Ruflo MCP tools. Prefer these when relevant:
+5. **GO/TWEAK/STOP decisions are not cosmetic.**
+   A confirmed GO decision is a hard precondition for concept-testing and commercialization-report
+   work. Don't build features that bypass this gate, and don't treat "not confirmed" as
+   equivalent to "GO" anywhere in the code.
 
-- Memory: `memory_search`, `memory_store`, `memory_search_unified`
-- Routing/guidance: `hooks_route`, `guidance_recommend`, `guidance_workflow`
-- Agents: `agent_spawn`, `agent_list`, `agent_status`
-- Swarm: `swarm_init`, `swarm_status`, `swarm_health`
-- Security: `aidefence_scan`, `aidefence_is_safe`, `aidefence_has_pii`
+## Workflow conventions
 
-Memory is for reusable lessons, not every successful edit. Store a memory only when it captures a durable project pattern or a non-obvious fix likely to matter again.
+- Default to full completeness: research first, write tests, write docs, ship the finished
+  working product rather than a plan or partial workaround. Don't defer real fixes or leave loose
+  ends when closing them is feasible in the same response.
+- Before any migration: confirm current schema state directly (don't assume from memory or stale
+  type files).
+- After any migration: regenerate `database.types.ts`, run the CI gate locally if possible, and
+  call out explicitly that you did so.
+- Treat production outages as a category to actively defend against, not just react to — this
+  project has already had one stemming from schema/app-code drift.
 
-## Agent Coordination
+## Reasoning-effort pane guidance (for the 4-pane Codex workspace)
 
-Named agents coordinate through `SendMessage` when that capability is available. Do not use agents as ceremony; use them to reduce risk or parallelize genuine independent work.
+- **High-effort pane:** schema migrations, anything touching `database.types.ts`, the CI gate
+  itself, or cross-cutting architecture decisions (e.g. how "project" identity propagates through
+  the app).
+- **Medium-effort panes:** feature work within an established schema (Workflow page, Concept Lab,
+  decision engine, commercialization reporting, admin workspace) — anything that consumes the
+  schema rather than changes it.
+- **Low-effort pane:** mechanical work — renames, formatting, simple component edits, boilerplate
+  CRUD, straightforward bug fixes with an obvious root cause.
 
-### Recommended Patterns
+## Stack notes
 
-| Pattern | Flow | Use when |
-| --- | --- | --- |
-| Direct | Lead only | Small, obvious, low-risk work |
-| Scout | Researcher -> Lead | Unknown code paths or dependency behavior |
-| Pair | Architect/Reviewer <-> Lead | Design or risk review before edits |
-| Pipeline | Researcher -> Architect -> Coder -> Tester -> Reviewer | Feature work with sequential dependencies |
-| Fan-out | Lead -> Specialists -> Lead | Independent research, security, performance, UX review |
-
-Agent rules:
-
-- Always name agents so they are addressable.
-- Always tell each agent who to message next and what result to send.
-- Spawn coordinated agents together with `run_in_background: true` when using a pipeline.
-- After spawning a background team, tell the user what is running and wait for agent results.
-- Do not poll shared state when agents can message back.
-
-## Verification
-
-This repo uses pnpm and exposes these scripts:
-
-```bash
-pnpm run build
-pnpm test
-pnpm test:watch
-```
-
-Verification expectations:
-
-- Code changes: run focused tests when available, then `pnpm run build`.
-- Shared logic, data transforms, hooks, auth, Supabase, or user-facing workflows: run `pnpm test` and `pnpm run build`.
-- Documentation/config-only changes: validate formatting and review the diff; build is optional unless the config affects runtime.
-- Before committing: run `git diff --check` and inspect `git diff`.
-
-If dependency installation or network access is required, ask for approval through the sandbox escalation flow.
-
-## Git Discipline
-
-- Check `git status --short --branch` before edits and before staging.
-- Do not stage unrelated modified or untracked files.
-- Use clear, conventional commit messages such as `docs: tighten codex operating guide`.
-- Push only after verification succeeds or after clearly documenting why a check could not be run.
-
-## Project Notes
-
-- Frontend code lives under `/src/app`.
-- UI components live under `/src/app/components` and `/src/app/components/ui`.
-- Shared app utilities live under `/src/app/utils` and `/src/app/lib`.
-- Supabase schema and edge functions live under `/supabase`.
-- Migrations live under `/migrations` and `/supabase/migrations`.
-- Sample CSVs live under `/public`; do not overwrite them unless the task explicitly involves imports or examples.
+- Next.js + Supabase (Postgres)
+- Status line / progress reporting conventions follow the weekly NFI update format (8 phases,
+  commit-level granularity) — keep commit messages and PR descriptions consistent with that if
+  asked to summarize work for the weekly update.
