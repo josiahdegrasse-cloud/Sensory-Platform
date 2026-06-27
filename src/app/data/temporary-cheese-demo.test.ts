@@ -5,7 +5,7 @@ import {
   TEMPORARY_CHEESE_DECISION,
   TEMPORARY_CHEESE_RESPONSES,
   mergeTemporaryFixtures,
-} from './temporary-cheese-demo';
+} from './demo/temporary-cheese-demo';
 import { COCONUT_CHEDDAR_PROFILE, getCommercializationProjectProfile } from './coconut-cheddar-profile';
 
 describe('temporary cheese demo fixtures', () => {
