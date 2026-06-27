@@ -1,10 +1,11 @@
 import { STATUS } from '../styles/tokens';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend } from "recharts";
-import { Layers, Target, Trophy, Heart, Download } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, Heart, Layers, Target, Trophy } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { DataProvenanceBadge } from './data-provenance-badge';
 import { InsightInterpretationBlock } from './insights-ui';
+import { analyzeMultiSampleStudy, type MultiSampleSessionLike } from '../lib/multi-sample-analysis';
 
 interface MultiSampleProduct {
   id: string;
@@ -13,29 +14,22 @@ interface MultiSampleProduct {
   isMultiSample?: boolean;
 }
 
-interface SampleData {
-  sampleCode: string;
-  cataAttributes: string[];
-  intensityRatings: Record<string, number>;
-  hedonicScores: { overall: number; [key: string]: number };
-  emotionalProfile: Record<string, number>;
-}
-
-interface MultiSampleSession {
-  id: string;
-  userId: string;
-  productId: string;
-  differentSample: string;
-  ranking: string[];
-  samples: SampleData[];
-}
-
 interface MultiSampleAnalysisProps {
-  multiSampleResponses: MultiSampleSession[];
+  multiSampleResponses: MultiSampleSessionLike[];
   multiSampleProducts: MultiSampleProduct[];
   selectedMultiProduct: string;
   setSelectedMultiProduct: (id: string) => void;
   minimumResponses?: number;
+}
+
+function scoreTone(score: number) {
+  if (score >= 7) return 'border-emerald-200 bg-emerald-50 text-emerald-900';
+  if (score >= 5) return 'border-amber-200 bg-amber-50 text-amber-900';
+  return 'border-rose-200 bg-rose-50 text-rose-900';
+}
+
+function percent(value: number) {
+  return `${Math.round(value * 100)}%`;
 }
 
 export function MultiSampleAnalysis({
@@ -47,6 +41,7 @@ export function MultiSampleAnalysis({
 }: MultiSampleAnalysisProps) {
   const selectedProduct = multiSampleProducts.find(p => p.id === selectedMultiProduct);
   const productResponses = multiSampleResponses.filter(r => r.productId === selectedMultiProduct);
+  const analysis = analyzeMultiSampleStudy(productResponses, minimumResponses);
 
   if (productResponses.length === 0) {
     return (
@@ -62,56 +57,22 @@ export function MultiSampleAnalysis({
     );
   }
 
-  // Calculate discrimination accuracy
-  const discriminationResults = productResponses.reduce((acc: Record<string, number>, response) => {
-    const sample = response.differentSample;
-    acc[sample] = (acc[sample] || 0) + 1;
-    return acc;
-  }, {});
-
-  // Calculate ranking consensus
-  const rankingData = productResponses.reduce((acc: Record<string, { rank1: number; rank2: number; rank3: number; total: number }>, response) => {
-    response.ranking.forEach((sampleCode: string, position: number) => {
-      if (!acc[sampleCode]) {
-        acc[sampleCode] = { rank1: 0, rank2: 0, rank3: 0, total: 0 };
-      }
-      const rankKey = `rank${position + 1}` as 'rank1' | 'rank2' | 'rank3';
-      if (rankKey in acc[sampleCode]) {
-        acc[sampleCode][rankKey]++;
-      }
-      acc[sampleCode].total++;
-    });
-    return acc;
-  }, {});
-
-  const rankingChartData = Object.entries(rankingData).map(([code, data]) => ({
-    id: `ranking-${code}`,
-    sample: code,
-    'Best (1st)': data.rank1,
-    'Middle (2nd)': data.rank2,
-    'Worst (3rd)': data.rank3
+  const evidenceIsLimited = analysis.summary.evidenceTone === 'limited';
+  const differenceChartData = analysis.differenceRows.map(row => ({
+    sample: row.sampleCode,
+    selections: row.count,
+    share: Math.round(row.share * 100),
   }));
-
-  // Average hedonic scores per sample
-  const hedonicBySample = productResponses.reduce((acc: Record<string, { scores: number[]; count: number }>, response) => {
-    response.samples.forEach((sample) => {
-      if (!acc[sample.sampleCode]) {
-        acc[sample.sampleCode] = { scores: [], count: 0 };
-      }
-      acc[sample.sampleCode].scores.push(sample.hedonicScores.overall);
-      acc[sample.sampleCode].count++;
-    });
-    return acc;
-  }, {});
-
-  const hedonicChartData = Object.entries(hedonicBySample).map(([code, data]) => ({
-    id: `hedonic-sample-${code}`,
-    sample: code,
-    avgScore: (data.scores.reduce((a: number, b: number) => a + b, 0) / data.count).toFixed(2),
-    count: data.count
-  })).sort((a, b) => parseFloat(b.avgScore) - parseFloat(a.avgScore));
-  const evidenceIsLimited = productResponses.length < minimumResponses;
-  const leadingSample = hedonicChartData[0];
+  const rankingChartData = analysis.rankingRows.map(row => ({
+    sample: row.sampleCode,
+    'Ranked #1': Math.round(row.firstPlaceShare * 100),
+    'Average rank': row.averageRank ?? 0,
+  }));
+  const hedonicChartData = analysis.hedonicRows.map(row => ({
+    sample: row.sampleCode,
+    avgScore: Number(row.averageOverall.toFixed(2)),
+    count: row.count,
+  }));
 
   const exportMultiSampleCSV = () => {
     const headers = ['ResponseID', 'PanelistID', 'ProductID', 'SampleCode', 'Metric', 'Value'];
@@ -143,7 +104,6 @@ export function MultiSampleAnalysis({
 
   return (
     <div className="space-y-6">
-      {/* Product Selector */}
       <Card className="border border-slate-200">
         <CardHeader className="border-b border-slate-100">
           <div className="flex items-center justify-between">
@@ -186,7 +146,66 @@ export function MultiSampleAnalysis({
         </CardContent>
       </Card>
 
-      {/* Discrimination Test Results */}
+      <Card className="border border-slate-200">
+        <CardHeader className="border-b border-slate-100">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                {analysis.summary.preferenceAgreement ? (
+                  <CheckCircle2 className="size-5 text-emerald-600" />
+                ) : (
+                  <AlertTriangle className="size-5 text-amber-600" />
+                )}
+                Multi-sample decision readout
+              </CardTitle>
+              <p className="mt-1 text-sm text-slate-600">
+                Difference evidence is reported as consensus, not formal triangle accuracy.
+              </p>
+            </div>
+            <DataProvenanceBadge provenance="live" n={productResponses.length} />
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5 pt-5">
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Evidence</div>
+              <div className="mt-2 text-lg font-bold text-slate-950">{analysis.summary.evidenceLabel}</div>
+            </div>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+              <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">Different sample</div>
+              <div className="mt-2 text-lg font-bold text-amber-950">{analysis.summary.differenceLeader ?? 'Mixed'}</div>
+            </div>
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+              <div className="text-xs font-semibold uppercase tracking-wide text-blue-700">Preference leader</div>
+              <div className="mt-2 text-lg font-bold text-blue-950">{analysis.summary.preferenceLeader ?? 'Not established'}</div>
+            </div>
+            <div className={`rounded-lg border p-4 ${analysis.summary.preferenceAgreement ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+              <div className={`text-xs font-semibold uppercase tracking-wide ${analysis.summary.preferenceAgreement ? 'text-emerald-700' : 'text-amber-700'}`}>Decision state</div>
+              <div className={`mt-2 text-lg font-bold ${analysis.summary.preferenceAgreement ? 'text-emerald-950' : 'text-amber-950'}`}>
+                {analysis.summary.preferenceAgreement ? 'Aligned' : 'Needs review'}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            <InsightInterpretationBlock
+              tone={evidenceIsLimited || !analysis.summary.preferenceAgreement ? 'warning' : 'info'}
+              finding={analysis.summary.preferenceSignal}
+              evidence={analysis.summary.differenceSignal}
+              confidence={analysis.summary.evidenceLabel}
+              action={analysis.summary.nextAction}
+            />
+            <InsightInterpretationBlock
+              tone="info"
+              finding={analysis.summary.driverSignal}
+              evidence="Attribute drivers are based on CATA selections from the per-sample evaluations."
+              confidence="Use as diagnostic evidence; confirm with formulation and instrumental data before claims."
+              action="Compare the leading descriptors with the prototype objective and known formulation changes."
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {evidenceIsLimited && (
         <InsightInterpretationBlock
           tone="warning"
@@ -201,37 +220,44 @@ export function MultiSampleAnalysis({
         <CardHeader className="border-b border-slate-100">
           <CardTitle className="flex items-center gap-2">
             <Target className="size-5 text-amber-600" />
-            Discrimination Test Results
+            Difference consensus
           </CardTitle>
-          <p className="text-sm text-slate-600">Which sample was identified as "different"</p>
+          <p className="text-sm text-slate-600">Which sample was identified as different. This is not formal accuracy without a hidden answer key.</p>
         </CardHeader>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-3 gap-4">
-            {Object.entries(discriminationResults).map(([sampleCode, count]) => {
-              const percentage = ((count / productResponses.length) * 100).toFixed(1);
-              return (
-                <div key={sampleCode} className="p-4 bg-amber-50 rounded-lg border-2 border-amber-200 text-center">
-                  <div className="w-14 h-14 rounded-full bg-amber-600 text-white flex items-center justify-center font-bold text-xl mx-auto mb-2">
-                    {sampleCode}
-                  </div>
-                  <div className="text-3xl font-bold text-amber-900">{count}</div>
-                  <div className="text-sm text-slate-600">({percentage}%)</div>
-                  <div className="text-xs text-slate-500 mt-1">panelists selected</div>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {analysis.differenceRows.map(row => (
+              <div key={row.sampleCode} className="rounded-lg border-2 border-amber-200 bg-amber-50 p-4 text-center">
+                <div className="mx-auto mb-2 flex size-14 items-center justify-center rounded-full bg-amber-600 text-xl font-bold text-white">
+                  {row.sampleCode}
                 </div>
-              );
-            })}
+                <div className="text-3xl font-bold text-amber-900">{row.count}</div>
+                <div className="text-sm text-slate-600">({percent(row.share)})</div>
+                <div className="mt-1 text-xs text-slate-500">panelists selected</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-5 h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={differenceChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="sample" />
+                <YAxis />
+                <RechartsTooltip />
+                <Bar dataKey="share" fill={STATUS.tweak} name="Selected as different (%)" />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </CardContent>
       </Card>
 
-      {/* Preference Ranking */}
       <Card className="border border-slate-200">
         <CardHeader className="border-b border-slate-100">
           <CardTitle className="flex items-center gap-2">
             <Trophy className="size-5 text-blue-600" />
-            Preference Ranking Distribution
+            Preference ranking
           </CardTitle>
-          <p className="text-sm text-slate-600">How panelists ranked each sample</p>
+          <p className="text-sm text-slate-600">First-place share and average rank across completed sessions.</p>
         </CardHeader>
         <CardContent className="pt-6">
           <ResponsiveContainer width="100%" height={300}>
@@ -241,53 +267,45 @@ export function MultiSampleAnalysis({
               <YAxis />
               <RechartsTooltip />
               <Legend />
-              <Bar key="rank-best" dataKey="Best (1st)" fill={STATUS.go} />
-              <Bar key="rank-middle" dataKey="Middle (2nd)" fill={STATUS.tweak} />
-              <Bar key="rank-worst" dataKey="Worst (3rd)" fill={STATUS.stop} />
+              <Bar key="rank-best" dataKey="Ranked #1" fill={STATUS.go} name="Ranked #1 (%)" />
             </BarChart>
           </ResponsiveContainer>
 
-          <div className="mt-6 grid grid-cols-3 gap-4">
-            {rankingChartData.map((data) => {
-              const bestCount = data['Best (1st)'];
-              const total = bestCount + data['Middle (2nd)'] + data['Worst (3rd)'];
-              const percentage = ((bestCount / total) * 100).toFixed(1);
-              return (
-                <div key={data.sample} className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-center">
-                  <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-lg mx-auto mb-2">
-                    {data.sample}
-                  </div>
-                  <div className="text-sm text-slate-600 mb-1">Ranked #1</div>
-                  <div className="text-2xl font-bold text-blue-900">{percentage}%</div>
-                  <div className="text-xs text-slate-500 mt-1">{bestCount}/{total} times</div>
+          <div className="mt-6 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {analysis.rankingRows.map(row => (
+              <div key={row.sampleCode} className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-center">
+                <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-blue-600 text-lg font-bold text-white">
+                  {row.sampleCode}
                 </div>
-              );
-            })}
+                <div className="mb-1 text-sm text-slate-600">Ranked #1</div>
+                <div className="text-2xl font-bold text-blue-900">{percent(row.firstPlaceShare)}</div>
+                <div className="mt-1 text-xs text-slate-500">
+                  Avg rank {row.averageRank?.toFixed(1) ?? 'n/a'} · {row.firstPlaceCount}/{row.totalRankings}
+                </div>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Average Hedonic Scores */}
       <Card className="border border-slate-200">
         <CardHeader className="border-b border-slate-100">
           <CardTitle className="flex items-center gap-2">
             <Heart className="size-5 text-blue-600" />
-            Average Overall Liking by Sample
+            Average overall liking
           </CardTitle>
           <p className="text-sm text-slate-600">Mean hedonic scores (1-9 scale)</p>
         </CardHeader>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             {hedonicChartData.map((data) => {
-              const score = parseFloat(data.avgScore);
-              const color = score >= 7 ? 'emerald' : score >= 5 ? 'amber' : 'rose';
               return (
-                <div key={data.sample} className={`p-4 bg-${color}-50 rounded-lg border-2 border-${color}-200 text-center`}>
-                  <div className="w-14 h-14 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-xl mx-auto mb-2">
+                <div key={data.sample} className={`rounded-lg border-2 p-4 text-center ${scoreTone(data.avgScore)}`}>
+                  <div className="mx-auto mb-2 flex size-14 items-center justify-center rounded-full bg-purple-600 text-xl font-bold text-white">
                     {data.sample}
                   </div>
-                  <div className={`text-3xl font-bold text-${color}-900`}>{data.avgScore}</div>
-                  <div className="text-xs text-slate-500 mt-1">n={data.count} responses</div>
+                  <div className="text-3xl font-bold">{data.avgScore.toFixed(2)}</div>
+                  <div className="mt-1 text-xs text-slate-500">n={data.count} observations</div>
                 </div>
               );
             })}
@@ -295,17 +313,39 @@ export function MultiSampleAnalysis({
         </CardContent>
       </Card>
 
-      {leadingSample && (
-        <InsightInterpretationBlock
-          tone={evidenceIsLimited ? 'warning' : 'info'}
-          finding={evidenceIsLimited
-            ? `${leadingSample.sample} is the current leading direction, not a validated winner.`
-            : `${leadingSample.sample} has the highest average liking score in this study.`}
-          evidence={`${leadingSample.avgScore}/9 average liking across ${leadingSample.count} observations.`}
-          confidence={evidenceIsLimited ? 'Limited because the study has not reached the response threshold.' : 'Moderate; confirm study design and statistical testing before making broad claims.'}
-          action={evidenceIsLimited ? 'Continue response collection.' : 'Review the leading sample alongside discrimination and ranking results.'}
-        />
-      )}
+      <Card className="border border-slate-200">
+        <CardHeader className="border-b border-slate-100">
+          <CardTitle>Attribute drivers by sample</CardTitle>
+          <p className="text-sm text-slate-600">Top selected descriptors from the per-sample CATA task.</p>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {analysis.sampleCodes.map(code => {
+              const drivers = analysis.attributeDrivers.filter(driver => driver.sampleCode === code);
+              return (
+                <div key={code} className="rounded-lg border border-slate-200 bg-white p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <div className="flex size-9 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white">{code}</div>
+                    <div className="font-semibold text-slate-900">Sample {code}</div>
+                  </div>
+                  {drivers.length > 0 ? (
+                    <div className="space-y-2">
+                      {drivers.map(driver => (
+                        <div key={`${driver.sampleCode}-${driver.attribute}`} className="flex items-center justify-between gap-3 text-sm">
+                          <span className="text-slate-700">{driver.attribute}</span>
+                          <span className="font-semibold text-slate-950">{percent(driver.share)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500">No descriptors selected yet.</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
