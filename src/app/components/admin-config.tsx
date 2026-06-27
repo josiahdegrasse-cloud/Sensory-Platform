@@ -20,7 +20,7 @@ import {
 import {
   Plus, Settings, Trash2, Save, CheckCircle2, Layers,
   ClipboardList, Users, AlertCircle, Search, Activity, FlaskConical, Archive, RotateCcw,
-  Upload, Database, Eye, ArrowRight, Lightbulb, PlayCircle,
+  Upload, Database, Eye, ArrowRight, Lightbulb, PlayCircle, Edit2,
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { PanelistPerformancePanel } from './panelist-performance';
@@ -468,29 +468,29 @@ export function AdminConfig() {
         <button
           type="button"
           onClick={() => openCreateModal('single')}
-          className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 text-left transition hover:border-blue-400 hover:bg-blue-50"
+          className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-left transition hover:border-blue-400 hover:bg-blue-100"
         >
-          <div className="flex items-center gap-2 font-semibold text-blue-900"><ClipboardList className="size-4" />Product Sensory Study</div>
-          <p className="mt-1 text-xs text-blue-800/80">Single-sample sensory questionnaire with structured hedonic, CATA, intensity, and emotion data.</p>
+          <div className="flex items-center gap-2 font-semibold text-blue-950"><ClipboardList className="size-4 text-blue-700" />Product Sensory Survey</div>
+          <p className="mt-1 text-xs leading-5 text-blue-800">One sample, one sensory profile: CATA, intensity, liking, and emotional response.</p>
         </button>
         <button
           type="button"
           onClick={() => openCreateModal('multi')}
-          className="rounded-xl border border-purple-200 bg-purple-50/70 p-4 text-left transition hover:border-purple-400 hover:bg-purple-50"
+          className="rounded-lg border border-purple-200 bg-purple-50 p-4 text-left transition hover:border-purple-400 hover:bg-purple-100"
         >
-          <div className="flex items-center gap-2 font-semibold text-purple-900"><Layers className="size-4" />Multi-Sample Sensory Study</div>
-          <p className="mt-1 text-xs text-purple-800/80">Compare coded samples with ranking, discrimination, and sensory profiles.</p>
+          <div className="flex items-center gap-2 font-semibold text-purple-950"><Layers className="size-4 text-purple-700" />Multi-Sample Comparison</div>
+          <p className="mt-1 text-xs leading-5 text-purple-800">Multiple coded samples, ranked together with difference and preference signals.</p>
         </button>
         <Link
           to="/concept-testing"
-          className="rounded-xl border border-orange-200 bg-orange-50/70 p-4 text-left transition hover:border-orange-400 hover:bg-orange-50"
+          className="rounded-lg border border-teal-200 bg-teal-50 p-4 text-left transition hover:border-teal-400 hover:bg-teal-100"
         >
-          <div className="flex items-center gap-2 font-semibold text-orange-900"><Lightbulb className="size-4" />Concept Test</div>
-          <p className="mt-1 text-xs text-orange-800/80">Evaluate positioning, purchase intent, imagery, pricing, and market fit.</p>
+          <div className="flex items-center gap-2 font-semibold text-teal-950"><Lightbulb className="size-4 text-teal-700" />Concept Test</div>
+          <p className="mt-1 text-xs leading-5 text-teal-800">Market-facing idea validation: claims, imagery, pricing, and purchase intent.</p>
         </Link>
       </div>
 
-      <div className="flex items-center gap-5 px-5 py-3 bg-white border border-slate-200 rounded-xl shadow-sm flex-wrap">
+      <div className="flex items-center gap-5 px-5 py-3 bg-white border border-slate-200 rounded-lg flex-wrap">
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${activeStudyCount > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
           <span className="text-sm font-bold text-slate-900">{activeStudyCount}</span>
@@ -604,14 +604,14 @@ export function AdminConfig() {
                       </div>
                       {isProductStudy && (
                         <button onClick={() => setSelectedProduct(study.id)} className="shrink-0 rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50">
-                          Configure
+                          <Edit2 className="mr-1 inline size-3" />Edit
                         </button>
                       )}
                     </div>
 
                     <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
                       <div className="flex items-start gap-2">
-                        <PlayCircle className="mt-0.5 size-4 shrink-0 text-blue-600" />
+                        <PlayCircle className="mt-0.5 size-4 shrink-0 text-slate-500" />
                         <div>
                           <p className="text-sm font-semibold text-slate-900">{study.nextAction.label}</p>
                           <p className="text-xs text-slate-500">{study.nextAction.description}</p>
