@@ -284,7 +284,7 @@ describe('project workflow evaluator', () => {
     expect(stage('concept', summary).status).toBe('blocked');
     expect(stage('report', summary).status).toBe('blocked');
     expect(stage('concept', summary).blockers.join(' ')).toMatch(/current decision is TWEAK/i);
-    expect(summary.nextAction.route).toBe('/project/batch-1/decision');
+    expect(summary.nextAction.route).toBe('/project/batch-1/data?retest=decision-tweak');
   });
 
   it('keeps STOP follow-up on decision and blocks concept/report commercialization paths', () => {

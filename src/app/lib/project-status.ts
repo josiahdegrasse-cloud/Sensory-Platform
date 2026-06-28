@@ -4,7 +4,7 @@ import { formatFoodTypeLabel } from './food-intelligence';
 import { projectPath, projectStatusStagePath } from './project-journey-routes';
 import { sampleMatchesFoodType } from '../contexts/food-type-context';
 
-export type WorkflowStageId = 'data' | 'testing' | 'insights' | 'decision' | 'concept' | 'report';
+export type WorkflowStageId = 'data' | 'studies' | 'responses' | 'testing' | 'insights' | 'decision' | 'concept' | 'report';
 export type WorkflowStageState = 'complete' | 'current' | 'needs-review' | 'available' | 'blocked' | 'not-started';
 
 /** Semantic status palette shared across workflow chips, badges, cards, and buttons. */
@@ -60,6 +60,8 @@ export interface ProjectStatusSummary {
 
 const STAGE_LABELS: Record<WorkflowStageId, string> = {
   data: 'Data',
+  studies: 'Studies',
+  responses: 'Responses',
   testing: 'Testing',
   insights: 'Insights',
   decision: 'Decision',

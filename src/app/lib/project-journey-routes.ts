@@ -18,7 +18,7 @@ const STEP_TO_LEGACY_PATH: Record<ProjectJourneyStep, string> = {
   overview: '/project',
   data: '/stage1',
   studies: '/admin',
-  responses: '/admin',
+  responses: '/responses',
   insights: '/survey-analysis',
   decision: '/decision',
   concept: '/concept-testing',
@@ -29,6 +29,7 @@ const LEGACY_PATH_TO_STEP: Record<string, ProjectJourneyStep> = {
   '/project': 'overview',
   '/stage1': 'data',
   '/admin': 'studies',
+  '/responses': 'responses',
   '/survey-analysis': 'insights',
   '/decision': 'decision',
   '/concept-testing': 'concept',
@@ -49,6 +50,8 @@ const WORKFLOW_STAGE_TO_STEP: Record<WorkflowStageId, ProjectJourneyStep> = {
 
 const PROJECT_STATUS_STAGE_TO_STEP: Record<ProjectStatusStageId, ProjectJourneyStep> = {
   data: 'data',
+  studies: 'studies',
+  responses: 'responses',
   testing: 'studies',
   insights: 'insights',
   decision: 'decision',

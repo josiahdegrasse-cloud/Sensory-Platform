@@ -1,9 +1,12 @@
 packages:
   - '.'
 overrides:
+  '@babel/core': ^7.29.6
+  dompurify: ^3.4.11
   uuid: '>=11.1.1'
   vite: 6.3.5
 allowBuilds:
   '@sentry/cli': true
   '@tailwindcss/oxide': true
+  core-js: true
   esbuild: true

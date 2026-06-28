@@ -61,18 +61,19 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label className="font-medium">Product name <span className="text-rose-500">*</span></Label>
-          <Input value={draft.name} onChange={set('name')} placeholder="e.g. Vitacheeze Original Cheddar" />
+          <Label htmlFor="concept-product-name" className="font-medium">Product name <span className="text-rose-500">*</span></Label>
+          <Input id="concept-product-name" value={draft.name} onChange={set('name')} placeholder="e.g. Vitacheeze Original Cheddar" />
         </div>
         <div className="space-y-1.5">
-          <Label className="font-medium">Category <span className="text-rose-500">*</span></Label>
-          <Input value={draft.category} onChange={set('category')} placeholder="e.g. Plant-based cheese" />
+          <Label htmlFor="concept-category" className="font-medium">Category <span className="text-rose-500">*</span></Label>
+          <Input id="concept-category" value={draft.category} onChange={set('category')} placeholder="e.g. Plant-based cheese" />
         </div>
       </div>
 
       <div className="space-y-1.5">
-        <Label className="font-medium">Concept description <span className="text-rose-500">*</span></Label>
+        <Label htmlFor="concept-description" className="font-medium">Concept description <span className="text-rose-500">*</span></Label>
         <Textarea
+          id="concept-description"
           value={draft.description}
           onChange={set('description')}
           placeholder="Describe the product concept as consumers would read it: ingredients, format, occasion, and key claims."
@@ -102,10 +103,11 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label className="flex items-center gap-1.5 font-medium">
+            <Label htmlFor="concept-product-appearance" className="flex items-center gap-1.5 font-medium">
               <Eye className="size-3.5" /> Product appearance <span className="text-rose-500">*</span>
             </Label>
             <Textarea
+              id="concept-product-appearance"
               value={draft.productAppearance}
               onChange={set('productAppearance')}
               placeholder="e.g. Pale cheddar-orange slices, rounded corners, smooth surface, realistic melt and stretch on toast"
@@ -114,10 +116,11 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
             />
           </div>
           <div className="space-y-1.5">
-            <Label className="flex items-center gap-1.5 font-medium">
+            <Label htmlFor="concept-package-format" className="flex items-center gap-1.5 font-medium">
               <Package className="size-3.5" /> Package format <span className="text-rose-500">*</span>
             </Label>
             <Textarea
+              id="concept-package-format"
               value={draft.packageFormat}
               onChange={set('packageFormat')}
               placeholder="e.g. 7 oz resealable pouch, clear product window, matte label, front-facing product name and plant-based cue"
@@ -129,10 +132,11 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label className="flex items-center gap-1.5 font-medium">
+            <Label htmlFor="concept-target-customer" className="flex items-center gap-1.5 font-medium">
               <Target className="size-3.5" /> Target customer <span className="text-rose-500">*</span>
             </Label>
             <Input
+              id="concept-target-customer"
               value={draft.targetMarket}
               onChange={set('targetMarket')}
               placeholder="e.g. Flexitarian parents seeking an easy dairy swap"
@@ -140,8 +144,9 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
             />
           </div>
           <div className="space-y-1.5">
-            <Label className="font-medium">Usage occasion</Label>
+            <Label htmlFor="concept-usage-occasion" className="font-medium">Usage occasion</Label>
             <Input
+              id="concept-usage-occasion"
               value={draft.targetOccasion}
               onChange={set('targetOccasion')}
               placeholder="e.g. Weeknight burgers, sandwiches, and family cooking"
@@ -152,8 +157,9 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label className="font-medium">Scene or setting</Label>
+            <Label htmlFor="concept-visual-setting" className="font-medium">Scene or setting</Label>
             <Input
+              id="concept-visual-setting"
               value={draft.visualSetting}
               onChange={set('visualSetting')}
               placeholder="e.g. Bright modern kitchen, warm natural daylight"
@@ -161,8 +167,9 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
             />
           </div>
           <div className="space-y-1.5">
-            <Label className="flex items-center gap-1.5 font-medium"><Palette className="size-3.5" /> Color and materials</Label>
+            <Label htmlFor="concept-color-direction" className="flex items-center gap-1.5 font-medium"><Palette className="size-3.5" /> Color and materials</Label>
             <Input
+              id="concept-color-direction"
               value={draft.colorDirection}
               onChange={set('colorDirection')}
               placeholder="e.g. Sage green, charcoal type, matte paper texture"
@@ -172,8 +179,9 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
         </div>
 
         <div className="space-y-1.5">
-          <Label className="font-medium">Must-show elements</Label>
+          <Label htmlFor="concept-must-show" className="font-medium">Must-show elements</Label>
           <Textarea
+            id="concept-must-show"
             value={draft.mustShow}
             onChange={set('mustShow')}
             placeholder="e.g. Product name, melted serving suggestion, plant-based cue, resealable closure"
@@ -272,18 +280,19 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-4 border-t border-slate-200 px-4 py-4">
           <div className="space-y-1.5">
-            <Label className="flex items-center gap-1.5 font-medium"><FolderKanban className="size-3.5" /> Project folder</Label>
-            <Input value={draft.projectName} onChange={set('projectName')} placeholder="e.g. Project 1" />
+            <Label htmlFor="concept-project-folder" className="flex items-center gap-1.5 font-medium"><FolderKanban className="size-3.5" /> Project folder</Label>
+            <Input id="concept-project-folder" value={draft.projectName} onChange={set('projectName')} placeholder="e.g. Project 1" />
           </div>
 
           <div className="space-y-1.5">
-            <Label className="flex items-center gap-1.5 font-medium"><DollarSign className="size-3.5" /> Expected price point</Label>
-            <Input value={draft.pricePoint} onChange={set('pricePoint')} placeholder="e.g. $6.99 / 200g block" />
+            <Label htmlFor="concept-price-point" className="flex items-center gap-1.5 font-medium"><DollarSign className="size-3.5" /> Expected price point</Label>
+            <Input id="concept-price-point" value={draft.pricePoint} onChange={set('pricePoint')} placeholder="e.g. $6.99 / 200g block" />
           </div>
 
           <div className="space-y-1.5">
-            <Label className="flex items-center gap-1.5 font-medium"><Star className="size-3.5" /> Key consumer benefits</Label>
+            <Label htmlFor="concept-key-benefits" className="flex items-center gap-1.5 font-medium"><Star className="size-3.5" /> Key consumer benefits</Label>
             <Textarea
+              id="concept-key-benefits"
               value={draft.keyBenefits}
               onChange={set('keyBenefits')}
               placeholder="e.g. Melts like dairy, high-protein, allergen-free."
@@ -308,8 +317,9 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
           </div>
 
           <div className="space-y-1.5">
-            <Label className="flex items-center gap-1.5 font-medium"><Package className="size-3.5" /> Technical challenges / R&D notes</Label>
+            <Label htmlFor="concept-technical-challenges" className="flex items-center gap-1.5 font-medium"><Package className="size-3.5" /> Technical challenges / R&D notes</Label>
             <Textarea
+              id="concept-technical-challenges"
               value={draft.technicalChallenges}
               onChange={set('technicalChallenges')}
               placeholder="e.g. Melt properties, protein binding, shelf stability."

@@ -1,6 +1,10 @@
 import { AlertTriangle, Check, CheckCircle2, ClipboardCheck, ShieldAlert, Upload, X } from 'lucide-react';
 import { Link } from 'react-router';
 import { buildDecisionSummary } from '../lib/decision-summary';
+import { useFoodType } from '../contexts/food-type-context';
+import { parseBatchSelection } from '../lib/project-identity';
+import { projectPath } from '../lib/project-journey-routes';
+import { useImportBatches } from '../lib/hooks';
 import type { DecisionGate, GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -160,6 +164,13 @@ export function DecisionReviewWorkspace({
   const criteria = decisionCriteria(selected);
   const primaryPrescription = selected.prescriptions[0];
   const parentDecisionId = confirmedDecision?.recordId ?? null;
+  const { subCategory } = useFoodType();
+  const selectedBatchId = parseBatchSelection(subCategory);
+  const { data: importBatches = [] } = useImportBatches();
+  const selectedBatch = selectedBatchId ? importBatches.find(batch => batch.id === selectedBatchId) : null;
+  const retestPath = selectedBatch
+    ? projectPath(selectedBatch.projectId ?? selectedBatch.id, 'data', `?retest=${encodeURIComponent(parentDecisionId ?? selected.sampleId)}`)
+    : `/stage1?retest=${encodeURIComponent(parentDecisionId ?? selected.sampleId)}`;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
@@ -315,7 +326,7 @@ export function DecisionReviewWorkspace({
                     {parentDecisionId ? (
                       <Button asChild size="sm" className="mt-3 bg-slate-900 text-white hover:bg-slate-700">
                         <Link
-                          to="/stage1"
+                          to={retestPath}
                           state={{
                             retestImport: {
                               sampleId: selected.sampleId,

@@ -9,6 +9,8 @@ export interface ReportLibraryEntry {
   latest: CommercializationReportRecord;
   versions: CommercializationReportRecord[];
   snapshot: CommercializationReportSnapshot | null;
+  displayTitle: string;
+  templateTitle: string | null;
   productName: string;
   foodType: string;
   conceptName: string;
@@ -26,6 +28,31 @@ function asSnapshot(report: CommercializationReportRecord): CommercializationRep
   const snapshot = report.reportSnapshot as unknown as Partial<CommercializationReportSnapshot>;
   if (!snapshot?.product?.sampleName || !snapshot?.decision?.recordId) return null;
   return snapshot as CommercializationReportSnapshot;
+}
+
+function isTemplateLikeTitle(title: string) {
+  const normalized = title.trim().toLowerCase();
+  return [
+    'editorial sage',
+    'cream masthead',
+    'sage banners',
+    'report template',
+    'commercialization template',
+  ].some(fragment => normalized.includes(fragment));
+}
+
+function buildDisplayTitle(input: {
+  title: string;
+  productName: string;
+  conceptName: string;
+}) {
+  const title = input.title.trim();
+  const productName = input.productName.trim();
+  const conceptName = input.conceptName.trim();
+  if (title && !isTemplateLikeTitle(title)) return title;
+  if (productName) return `${productName} commercialization report`;
+  if (conceptName && conceptName !== 'Concept not available') return `${conceptName} commercialization report`;
+  return title || 'Commercialization report';
 }
 
 export function getReportReleaseStatus(input: {
@@ -75,15 +102,25 @@ export function buildReportLibrary(
       const approvalReady = readiness?.approvalReady ?? false;
       const blockers = readiness?.blockers ?? (snapshot ? [] : ['Saved report snapshot is incomplete.']);
       const evidenceProvenance = readiness?.evidenceProvenance ?? { sensory: 'none', instrumental: 'none', concept: 'none', purchaseIntent: 'none' };
+      const productName = snapshot?.product.sampleName ?? decision?.sampleName ?? 'Product not linked';
+      const conceptName = snapshot?.concept.name ?? concept?.name ?? 'Concept not available';
+      const displayTitle = buildDisplayTitle({
+        title: latest.title,
+        productName,
+        conceptName,
+      });
+      const templateTitle = isTemplateLikeTitle(latest.title) ? latest.title : null;
 
       return {
         key,
         latest,
         versions: sorted,
         snapshot,
-        productName: snapshot?.product.sampleName ?? decision?.sampleName ?? latest.title,
+        displayTitle,
+        templateTitle,
+        productName,
         foodType: snapshot?.product.foodType ?? concept?.foodTypeSlug ?? 'Uncategorized',
-        conceptName: snapshot?.concept.name ?? concept?.name ?? 'Concept not available',
+        conceptName,
         decision: snapshot?.decision.outcome ?? decision?.decision ?? 'Unknown',
         exportReady,
         approvalReady,
@@ -114,7 +151,9 @@ export function filterReportLibrary(
       ? entry.latest.status !== 'archived'
       : entry.latest.status === status;
     const matchesSearch = !query || [
+      entry.displayTitle,
       entry.latest.title,
+      entry.templateTitle ?? '',
       entry.productName,
       entry.foodType,
       entry.conceptName,

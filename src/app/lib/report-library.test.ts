@@ -97,6 +97,19 @@ describe('report library', () => {
     expect(filterReportLibrary(entries, 'missing', 'all')).toHaveLength(0);
   });
 
+  it('uses product identity instead of template names for display titles', () => {
+    const entries = buildReportLibrary([
+      report({ id: 'template-report', title: 'Editorial sage — cream masthead with sage banners' }),
+    ], decisions, concepts);
+
+    expect(entries[0]).toMatchObject({
+      displayTitle: 'Sample A commercialization report',
+      templateTitle: 'Editorial sage — cream masthead with sage banners',
+    });
+    expect(filterReportLibrary(entries, 'editorial sage', 'all')).toHaveLength(1);
+    expect(filterReportLibrary(entries, 'sample a commercialization', 'all')).toHaveLength(1);
+  });
+
   it('adds export readiness and evidence provenance to library entries', () => {
     const readiness = {
       exportReady: true,

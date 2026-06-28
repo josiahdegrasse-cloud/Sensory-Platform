@@ -9,13 +9,14 @@ import {
   type ProjectJourneyStep,
 } from '../lib/project-journey-routes';
 import type { ImportBatchRecord } from '../lib/database';
-import { AdminConfig } from './admin-config';
 import { CommercializationReportPage } from './commercialization-report-page';
 import { ConceptTesting } from './concept-testing';
 import { ProjectCommandCenter } from './project-command-center';
+import { ResponsesWorkspace } from './responses-workspace';
 import { ReportsPage } from './reports-page';
 import { Stage1Instrumental } from './stage1-instrumental';
 import { Stage4Enhanced } from './stage4-enhanced';
+import { StudiesWorkspace } from './studies-workspace';
 import { SurveyAnalysis } from './survey-analysis';
 
 function LoadingProjectScope() {
@@ -42,8 +43,9 @@ function ProjectStepContent({ step }: { step: ProjectJourneyStep }) {
     case 'data':
       return <Stage1Instrumental />;
     case 'studies':
+      return <StudiesWorkspace />;
     case 'responses':
-      return <AdminConfig />;
+      return <ResponsesWorkspace />;
     case 'insights':
       return <SurveyAnalysis />;
     case 'decision':

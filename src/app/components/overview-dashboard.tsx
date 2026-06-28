@@ -1,8 +1,6 @@
-import { Card, CardContent } from "./ui/card";
 import { Link } from "react-router";
 import {
-  FlaskConical, BarChart3, GitMerge, ClipboardList,
-  Lightbulb, ChevronRight, FolderKanban, Plus, ArrowRight, FileText,
+  FolderKanban, Plus, ArrowRight,
 } from "lucide-react";
 import { useFoodType } from "../contexts/food-type-context";
 import { encodeBatchSelection, projectRoutePath } from "../lib/project-identity";
@@ -12,76 +10,6 @@ import { ProjectCard } from "./project-card";
 import { NextActionCard } from "./next-action-card";
 import { ProjectStatusBadge, toneSolidClasses } from "./project-status-badge";
 import { StageEmptyState } from "./stage-empty-state";
-
-interface Module {
-  path: string;
-  label: string;
-  description: string;
-  icon: React.ElementType;
-}
-
-// Stage tools, identified by icon + label only. Hue is reserved for status
-// semantics (GO/TWEAK/STOP, complete/current/blocked), never feature identity.
-const MODULES: Module[] = [
-  {
-    path: "/stage1",
-    label: "Machine Testing",
-    description: "Objective sensory data via E-Tongue and GC-O instrumentation",
-    icon: FlaskConical,
-  },
-  {
-    path: "/admin",
-    label: "Studies",
-    description: "Create, launch, preview, and monitor sensory and concept studies",
-    icon: ClipboardList,
-  },
-  {
-    path: "/survey-analysis",
-    label: "Insights",
-    description: "Interpret sensory, instrumental, comparison, and concept evidence",
-    icon: BarChart3,
-  },
-  {
-    path: "/decision",
-    label: "Final Decision",
-    description: "Integrated GO / TWEAK / STOP recommendation engine",
-    icon: GitMerge,
-  },
-  {
-    path: "/concept-testing",
-    label: "Concept Testing",
-    description: "Send product concepts to consumers, with AI-designed surveys and admin approval",
-    icon: Lightbulb,
-  },
-  {
-    path: "/reports",
-    label: "Reports",
-    description: "Review versions, approve deliverables, and download branded PDFs",
-    icon: FileText,
-  },
-];
-
-function ModuleCard({ module }: { module: Module }) {
-  const Icon = module.icon;
-  return (
-    <Link to={module.path} className="block">
-      <Card className="h-full cursor-pointer border-slate-200 bg-white transition-colors hover:border-slate-300 hover:bg-slate-50 group">
-        <CardContent className="flex flex-col gap-3 py-5">
-          <div className="flex size-10 items-center justify-center rounded-md border border-slate-200 bg-white">
-            <Icon className="size-5 text-slate-600" aria-hidden />
-          </div>
-          <div>
-            <div className="text-sm font-bold text-slate-900">{module.label}</div>
-            <p className="text-xs text-slate-500 mt-1 leading-relaxed">{module.description}</p>
-          </div>
-          <div className="flex items-center gap-1 text-xs font-semibold text-slate-400 group-hover:text-slate-700 mt-auto pt-1 transition-colors">
-            Open <ChevronRight className="size-3.5" />
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
-  );
-}
 
 /** Next actions a human must take (not "wait for panelists"): AI output or
  * data sitting in review, or a decision/report waiting on the admin. */
@@ -292,16 +220,6 @@ export function OverviewDashboard() {
       {/* Active projects — the action-oriented home view */}
       <ActiveProjects />
 
-      {/* Module grid — secondary navigation, kept for direct access */}
-      <div>
-        <div className="mb-4">
-          <h2 className="text-lg font-bold text-slate-900">Modules</h2>
-          <p className="text-xs text-slate-400">Jump straight to a workflow stage</p>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {MODULES.map(m => <ModuleCard key={m.path} module={m} />)}
-        </div>
-      </div>
     </div>
   );
 }

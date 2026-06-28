@@ -94,7 +94,8 @@ function getStudyTypeMeta(type: StudyType): {
   };
 }
 
-export function AdminConfig() {
+export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'responses' | 'admin' }) {
+  const isResponsesMode = mode === 'responses';
   const [activeTab, setActiveTab] = useState<AdminTab>('products');
   const { data: products = [] } = useProducts();
   const { data: panelists = [] } = usePanelists();
@@ -519,17 +520,23 @@ export function AdminConfig() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
-  const tabs: { id: AdminTab; label: string; icon: React.ElementType }[] = [
+  const tabs: { id: AdminTab; label: string; icon: React.ElementType }[] = mode === 'admin' ? [
     { id: 'products',  label: 'Studies',  icon: ClipboardList },
     { id: 'panelists', label: 'Panelists', icon: Users },
     { id: 'imports',   label: 'Imports',   icon: Upload },
+  ] : [
+    { id: 'products', label: isResponsesMode ? 'Responses' : 'Studies', icon: isResponsesMode ? Activity : ClipboardList },
   ];
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Studies</h1>
-        <p className="text-sm text-slate-500 mt-1">Run product sensory, multi-sample, and concept studies from one operating view.</p>
+        <h1 className="text-2xl font-semibold text-slate-900">{isResponsesMode ? 'Responses' : 'Studies'}</h1>
+        <p className="text-sm text-slate-500 mt-1">
+          {isResponsesMode
+            ? 'Track fielding progress, response targets, and blockers before insights are used for decision review.'
+            : 'Create, configure, launch, and review product sensory and multi-sample studies.'}
+        </p>
       </div>
 
       {/* Tab bar */}
@@ -541,11 +548,12 @@ export function AdminConfig() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
+              disabled={tabs.length === 1}
               className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                 active
                   ? 'border-slate-800 text-slate-900'
                   : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-              }`}
+              } ${tabs.length === 1 ? 'cursor-default' : ''}`}
             >
               <Icon className="size-3.5" />
               {tab.label}
@@ -570,7 +578,7 @@ export function AdminConfig() {
       {/* ── Studies tab ── */}
       {activeTab === 'products' && <>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      {!isResponsesMode && <div className="grid gap-3 md:grid-cols-3">
         <button
           type="button"
           onClick={() => openCreateModal('single')}
@@ -594,7 +602,24 @@ export function AdminConfig() {
           <div className="flex items-center gap-2 font-semibold text-teal-950"><Lightbulb className="size-4 text-teal-700" />Concept Test</div>
           <p className="mt-1 text-xs leading-5 text-teal-800">Market-facing idea validation: claims, imagery, pricing, and purchase intent.</p>
         </Link>
-      </div>
+      </div>}
+
+      {isResponsesMode && (
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="flex items-center gap-2 font-semibold text-slate-950"><Activity className="size-4 text-slate-500" />Response target</div>
+            <p className="mt-1 text-xs leading-5 text-slate-600">Use this stage to confirm each active study has enough panelist evidence before opening Insights.</p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="flex items-center gap-2 font-semibold text-slate-950"><Users className="size-4 text-slate-500" />Panelist coverage</div>
+            <p className="mt-1 text-xs leading-5 text-slate-600">Assignment labels and response counts below show which studies still need fielding attention.</p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="flex items-center gap-2 font-semibold text-slate-950"><ArrowRight className="size-4 text-slate-500" />Next handoff</div>
+            <p className="mt-1 text-xs leading-5 text-slate-600">When response targets are met, continue to Insights for evidence interpretation.</p>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center gap-5 px-5 py-3 bg-white border border-slate-200 rounded-lg flex-wrap">
         <div className="flex items-center gap-2">
@@ -662,9 +687,9 @@ export function AdminConfig() {
               />
             </div>
           </div>
-          <Button onClick={() => openCreateModal('single')} className="bg-slate-900 hover:bg-slate-800 h-8 text-sm">
+          {!isResponsesMode && <Button onClick={() => openCreateModal('single')} className="bg-slate-900 hover:bg-slate-800 h-8 text-sm">
             <Plus className="size-3.5 mr-1.5" />New Study
-          </Button>
+          </Button>}
         </div>
 
         <div className="p-4">
@@ -675,13 +700,15 @@ export function AdminConfig() {
                 {scopedStudySummaries.length === 0 ? `No ${currentFoodTypeLabel.toLowerCase()} studies yet` : 'No studies match the current filters'}
               </p>
               <p className="mt-1 max-w-md text-xs text-slate-500">
-                Start with a product sensory study, a multi-sample comparison, or a concept test. Each template stays structured for scoring and reporting.
+                {isResponsesMode
+                  ? 'Create and launch a study before response collection can begin.'
+                  : 'Start with a product sensory study, a multi-sample comparison, or a concept test. Each template stays structured for scoring and reporting.'}
               </p>
-              <div className="mt-4 flex gap-2">
+              {!isResponsesMode && <div className="mt-4 flex gap-2">
                 <Button size="sm" onClick={() => openCreateModal('single')}><Plus className="size-3.5 mr-1" />Product sensory</Button>
                 <Button size="sm" variant="outline" onClick={() => openCreateModal('multi')}><Layers className="size-3.5 mr-1" />Multi-sample</Button>
                 <Button size="sm" variant="outline" asChild><Link to="/concept-testing"><Lightbulb className="size-3.5 mr-1" />Concept test</Link></Button>
-              </div>
+              </div>}
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">

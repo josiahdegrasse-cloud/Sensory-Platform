@@ -3,11 +3,12 @@ import { Link, useLocation } from 'react-router';
 import { Card, CardContent } from './ui/card';
 import { useFoodType } from '../contexts/food-type-context';
 import { parseBatchSelection, projectRoutePath } from '../lib/project-identity';
-import { useProjectStatus } from '../lib/use-project-status';
 import { useImportBatches } from '../lib/hooks';
 import { ProjectStatusBadge } from './project-status-badge';
 import { ProjectJourneyNav } from './project-journey-nav';
 import { AssignProjectControl } from './assign-project-control';
+import { useProjectWorkflow } from '../lib/workflow/use-project-workflow';
+import { workflowToneToSemanticTone } from '../lib/workflow/workflow-actions';
 
 /**
  * Persistent project context bar shown across the admin workflow pages
@@ -20,9 +21,9 @@ export function ProjectHeader() {
   const location = useLocation();
   const { foodType, subCategory } = useFoodType();
   const importBatchId = parseBatchSelection(subCategory);
-  const status = useProjectStatus(foodType, importBatchId);
+  const workflow = useProjectWorkflow(foodType, importBatchId);
   const { data: importBatches = [] } = useImportBatches();
-  const showNextAction = status.nextAction.path !== location.pathname;
+  const showNextAction = workflow.nextAction.route !== location.pathname;
 
   if (foodType === 'all' || !foodType) return null;
 
@@ -32,7 +33,7 @@ export function ProjectHeader() {
   // computed fallback name off as if it were a real project.
   const currentBatch = importBatchId ? importBatches.find(batch => batch.id === importBatchId) ?? null : null;
   const isUnassignedBatch = currentBatch != null && !currentBatch.projectId;
-  const displayName = currentBatch?.projectName ?? status.projectName;
+  const displayName = currentBatch?.projectName ?? workflow.projectName;
   const commandCenterPath = currentBatch ? projectRoutePath(currentBatch) : '/project';
 
   return (
@@ -49,31 +50,31 @@ export function ProjectHeader() {
             {isUnassignedBatch ? (
               <ProjectStatusBadge label="No project assigned" tone="neutral" />
             ) : (
-              <ProjectStatusBadge label={status.statusLabel} tone={status.statusTone} />
+              <ProjectStatusBadge label={workflow.overallStatusLabel} tone={workflowToneToSemanticTone(workflow.overallTone)} />
             )}
           </div>
-          <p className="mt-0.5 text-xs text-slate-500">{status.foodTypeLabel}</p>
+          <p className="mt-0.5 text-xs text-slate-500">{workflow.foodTypeLabel}</p>
           {isUnassignedBatch && currentBatch && (
             <div className="mt-1">
               <span className="text-xs text-amber-700">No project assigned to this batch yet.</span>
               <AssignProjectControl
                 batchId={currentBatch.id}
                 foodTypeId={currentBatch.foodTypeId ?? null}
-                defaultName={status.projectName}
+                defaultName={workflow.projectName}
               />
             </div>
           )}
         </div>
 
         <div className="flex items-center gap-3">
-          <ProjectJourneyNav stages={status.stages} projectId={currentBatch?.projectId ?? currentBatch?.id ?? null} />
+          <ProjectJourneyNav stages={workflow.stages} projectId={currentBatch?.projectId ?? currentBatch?.id ?? null} />
           {showNextAction && (
             <Link
-              to={status.nextAction.path}
+              to={workflow.nextAction.route}
               className="hidden shrink-0 items-center gap-1.5 rounded-md bg-blue-700 px-3 py-2 text-xs font-bold text-white hover:bg-blue-800 xl:flex"
-              title={status.nextAction.description}
+              title={workflow.nextAction.description}
             >
-              {status.nextAction.label}
+              {workflow.nextAction.label}
               <ArrowRight className="size-3.5" aria-hidden />
             </Link>
           )}

@@ -18,6 +18,7 @@ const QuestionnaireForm = lazy(() => import("./components/questionnaire-form").t
 const MultiSampleDescription = lazy(() => import("./components/multi-sample-description").then(m => ({ default: m.MultiSampleDescription })));
 const MultiSampleQuestionnaire = lazy(() => import("./components/multi-sample-questionnaire").then(m => ({ default: m.MultiSampleQuestionnaire })));
 const AdminConfig = lazy(() => import("./components/admin-config").then(m => ({ default: m.AdminConfig })));
+const ResponsesWorkspace = lazy(() => import("./components/responses-workspace").then(m => ({ default: m.ResponsesWorkspace })));
 const ConceptTesting = lazy(() => import("./components/concept-testing").then(m => ({ default: m.ConceptTesting })));
 const CommercializationReportPage = lazy(() => import("./components/commercialization-report-page").then(m => ({ default: m.CommercializationReportPage })));
 const ReportsPage = lazy(() => import("./components/reports-page").then(m => ({ default: m.ReportsPage })));
@@ -80,7 +81,8 @@ export const router = createBrowserRouter([
           { path: "stage1", element: <LegacyWorkflowRoute><Stage1Instrumental /></LegacyWorkflowRoute> },
           { path: "survey-analysis", element: <LegacyWorkflowRoute><SurveyAnalysis /></LegacyWorkflowRoute> },
           { path: "decision", element: <LegacyWorkflowRoute><Stage4Enhanced /></LegacyWorkflowRoute> },
-          { path: "admin", element: <LegacyWorkflowRoute><AdminConfig /></LegacyWorkflowRoute> },
+          { path: "admin", element: <LegacyWorkflowRoute><AdminConfig mode="admin" /></LegacyWorkflowRoute> },
+          { path: "responses", element: <LegacyWorkflowRoute><ResponsesWorkspace /></LegacyWorkflowRoute> },
           { path: "settings", Component: AdminSettings },
           { path: "concept-testing", element: <LegacyWorkflowRoute><ConceptTesting /></LegacyWorkflowRoute> },
           { path: "reports", element: <LegacyWorkflowRoute><ReportsPage /></LegacyWorkflowRoute> },

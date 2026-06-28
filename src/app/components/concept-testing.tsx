@@ -522,23 +522,23 @@ export function ConceptTesting() {
         <p className="text-sm text-rose-600 font-medium text-center">{launchError}</p>
       )}
 
-      <div className="sticky bottom-4 z-20 rounded-xl border border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur">
-        <div className="flex items-center justify-between gap-4">
+      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm md:sticky md:bottom-4 md:z-20 md:bg-white/95 md:backdrop-blur">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Button
             variant="outline"
             onClick={() => setStep(STEPS[stepIndex - 1])}
             disabled={stepIndex === 0}
-            className="gap-1.5"
+            className="gap-1.5 sm:w-auto"
           >
             <ChevronLeft className="size-4" /> Back
           </Button>
 
-          <div className="flex min-w-0 flex-col items-end gap-1">
+          <div className="flex min-w-0 flex-col gap-1 sm:items-end">
             {step === 'review' ? (
               <Button
                 onClick={handleLaunch}
                 disabled={launching || !launchReady}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 px-8"
+                className="gap-2 bg-emerald-600 px-8 text-white hover:bg-emerald-700"
               >
                 <Send className="size-4" />
                 {launching ? 'Launching…' : 'Launch concept test'}
@@ -548,12 +548,12 @@ export function ConceptTesting() {
                 <Button
                   onClick={() => setStep(STEPS[stepIndex + 1])}
                   disabled={step === 'concept' ? !conceptStepReady : step === 'visuals' ? !visualsStepReady : !surveyStepReady}
-                  className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
+                  className="gap-1.5 bg-blue-600 text-white hover:bg-blue-700"
                 >
                   Continue <ChevronRight className="size-4" />
                 </Button>
                 {((step === 'concept' && !conceptStepReady) || (step === 'visuals' && !visualsStepReady) || (step === 'survey' && !surveyStepReady)) && (
-                  <p className="hidden max-w-md text-right text-xs text-amber-700 sm:block">
+                  <p className="max-w-md text-xs text-amber-700 sm:text-right">
                     {readinessItems
                       .filter(item => !item.ready && item.fixStep === step)
                       .map(item => item.detail)

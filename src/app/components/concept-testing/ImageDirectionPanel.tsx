@@ -56,13 +56,13 @@ export function ImageDirectionPanel({
   return (
     <div className="space-y-4">
       <div>
-        <Label className="font-medium">Lead marketing format</Label>
+        <Label htmlFor="concept-image-mode" className="font-medium">Lead marketing format</Label>
         <p className="text-xs text-slate-500 mt-1">
           Start with the format most useful for this decision. For retail concept work, packaging, shelf,
           ecommerce, and buyer presentation usually give the cleanest signal.
         </p>
         <Select value={options.mode} onValueChange={(value: ConceptImageMode) => onOptionsChange({ ...options, mode: value })}>
-          <SelectTrigger className="mt-3 w-full sm:max-w-sm"><SelectValue /></SelectTrigger>
+          <SelectTrigger id="concept-image-mode" aria-label="Lead marketing format" className="mt-3 w-full sm:max-w-sm"><SelectValue /></SelectTrigger>
           <SelectContent>
             {CONCEPT_IMAGE_MODES.map(option => (
               <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
@@ -88,9 +88,9 @@ export function ImageDirectionPanel({
         <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-4">
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Creative territory</Label>
+              <Label htmlFor="concept-image-style" className="text-xs font-medium">Creative territory</Label>
               <Select value={style} onValueChange={(value) => onChange({ ...draft, promptStyle: value })}>
-                <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger id="concept-image-style" aria-label="Creative territory" className="h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {PROMPT_STYLES.map(option => (
                     <SelectItem key={option.id} value={option.id} className="text-xs">{option.label}</SelectItem>
@@ -102,12 +102,12 @@ export function ImageDirectionPanel({
               </p>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Images per batch</Label>
+              <Label htmlFor="concept-image-count" className="text-xs font-medium">Images per batch</Label>
               <Select
                 value={String(options.count)}
                 onValueChange={(value) => onOptionsChange({ ...options, count: Number(value) })}
               >
-                <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger id="concept-image-count" aria-label="Images per batch" className="h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Array.from({ length: maxCount }, (_, i) => i + 1).map(n => (
                     <SelectItem key={n} value={String(n)} className="text-xs">{n} image{n > 1 ? 's' : ''}</SelectItem>
@@ -116,9 +116,9 @@ export function ImageDirectionPanel({
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Quality</Label>
+              <Label htmlFor="concept-image-quality" className="text-xs font-medium">Quality</Label>
               <Select value={options.quality} onValueChange={(value) => onOptionsChange({ ...options, quality: value })}>
-                <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger id="concept-image-quality" aria-label="Image quality" className="h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {['low', 'medium', 'high', 'auto'].map(quality => (
                     <SelectItem key={quality} value={quality} className="text-xs capitalize">
@@ -148,8 +148,9 @@ export function ImageDirectionPanel({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Additional visual notes (optional)</Label>
+            <Label htmlFor="concept-image-visual-notes" className="text-xs font-medium">Additional visual notes (optional)</Label>
             <Input
+              id="concept-image-visual-notes"
               value={draft.visualNotes}
               onChange={(e) => onChange({ ...draft, visualNotes: e.target.value })}
               placeholder="e.g. matte pouch, no hands, realistic cheese slice scale, room for buyer-slide copy"
@@ -158,8 +159,9 @@ export function ImageDirectionPanel({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Forbidden claims (optional, one per line)</Label>
+            <Label htmlFor="concept-image-forbidden-claims" className="text-xs font-medium">Forbidden claims (optional, one per line)</Label>
             <Textarea
+              id="concept-image-forbidden-claims"
               value={draft.forbiddenClaims}
               onChange={(e) => onChange({ ...draft, forbiddenClaims: e.target.value })}
               placeholder={'e.g. lowers cholesterol\nclinically proven'}

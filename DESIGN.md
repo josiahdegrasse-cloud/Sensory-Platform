@@ -32,7 +32,6 @@ The product is a project-first workflow for food innovation evidence: Data -> St
 
 - Any claim, recommendation, chart, image, or report section should expose source quality when available: live, reference/demo, none, sample size, blocker, and export eligibility.
 - AI-generated assets remain drafts until approved. Generated images and report drafts need visible provenance and usage eligibility.
-- Client Mode may hide internal controls and prompt details, but it must never hide blockers, demo/reference warnings, approval state, or export restrictions.
 
 ## Mobile
 

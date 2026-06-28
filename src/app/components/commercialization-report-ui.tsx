@@ -3,6 +3,7 @@ import { ProjectStatusBadge } from './project-status-badge';
 import { DEFAULT_REPORT_ORGANIZATION_NAME } from '../lib/commercialization-report';
 import type { SemanticTone } from '../lib/project-status';
 import type { WorkspaceSettings } from '../lib/database';
+import { NfiBrandLockup } from './nfi-brand';
 
 export function ReportSection({ title, icon: Icon, tone = 'neutral', children }: {
   title: string;
@@ -47,10 +48,16 @@ export function ReportBrandStrip({ settings }: { settings?: WorkspaceSettings | 
       className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5"
       style={settings?.accentColor ? { borderColor: settings.accentColor } : undefined}
     >
-      {settings?.logoUrl && (
+      {settings?.logoUrl ? (
         <img src={settings.logoUrl} alt={`${orgName} logo`} className="h-7 w-auto object-contain" />
+      ) : orgName === DEFAULT_REPORT_ORGANIZATION_NAME ? (
+        <NfiBrandLockup markSize={28} textClassName="text-slate-700 [&_div]:text-[10px]" />
+      ) : (
+        <span className="text-sm font-semibold text-slate-700">{orgName}</span>
       )}
-      <span className="text-sm font-semibold text-slate-700">{orgName}</span>
+      {(settings?.logoUrl || orgName !== DEFAULT_REPORT_ORGANIZATION_NAME) && (
+        <span className="text-sm font-semibold text-slate-700">{orgName}</span>
+      )}
     </div>
   );
 }
@@ -117,10 +124,14 @@ export function ReportCoverHeader({ settings, sampleName, foodTypeLabel, decisio
       style={settings?.accentColor ? { borderColor: settings.accentColor } : undefined}
     >
       <div className="flex items-center gap-3">
-        {settings?.logoUrl && (
+        {settings?.logoUrl ? (
           <img src={settings.logoUrl} alt={`${orgName} logo`} className="h-7 w-auto object-contain" />
+        ) : orgName === DEFAULT_REPORT_ORGANIZATION_NAME ? (
+          <NfiBrandLockup markSize={28} textClassName="text-slate-700 [&_div]:text-[10px]" />
+        ) : null}
+        {(settings?.logoUrl || orgName !== DEFAULT_REPORT_ORGANIZATION_NAME) && (
+          <span className="text-sm font-semibold text-slate-500">{orgName}</span>
         )}
-        <span className="text-sm font-semibold text-slate-500">{orgName}</span>
       </div>
       <h1 className="mt-3 text-2xl font-bold text-slate-900">Commercialization Report</h1>
       <p className="mt-1 text-sm text-slate-500">{sampleName} · {foodTypeLabel}</p>

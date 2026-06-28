@@ -54,7 +54,7 @@ export function PanelistDashboard() {
       )}
 
       {/* Statistics */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="pt-6">
             <div className="text-3xl font-bold text-slate-900">{availableProducts.length}</div>

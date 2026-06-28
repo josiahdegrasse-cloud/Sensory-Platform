@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import {
-  AlertTriangle, Archive, Download, FileText, FolderOpen, Search,
+  AlertTriangle, Archive, ChevronDown, Download, FileText, FolderOpen, Search,
   ShieldCheck, Sparkles, Undo2,
 } from 'lucide-react';
 import { Badge } from './ui/badge';
@@ -33,6 +33,8 @@ import type { SemanticTone } from '../lib/project-status';
 
 const STATUS_OPTIONS = ['all', 'draft', 'review', 'approved', 'archived'] as const;
 type StatusFilter = typeof STATUS_OPTIONS[number];
+const RELEASE_OPTIONS = ['all', 'client_ready', 'internal_draft', 'demonstration_only', 'blocked'] as const;
+type ReleaseFilter = typeof RELEASE_OPTIONS[number];
 
 const statusTone: Record<CommercializationReportRecord['status'], SemanticTone> = {
   draft: 'info',
@@ -155,23 +157,33 @@ const evidenceClassName: Record<ReportReadiness['evidenceProvenance'][keyof Repo
 };
 
 function EvidenceLedger({ entry }: { entry: ReportLibraryEntry }) {
+  const liveCount = Object.values(entry.evidenceProvenance).filter(value => value === 'live').length;
+  const referenceCount = Object.values(entry.evidenceProvenance).filter(value => value === 'reference').length;
   return (
-    <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-semibold text-slate-700">Evidence ledger</p>
+    <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50">
+      <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs font-semibold text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+        <span className="flex items-center gap-1.5">
+          Evidence ledger
+          <ChevronDown className="size-3.5 text-slate-400" aria-hidden />
+        </span>
+        <span className="font-normal text-slate-500">
+          {liveCount} live · {referenceCount} reference · {releaseCopy[entry.releaseStatus].label}
+        </span>
+      </summary>
+      <div className="border-t border-slate-200 p-3">
         <p className="text-[11px] text-slate-500">{releaseCopy[entry.releaseStatus].detail}</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {(Object.entries(entry.evidenceProvenance) as Array<[keyof ReportReadiness['evidenceProvenance'], ReportReadiness['evidenceProvenance'][keyof ReportReadiness['evidenceProvenance']]]>).map(([key, value]) => (
+            <div key={key} className="rounded-md border border-slate-200 bg-white px-3 py-2">
+              <p className="text-[11px] font-medium text-slate-500">{evidenceLabels[key]}</p>
+              <Badge variant="outline" className={`mt-1 ${evidenceClassName[value]}`}>
+                {value === 'live' ? 'Live' : value === 'reference' ? 'Reference/demo' : 'None'}
+              </Badge>
+            </div>
+          ))}
+        </div>
       </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {(Object.entries(entry.evidenceProvenance) as Array<[keyof ReportReadiness['evidenceProvenance'], ReportReadiness['evidenceProvenance'][keyof ReportReadiness['evidenceProvenance']]]>).map(([key, value]) => (
-          <div key={key} className="rounded-md border border-slate-200 bg-white px-3 py-2">
-            <p className="text-[11px] font-medium text-slate-500">{evidenceLabels[key]}</p>
-            <Badge variant="outline" className={`mt-1 ${evidenceClassName[value]}`}>
-              {value === 'live' ? 'Live' : value === 'reference' ? 'Reference/demo' : 'None'}
-            </Badge>
-          </div>
-        ))}
-      </div>
-    </div>
+    </details>
   );
 }
 
@@ -184,6 +196,7 @@ export function ReportsPage() {
   const updateStatus = useUpdateCommercializationReportStatus();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
+  const [release, setRelease] = useState<ReleaseFilter>('all');
   const [exportingId, setExportingId] = useState('');
   const [readinessLoading, setReadinessLoading] = useState<Record<string, boolean>>({});
   const [readinessByReportId, setReadinessByReportId] = useState<Record<string, ReportReadiness>>({});
@@ -246,8 +259,9 @@ export function ReportsPage() {
     [reports, decisions, concepts, readinessByReportId],
   );
   const visibleEntries = useMemo(
-    () => filterReportLibrary(entries, search, status),
-    [entries, search, status],
+    () => filterReportLibrary(entries, search, status)
+      .filter(entry => release === 'all' || entry.releaseStatus === release),
+    [entries, release, search, status],
   );
   const counts = useMemo(() => {
     const active = entries.filter(entry => entry.latest.status !== 'archived');
@@ -308,7 +322,7 @@ export function ReportsPage() {
         <div><strong className="text-xl text-rose-700">{counts.blocked}</strong><span className="ml-2 text-sm text-slate-500">blocked</span></div>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row">
+      <div className="flex flex-col gap-3 lg:flex-row">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-slate-400" />
           <Input
@@ -319,11 +333,21 @@ export function ReportsPage() {
           />
         </div>
         <Select value={status} onValueChange={value => setStatus(value as StatusFilter)}>
-          <SelectTrigger className="bg-white sm:w-48"><SelectValue /></SelectTrigger>
+          <SelectTrigger aria-label="Filter by report status" className="bg-white lg:w-48"><SelectValue /></SelectTrigger>
           <SelectContent>
             {STATUS_OPTIONS.map(option => (
               <SelectItem key={option} value={option}>
                 {option === 'all' ? 'Active reports' : option === 'review' ? 'Ready for review' : option[0].toUpperCase() + option.slice(1)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={release} onValueChange={value => setRelease(value as ReleaseFilter)}>
+          <SelectTrigger aria-label="Filter by release readiness" className="bg-white lg:w-56"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {RELEASE_OPTIONS.map(option => (
+              <SelectItem key={option} value={option}>
+                {option === 'all' ? 'All readiness states' : releaseCopy[option].label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -347,12 +371,12 @@ export function ReportsPage() {
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           {visibleEntries.map((entry, index) => (
-            <article key={entry.key} className={`p-5 ${index > 0 ? 'border-t border-slate-200' : ''}`}>
+            <article key={entry.key} className={`p-4 sm:p-5 ${index > 0 ? 'border-t border-slate-200' : ''}`}>
               <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <FileText className="size-4 text-slate-400" />
-                    <h2 className="truncate font-semibold text-slate-950">{entry.latest.title}</h2>
+                    <h2 className="min-w-0 max-w-full break-words font-semibold text-slate-950 sm:truncate">{entry.displayTitle}</h2>
                     <ProjectStatusBadge
                       label={entry.latest.status === 'review' ? 'Ready for review' : entry.latest.status}
                       tone={statusTone[entry.latest.status]}
@@ -364,6 +388,7 @@ export function ReportsPage() {
                   </p>
                   <p className="mt-2 text-xs text-slate-400">
                     Version {entry.latest.version} of {entry.versions.length} · Updated {new Date(entry.latest.updatedAt).toLocaleDateString()} · {entry.decision} decision
+                    {entry.templateTitle ? ` · Template: ${entry.templateTitle}` : ''}
                   </p>
                   <ReadinessBadges entry={entry} loading={Boolean(readinessLoading[entry.latest.id])} />
                   {entry.blockers.length > 0 && (
@@ -374,7 +399,7 @@ export function ReportsPage() {
                   )}
                 </div>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap lg:justify-end">
                   <Button size="sm" variant="outline" asChild>
                     <Link
                       to={`/report?report=${entry.latest.id}`}
@@ -392,11 +417,7 @@ export function ReportsPage() {
                     >
                       <Download className="size-4" />{exportingId === entry.latest.id ? 'Preparing…' : 'Download PDF'}
                     </Button>
-                  ) : readinessLoading[entry.latest.id] ? (
-                    <Button size="sm" variant="outline" disabled>
-                      Checking…
-                    </Button>
-                  ) : (
+                  ) : !readinessLoading[entry.latest.id] && (
                     <Button size="sm" variant="outline" asChild>
                       <Link
                         to={`/report?report=${entry.latest.id}`}
@@ -422,11 +443,11 @@ export function ReportsPage() {
                     </Button>
                   )}
                   {entry.latest.status !== 'archived' ? (
-                    <Button size="sm" variant="ghost" disabled={updateStatus.isPending} onClick={() => changeStatus(entry.latest, 'archived')} title="Archive latest version">
+                    <Button size="sm" variant="ghost" disabled={updateStatus.isPending} onClick={() => changeStatus(entry.latest, 'archived')} title="Archive latest version" className="hidden sm:inline-flex">
                       <Archive className="size-4" />Archive
                     </Button>
                   ) : (
-                    <Button size="sm" variant="ghost" disabled={updateStatus.isPending} onClick={() => changeStatus(entry.latest, 'draft')}>
+                    <Button size="sm" variant="ghost" disabled={updateStatus.isPending} onClick={() => changeStatus(entry.latest, 'draft')} className="hidden sm:inline-flex">
                       <Undo2 className="size-4" />Restore
                     </Button>
                   )}

@@ -235,7 +235,15 @@ function NoProjectState() {
   );
 }
 
-type PickerProject = { projectId: string; projectName: string; foodTypeSlug: string; batchId: string };
+type ProjectQueueItem = {
+  projectId: string;
+  projectName: string;
+  foodTypes: string[];
+  latestBatchId: string;
+  latestImportAt: string;
+  batchCount: number;
+  sampleCount: number;
+};
 
 /**
  * Shown on /project when no specific project/batch is in scope. Lists the live
@@ -252,63 +260,134 @@ function ProjectPicker({
   // One entry per real project (active batches that carry a project link),
   // keyed by projectId so a multi-batch project shows once via its latest batch.
   const projects = useMemo(() => {
-    const byProject = new Map<string, PickerProject>();
+    const byProject = new Map<string, ProjectQueueItem>();
     importBatches
       .filter(batch => batch.status === 'active' && batch.projectId)
       .forEach(batch => {
-        if (byProject.has(batch.projectId!)) return;
+        const current = byProject.get(batch.projectId!);
+        const latest = !current || new Date(batch.createdAt).getTime() > new Date(current.latestImportAt).getTime();
         byProject.set(batch.projectId!, {
           projectId: batch.projectId!,
           projectName: batch.projectName ?? batch.fileName.replace(/\.csv$/i, ''),
-          foodTypeSlug: batch.foodTypeSlug,
-          batchId: batch.id,
+          foodTypes: uniqueItems([...(current?.foodTypes ?? []), batch.foodTypeSlug]),
+          latestBatchId: latest ? batch.id : current.latestBatchId,
+          latestImportAt: latest ? batch.createdAt : current.latestImportAt,
+          batchCount: (current?.batchCount ?? 0) + 1,
+          sampleCount: (current?.sampleCount ?? 0) + batch.sampleCount,
         });
       });
-    return [...byProject.values()];
+    return [...byProject.values()].sort((a, b) => new Date(b.latestImportAt).getTime() - new Date(a.latestImportAt).getTime());
   }, [importBatches]);
 
-  const unassignedCount = useMemo(
-    () => importBatches.filter(batch => !batch.projectId).length,
+  const unassignedBatches = useMemo(
+    () => importBatches
+      .filter(batch => batch.status === 'active' && !batch.projectId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
     [importBatches],
   );
+  const recentImportCount = useMemo(() => {
+    const newestImportAt = Math.max(
+      0,
+      ...importBatches
+        .filter(batch => batch.status === 'active')
+        .map(batch => new Date(batch.createdAt).getTime()),
+    );
+    if (!newestImportAt) return 0;
+    const sevenDaysAgo = newestImportAt - 7 * 24 * 60 * 60 * 1000;
+    return importBatches.filter(batch => batch.status === 'active' && new Date(batch.createdAt).getTime() >= sevenDaysAgo).length;
+  }, [importBatches]);
 
   if (projects.length === 0) return <NoProjectState />;
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-950">Choose a project</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Pick one of your live projects to open its command center.
-        </p>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-950">Project command center</h1>
+          <p className="mt-1 max-w-2xl text-sm text-slate-600">
+            Start from a live project, or reconcile imported batches that are not yet linked to a project record.
+          </p>
+        </div>
+        <Link
+          to="/stage1?new=project"
+          className="inline-flex w-fit items-center justify-center gap-1.5 rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-700"
+        >
+          Import data
+          <ArrowRight className="size-4" />
+        </Link>
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <EvidenceStat label="active projects" value={projects.length} />
+        <EvidenceStat label="unlinked batches" value={unassignedBatches.length} />
+        <EvidenceStat label="imports this week" value={recentImportCount} />
+      </div>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-950">Live project queue</h2>
+          <p className="text-xs text-slate-500">Newest imports appear first so the next operational handoff is easy to find.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {projects.map(project => {
-          const batch = importBatches.find(item => item.id === project.batchId);
+          const batch = importBatches.find(item => item.id === project.latestBatchId);
           return (
             <button
               key={project.projectId}
               type="button"
               onClick={() => batch && onOpen(batch)}
-              className="group flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:border-blue-300 hover:bg-blue-50/40"
+              className="group flex items-start justify-between gap-4 rounded-lg border border-slate-200 bg-white p-4 text-left transition-colors hover:border-blue-300 hover:bg-blue-50/40"
             >
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold text-slate-900">{project.projectName}</span>
-                <span className="mt-0.5 block text-xs text-slate-500">{project.foodTypeSlug}</span>
+                <span className="mt-1 block text-xs text-slate-500">
+                  {project.foodTypes.join(', ')} · {project.sampleCount} sample{project.sampleCount === 1 ? '' : 's'} · {project.batchCount} batch{project.batchCount === 1 ? '' : 'es'}
+                </span>
+                <span className="mt-2 block text-xs text-slate-400">
+                  Latest import {new Date(project.latestImportAt).toLocaleDateString()}
+                </span>
               </span>
               <ArrowLeft className="size-4 rotate-180 text-slate-300 transition-colors group-hover:text-blue-600" aria-hidden />
             </button>
           );
         })}
-      </div>
-      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-        <Link to="/stage1?new=project" className="font-semibold text-blue-700 hover:text-blue-800">Import data to start a new project</Link>
-        {unassignedCount > 0 && (
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
-            {unassignedCount} batch{unassignedCount === 1 ? '' : 'es'} not yet linked to a project
-          </span>
-        )}
-      </div>
+        </div>
+      </section>
+
+      {unassignedBatches.length > 0 && (
+        <section className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-amber-950">Batch reconciliation</h2>
+              <p className="mt-1 max-w-2xl text-sm text-amber-800">
+                These active imports are usable as evidence, but they are not linked to a durable project record yet.
+              </p>
+            </div>
+            <Link to="/stage1" className="inline-flex items-center justify-center gap-1.5 rounded-md border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100">
+              Review imports
+              <ArrowRight className="size-3.5" />
+            </Link>
+          </div>
+          <div className="mt-3 grid gap-2 lg:grid-cols-2">
+            {unassignedBatches.slice(0, 6).map(batch => (
+              <button
+                key={batch.id}
+                type="button"
+                onClick={() => onOpen(batch)}
+                className="flex items-center justify-between gap-3 rounded-md border border-amber-200 bg-white px-3 py-2 text-left text-xs hover:bg-amber-50"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate font-semibold text-amber-950">{batch.fileName.replace(/\.csv$/i, '')}</span>
+                  <span className="mt-0.5 block text-amber-700">
+                    {batch.foodTypeLabel} · {batch.sampleCount} sample{batch.sampleCount === 1 ? '' : 's'} · {new Date(batch.createdAt).toLocaleDateString()}
+                  </span>
+                </span>
+                <ArrowRight className="size-3.5 shrink-0 text-amber-700" />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

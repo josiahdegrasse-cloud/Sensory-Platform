@@ -1,10 +1,11 @@
 import type { ConceptQuestion, ConceptResponse, ConceptTest, DecisionRecord } from './database';
 import type { GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
+import { NFI_LOGO_URL, NFI_ORGANIZATION_NAME } from './nfi-brand';
 
 /** Default platform branding shown when no client/tenant profile is configured. */
-export const DEFAULT_REPORT_ORGANIZATION_NAME = 'New Food Innovation';
+export const DEFAULT_REPORT_ORGANIZATION_NAME = NFI_ORGANIZATION_NAME;
 export const DEFAULT_REPORT_WORKSPACE_NAME = 'Sensory Analysis Workspace';
-export const DEFAULT_REPORT_LOGO_URL = '/new_foodinnovation_ltd_logo.jpg';
+export const DEFAULT_REPORT_LOGO_URL = NFI_LOGO_URL;
 
 export function resolveReportLogoUrl(
   organizationName: string,

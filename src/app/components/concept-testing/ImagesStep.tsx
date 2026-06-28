@@ -545,6 +545,7 @@ export function ImagesStep({
                 <div key={i} className="space-y-1">
                   <div className="flex items-center gap-2">
                     <Input
+                      aria-label={`Concept image URL ${i + 1}`}
                       value={url}
                       onChange={(e) => {
                         const next = [...draft.marketingImages];

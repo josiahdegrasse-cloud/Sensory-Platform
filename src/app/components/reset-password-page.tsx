@@ -5,18 +5,8 @@ import { Label } from './ui/label';
 import { Alert, AlertDescription } from './ui/alert';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../contexts/auth-context';
-
-function NfiLogoMark({ size = 40 }: { size?: number }) {
-  return (
-    <div style={{ width: size, height: size, borderRadius: '26%', overflow: 'hidden', background: '#000', flexShrink: 0 }}>
-      <img
-        src="/new_foodinnovation_ltd_logo.jpg"
-        alt="NFI"
-        style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(1) contrast(10)', transform: 'scale(1.18)' }}
-      />
-    </div>
-  );
-}
+import { NFI_BRAND_COLOR, NFI_BRAND_COLOR_DARK } from '../lib/nfi-brand';
+import { NfiBrandLockup } from './nfi-brand';
 
 export function ResetPasswordPage() {
   const { updatePassword } = useAuth();
@@ -39,26 +29,25 @@ export function ResetPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
-      <div className="hidden lg:flex lg:w-[46%] flex-col justify-between p-12" style={{ background: '#111111' }}>
-        <div className="flex items-center gap-3">
-          <NfiLogoMark size={42} />
-          <div style={{ lineHeight: '1.3' }}>
-            <div className="text-white/80 text-sm">new</div>
-            <div className="text-white/80 text-sm">food</div>
-            <div className="text-white/80 text-sm">innovation</div>
-          </div>
-        </div>
+    <div className="min-h-screen flex bg-white">
+      <div className="hidden lg:flex lg:w-[46%] flex-col justify-between border-r border-slate-200 bg-slate-50 p-12">
+        <NfiBrandLockup markSize={44} textClassName="text-slate-800" />
         <div>
-          <p className="text-white/35 text-xs font-semibold uppercase tracking-widest mb-5">Sensory Analysis Platform</p>
-          <h1 className="text-[2.5rem] font-bold text-white leading-[1.15] mb-6">
-            Set a new<br />password.
+          <p className="mb-5 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Sensory Analysis Platform</p>
+          <h1 className="mb-6 max-w-[24rem] text-[2.65rem] font-bold leading-[1.08] tracking-[-0.02em] text-slate-950">
+            Set a new password.
           </h1>
+          <p className="max-w-[23rem] text-base leading-7 text-slate-600">
+            Keep access to your sensory evidence, decisions, and commercialization reports protected.
+          </p>
         </div>
-        <p className="text-white/25 text-sm">Supporting over 60 international food companies.</p>
+        <p className="max-w-sm text-sm text-slate-500">Scientific enough for product teams. Clear enough for commercial decisions.</p>
       </div>
 
       <div className="flex-1 flex flex-col justify-center px-8 sm:px-16 bg-white">
+        <div className="lg:hidden mb-8">
+          <NfiBrandLockup markSize={36} textClassName="text-slate-700 [&_div]:text-[11px]" />
+        </div>
         <div className="max-w-sm w-full mx-auto">
           {done ? (
             <div className="space-y-6">
@@ -110,9 +99,9 @@ export function ResetPasswordPage() {
                 <Button
                   type="submit"
                   className="w-full h-11 text-white font-semibold text-sm rounded-lg"
-                  style={{ background: '#111' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#333')}
-                  onMouseLeave={e => (e.currentTarget.style.background = '#111')}
+                  style={{ background: NFI_BRAND_COLOR }}
+                  onMouseEnter={e => (e.currentTarget.style.background = NFI_BRAND_COLOR_DARK)}
+                  onMouseLeave={e => (e.currentTarget.style.background = NFI_BRAND_COLOR)}
                   disabled={loading}
                 >
                   {loading ? 'Updating…' : 'Set new password'}

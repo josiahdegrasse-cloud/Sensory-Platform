@@ -94,14 +94,15 @@ function ToggleRow({ title, detail, checked, onChange }: {
   checked: boolean;
   onChange: (checked: boolean) => void;
 }) {
+  const id = `setting-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
   return (
-    <label className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 p-4">
-      <span>
+    <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 p-4">
+      <Label htmlFor={id} className="min-w-0">
         <span className="block text-sm font-semibold text-slate-900">{title}</span>
         <span className="text-xs leading-5 text-slate-500">{detail}</span>
-      </span>
-      <Switch checked={checked} onCheckedChange={onChange} />
-    </label>
+      </Label>
+      <Switch id={id} checked={checked} onCheckedChange={onChange} aria-label={title} />
+    </div>
   );
 }
 
@@ -120,6 +121,7 @@ function NumberField({ id, label, value, min, max, onChange, suffix }: {
       <div className="flex items-center gap-2">
         <Input
           id={id}
+          aria-label={label}
           type="number"
           min={min}
           max={max}
@@ -235,13 +237,13 @@ export function AdminSettings() {
       )}
 
       <Tabs defaultValue="study" className="gap-4">
-        <TabsList className="rounded-lg">
-          <TabsTrigger value="study"><ClipboardCheck className="size-4" />Study</TabsTrigger>
-          <TabsTrigger value="access"><Users className="size-4" />Access</TabsTrigger>
-          <TabsTrigger value="automation"><Database className="size-4" />Automation</TabsTrigger>
-          <TabsTrigger value="decision"><Brain className="size-4" />Decision</TabsTrigger>
-          <TabsTrigger value="branding"><Palette className="size-4" />Branding</TabsTrigger>
-          <TabsTrigger value="audit"><Activity className="size-4" />Audit</TabsTrigger>
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-lg p-1 sm:inline-flex sm:w-fit sm:grid-cols-none">
+          <TabsTrigger className="h-10 justify-start sm:h-8 sm:justify-center" value="study"><ClipboardCheck className="size-4" />Study</TabsTrigger>
+          <TabsTrigger className="h-10 justify-start sm:h-8 sm:justify-center" value="access"><Users className="size-4" />Access</TabsTrigger>
+          <TabsTrigger className="h-10 justify-start sm:h-8 sm:justify-center" value="automation"><Database className="size-4" />Automation</TabsTrigger>
+          <TabsTrigger className="h-10 justify-start sm:h-8 sm:justify-center" value="decision"><Brain className="size-4" />Decision</TabsTrigger>
+          <TabsTrigger className="h-10 justify-start sm:h-8 sm:justify-center" value="branding"><Palette className="size-4" />Branding</TabsTrigger>
+          <TabsTrigger className="h-10 justify-start sm:h-8 sm:justify-center" value="audit"><Activity className="size-4" />Audit</TabsTrigger>
         </TabsList>
 
         <TabsContent value="study">
@@ -260,19 +262,19 @@ export function AdminSettings() {
               <CardContent className="grid gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="workspace-name">Workspace name</Label>
-                  <Input id="workspace-name" value={draft.workspaceName} onChange={event => updateDraft('workspaceName', event.target.value)} disabled={settingsLoading} />
+                  <Input id="workspace-name" aria-label="Workspace name" value={draft.workspaceName} onChange={event => updateDraft('workspaceName', event.target.value)} disabled={settingsLoading} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="organization-name">Organization</Label>
-                  <Input id="organization-name" value={draft.organizationName} onChange={event => updateDraft('organizationName', event.target.value)} disabled={settingsLoading} />
+                  <Input id="organization-name" aria-label="Organization" value={draft.organizationName} onChange={event => updateDraft('organizationName', event.target.value)} disabled={settingsLoading} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="contact-email">Admin contact email</Label>
-                  <Input id="contact-email" type="email" value={draft.adminContactEmail} onChange={event => updateDraft('adminContactEmail', event.target.value)} placeholder="research@company.com" />
+                  <Input id="contact-email" aria-label="Admin contact email" type="email" value={draft.adminContactEmail} onChange={event => updateDraft('adminContactEmail', event.target.value)} placeholder="research@company.com" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="timezone">Default timezone</Label>
-                  <Input id="timezone" value={draft.defaultTimezone} onChange={event => updateDraft('defaultTimezone', event.target.value)} />
+                  <Input id="timezone" aria-label="Default timezone" value={draft.defaultTimezone} onChange={event => updateDraft('defaultTimezone', event.target.value)} />
                 </div>
               </CardContent>
             </Card>
@@ -306,7 +308,7 @@ export function AdminSettings() {
                 <div className="space-y-2">
                   <Label>Duplicate sample policy</Label>
                   <Select value={draft.duplicateSamplePolicy} onValueChange={value => updateDraft('duplicateSamplePolicy', value as WorkspaceSettings['duplicateSamplePolicy'])}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger aria-label="Duplicate sample policy"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="skip">Skip duplicate sample</SelectItem>
                       <SelectItem value="rename">Rename as a new run</SelectItem>
@@ -321,6 +323,7 @@ export function AdminSettings() {
                   </Label>
                   <Input
                     id="drive-folder"
+                    aria-label="Google Drive folder"
                     value={driveFolderInput}
                     placeholder="Paste a Drive folder link or ID"
                     onChange={event => setDriveFolderInput(event.target.value)}
@@ -387,45 +390,47 @@ function PanelistTable({ panelists, updating, onToggleStatus }: {
         <CardTitle className="flex items-center gap-2 text-lg"><Users className="size-5 text-slate-500" />Panelist roster</CardTitle>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Panelist</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Consent</TableHead>
-              <TableHead className="text-right">Completed</TableHead>
-              <TableHead className="text-right">Action</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {panelists.map(panelist => (
-              <TableRow key={panelist.id}>
-                <TableCell>
-                  <div className="font-semibold text-slate-900">{panelist.name}</div>
-                  <div className="text-xs text-slate-500">{panelist.email ?? panelist.panelistId ?? panelist.id}</div>
-                </TableCell>
-                <TableCell><StatusBadge status={panelist.status} /></TableCell>
-                <TableCell>
-                  {panelist.consentAcceptedAt ? (
-                    <div className="flex items-center gap-2 text-sm text-emerald-700"><UserCheck className="size-4" />{new Date(panelist.consentAcceptedAt).toLocaleDateString()}</div>
-                  ) : (
-                    <span className="text-sm text-amber-700">Pending</span>
-                  )}
-                </TableCell>
-                <TableCell className="text-right font-semibold">{panelist.completedCount}</TableCell>
-                <TableCell className="text-right">
-                  <Button variant="outline" size="sm" onClick={() => onToggleStatus(panelist)} disabled={updating}>
-                    {panelist.status === 'active' ? <UserX className="size-4" /> : <UserCheck className="size-4" />}
-                    {panelist.status === 'active' ? 'Deactivate' : 'Activate'}
-                  </Button>
-                </TableCell>
+        <div className="overflow-x-auto">
+          <Table className="min-w-[680px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Panelist</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Consent</TableHead>
+                <TableHead className="text-right">Completed</TableHead>
+                <TableHead className="text-right">Action</TableHead>
               </TableRow>
-            ))}
-            {panelists.length === 0 && (
-              <TableRow><TableCell colSpan={5} className="py-10 text-center text-slate-500">No panelists yet.</TableCell></TableRow>
-            )}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {panelists.map(panelist => (
+                <TableRow key={panelist.id}>
+                  <TableCell>
+                    <div className="font-semibold text-slate-900">{panelist.name}</div>
+                    <div className="text-xs text-slate-500">{panelist.email ?? panelist.panelistId ?? panelist.id}</div>
+                  </TableCell>
+                  <TableCell><StatusBadge status={panelist.status} /></TableCell>
+                  <TableCell>
+                    {panelist.consentAcceptedAt ? (
+                      <div className="flex items-center gap-2 text-sm text-emerald-700"><UserCheck className="size-4" />{new Date(panelist.consentAcceptedAt).toLocaleDateString()}</div>
+                    ) : (
+                      <span className="text-sm text-amber-700">Pending</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right font-semibold">{panelist.completedCount}</TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="outline" size="sm" onClick={() => onToggleStatus(panelist)} disabled={updating}>
+                      {panelist.status === 'active' ? <UserX className="size-4" /> : <UserCheck className="size-4" />}
+                      {panelist.status === 'active' ? 'Deactivate' : 'Activate'}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {panelists.length === 0 && (
+                <TableRow><TableCell colSpan={5} className="py-10 text-center text-slate-500">No panelists yet.</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );

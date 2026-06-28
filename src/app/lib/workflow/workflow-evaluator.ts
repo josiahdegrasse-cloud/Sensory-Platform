@@ -242,8 +242,8 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
     blockers: insightsStatus === 'ready' || latestDecision ? [] : ['Insights must be ready before a GO/TWEAK/STOP decision. Review responses and instrumental evidence first so the decision has a defensible basis.'],
     warnings: decisionWarnings,
     completedItems: latestDecision ? [`${latestDecision.decision} decision recorded at ISSF ${latestDecision.issfScore.toFixed(0)}`] : [],
-    nextActionLabel: latestDecision?.decision === 'TWEAK' ? 'Review tweak plan' : latestDecision?.decision === 'STOP' ? 'Review STOP rationale' : latestDecision ? 'Open decision record' : 'Review decision',
-    nextActionRoute: routeFor('decision'),
+    nextActionLabel: latestDecision?.decision === 'TWEAK' ? 'Import tweak retest data' : latestDecision?.decision === 'STOP' ? 'Review STOP rationale' : latestDecision ? 'Open decision record' : 'Review decision',
+    nextActionRoute: latestDecision?.decision === 'TWEAK' ? routeFor('data', `?retest=${latestDecision.id}`) : routeFor('decision'),
     detail: latestDecision ? `${latestDecision.decision} decision has been confirmed.${latestDecision.decision === 'GO' ? ' Concept and report paths are unlocked.' : ' This does not unlock commercialization readiness.'}` : 'Decision recommendation is waiting for review.',
     relatedEntityIds: { decisionRecordIds: latestDecision ? [latestDecision.id] : [] },
   }));
@@ -342,6 +342,17 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
 
   const stages = [dataStage, studiesStage, responsesStage, insightsStage, decisionStage, conceptStage, reportStage];
   const rollup = overall(stages);
+  const nextAction = latestDecision?.decision === 'TWEAK' || latestDecision?.decision === 'STOP'
+    ? {
+        label: decisionStage.nextActionLabel,
+        description: latestDecision.decision === 'TWEAK'
+          ? 'Import the reformulated or adjusted batch into this project before reconsidering concept or report work.'
+          : decisionStage.detail,
+        route: decisionStage.nextActionRoute,
+        stageId: decisionStage.id,
+        tone: workflowTone(decisionStage.status),
+      }
+    : pickNextAction(stages);
   const counts = {
     importedSamples: samples.length,
     activeStudies: activeStudies.length,
@@ -357,7 +368,7 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
     overallStatusLabel: rollup.label,
     overallTone: rollup.tone,
     stages,
-    nextAction: pickNextAction(stages),
+    nextAction,
     blockers: stages.flatMap(item => item.blockers),
     warnings: stages.flatMap(item => item.warnings),
     counts,

@@ -57,7 +57,9 @@ export function Stage1Instrumental() {
   const pendingImportId = locationState?.pendingImportId;
   const pendingStoragePath = locationState?.pendingStoragePath;
   const pendingMatchedBatchName = locationState?.matchedBatchName;
-  const newProjectIntent = new URLSearchParams(location.search).get('new') === 'project';
+  const searchParams = new URLSearchParams(location.search);
+  const newProjectIntent = searchParams.get('new') === 'project';
+  const retestQuery = searchParams.get('retest');
   const { user } = useAuth();
   const instrumentalDatasetQuery = useInstrumentalDataset(user?.role === 'admin');
   const insertInstrumentalImport = useInsertInstrumentalImport();
@@ -386,6 +388,16 @@ export function Stage1Instrumental() {
         <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
           <div className="size-4 animate-spin rounded-full border-2 border-blue-300 border-t-blue-600" />
           Loading file from import queue…
+        </div>
+      )}
+
+      {(retestImport || retestQuery) && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-sm font-semibold text-amber-950">Retest import</p>
+          <p className="mt-1 text-sm leading-6 text-amber-800">
+            Import the reformulated batch into this same project so the next decision can compare it against the TWEAK evidence.
+            {retestImport?.sampleName ? ` Source sample: ${retestImport.sampleName}.` : ''}
+          </p>
         </div>
       )}
 

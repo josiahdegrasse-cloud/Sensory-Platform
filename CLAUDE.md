@@ -1,5 +1,27 @@
 # Ruflo — Claude Code Configuration
 
+## Project Context
+
+This repo is the Sensory Platform: a React + Vite + React Router + Supabase SaaS app for New Food
+Innovation (NFI). It is not a Next.js app; routing, data loading, build, and deployment assumptions
+must follow Vite + React Router unless the repo is intentionally migrated later.
+
+Core workflow: Data → Studies → Responses → Insights → Decision → Concept → Report. GO/TWEAK/STOP
+decisions are meaningful product gates, not display labels; confirmed GO is required before
+concept-testing or commercialization-report work proceeds.
+
+## Schema and Type Guardrails
+
+- Schema leads, app code follows. Do not invent client-side identifiers or shadow state to work
+  around core database tables.
+- Do not hand edit `src/app/lib/db/database.types.ts`; it must be generated from the live Supabase
+  schema.
+- Do not create or modify migrations without checking the live schema first.
+- If the live schema, migrations, generated types, and app code disagree, stop and report the
+  mismatch before fixing it. Include what is mismatched, what depends on it, and the proposed fix.
+- After any migration, regenerate `database.types.ts` and verify the schema/type CI gate locally
+  when possible.
+
 ## Rules
 
 - Do what has been asked; nothing more, nothing less
@@ -148,7 +170,7 @@ Any string works as a custom agent type.
 - ALWAYS verify build succeeds before committing
 
 ```bash
-npm run build && npm test
+pnpm build && pnpm test
 ```
 
 ## CLI Quick Reference

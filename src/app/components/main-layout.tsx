@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
-import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Archive, Trash2, Undo2, Database, ChevronDown, ChevronRight, Settings, AlertCircle, AlertTriangle, X, FileText, FolderKanban, Eye, EyeOff } from "lucide-react";
+import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Archive, Trash2, Undo2, Database, ChevronDown, ChevronRight, Settings, AlertCircle, AlertTriangle, X, FileText, FolderKanban, Menu, Users } from "lucide-react";
 import { useAuth } from "../contexts/auth-context";
 import { useEffect, useMemo, useState } from "react";
 import { useFoodType } from "../contexts/food-type-context";
@@ -20,22 +20,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
+import { NFI_BRAND_COLOR } from "../lib/nfi-brand";
+import { TenantOrNfiLogo } from "./nfi-brand";
 
 const LEGACY_DEMO_IMPORT_CUTOFF = Date.parse('2026-06-16T03:35:41Z');
-
-const NFI_BLUE = '#6B7890';
-
-function NfiLogoMark({ size = 36 }: { size?: number }) {
-  return (
-    <div style={{ width: size, height: size, borderRadius: '26%', overflow: 'hidden', background: '#000', flexShrink: 0 }}>
-      <img
-        src="/new_foodinnovation_ltd_logo.jpg"
-        alt="NFI"
-        style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(1) contrast(10)', transform: 'scale(1.18)' }}
-      />
-    </div>
-  );
-}
 
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -499,7 +494,7 @@ function FoodTypeBadge() {
   const batch = batchId ? importBatches.find(item => item.id === batchId) : null;
   const label = batch ? batch.fileName.replace(/\.csv$/i, '') : (subCategory ?? typeLabel);
   return (
-    <span className="px-2.5 py-1 rounded-full text-xs font-semibold border" style={{ background: '#f1f5f9', color: 'var(--brand)', borderColor: '#cbd5e1' }}>
+    <span className="inline-flex max-w-[9rem] truncate rounded-full border px-2.5 py-1 text-xs font-semibold sm:max-w-[13rem]" style={{ background: '#f1f5f9', color: 'var(--brand)', borderColor: '#cbd5e1' }}>
       {label}
     </span>
   );
@@ -513,7 +508,6 @@ export function MainLayout() {
   const { data: workspaceSettings } = useWorkspaceSettings();
   const { data: navImportBatches = [] } = useImportBatches(user?.role === 'admin');
   const { data: pendingImports = [] } = usePendingImports(user?.role === 'admin');
-  const [clientMode, setClientMode] = useState(false);
 
   // Per-tenant branding (falls back to NFI when the org hasn't set its own).
   const brandLogo = workspaceSettings?.logoUrl ?? null;
@@ -522,7 +516,7 @@ export function MainLayout() {
   // Drive the global --brand accent from the org's colour so every var(--brand)
   // usage across the app themes per tenant from one place.
   useEffect(() => {
-    document.documentElement.style.setProperty('--brand', workspaceSettings?.primaryColor || NFI_BLUE);
+    document.documentElement.style.setProperty('--brand', workspaceSettings?.primaryColor || NFI_BRAND_COLOR);
   }, [workspaceSettings?.primaryColor]);
 
   const activeAdminNavPath = (pathname: string) => {
@@ -534,8 +528,9 @@ export function MainLayout() {
         case 'data':
           return '/stage1';
         case 'studies':
-        case 'responses':
           return '/admin';
+        case 'responses':
+          return '/responses';
         case 'insights':
           return '/survey-analysis';
         case 'decision':
@@ -561,29 +556,34 @@ export function MainLayout() {
     return false;
   };
 
-  const getAdminNavItems = () => [
-    { path: "/project",        label: "Workflow",           icon: FolderKanban },
-    { path: "/stage1",         label: "Instruments",        icon: FlaskConical },
-    { path: "/admin",           label: "Studies",            icon: ClipboardList },
-    { path: "/survey-analysis", label: "Insights",          icon: BarChart3 },
-    { path: "/decision",        label: "Final Decision",    icon: GitMerge },
-    { path: "/concept-testing", label: "Concept Testing",   icon: Lightbulb },
-    { path: "/reports",         label: "Reports",           icon: FileText },
-  ];
-
   const getPanelistNavItems = () => [
     { path: "/panelist", label: "My Questionnaires", icon: ClipboardList },
   ];
 
-  const navItems = user?.role === 'admin' ? getAdminNavItems() : getPanelistNavItems();
   const selectedNavBatchId = parseBatchSelection(subCategory);
   const selectedNavBatch = selectedNavBatchId
     ? navImportBatches.find(batch => batch.id === selectedNavBatchId)
     : null;
   const selectedProjectId = selectedNavBatch?.projectId ?? selectedNavBatch?.id ?? null;
+  const getAdminNavItems = () => selectedProjectId ? [
+    { path: "/project",        label: "Overview",  icon: FolderKanban },
+    { path: "/stage1",         label: "Data",      icon: FlaskConical },
+    { path: "/admin",          label: "Studies",   icon: ClipboardList },
+    { path: "/responses",      label: "Responses", icon: Users },
+    { path: "/survey-analysis", label: "Insights", icon: BarChart3 },
+    { path: "/decision",       label: "Decision",  icon: GitMerge },
+    { path: "/concept-testing", label: "Concept",  icon: Lightbulb },
+    { path: "/reports",        label: "Report",    icon: FileText },
+  ] : [
+    { path: "/project", label: "Projects", icon: FolderKanban },
+  ];
+  const navItems = user?.role === 'admin' ? getAdminNavItems() : getPanelistNavItems();
+  const activeNavItem = navItems.find(item => isActive(item.path)) ?? navItems[0];
+  const ActiveNavIcon = activeNavItem?.icon;
   const adminNavTarget = (path: string) => {
     if (!selectedProjectId) return path;
     if (path === '/project') return projectPath(selectedProjectId, 'overview');
+    if (path === '/responses') return projectPath(selectedProjectId, 'responses');
     const step = legacyWorkflowPathToStep(path);
     return step ? projectPath(selectedProjectId, step) : path;
   };
@@ -605,22 +605,13 @@ export function MainLayout() {
           {/* Top bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 py-3">
             <Link to="/" className="flex items-center gap-2.5 hover:opacity-75 transition-opacity">
-              {brandLogo ? (
-                <img
-                  src={brandLogo}
-                  alt={brandName ?? 'Logo'}
-                  style={{ height: 36, width: 'auto', maxWidth: 160, objectFit: 'contain', display: 'block' }}
-                />
-              ) : (
-                <>
-                  <NfiLogoMark size={36} />
-                  <div style={{ lineHeight: '1.22' }}>
-                    <div className="text-[11px] text-slate-700">new</div>
-                    <div className="text-[11px] text-slate-700">food</div>
-                    <div className="text-[11px] text-slate-700">innovation</div>
-                  </div>
-                </>
-              )}
+              <TenantOrNfiLogo
+                logoUrl={brandLogo}
+                organizationName={brandName}
+                markSize={36}
+                monochromeMark
+                textClassName="text-slate-700 [&_div]:text-[11px]"
+              />
             </Link>
 
             <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-4">
@@ -632,18 +623,6 @@ export function MainLayout() {
                 </div>
               </div>
               {user?.role === 'admin' && (
-                <button
-                  type="button"
-                  aria-pressed={clientMode}
-                  title={clientMode ? 'Return to internal admin view' : 'Preview client-facing view'}
-                  onClick={() => setClientMode(value => !value)}
-                  className="flex h-8 items-center gap-1.5 rounded-md border border-slate-200 px-2.5 text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
-                >
-                  {clientMode ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-                  <span className="hidden md:inline">{clientMode ? 'Internal view' : 'Client mode'}</span>
-                </button>
-              )}
-              {user?.role === 'admin' && !clientMode && (
                 <Link
                   to="/settings"
                   title="Settings"
@@ -668,7 +647,47 @@ export function MainLayout() {
           </div>
 
           {/* Nav row */}
-          <div className="flex items-center overflow-x-auto">
+          <div className="flex items-center justify-between gap-3 py-2 md:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex max-w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
+                  aria-label="Open main navigation"
+                >
+                  <Menu className="size-4 shrink-0" />
+                  {ActiveNavIcon && <ActiveNavIcon className="size-4 shrink-0 text-slate-500" />}
+                  <span className="truncate">{activeNavItem?.label ?? 'Menu'}</span>
+                  <ChevronDown className="size-4 shrink-0 text-slate-400" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-[min(20rem,calc(100vw-2rem))]">
+                <DropdownMenuLabel>Main navigation</DropdownMenuLabel>
+                {navItems.map(item => {
+                  const Icon = item.icon;
+                  const active = isActive(item.path);
+                  return (
+                    <DropdownMenuItem key={item.path} asChild className={active ? 'bg-slate-100 text-slate-950' : undefined}>
+                      <Link
+                        to={user?.role === 'admin' ? adminNavTarget(item.path) : item.path}
+                        className="flex w-full items-center gap-2"
+                      >
+                        {Icon && <Icon className="size-4" />}
+                        <span className="flex-1">{item.label}</span>
+                        {item.path === '/stage1' && pendingImports.length > 0 && (
+                          <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-bold leading-none text-white">
+                            {pendingImports.length > 9 ? '9+' : pendingImports.length}
+                          </span>
+                        )}
+                      </Link>
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <div className="hidden items-center overflow-x-auto md:flex">
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.path);
@@ -701,7 +720,7 @@ export function MainLayout() {
       </header>
 
       <div className="mx-auto flex max-w-[1600px] items-start gap-6 px-4 py-6 sm:px-6 lg:py-8">
-        {user?.role === 'admin' && !clientMode && <CategorySidebar />}
+        {user?.role === 'admin' && <CategorySidebar />}
         <main className="flex-1 min-w-0">
           {user?.role === 'panelist' && (workspaceSettings?.requirePanelistConsent ?? true) && !user.consentAcceptedAt ? <ConsentGate /> : <Outlet />}
         </main>
