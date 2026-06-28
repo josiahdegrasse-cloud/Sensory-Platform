@@ -207,7 +207,7 @@ describe('project workflow evaluator', () => {
 
     expect(stage('data', summary).status).toBe('needs_review');
     expect(stage('data', summary).warnings.join(' ')).toMatch(/food type classification/i);
-    expect(summary.nextAction.route).toBe('/stage1');
+    expect(summary.nextAction.route).toBe('/project/batch-1/data');
   });
 
   it('marks a survey with no sensory attributes as needs review', () => {
@@ -219,7 +219,7 @@ describe('project workflow evaluator', () => {
 
     expect(stage('studies', summary).status).toBe('needs_review');
     expect(stage('studies', summary).warnings.join(' ')).toMatch(/no sensory attributes/i);
-    expect(summary.nextAction.route).toBe('/admin');
+    expect(summary.nextAction.route).toBe('/project/batch-1/studies');
   });
 
   it('explains empty assignedPanelistIds as open to all active panelists', () => {
@@ -284,7 +284,7 @@ describe('project workflow evaluator', () => {
     expect(stage('concept', summary).status).toBe('blocked');
     expect(stage('report', summary).status).toBe('blocked');
     expect(stage('concept', summary).blockers.join(' ')).toMatch(/current decision is TWEAK/i);
-    expect(summary.nextAction.route).toBe('/decision');
+    expect(summary.nextAction.route).toBe('/project/batch-1/decision');
   });
 
   it('keeps STOP follow-up on decision and blocks concept/report commercialization paths', () => {
@@ -369,7 +369,7 @@ describe('project workflow evaluator', () => {
 
     expect(stage('report', summary).status).toBe('needs_review');
     expect(stage('report', summary).blockers.join(' ')).toMatch(/report context is incomplete/i);
-    expect(stage('report', summary).nextActionRoute).toBe('/report?report=report-1');
+    expect(stage('report', summary).nextActionRoute).toBe('/project/batch-1/report?report=report-1');
   });
 
   it('shows a report in review as needs review', () => {
@@ -420,7 +420,7 @@ describe('project workflow evaluator', () => {
 
     expect(stage('report', summary).status).toBe('needs_review');
     expect(stage('report', summary).warnings.join(' ')).toMatch(/context changed/i);
-    expect(summary.nextAction.route).toBe('/report?report=report-1');
+    expect(summary.nextAction.route).toBe('/project/batch-1/report?report=report-1');
   });
 
   it('marks report using reference demo evidence as needs review', () => {

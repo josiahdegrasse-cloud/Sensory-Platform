@@ -17,7 +17,7 @@ import {
 } from '../ui/alert-dialog';
 import {
   CheckCircle2, ChevronDown, Image as ImageIcon, Loader2,
-  Plus, RefreshCw, Sparkles, Trash2,
+  Plus, RefreshCw, ShieldCheck, Sparkles, Trash2,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { detectFoodType, getFoodTypeProfile } from '../../lib/food-intelligence';
@@ -73,6 +73,39 @@ function friendlyGenerationError(message: string) {
   return message || 'Image generation failed. Try again with a clearer concept brief.';
 }
 
+function AIGovernancePanel({
+  candidates,
+  model,
+  quality,
+}: {
+  candidates: CandidateImage[];
+  model?: string;
+  quality: ImageGenerationOptions['quality'];
+}) {
+  const selectedCount = candidates.filter(candidate => candidate.selected && candidate.url).length;
+  const promptTraceCount = candidates.filter(candidate => candidate.revisedPrompt || candidate.summary).length;
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <div className="flex items-center gap-2">
+        <ShieldCheck className="size-4 text-slate-500" />
+        <p className="text-xs font-semibold text-slate-800">AI governance</p>
+      </div>
+      <div className="mt-3 grid gap-2 text-[11px] leading-4 text-slate-600 sm:grid-cols-2 lg:grid-cols-4">
+        <span><strong className="text-slate-800">Model:</strong> {model ?? 'gpt-image-1.5'}</span>
+        <span><strong className="text-slate-800">Quality:</strong> {quality}</span>
+        <span><strong className="text-slate-800">Approval:</strong> AI draft, admin review required</span>
+        <span><strong className="text-slate-800">Prompt trace:</strong> {promptTraceCount}/{candidates.length} saved</span>
+      </div>
+      <p className="mt-2 text-[11px] text-slate-500">
+        {selectedCount > 0
+          ? `${selectedCount} selected draft${selectedCount === 1 ? '' : 's'} can be added to the concept. They remain directional visuals until approved for panelist or report use.`
+          : 'Select only visuals that are physically believable, on-brief, and free of fake claims or warped text.'}
+      </p>
+    </div>
+  );
+}
+
 export function ImagesStep({
   draft,
   onChange,
@@ -87,7 +120,7 @@ export function ImagesStep({
   const [options, setOptions] = useState<ImageGenerationOptions>(() => ({
     mode: 'packaging',
     count: Math.min(settings?.defaultImageCount ?? 4, maxImages),
-    quality: settings?.defaultQuality ?? 'medium',
+    quality: settings?.defaultQuality ?? 'high',
     spreadModes: true,
   }));
   const [aiCandidates, setAiCandidates] = useState<CandidateImage[]>([]);
@@ -111,18 +144,56 @@ export function ImagesStep({
     && draft.packageFormat.trim()
     && draft.targetMarket.trim()
   );
+  const generationChecklist = useMemo(() => [
+    {
+      label: 'Product and category',
+      ready: Boolean(draft.name.trim() && draft.category.trim()),
+      detail: draft.name.trim() && draft.category.trim()
+        ? `${draft.name.trim()} in ${draft.category.trim()}`
+        : 'Add the product name and category.',
+    },
+    {
+      label: 'Retail pack reality',
+      ready: Boolean(draft.productAppearance.trim() && draft.packageFormat.trim()),
+      detail: draft.productAppearance.trim() && draft.packageFormat.trim()
+        ? `${draft.productAppearance.trim()} · ${draft.packageFormat.trim()}`
+        : 'Describe product appearance and the exact pack format.',
+    },
+    {
+      label: 'Shopper and occasion',
+      ready: Boolean(draft.targetMarket.trim() && draft.targetOccasion.trim()),
+      detail: draft.targetMarket.trim() && draft.targetOccasion.trim()
+        ? `${draft.targetMarket.trim()} · ${draft.targetOccasion.trim()}`
+        : 'Add the target shopper and where they use it.',
+    },
+    {
+      label: 'Must-show / must-not-show',
+      ready: Boolean(draft.mustShow.trim() || draft.forbiddenClaims.trim() || draft.visualNotes.trim()),
+      detail: draft.mustShow.trim() || draft.forbiddenClaims.trim() || draft.visualNotes.trim()
+        ? 'Specific visual requirements are captured.'
+        : 'Optional, but useful for avoiding generic generated results.',
+    },
+  ], [draft]);
   const estimatedCost = estimatedCostPerImage * options.count;
   const styleLabel = getPromptStyle(draft.promptStyle).label;
+  const leadModeLabel = getConceptImageMode(options.mode).label;
 
   // Derive variant-dimension overrides for image generation.
   const variantImageMode = draft.variantDimensions?.channel === 'lifestyle' ? 'lifestyle' : options.mode;
-  const variantPositioningCues: string[] = [];
-  if (draft.variantDimensions?.positioning === 'premium') variantPositioningCues.push('premium aesthetic, typographic restraint');
-  if (draft.variantDimensions?.positioning === 'accessible') variantPositioningCues.push('friendly, approachable, everyday');
-  if (draft.variantDimensions?.appeal === 'health') variantPositioningCues.push('clean ingredients, natural textures, health cues');
-  if (draft.variantDimensions?.appeal === 'indulgent') variantPositioningCues.push('rich, indulgent, sensory abundance');
-  if (draft.variantDimensions?.visualComplexity === 'minimal') variantPositioningCues.push('minimal composition, whitespace-led');
-  if (draft.variantDimensions?.visualComplexity === 'expressive') variantPositioningCues.push('bold, expressive, colourful');
+  const variantPositioningCues = useMemo(() => {
+    const cues: string[] = [];
+    if (draft.variantDimensions?.positioning === 'premium') cues.push('premium aesthetic, typographic restraint');
+    if (draft.variantDimensions?.positioning === 'accessible') cues.push('friendly, approachable, everyday');
+    if (draft.variantDimensions?.appeal === 'health') cues.push('clean ingredients, natural textures, health cues');
+    if (draft.variantDimensions?.appeal === 'indulgent') cues.push('rich, indulgent, sensory abundance');
+    if (draft.variantDimensions?.visualComplexity === 'minimal') cues.push('minimal composition, whitespace-led');
+    if (draft.variantDimensions?.visualComplexity === 'expressive') cues.push('bold, expressive, colourful');
+    return cues;
+  }, [
+    draft.variantDimensions?.appeal,
+    draft.variantDimensions?.positioning,
+    draft.variantDimensions?.visualComplexity,
+  ]);
 
   // Client-side preview of the brief the server will build. Branding
   // (organization name, report tone) is applied server-side from workspace
@@ -277,8 +348,8 @@ export function ImagesStep({
                 <p className="font-semibold text-slate-900">AI image generation</p>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {options.spreadModes
-                    ? `Generates ${options.count} distinct marketing formats, led by ${getConceptImageMode(options.mode).label.toLowerCase()}`
-                    : `Generates ${options.count} ${getConceptImageMode(options.mode).label.toLowerCase()} variation${options.count > 1 ? 's' : ''}`}
+                    ? `Generates ${options.count} distinct retail-ready formats, led by ${leadModeLabel.toLowerCase()}`
+                    : `Generates ${options.count} ${leadModeLabel.toLowerCase()} variation${options.count > 1 ? 's' : ''}`}
                   {' '}into the {draft.projectName || 'Project 1'} folder.
                 </p>
               </div>
@@ -301,6 +372,26 @@ export function ImagesStep({
                 Complete the product name, category, description, appearance, package format, and target customer before generating visuals.
               </p>
             )}
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              {generationChecklist.map(item => (
+                <div
+                  key={item.label}
+                  className={`rounded-md border px-3 py-2 ${
+                    item.ready
+                      ? 'border-emerald-100 bg-emerald-50 text-emerald-950'
+                      : 'border-slate-200 bg-white text-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 text-xs font-semibold">
+                    <CheckCircle2 className={`size-3.5 ${item.ready ? 'text-emerald-600' : 'text-slate-300'}`} />
+                    {item.label}
+                  </div>
+                  <p className={`mt-1 text-[11px] leading-4 ${item.ready ? 'text-emerald-800' : 'text-slate-500'}`}>
+                    {item.detail}
+                  </p>
+                </div>
+              ))}
+            </div>
             {generationError && (
               <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-md px-3 py-2 mt-3">
                 {generationError}
@@ -360,7 +451,7 @@ export function ImagesStep({
                     <DataProvenanceBadge provenance="ai-draft" n={aiCandidates.length} />
                     <p className="text-xs text-slate-500">
                       AI-generated drafts · {styleLabel} · {settings?.defaultModel ?? 'gpt-image-1.5'} ({options.quality}).
-                      Select the visuals panelists should compare.
+                      Select only visuals that look credible enough for consumer or buyer review.
                     </p>
                   </div>
                   <div className="flex gap-2">
@@ -378,6 +469,24 @@ export function ImagesStep({
                     </Button>
                   </div>
                 </div>
+              )}
+              {!generating && aiCandidates.length > 0 && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-semibold text-slate-800">Marketing review checklist</p>
+                  <div className="mt-2 grid gap-2 text-[11px] leading-4 text-slate-600 sm:grid-cols-2 lg:grid-cols-4">
+                    <span>Product and pack form are physically believable.</span>
+                    <span>Food texture looks appetizing, not plastic or over-glossed.</span>
+                    <span>No fake claims, badges, dense label copy, or warped text.</span>
+                    <span>Image would hold up in a buyer slide or retail concept deck.</span>
+                  </div>
+                </div>
+              )}
+              {!generating && aiCandidates.length > 0 && (
+                <AIGovernancePanel
+                  candidates={aiCandidates}
+                  model={settings?.defaultModel}
+                  quality={options.quality}
+                />
               )}
             </div>
           )}
@@ -487,8 +596,12 @@ export function ImagesStep({
           </AlertDialogHeader>
           {preview && (
             <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-3 space-y-2">
-              <p className="text-xs font-semibold text-blue-900">Image direction</p>
+              <p className="text-xs font-semibold text-blue-900">Art direction summary</p>
               <p className="text-xs text-blue-900/90 leading-snug">{preview.summary}</p>
+              <p className="text-[11px] leading-4 text-blue-900/75">
+                Built for retail concept review: {leadModeLabel.toLowerCase()} led, {styleLabel.toLowerCase()} creative territory,
+                {options.quality} quality, with pack realism, food realism, and claim-safety constraints.
+              </p>
               <button
                 type="button"
                 onClick={() => setPromptExpanded(expanded => !expanded)}

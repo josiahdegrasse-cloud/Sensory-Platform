@@ -4,7 +4,7 @@ import { buildDecisionSummary } from '../lib/decision-summary';
 import type { DecisionGate, GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { RETEST_PARENT_DECISION_KEY } from './stage1-instrumental-data';
+import { ProductListItem, ProductListPanel } from './product-list';
 
 type GateStatus = DecisionGate['status'];
 
@@ -151,7 +151,7 @@ export function DecisionReviewWorkspace({
   selected: GoStopTweakDecision;
   stopThreshold: number;
   goThreshold: number;
-  confirmedDecision: GoStopTweakDecision | null;
+  confirmedDecision: (GoStopTweakDecision & { recordId?: string | null }) | null;
   onSelect: (sampleId: string) => void;
   onConfirm: () => void;
 }) {
@@ -159,6 +159,7 @@ export function DecisionReviewWorkspace({
   const outcomeStyle = OUTCOME_STYLE[selected.decision];
   const criteria = decisionCriteria(selected);
   const primaryPrescription = selected.prescriptions[0];
+  const parentDecisionId = confirmedDecision?.recordId ?? null;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
@@ -179,43 +180,33 @@ export function DecisionReviewWorkspace({
           ))}
         </select>
 
-        <div className="hidden overflow-hidden rounded-lg border border-slate-200 bg-white lg:block">
-          <div className="border-b border-slate-200 px-4 py-3">
-            <h2 className="text-sm font-semibold text-slate-900">Prototypes</h2>
-            <p className="mt-0.5 text-xs text-slate-500">{decisions.length} ready for review</p>
-          </div>
-          <div className="divide-y divide-slate-100">
+        <ProductListPanel
+          title="Prototypes"
+          description={`${decisions.length} ready for review`}
+          className="hidden lg:block"
+          listLabel="Decision prototypes"
+        >
             {decisions.map(decision => {
               const active = decision.sampleId === selected.sampleId;
               const badgeClass = OUTCOME_STYLE[decision.decision].badge;
               return (
-                <button
+                <ProductListItem
                   key={decision.sampleId}
-                  type="button"
+                  active={active}
                   onClick={() => onSelect(decision.sampleId)}
-                  aria-pressed={active}
-                  className={`w-full px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 ${
-                    active ? 'bg-blue-50' : 'hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <span className={`text-sm font-semibold ${active ? 'text-blue-950' : 'text-slate-900'}`}>
-                      {decision.sampleName}
-                    </span>
+                  title={decision.sampleName}
+                  meta={`ISSF ${decision.issfScore.toFixed(0)} · ${decision.confidenceScore.toFixed(0)}% confidence`}
+                  badge={(
                     <Badge className={`${badgeClass} shrink-0 border-0 text-[10px] shadow-none`}>
                       {decision.decision}
                     </Badge>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
-                    <span>ISSF {decision.issfScore.toFixed(0)}</span>
-                    <span>{decision.confidenceScore.toFixed(0)}% confidence</span>
-                  </div>
-                  <p className="mt-1.5 truncate text-xs text-slate-500">{prototypeSignal(decision)}</p>
-                </button>
+                  )}
+                  signal={prototypeSignal(decision)}
+                  signalTone={decision.decision === 'GO' ? 'success' : decision.decision === 'TWEAK' ? 'warning' : 'critical'}
+                />
               );
             })}
-          </div>
-        </div>
+        </ProductListPanel>
       </aside>
 
       <article className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -321,26 +312,32 @@ export function DecisionReviewWorkspace({
                         Return here to confirm GO, TWEAK, or STOP on the new evidence.
                       </li>
                     </ol>
-                    <Button asChild size="sm" className="mt-3 bg-slate-900 text-white hover:bg-slate-700">
-                      <Link
-                        to="/stage1"
-                        state={{
-                          retestImport: {
-                            sampleId: selected.sampleId,
-                            sampleName: selected.sampleName,
-                            decision: selected.decision,
-                            target: primaryPrescription?.target,
-                            action: primaryPrescription?.action,
-                            parentDecisionId: localStorage.getItem(RETEST_PARENT_DECISION_KEY) ?? undefined,
-                          },
-                        }}
-                      >
-                        <Upload className="size-4" />
-                        {selected.decision === 'STOP'
-                          ? `Import reformulation for ${selected.sampleName}`
-                          : `Import retest for ${selected.sampleName}`}
-                      </Link>
-                    </Button>
+                    {parentDecisionId ? (
+                      <Button asChild size="sm" className="mt-3 bg-slate-900 text-white hover:bg-slate-700">
+                        <Link
+                          to="/stage1"
+                          state={{
+                            retestImport: {
+                              sampleId: selected.sampleId,
+                              sampleName: selected.sampleName,
+                              decision: selected.decision,
+                              target: primaryPrescription?.target,
+                              action: primaryPrescription?.action,
+                              parentDecisionId,
+                            },
+                          }}
+                        >
+                          <Upload className="size-4" />
+                          {selected.decision === 'STOP'
+                            ? `Import reformulation for ${selected.sampleName}`
+                            : `Import retest for ${selected.sampleName}`}
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Button size="sm" disabled className="mt-3">
+                        Confirm {selected.decision} before importing retest data
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>

@@ -12,7 +12,6 @@ import { DataProvenanceBadge } from "./data-provenance-badge";
 import { DecisionLog } from "./decision-log";
 import { useAuth } from "../contexts/auth-context";
 import { insertDecisionRecord } from "../lib/database";
-import { RETEST_PARENT_DECISION_KEY } from "./stage1-instrumental-data";
 import { formatFoodTypeLabel } from "../lib/food-intelligence";
 import { queryKeys, useDecisionRecords, useInstrumentalDataset, useProducts, useWorkspaceSettings } from "../lib/hooks";
 import { useSurveyData } from "../lib/use-survey-data";
@@ -32,6 +31,10 @@ import { DecisionReviewDialog } from "./decision-review-dialog";
 import { DecisionReviewWorkspace } from "./decision-review-workspace";
 import type { DecisionOutcome } from "../utils/go-stop-tweak-engine";
 type SampleDecision = GoStopTweakDecision;
+type ConfirmedSampleDecision = SampleDecision & {
+  recordId?: string | null;
+  parentDecisionId?: string | null;
+};
 
 const DEFAULT_WEIGHTS = { hedonic: 30, texture: 25, cata: 25, emotional: 15 };
 
@@ -52,12 +55,13 @@ export function Stage4Enhanced() {
   const [confirmPending, setConfirmPending] = useState(false);
   const [decisionSaving, setDecisionSaving] = useState(false);
   const [decisionError, setDecisionError] = useState("");
-  const [confirmedDecision, setConfirmedDecision] = useState<SampleDecision | null>(null);
+  const [confirmedDecision, setConfirmedDecision] = useState<ConfirmedSampleDecision | null>(null);
   const [reportError, setReportError] = useState("");
   const [reportExporting, setReportExporting] = useState(false);
   const stopThreshold = workspaceSettings?.decisionStopThreshold ?? 52;
   const goThreshold = workspaceSettings?.decisionGoThreshold ?? 76;
   const minimumResponses = workspaceSettings?.decisionMinResponses ?? 12;
+  const retestParentDecisionId = (location.state as { retestParentDecisionId?: string } | null)?.retestParentDecisionId ?? null;
   const projectInstrumentSamples = useMemo(
     () => filterProjectInstrumentSamples(
       instrumentalDataset?.eTongueData ?? [],
@@ -314,14 +318,19 @@ export function Stage4Enhanced() {
         record.decisionFingerprint === selected.decisionFingerprint
       )
     : null;
-  const confirmedDecisionForSelection = selected && (
-    confirmedDecision?.sampleId === selected.sampleId &&
-    confirmedDecision.decisionFingerprint === selected.decisionFingerprint
-      ? confirmedDecision
-      : persistedDecisionRecord
-        ? { ...selected, decision: persistedDecisionRecord.decision }
-        : null
-  );
+  const confirmedDecisionForSelection: ConfirmedSampleDecision | null = selected
+    ? confirmedDecision?.sampleId === selected.sampleId &&
+      confirmedDecision.decisionFingerprint === selected.decisionFingerprint
+        ? confirmedDecision
+        : persistedDecisionRecord
+          ? {
+              ...selected,
+              decision: persistedDecisionRecord.decision,
+              recordId: persistedDecisionRecord.id,
+              parentDecisionId: persistedDecisionRecord.parentDecisionId,
+            }
+          : null
+    : null;
   // Reference profiles come from the simulated demo dataset; everything else in
   // liveSensoryData is built from imports + live panel aggregations.
   const selectedIsReference = ENHANCED_SENSORY_DATA.some(p => p.sampleId === activeSelectedSample);
@@ -473,7 +482,6 @@ export function Stage4Enhanced() {
           setDecisionSaving(true);
           setDecisionError("");
           try {
-            const parentDecisionId = localStorage.getItem(RETEST_PARENT_DECISION_KEY) ?? undefined;
             const newDecisionId = await insertDecisionRecord({
               sampleId: selected.sampleId,
               sampleName: selected.sampleName,
@@ -484,15 +492,16 @@ export function Stage4Enhanced() {
               methodVersion: selected.methodVersion,
               decisionFingerprint: selected.decisionFingerprint,
               createdBy: user.id,
-              parentDecisionId,
+              parentDecisionId: retestParentDecisionId,
             });
-            localStorage.removeItem(RETEST_PARENT_DECISION_KEY);
-            if (newDecisionId && (outcome === 'TWEAK' || outcome === 'STOP')) {
-              localStorage.setItem(RETEST_PARENT_DECISION_KEY, newDecisionId);
-            }
             await queryClient.invalidateQueries({ queryKey: queryKeys.decisionRecords });
             setLogRefreshKey(key => key + 1);
-            setConfirmedDecision({ ...selected, decision: outcome });
+            setConfirmedDecision({
+              ...selected,
+              decision: outcome,
+              recordId: newDecisionId,
+              parentDecisionId: retestParentDecisionId,
+            });
             setConfirmPending(false);
           } catch (error) {
             setDecisionError(error instanceof Error ? error.message : "Unable to save this decision.");

@@ -1,6 +1,7 @@
 import type { ImportBatchRecord, InstrumentalDataset, DecisionRecord, ConceptTest, CommercializationReportRecord } from './database';
 import type { Product } from '../data/survey-domain';
 import { formatFoodTypeLabel } from './food-intelligence';
+import { projectPath, projectStatusStagePath } from './project-journey-routes';
 import { sampleMatchesFoodType } from '../contexts/food-type-context';
 
 export type WorkflowStageId = 'data' | 'testing' | 'insights' | 'decision' | 'concept' | 'report';
@@ -66,15 +67,6 @@ const STAGE_LABELS: Record<WorkflowStageId, string> = {
   report: 'Report',
 };
 
-const STAGE_PATHS: Record<WorkflowStageId, string> = {
-  data: '/stage1',
-  testing: '/admin',
-  insights: '/survey-analysis',
-  decision: '/decision',
-  concept: '/concept-testing',
-  report: '/report',
-};
-
 interface ComputeProjectStatusInput {
   foodType: string;
   importBatchId: string | null;
@@ -127,6 +119,11 @@ export function computeProjectStatus(input: ComputeProjectStatusInput): ProjectS
     minimumResponses,
   } = input;
 
+  const batch = importBatchId
+    ? input.importBatches.find(b => b.id === importBatchId) ?? null
+    : input.importBatches.find(b => b.foodTypeSlug === foodType && b.status === 'active') ?? null;
+  const routeProjectId = batch?.projectId ?? batch?.id ?? null;
+  const pathFor = (stageId: WorkflowStageId) => projectStatusStagePath(stageId, routeProjectId);
   const projectName = pickProjectName(input);
   const foodTypeLabel = formatFoodTypeLabel(foodType);
 
@@ -245,12 +242,12 @@ export function computeProjectStatus(input: ComputeProjectStatusInput): ProjectS
             : 'blocked';
 
   const stages: WorkflowStageStatus[] = [
-    { id: 'data', label: STAGE_LABELS.data, state: dataState, path: STAGE_PATHS.data, detail: dataComplete ? 'All required datasets imported.' : hasEtongue ? 'E-tongue data imported; GC-MS / composition still pending.' : 'No instrumental data imported yet.' },
-    { id: 'testing', label: STAGE_LABELS.testing, state: testingState, path: STAGE_PATHS.testing, detail: projectProducts.length === 0 ? 'No survey created for this project yet.' : `${responseCompleted}/${responseTarget} responses collected.` },
-    { id: 'insights', label: STAGE_LABELS.insights, state: insightsState, path: STAGE_PATHS.insights, detail: insightsComplete ? 'Survey and instrumental data ready to analyze.' : 'Waiting on enough responses and instrumental data.' },
-    { id: 'decision', label: STAGE_LABELS.decision, state: decisionState, path: STAGE_PATHS.decision, detail: latestDecision ? `${latestDecision.decision} recorded at ISSF ${latestDecision.issfScore.toFixed(0)}.` : 'Awaiting a GO / TWEAK / STOP decision.' },
-    { id: 'concept', label: STAGE_LABELS.concept, state: conceptState, path: STAGE_PATHS.concept, detail: launchedConcept ? `${launchedConcept.name} sent to consumers.` : conceptInReview ? `${conceptInReview.name} drafted by AI — awaiting your approval.` : goDecision ? 'GO decision confirmed — ready to build a concept.' : 'Unlocks once a sample gets a GO decision.' },
-    { id: 'report', label: STAGE_LABELS.report, state: reportState, path: STAGE_PATHS.report, detail:
+    { id: 'data', label: STAGE_LABELS.data, state: dataState, path: pathFor('data'), detail: dataComplete ? 'All required datasets imported.' : hasEtongue ? 'E-tongue data imported; GC-MS / composition still pending.' : 'No instrumental data imported yet.' },
+    { id: 'testing', label: STAGE_LABELS.testing, state: testingState, path: pathFor('testing'), detail: projectProducts.length === 0 ? 'No survey created for this project yet.' : `${responseCompleted}/${responseTarget} responses collected.` },
+    { id: 'insights', label: STAGE_LABELS.insights, state: insightsState, path: pathFor('insights'), detail: insightsComplete ? 'Survey and instrumental data ready to analyze.' : 'Waiting on enough responses and instrumental data.' },
+    { id: 'decision', label: STAGE_LABELS.decision, state: decisionState, path: pathFor('decision'), detail: latestDecision ? `${latestDecision.decision} recorded at ISSF ${latestDecision.issfScore.toFixed(0)}.` : 'Awaiting a GO / TWEAK / STOP decision.' },
+    { id: 'concept', label: STAGE_LABELS.concept, state: conceptState, path: pathFor('concept'), detail: launchedConcept ? `${launchedConcept.name} sent to consumers.` : conceptInReview ? `${conceptInReview.name} drafted by AI — awaiting your approval.` : goDecision ? 'GO decision confirmed — ready to build a concept.' : 'Unlocks once a sample gets a GO decision.' },
+    { id: 'report', label: STAGE_LABELS.report, state: reportState, path: pathFor('report'), detail:
         reportStatus === 'approved' ? 'Commercialization report approved.'
         : reportStatus === 'review' ? 'Report drafted — awaiting approval.'
         : reportStatus === 'draft' ? 'Report draft in progress.'
@@ -279,29 +276,29 @@ export function computeProjectStatus(input: ComputeProjectStatusInput): ProjectS
   const currentStage = stages.find(s => s.state === 'current') ?? stages.find(s => s.state === 'available');
   let nextAction: NextAction;
   if (!hasEtongue) {
-    nextAction = { label: 'Import instrumental data', description: 'Upload an E-tongue / GC-MS export to start this project.', path: '/stage1', tone: 'info' };
+    nextAction = { label: 'Import instrumental data', description: 'Upload an E-tongue / GC-MS export to start this project.', path: pathFor('data'), tone: 'info' };
   } else if (projectProducts.length === 0) {
-    nextAction = { label: 'Create the survey', description: 'Turn this sample into a panelist questionnaire.', path: '/admin', tone: 'info' };
+    nextAction = { label: 'Create the survey', description: 'Turn this sample into a panelist questionnaire.', path: pathFor('testing'), tone: 'info' };
   } else if (!testingComplete) {
-    nextAction = { label: 'Collect responses', description: `${Math.max(responseTarget - responseCompleted, 0)} more response${responseTarget - responseCompleted === 1 ? '' : 's'} needed before analysis.`, path: '/admin', tone: 'info' };
+    nextAction = { label: 'Collect responses', description: `${Math.max(responseTarget - responseCompleted, 0)} more response${responseTarget - responseCompleted === 1 ? '' : 's'} needed before analysis.`, path: routeProjectId ? projectPath(routeProjectId, 'responses') : '/admin', tone: 'info' };
   } else if (!latestDecision) {
-    nextAction = { label: 'Review results', description: 'Survey is complete — review insights and make the call.', path: '/survey-analysis', tone: 'info' };
+    nextAction = { label: 'Review results', description: 'Survey is complete — review insights and make the call.', path: pathFor('insights'), tone: 'info' };
   } else if (latestDecision.decision === 'GO' && !conceptComplete) {
-    nextAction = { label: 'Build a concept', description: 'This sample got a GO — generate a concept test for consumers.', path: '/concept-testing', tone: 'creative' };
+    nextAction = { label: 'Build a concept', description: 'This sample got a GO — generate a concept test for consumers.', path: pathFor('concept'), tone: 'creative' };
   } else if (latestDecision.decision === 'TWEAK') {
-    nextAction = { label: 'Plan the tweak', description: 'Review the recommended adjustments and re-test when ready.', path: '/decision', tone: 'warning' };
+    nextAction = { label: 'Plan the tweak', description: 'Review the recommended adjustments and re-test when ready.', path: pathFor('decision'), tone: 'warning' };
   } else if (latestDecision.decision === 'STOP') {
-    nextAction = { label: 'Review the STOP rationale', description: 'See why this sample stopped and what to try next.', path: '/decision', tone: 'critical' };
+    nextAction = { label: 'Review the STOP rationale', description: 'See why this sample stopped and what to try next.', path: pathFor('decision'), tone: 'critical' };
   } else if (reportStatus === 'review') {
-    nextAction = { label: 'Review the report', description: 'A drafted commercialization report is waiting for your approval.', path: '/report', tone: 'warning' };
+    nextAction = { label: 'Review the report', description: 'A drafted commercialization report is waiting for your approval.', path: pathFor('report'), tone: 'warning' };
   } else if (reportStatus === 'draft') {
-    nextAction = { label: 'Finish the report draft', description: 'Pick up the commercialization report where you left off.', path: '/report', tone: 'info' };
+    nextAction = { label: 'Finish the report draft', description: 'Pick up the commercialization report where you left off.', path: pathFor('report'), tone: 'info' };
   } else if (conceptComplete && !reportComplete) {
-    nextAction = { label: 'Write the commercialization report', description: 'Concept testing is underway — start drafting the launch report.', path: '/report', tone: 'info' };
+    nextAction = { label: 'Write the commercialization report', description: 'Concept testing is underway — start drafting the launch report.', path: pathFor('report'), tone: 'info' };
   } else if (currentStage) {
     nextAction = { label: `Go to ${currentStage.label}`, description: currentStage.detail, path: currentStage.path, tone: tone(currentStage.state) };
   } else {
-    nextAction = { label: 'Review project', description: 'Everything looks complete — review the latest results.', path: '/survey-analysis', tone: 'neutral' };
+    nextAction = { label: 'Review project', description: 'Everything looks complete — review the latest results.', path: pathFor('insights'), tone: 'neutral' };
   }
 
   // ---- Warnings ----

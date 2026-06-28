@@ -340,7 +340,7 @@ export function ConceptTesting() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5 pb-24">
+    <div className="mx-auto max-w-5xl space-y-5 pb-8">
       <ProjectHeader />
       <div className="flex flex-col gap-3 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex items-center gap-3">
@@ -522,8 +522,8 @@ export function ConceptTesting() {
         <p className="text-sm text-rose-600 font-medium text-center">{launchError}</p>
       )}
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:px-6 lg:left-64">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
+      <div className="sticky bottom-4 z-20 rounded-xl border border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur">
+        <div className="flex items-center justify-between gap-4">
           <Button
             variant="outline"
             onClick={() => setStep(STEPS[stepIndex - 1])}

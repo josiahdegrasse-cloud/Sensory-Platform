@@ -34,11 +34,11 @@ export const CONCEPT_IMAGE_MODES: ConceptImageModeDefinition[] = [
     label: 'Packaging mockup',
     purpose: 'Realistic front-of-pack packaging concept for panelist testing and early buyer conversations',
     direction:
-      'Show a single realistic front-of-pack package on a clean, light studio background with professional retail design: '
-      + 'credible structure for the category, restrained color palette, premium grocery-store styling, and clear product/category recognition at a glance. '
-      + 'The pack should look brandable and production-feasible — a design a packaging agency could actually deliver.',
+      'Show one production-feasible front-of-pack design, straight-on or slight three-quarter view, on a quiet studio surface. '
+      + 'Use a believable pack structure for the category, correct folds/seams/caps/windows, controlled label hierarchy, realistic material finish, and clear product/category recognition within two seconds. '
+      + 'The design should feel like a senior packaging designer prepared it for a retail buyer review: not ornate, not generic, and not decorated with filler copy.',
     avoid:
-      'fake nutrition facts panels, dense or unreadable label text, fantasy or physically impossible packaging structures, real brand logos',
+      'fake nutrition facts panels, dense or unreadable label text, fantasy or physically impossible packaging structures, random badges, real brand logos',
     textPolicy: 'name-and-positioning',
   },
   {
@@ -46,10 +46,10 @@ export const CONCEPT_IMAGE_MODES: ConceptImageModeDefinition[] = [
     label: 'Lifestyle hero',
     purpose: 'Product shown in a realistic usage occasion that supports the positioning',
     direction:
-      'Show the product being enjoyed in a realistic usage occasion — a bright kitchen, lunch table, family meal, snack moment, fitness setting, cafe, or grocery context, chosen to fit the target consumer. '
-      + 'Use natural light, appetizing food styling, authentic textures (steam, crumb, condensation where relevant), and candid framing that feels like finished commercial food photography.',
+      'Show the product in a specific, believable usage occasion chosen for the target shopper: kitchen counter, lunch table, family meal, snack moment, cafe, or grocery-prep context. '
+      + 'Use naturalistic commercial food photography with coherent light direction, real food styling, plausible portion size, authentic surface texture, and a camera position that feels observed rather than staged.',
     avoid:
-      'sterile stock-photo posing, readable packaging text, celebrity likenesses, exaggerated performance or health storytelling',
+      'sterile stock-photo posing, readable packaging text, celebrity likenesses, exaggerated performance or health storytelling, perfect plastic food, extra fingers or distorted hands',
     textPolicy: 'no-text',
   },
   {
@@ -57,10 +57,10 @@ export const CONCEPT_IMAGE_MODES: ConceptImageModeDefinition[] = [
     label: 'Ecommerce listing',
     purpose: 'Clean product-first image suitable for an online listing or product page',
     direction:
-      'Show the product front and center on a white or very light seamless background in professional catalog photography style: '
-      + 'even soft lighting, tack-sharp focus, true-to-life color, minimal or no props, and clear presentation of the product or pack so an online shopper instantly understands what it is.',
+      'Show the product or pack front and center on a white or very light seamless background in professional catalog photography style. '
+      + 'Use even softbox lighting, accurate geometry, a subtle contact shadow, true-to-life color, no lifestyle clutter, and enough negative space for commerce cropping.',
     avoid:
-      'busy backgrounds, props that obscure the product, decorative typography overlays, badges or rosettes',
+      'busy backgrounds, props that obscure the product, decorative typography overlays, badges or rosettes, warped pack edges, floating objects',
     textPolicy: 'name-only',
   },
   {
@@ -68,9 +68,10 @@ export const CONCEPT_IMAGE_MODES: ConceptImageModeDefinition[] = [
     label: 'Retail shelf',
     purpose: 'Grocery shelf mockup to evaluate shelf presence and category fit',
     direction:
-      'Show the package facing forward at eye level in a realistic grocery shelf environment for its category, with softly blurred generic neighboring products, realistic retail lighting, and a composition that demonstrates genuine shelf stand-out without looking staged.',
+      'Show the package facing forward at eye level in a realistic grocery shelf environment for its category. '
+      + 'Use generic neighboring packs with intentionally unreadable details, credible shelf depth, real retail lighting, correct pack scale, and enough visual contrast to judge shelf standout without turning the scene into an advertisement.',
     avoid:
-      'real retailer names or signage, competitor logos or recognizable competitor packs, fake price tags with claims, detailed readable labels on neighboring products',
+      'real retailer names or signage, competitor logos or recognizable competitor packs, fake price tags with claims, detailed readable labels on neighboring products, impossible shelf spacing',
     textPolicy: 'name-only',
   },
   {
@@ -78,10 +79,10 @@ export const CONCEPT_IMAGE_MODES: ConceptImageModeDefinition[] = [
     label: 'Social ad creative',
     purpose: 'Expressive campaign-style visual for early concept and message testing',
     direction:
-      'Create a bold, eye-catching campaign visual: the product as the clear focal point against a confident color block or styled scene, dramatic but professional lighting, strong occasion or mood cue, and intentional negative space where a headline could sit. '
-      + 'Expressive and energetic, yet still credible food-industry advertising.',
+      'Create a controlled campaign-style product visual with the product as the clear focal point, one strong color or scene idea, deliberate negative space for a future headline, and lighting that feels professionally art-directed. '
+      + 'Keep it commercially plausible: expressive enough for message testing, restrained enough for a food brand deck.',
     avoid:
-      'rendered headlines or slogans, claim text of any kind, meme styling, surreal AI-art effects unless the chosen style explicitly calls for boldness',
+      'rendered headlines or slogans, claim text of any kind, meme styling, surreal AI-art effects, confetti, excessive glow, distorted product forms',
     textPolicy: 'name-only',
   },
   {
@@ -89,10 +90,10 @@ export const CONCEPT_IMAGE_MODES: ConceptImageModeDefinition[] = [
     label: 'Ingredient & benefit',
     purpose: 'Shows ingredients, sensory cues, or benefit direction without making claims',
     direction:
-      'Show the product with its key ingredients or sensory cues arranged in a deliberate visual hierarchy — for example creamy texture pulls, fresh produce, grains, or indulgent drizzle — communicating the benefit direction purely through styling. '
-      + 'Soft diffused light, clean composition, credible food-science-meets-brand aesthetic.',
+      'Show the product with a small number of ingredient, texture, or sensory cues arranged in a disciplined visual hierarchy. '
+      + 'Use food-stylist restraint: credible ingredient scale, no floating ingredient explosions, coherent shadows, and a composition that suggests the benefit direction visually without making a written claim.',
     avoid:
-      'health or nutrition claim text, medical imagery, certification marks, ingredient callout labels or annotations',
+      'health or nutrition claim text, medical imagery, certification marks, ingredient callout labels or annotations, levitating ingredient storms',
     textPolicy: 'no-text',
   },
   {
@@ -100,10 +101,10 @@ export const CONCEPT_IMAGE_MODES: ConceptImageModeDefinition[] = [
     label: 'Buyer presentation',
     purpose: 'Polished visual for commercialization reports and buyer-facing slides',
     direction:
-      'Create a premium, clean, business-presentation-ready product visual: refined studio or environmental staging, restrained props, elegant lighting, and a calm confident composition that would sit credibly on a retail buyer slide or in a commercialization report. '
-      + 'Polished, never flashy.',
+      'Create a clean buyer-slide-ready visual with the product or pack staged like a serious commercialization asset. '
+      + 'Use refined studio or restrained environmental staging, modest props only when they clarify category or occasion, calm negative space, and lighting/color grading suitable for a boardroom deck.',
     avoid:
-      'gimmicky effects, aggressive marketing styling, dense text, awards or endorsement imagery',
+      'gimmicky effects, aggressive marketing styling, dense text, awards or endorsement imagery, overly dramatic shadows that hide product truth',
     textPolicy: 'name-and-positioning',
   },
   {
@@ -111,10 +112,10 @@ export const CONCEPT_IMAGE_MODES: ConceptImageModeDefinition[] = [
     label: 'Concept board',
     purpose: 'Collage-style mood board for internal creative alignment',
     direction:
-      'Create a cohesive collage-style concept mood board combining: a packaging direction cue, a target-consumer lifestyle cue, a usage occasion, an ingredient or sensory texture cue, and an overall brand color/material mood. '
-      + 'Arrange the tiles with consistent lighting and a unified visual language so the board reads as one creative direction, not random images.',
+      'Create a cohesive creative territory board combining a packaging cue, target-consumer lifestyle cue, usage occasion, ingredient or sensory texture cue, and material/color direction. '
+      + 'Use a disciplined editorial grid, consistent lighting language, and restrained annotations-free composition so it reads as one creative direction rather than random generated tiles.',
     avoid:
-      'readable text blocks, logos, watermark-style labels, clashing visual styles between tiles',
+      'readable text blocks, logos, watermark-style labels, clashing visual styles between tiles, scrapbook clutter',
     textPolicy: 'no-text',
   },
 ];
@@ -179,61 +180,61 @@ export const PROMPT_STYLES: PromptStyleDefinition[] = [
     id: 'premium_natural',
     label: 'Premium natural',
     direction:
-      'Soft natural window light, earthy muted palette with warm neutrals, organic textures (linen, stone, raw wood), minimal refined typography if any, sparse botanical props, calm uncluttered backgrounds — wellness-premium without feeling clinical.',
+      'Natural side light, a controlled neutral palette with one fresh accent, matte paper or soft-touch substrates, refined sans typography, one or two tactile props at most, and quiet negative space. Premium grocery, not spa stock imagery.',
   },
   {
     id: 'clean_clinical',
     label: 'Clean clinical',
     direction:
-      'Bright even studio lighting, white and cool-neutral palette with one precise accent color, geometric ordered composition, strictly minimal typography, no decorative props, seamless light backgrounds — transparent, honest, lab-grade cleanliness.',
+      'Even studio light, white/cool-neutral surfaces, one precise accent color, geometric alignment, crisp pack edges, sparse technical typography, and no decorative props. Transparent and lab-clean without medical cues.',
   },
   {
     id: 'playful_modern',
     label: 'Playful modern',
     direction:
-      'Punchy directional lighting, saturated cheerful palette with bold color blocking, dynamic off-center composition, chunky minimal typography if any, witty graphic props used sparingly, solid bright backgrounds — fun and contemporary, still professional.',
+      'Bright directional light, two or three confident colors, simple graphic shapes, dynamic but balanced composition, friendly bold typography on pack only, and very limited props. Contemporary challenger brand, not toy-like.',
   },
   {
     id: 'rustic_artisanal',
     label: 'Rustic artisanal',
     direction:
-      'Warm golden-hour or candle-warm light, heritage palette of creams, browns, and deep accents, handcrafted textures (kraft paper, ceramic, weathered wood), hand-touched minimal typography, market-style props, tactile rustic backgrounds — small-batch craft credibility.',
+      'Warm directional food-photography light, kraft or uncoated paper cues, ceramic/wood/cloth textures used sparingly, heritage typography on pack only, and a tactile but uncluttered surface. Small-batch credibility without farmers-market cosplay.',
   },
   {
     id: 'bold_retail',
     label: 'Bold retail',
     direction:
-      'Crisp high-contrast commercial lighting, confident saturated brand colors, strong centered hero composition, oversized but minimal typography, no clutter props, punchy solid-color backgrounds — mainstream shelf stand-out with challenger-brand energy.',
+      'Crisp commercial lighting, one dominant shelf-recognizable color, high-contrast pack hierarchy, large simple product name, strong hero composition, and minimal props. Mainstream shelf standout with credible retail restraint.',
   },
   {
     id: 'health_forward',
     label: 'Health forward',
     direction:
-      'Fresh bright daylight, energizing palette of greens, whites, and citrus accents, airy open composition, light minimal typography, fresh-ingredient props, clean kitchen or gym-adjacent backgrounds — active and vital without medical or clinical cues.',
+      'Fresh daylight, clean ingredient cues, airy composition, greens/whites/citrus used with restraint, light typography, and kitchen or active-lifestyle context only when it feels natural. Vital and optimistic without medical signaling.',
   },
   {
     id: 'indulgent_premium',
     label: 'Indulgent premium',
     direction:
-      'Moody dramatic lighting with rich shadows, deep jewel tones and metallic accents, intimate close-crop composition, elegant restrained typography, luxurious props (marble, dark wood, silk), dark sophisticated backgrounds — desire-driven premium indulgence.',
+      'Controlled low-key commercial lighting, rich product texture, deep color accents, elegant restrained typography, close but not claustrophobic crop, and one premium material cue such as stone or dark wood. Desire-led, not fantasy luxury.',
   },
   {
     id: 'family_friendly',
     label: 'Family friendly',
     direction:
-      'Warm welcoming daylight, cheerful saturated but cozy palette, lively open composition with room to breathe, rounded friendly minimal typography, everyday home props, bright kitchen or table backgrounds — an easy, joyful mealtime win.',
+      'Warm home daylight, approachable saturated accents, clear pack recognition, friendly rounded typography, everyday table or kitchen cues, and practical portion styling. Easy mealtime credibility without cartoonish sweetness.',
   },
   {
     id: 'sustainable_earthy',
     label: 'Sustainable earthy',
     direction:
-      'Diffused overcast natural light, grounded palette of clay, moss, sand, and recycled-kraft tones, honest unstaged composition, understated minimal typography, reusable/natural-material props, outdoor or raw-material backgrounds — planet-conscious without greenwashed clichés.',
+      'Diffused natural light, recycled or uncoated material cues, grounded clay/moss/kraft accents, understated typography, and one honest raw-material or reusable prop. Planet-conscious without greenwashing icons or leaf overload.',
   },
   {
     id: 'minimalist_ecommerce',
     label: 'Minimalist ecommerce',
     direction:
-      'Shadowless even softbox lighting, white or near-white palette letting product color carry the image, perfectly centered catalog composition, no typography beyond the pack itself, zero props, seamless white backgrounds — pure clean product presentation.',
+      'Shadow-controlled softbox lighting, white or near-white seamless background, centered product geometry, accurate color, subtle contact shadow, zero props, and no typography beyond the pack itself. Clean product presentation for commerce crops.',
   },
 ];
 

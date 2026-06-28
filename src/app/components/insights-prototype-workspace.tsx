@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, CircleHelp, Search } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { ProjectStatusBadge } from './project-status-badge';
 import { DataProvenanceBadge } from './data-provenance-badge';
+import { ProductListItem, ProductListPanel } from './product-list';
 import type { InsightsEvidenceStrength } from '../lib/insights';
 import type { SemanticTone } from '../lib/project-status';
 import { cn } from './ui/utils';
@@ -112,83 +113,68 @@ export function InsightsPrototypeWorkspace({
 
   return (
     <div className="grid gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
-      <aside className="self-start overflow-hidden rounded-xl border border-slate-200 bg-white lg:sticky lg:top-24">
-        <div className="border-b border-slate-100 px-4 py-4">
-          <h2 className="text-sm font-semibold text-slate-900">Project prototypes</h2>
-          <p className="mt-0.5 text-xs text-slate-500">Find and rank samples without losing your place.</p>
-          <div className="relative mt-3">
+      <ProductListPanel
+        title="Project prototypes"
+        description="Find and rank samples without losing your place."
+        className="lg:sticky lg:top-24"
+        listLabel="Project prototypes"
+        controls={(
+          <>
+          <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
             <input
               value={prototypeQuery}
               onChange={event => setPrototypeQuery(event.target.value)}
               placeholder="Search prototypes"
               aria-label="Search prototypes"
-              className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-xs text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="h-9 w-full rounded-md border border-slate-200 bg-white pl-8 pr-3 text-xs text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </div>
           <select
             value={prototypeSort}
             onChange={event => setPrototypeSort(event.target.value as typeof prototypeSort)}
             aria-label="Sort prototypes"
-            className="mt-2 h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            className="h-9 w-full rounded-md border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           >
             <option value="priority">Sort: action priority</option>
             <option value="liking">Sort: highest liking</option>
             <option value="responses">Sort: most responses</option>
             <option value="name">Sort: name</option>
           </select>
-        </div>
-        <ul aria-label="Project prototypes" className="space-y-1 p-2">
-          {visiblePrototypes.map(prototype => {
-            const selectedPrototype = prototype.id === selectedId;
-            return (
-              <li key={prototype.id}>
-                <button
-                  type="button"
-                  aria-current={selectedPrototype ? 'true' : undefined}
-                  onClick={() => onSelect(prototype.id)}
-                  className={cn(
-                    'relative block w-full rounded-lg px-3 py-3 text-left transition-colors hover:bg-slate-50 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
-                    selectedPrototype && 'bg-blue-50 ring-1 ring-inset ring-blue-200 hover:bg-blue-50',
-                  )}
-                >
-                  <span className={cn('block pr-12 text-sm font-semibold', selectedPrototype ? 'text-blue-950' : 'text-slate-900')}>
-                    {prototype.name}
-                  </span>
-                  <span className={cn('absolute right-3 top-3 text-lg font-bold tabular-nums', selectedPrototype ? 'text-blue-700' : 'text-slate-900')}>
-                    {prototype.score > 0 ? prototype.score.toFixed(1) : '—'}
-                  </span>
-                  <span className="mt-1 block text-xs text-slate-500">
-                    {prototype.responseCount > 0 ? `n=${prototype.responseCount}` : 'No live panel'} · {prototype.evidenceLabel}
-                  </span>
-                  <span className={cn(
-                    'mt-2 block text-[11px] font-semibold',
-                    prototype.signalTone === 'success' && 'text-emerald-700',
-                    prototype.signalTone === 'warning' && 'text-amber-700',
-                    prototype.signalTone === 'neutral' && 'text-slate-500',
-                  )}>
-                    {prototype.signalLabel}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-          {visiblePrototypes.length === 0 && (
-            <li className="px-3 py-6 text-center text-xs text-slate-500">
-              No prototypes match “{prototypeQuery}”.
-            </li>
-          )}
-        </ul>
-        {leader && (
-          <div className="border-t border-slate-100 bg-slate-50 px-4 py-3">
+          </>
+        )}
+        footer={leader && (
+          <>
             <p className="text-xs font-semibold text-slate-500">Highest current liking</p>
             <p className="mt-1 text-sm font-bold text-slate-900">{leader.name}</p>
             <p className="mt-0.5 text-xs text-slate-500">
               {leaderDelta > 0 ? `${leaderDelta.toFixed(1)} points above the next sample` : 'No score separation established'}
             </p>
-          </div>
+          </>
         )}
-      </aside>
+      >
+          {visiblePrototypes.map(prototype => {
+            const selectedPrototype = prototype.id === selectedId;
+            return (
+              <ProductListItem
+                  key={prototype.id}
+                  active={selectedPrototype}
+                  onClick={() => onSelect(prototype.id)}
+                  title={prototype.name}
+                  meta={`${prototype.responseCount > 0 ? `n=${prototype.responseCount}` : 'No live panel'} · ${prototype.evidenceLabel}`}
+                  metric={prototype.score > 0 ? prototype.score.toFixed(1) : '—'}
+                  metricLabel="score"
+                  signal={prototype.signalLabel}
+                  signalTone={prototype.signalTone}
+                />
+            );
+          })}
+          {visiblePrototypes.length === 0 && (
+            <div className="px-3 py-6 text-center text-xs text-slate-500">
+              No prototypes match “{prototypeQuery}”.
+            </div>
+          )}
+      </ProductListPanel>
 
       <div className="min-w-0 space-y-4">
         <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">

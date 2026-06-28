@@ -6,11 +6,11 @@ import { useArchiveFoodType, useDeleteFoodType, useFoodTypes, useRestoreFoodType
 export type FoodType = string;
 type FoodTypeStatus = 'active' | 'archived' | 'deleted';
 
-// Persisted selection (food type + subCategory) so the current project/batch
+// Persisted selection (food type + subCategory) so the current project scope
 // survives a reload instead of resetting to 'cheese' every time (discovery §C5).
-// The /project/:batchId route remains the source of truth — it writes into the
-// context, the context persists; nothing reads this back to drive the route, so
-// there is no update loop.
+// The /project/:projectId route remains the source of truth. It resolves to the
+// active batch for the project and writes into context; nothing reads this back
+// to drive the route, so there is no update loop.
 const SELECTION_STORAGE_KEY = 'sensory.foodTypeSelection';
 
 function readPersistedSelection(): { foodType: FoodType; subCategory: string | null } | null {

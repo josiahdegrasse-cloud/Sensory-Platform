@@ -27,6 +27,35 @@ export const PLATFORM_FORBIDDEN_IN_IMAGES = [
   'watermarks or stock-photo artifacts',
 ];
 
+/** Commercial craft requirements that make outputs feel directed, not generated. */
+export const PROFESSIONAL_ART_DIRECTION_REQUIREMENTS = [
+  'one clear hero subject with no competing focal points',
+  'coherent light direction with realistic contact shadows',
+  'physically plausible scale, perspective, materials, and packaging construction',
+  'disciplined prop styling with only props that clarify category, occasion, or shopper',
+  'retail-credible color, typography, and hierarchy rather than decorative filler',
+  'camera framing suitable for a marketing review deck, ecommerce crop, or buyer slide',
+];
+
+/** Typical AI-image tells to suppress in every concept visual. */
+export const AI_ARTIFACTS_TO_AVOID = [
+  'warped pack edges, melted labels, or impossible seals',
+  'random pseudo-words, microcopy, fake barcodes, QR codes, or illegible nutrition panels',
+  'plastic-looking food, uncanny gloss, extra crumbs that ignore gravity, or impossible melt behavior',
+  'floating ingredients, levitating props, exaggerated bokeh, lens flares, neon glow, or fantasy effects',
+  'distorted hands, duplicate fingers, faceless stock-photo people, or mannequin-like consumers',
+  'overcrowded wellness props, scattered leaves, fake certification marks, and generic premium clutter',
+];
+
+/** Retail concept criteria for food innovation review, not final print art. */
+export const RETAIL_READINESS_REQUIREMENTS = [
+  'the product type is obvious at thumbnail size',
+  'front-of-pack structure looks manufacturable in the stated format',
+  'pack or product proportions match the category and usage occasion',
+  'neighboring shelf products, if present, are generic and unreadable',
+  'claims are communicated through mood and styling unless explicitly validated',
+];
+
 export interface ConceptImageBrief {
   // Tenant / brand
   clientName: string;
@@ -180,6 +209,35 @@ const TEXT_POLICY_DIRECTIONS: Record<string, string> = {
     'Do not render readable text anywhere in the image; communicate everything through styling, color, and composition.',
 };
 
+function sentenceList(items: string[]): string {
+  return items.join('; ');
+}
+
+function retailFormatDirection(mode: ConceptImageMode): string {
+  if (mode === 'packaging') {
+    return 'Packaging craft: prioritize a believable dieline/pack shape, correct closure/window/seam details, a front label hierarchy with no more than three readable elements, and realistic substrate finish such as matte paper, pouch film, carton, jar label, sleeve, or tub wrap as specified.';
+  }
+  if (mode === 'shelf') {
+    return 'Shelf craft: preserve true category scale, eye-level front facings, shelf shadows, and generic neighboring products that support category context without becoming readable brands.';
+  }
+  if (mode === 'ecommerce') {
+    return 'Ecommerce craft: center the pack or product with clean margins, accurate silhouette, subtle grounded shadow, and no decorative styling that would hurt marketplace clarity.';
+  }
+  if (mode === 'buyer_presentation') {
+    return 'Buyer-presentation craft: compose for a commercialization deck with calm negative space, honest product visibility, and a refined but conservative visual tone appropriate for a retail buyer.';
+  }
+  if (mode === 'lifestyle') {
+    return 'Lifestyle craft: make the usage moment specific and practical, with real food scale, natural mess, and human context only when it can be rendered cleanly and credibly.';
+  }
+  if (mode === 'ingredient_benefit') {
+    return 'Ingredient craft: use a small number of ingredients or sensory cues, grounded on the surface with coherent shadows, never exploding around the product.';
+  }
+  if (mode === 'social_ad') {
+    return 'Campaign craft: leave intentional blank space for future copy, but do not render the headline; the product must remain the clearest subject.';
+  }
+  return 'Concept-board craft: use a disciplined grid and unified lighting language so all cues feel curated by one art director.';
+}
+
 export function buildConceptImagePrompt(brief: ConceptImageBrief): { prompt: string; summary: string } {
   const mode = getConceptImageMode(brief.imageMode);
   const style = getPromptStyle(brief.promptStyle);
@@ -215,7 +273,10 @@ export function buildConceptImagePrompt(brief: ConceptImageBrief): { prompt: str
     `Visual style — ${style.label}: ${style.direction}`,
     `Overall brand tone: ${brief.brandTone}.`,
     brief.visualNotes ? `Additional art direction from the team: ${brief.visualNotes}.` : '',
-    // 6. Food realism
+    // 6. Commercial craft and food realism
+    `Professional art direction requirements: ${sentenceList(PROFESSIONAL_ART_DIRECTION_REQUIREMENTS)}.`,
+    `Retail readiness requirements: ${sentenceList(RETAIL_READINESS_REQUIREMENTS)}.`,
+    retailFormatDirection(mode.id),
     'Food realism: make the food look appetizing, physically plausible, and true to the category — believable portion sizes, natural surface textures, and accurate color. No uncanny, plastic, or impossible food.'
       + (brief.sensoryStrengths.length
         ? ` Emphasize these validated sensory strengths: ${brief.sensoryStrengths.join(', ')}.`
@@ -225,7 +286,7 @@ export function buildConceptImagePrompt(brief: ConceptImageBrief): { prompt: str
       : '',
     // 7. Brand and packaging text constraints
     TEXT_POLICY_DIRECTIONS[mode.textPolicy],
-    // 8. Claim safety
+    // 8. Claim safety and AI-artifact suppression
     `Strictly avoid: ${PLATFORM_FORBIDDEN_IN_IMAGES.join('; ')}; ${mode.avoid}.`
       + (brief.forbiddenClaims.length
         ? ` Additionally never depict or imply: ${brief.forbiddenClaims.join(', ')}.`
@@ -233,11 +294,12 @@ export function buildConceptImagePrompt(brief: ConceptImageBrief): { prompt: str
       + (brief.allowedClaims.length
         ? ` Only the following validated claims may be hinted at visually: ${brief.allowedClaims.join(', ')}.`
         : ''),
+    `Avoid AI-image tells: ${sentenceList(AI_ARTIFACTS_TO_AVOID)}.`,
     limitedEvidence
       ? 'Consumer evidence for this concept is still early, so express benefits only through mood and styling — nothing in the image should read as a stated claim.'
       : '',
     // 9. Output quality
-    'Output quality: indistinguishable from a finished agency asset — professional commercial photography or packaging design, tack-sharp hero focus, intentional color grading, believable lighting and materials. This is an honest early-stage concept visualization for directional testing, not fantasy art.',
+    'Output quality: senior-agency exploratory concept work — commercially plausible, clean enough for a retail buyer or marketing director to critique, with no obvious generative artifacts. This is an honest early-stage concept visualization for directional testing, not fantasy art or final print-ready artwork.',
   ].filter(Boolean);
 
   const prompt = sections.join(' ').slice(0, MAX_PROMPT_LENGTH);

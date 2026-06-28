@@ -1,9 +1,9 @@
 import { sampleMatchesFoodType } from '../../contexts/food-type-context';
 import { getProductAssignmentMode } from '../assignments';
 import { formatFoodTypeLabel } from '../food-intelligence';
+import { workflowStagePath } from '../project-journey-routes';
 import {
   WORKFLOW_STAGE_LABELS,
-  WORKFLOW_STAGE_ROUTES,
   workflowTone,
 } from './workflow-actions';
 import type {
@@ -84,6 +84,8 @@ function explainReportIssue(message: string, fallbackAction: string): string {
 
 export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectWorkflowSummary {
   const batch = activeBatch(input);
+  const routeProjectId = batch?.projectId ?? batch?.id ?? null;
+  const routeFor = (stageId: WorkflowStageId, search = '') => workflowStagePath(stageId, routeProjectId, search);
   const samples = (input.instrumentalDataset?.eTongueData ?? []).filter(sample =>
     sample.type === input.foodType && (!input.importBatchId || sample.importBatchId === input.importBatchId)
   );
@@ -120,7 +122,7 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
       hasComposition ? 'Composition data linked' : null,
     ].filter((item): item is string => Boolean(item)),
     nextActionLabel: missingSampleId || missingFoodType ? 'Review imported data' : hasEtongue ? 'View imported data' : 'Import instrumental data',
-    nextActionRoute: WORKFLOW_STAGE_ROUTES.data,
+    nextActionRoute: routeFor('data'),
     detail: hasEtongue ? 'Instrumental data exists for this project.' : 'No imported machine sample data exists yet. Import an instrumental CSV to start the workflow.',
     relatedEntityIds: { importBatchIds: batch ? [batch.id] : [], sampleIds: [...sampleIds] },
   }));
@@ -165,7 +167,7 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
       ...assignmentSummaries,
     ],
     nextActionLabel: activeStudies.length === 0 ? 'Create sensory study' : studyWarnings.length > 0 ? 'Review study setup' : 'Open studies',
-    nextActionRoute: WORKFLOW_STAGE_ROUTES.studies,
+    nextActionRoute: routeFor('studies'),
     detail: activeStudies.length > 0 ? `${activeStudies.length} active stud${activeStudies.length === 1 ? 'y' : 'ies'} configured.` : 'No sensory study has been created for this project yet.',
     relatedEntityIds: { productIds: activeStudies.map(product => product.id) },
   }));
@@ -197,7 +199,7 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
     warnings: responseWarnings,
     completedItems: responseCompleted > 0 ? [`${responseCompleted}/${responseTarget} target responses collected`] : [],
     nextActionLabel: enoughResponses ? 'View response progress' : 'Collect responses',
-    nextActionRoute: WORKFLOW_STAGE_ROUTES.responses,
+    nextActionRoute: routeFor('responses'),
     detail: activeStudies.length === 0 ? 'No active study is available for panelists.' : responseCompleted === 0 ? `0/${responseTarget} target responses collected. The study exists, but no panelist has submitted yet.` : `${responseCompleted}/${responseTarget} target responses collected.`,
     relatedEntityIds: { productIds: projectProducts.map(product => product.id) },
   }));
@@ -222,7 +224,7 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
       hasEtongue ? 'Instrumental comparison available' : null,
     ].filter((item): item is string => Boolean(item)),
     nextActionLabel: enoughResponses ? 'Open insights' : 'Check insight readiness',
-    nextActionRoute: WORKFLOW_STAGE_ROUTES.insights,
+    nextActionRoute: routeFor('insights'),
     detail: responseCompleted > 0 && hasEtongue ? 'Sensory aggregation and instrumental data can be reviewed.' : 'Insights require responses and linked instrumental data.',
   }));
 
@@ -241,7 +243,7 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
     warnings: decisionWarnings,
     completedItems: latestDecision ? [`${latestDecision.decision} decision recorded at ISSF ${latestDecision.issfScore.toFixed(0)}`] : [],
     nextActionLabel: latestDecision?.decision === 'TWEAK' ? 'Review tweak plan' : latestDecision?.decision === 'STOP' ? 'Review STOP rationale' : latestDecision ? 'Open decision record' : 'Review decision',
-    nextActionRoute: WORKFLOW_STAGE_ROUTES.decision,
+    nextActionRoute: routeFor('decision'),
     detail: latestDecision ? `${latestDecision.decision} decision has been confirmed.${latestDecision.decision === 'GO' ? ' Concept and report paths are unlocked.' : ' This does not unlock commercialization readiness.'}` : 'Decision recommendation is waiting for review.',
     relatedEntityIds: { decisionRecordIds: latestDecision ? [latestDecision.id] : [] },
   }));
@@ -275,7 +277,7 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
       conceptResponses > 0 ? `${conceptResponses} concept response${conceptResponses === 1 ? '' : 's'} collected` : null,
     ].filter((item): item is string => Boolean(item)),
     nextActionLabel: !goDecision ? 'Go to decision' : projectConcepts.length === 0 ? 'Create concept test' : conceptResponses > 0 ? 'Review concept results' : 'Launch concept test',
-    nextActionRoute: goDecision ? WORKFLOW_STAGE_ROUTES.concept : WORKFLOW_STAGE_ROUTES.decision,
+    nextActionRoute: goDecision ? routeFor('concept') : routeFor('decision'),
     detail: !goDecision ? 'Concept testing unlocks after a GO decision.' : projectConcepts.length > 0 ? `${projectConcepts.length} concept test${projectConcepts.length === 1 ? '' : 's'} found.` : 'No concept test has been created yet.',
     relatedEntityIds: { conceptTestIds: projectConcepts.map(concept => concept.id) },
   }));
@@ -333,7 +335,7 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
         : reportStatus === 'complete' || reportStatus === 'ready'
           ? 'Export report'
           : 'Open report workspace',
-    nextActionRoute: latestReport ? `/report?report=${latestReport.id}` : WORKFLOW_STAGE_ROUTES.report,
+    nextActionRoute: latestReport ? routeFor('report', `?report=${latestReport.id}`) : routeFor('report'),
     detail: latestReport ? `Latest report is ${latestReport.status}.` : 'No commercialization report snapshot has been saved yet.',
     relatedEntityIds: { reportIds: projectReports.map(report => report.id) },
   }));

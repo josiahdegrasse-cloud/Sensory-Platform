@@ -44,8 +44,8 @@ export function ReportBrandStrip({ settings }: { settings?: WorkspaceSettings | 
   const orgName = settings?.organizationName || DEFAULT_REPORT_ORGANIZATION_NAME;
   return (
     <div
-      className="flex items-center gap-3 rounded-lg border border-t-4 border-slate-200 bg-white px-4 py-2.5"
-      style={settings?.accentColor ? { borderTopColor: settings.accentColor } : undefined}
+      className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5"
+      style={settings?.accentColor ? { borderColor: settings.accentColor } : undefined}
     >
       {settings?.logoUrl && (
         <img src={settings.logoUrl} alt={`${orgName} logo`} className="h-7 w-auto object-contain" />
@@ -113,8 +113,8 @@ export function ReportCoverHeader({ settings, sampleName, foodTypeLabel, decisio
   const orgName = settings?.organizationName || DEFAULT_REPORT_ORGANIZATION_NAME;
   return (
     <div
-      className="break-inside-avoid overflow-hidden rounded-xl border border-t-4 border-slate-200 bg-white px-6 py-5"
-      style={settings?.accentColor ? { borderTopColor: settings.accentColor } : undefined}
+      className="break-inside-avoid overflow-hidden rounded-lg border border-slate-200 bg-white px-6 py-5"
+      style={settings?.accentColor ? { borderColor: settings.accentColor } : undefined}
     >
       <div className="flex items-center gap-3">
         {settings?.logoUrl && (

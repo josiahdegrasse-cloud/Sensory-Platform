@@ -5,7 +5,7 @@ import {
   Lightbulb, ChevronRight, FolderKanban, Plus, ArrowRight, FileText,
 } from "lucide-react";
 import { useFoodType } from "../contexts/food-type-context";
-import { encodeBatchSelection } from "../lib/project-identity";
+import { encodeBatchSelection, projectRoutePath } from "../lib/project-identity";
 import { useWorkspaceSettings } from "../lib/hooks";
 import { useProjectStatusList, type ProjectStatusListEntry } from "../lib/use-project-status";
 import { ProjectCard } from "./project-card";
@@ -65,9 +65,9 @@ function ModuleCard({ module }: { module: Module }) {
   const Icon = module.icon;
   return (
     <Link to={module.path} className="block">
-      <Card className="h-full border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer group bg-white">
-        <CardContent className="pt-5 pb-5 flex flex-col gap-3">
-          <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center">
+      <Card className="h-full cursor-pointer border-slate-200 bg-white transition-colors hover:border-slate-300 hover:bg-slate-50 group">
+        <CardContent className="flex flex-col gap-3 py-5">
+          <div className="flex size-10 items-center justify-center rounded-md border border-slate-200 bg-white">
             <Icon className="size-5 text-slate-600" aria-hidden />
           </div>
           <div>
@@ -111,7 +111,7 @@ function AttentionRail({ entries, onOpen }: {
             key={entry.batch.id}
             projectName={entry.status.projectName}
             action={entry.status.nextAction}
-            projectPath={`/project/${entry.batch.id}`}
+            projectPath={projectRoutePath(entry.batch)}
             onNavigate={() => onOpen(entry)}
           />
         ))}
@@ -145,7 +145,7 @@ function ProjectTable({ entries, onOpen }: {
             return (
               <tr key={batch.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-3 py-2.5 font-bold text-slate-900">
-                  <Link to={`/project/${batch.id}`} onClick={() => onOpen(entry)} className="hover:text-blue-700 transition-colors">
+                  <Link to={projectRoutePath(batch)} onClick={() => onOpen(entry)} className="transition-colors hover:text-slate-950">
                     {status.projectName}
                   </Link>
                 </td>
@@ -233,7 +233,7 @@ function ActiveProjects() {
               projectId={entry.batch.id}
               realProjectId={entry.batch.projectId}
               status={entry.status}
-              projectPath={`/project/${entry.batch.id}`}
+              projectPath={projectRoutePath(entry.batch)}
               onOpen={() => open(entry)}
             />
           ))}
@@ -283,7 +283,7 @@ export function OverviewDashboard() {
         </div>
         <Link
           to="/stage1?new=project"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-blue-700"
+          className="inline-flex items-center gap-1.5 rounded-md bg-[var(--brand)] px-3 py-2 text-xs font-bold text-white transition-colors hover:brightness-95"
         >
           <Plus className="size-3.5" aria-hidden /> New project
         </Link>

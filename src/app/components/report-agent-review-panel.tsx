@@ -169,8 +169,13 @@ export function ReportAgentReviewPanel({
             const done = key === 'deterministic_qc'
               ? Boolean(result)
               : completedAgents.has(key as never);
+            const stepToneClass = done
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : runningMode
+                ? 'border-blue-200 bg-blue-50 text-blue-800'
+                : 'border-slate-200 bg-slate-50 text-slate-500';
             return (
-              <div key={key} className={`rounded-lg border px-3 py-2 text-xs ${done ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : runningMode ? 'border-blue-200 bg-blue-50 text-blue-800' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
+              <div key={key} className={`rounded-lg border px-3 py-2 text-xs ${stepToneClass}`}>
                 <div className="font-semibold">{label}</div>
                 <div>{done ? 'Complete' : runningMode ? 'Queued / running' : 'Waiting'}</div>
               </div>

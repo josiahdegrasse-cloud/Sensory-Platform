@@ -605,6 +605,9 @@ export function MultiSampleQuestionnaire() {
   // Palate cleanse interstitial
   if (currentStep === 'cleanse') {
     const nextSampleCode = samples[currentSampleIndex + 1]?.code ?? '';
+    const cleanseBadgeClass = cleanseCountdown > 0
+      ? 'border-slate-300 text-slate-700 bg-slate-50'
+      : 'border-emerald-300 text-emerald-800 bg-emerald-50';
     return (
       <div className="max-w-4xl mx-auto">
         <Card className="border border-slate-200 bg-white">
@@ -616,9 +619,7 @@ export function MultiSampleQuestionnaire() {
               Take a sip of water and eat a plain cracker. Wait 30 seconds before continuing.
             </p>
             <div className="flex items-center justify-center">
-              <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl font-bold border-4 ${
-                cleanseCountdown > 0 ? 'border-slate-300 text-slate-700 bg-slate-50' : 'border-emerald-300 text-emerald-700 bg-emerald-50'
-              }`}>
+              <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl font-bold border-4 ${cleanseBadgeClass}`}>
                 {cleanseCountdown > 0 ? cleanseCountdown : <CheckCircle2 className="size-10" />}
               </div>
             </div>

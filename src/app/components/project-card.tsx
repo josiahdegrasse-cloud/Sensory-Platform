@@ -77,7 +77,7 @@ export function ProjectCard({ projectId, realProjectId, status, projectPath, onO
     : null;
 
   return (
-    <Card className="border border-slate-200 bg-white shadow-sm transition-all hover:border-slate-300 hover:shadow-md">
+    <Card className="border-slate-200 bg-white transition-colors hover:border-slate-300">
       <CardContent className="space-y-5 p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-1">
@@ -114,7 +114,7 @@ export function ProjectCard({ projectId, realProjectId, status, projectPath, onO
                 <button
                   type="button"
                   onClick={() => setEditing(true)}
-                  className="rounded-md p-1 text-slate-300 opacity-0 transition-opacity hover:bg-slate-100 hover:text-slate-600 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-blue-500 group-hover:opacity-100"
+                  className="rounded-md p-1 text-slate-300 opacity-0 transition-opacity hover:bg-slate-100 hover:text-slate-600 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-[var(--brand)] group-hover:opacity-100"
                   aria-label={`Rename ${status.projectName}`}
                 >
                   <Pencil className="size-3.5" />
@@ -130,7 +130,7 @@ export function ProjectCard({ projectId, realProjectId, status, projectPath, onO
               <Link
                 to={projectPath}
                 onClick={onOpen}
-                className="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:border-blue-300 hover:text-blue-700"
+                className="inline-flex min-h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-950"
               >
                 Open project
               </Link>
@@ -191,7 +191,7 @@ export function ProjectCard({ projectId, realProjectId, status, projectPath, onO
           </div>
         )}
 
-        <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-semibold text-slate-500">Next step</p>
             <p className="mt-0.5 text-sm font-semibold text-slate-950">{status.nextAction.label}</p>

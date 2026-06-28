@@ -229,7 +229,7 @@ export function LoginPage({ onSignup, branding }: Props) {
                       placeholder="you@company.com"
                       value={resetEmail}
                       onChange={(e) => setResetEmail(e.target.value)}
-                      className="h-11 border-slate-200 rounded-lg"
+                      className="h-11 rounded-md border-slate-200"
                       required
                     />
                   </div>
@@ -241,7 +241,7 @@ export function LoginPage({ onSignup, branding }: Props) {
                   )}
                   <Button
                     type="submit"
-                    className="w-full h-11 text-white font-semibold text-sm rounded-lg transition-colors"
+                    className="h-11 w-full rounded-md text-sm font-semibold text-white transition-colors"
                     style={{ background: accent }}
                     onMouseEnter={e => (e.currentTarget.style.background = accentHover)}
                     onMouseLeave={e => (e.currentTarget.style.background = accent)}
@@ -277,7 +277,7 @@ export function LoginPage({ onSignup, branding }: Props) {
                     placeholder="you@company.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="h-11 border-slate-200 rounded-lg"
+                    className="h-11 rounded-md border-slate-200"
                     required
                   />
                 </div>
@@ -292,7 +292,7 @@ export function LoginPage({ onSignup, branding }: Props) {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="h-11 border-slate-200 rounded-lg"
+                    className="h-11 rounded-md border-slate-200"
                     required
                   />
                 </div>
@@ -316,7 +316,7 @@ export function LoginPage({ onSignup, branding }: Props) {
 
                 <Button
                   type="submit"
-                  className="w-full h-11 text-white font-semibold text-sm rounded-lg transition-colors"
+                  className="h-11 w-full rounded-md text-sm font-semibold text-white transition-colors"
                   style={{ background: accent }}
                   onMouseEnter={e => (e.currentTarget.style.background = accentHover)}
                   onMouseLeave={e => (e.currentTarget.style.background = accent)}
@@ -324,7 +324,7 @@ export function LoginPage({ onSignup, branding }: Props) {
                 >
                   {loading ? 'Signing in…' : (
                     <span className="flex items-center gap-2">
-                      Sign In <ChevronRight className="size-4" />
+                      Sign in <ChevronRight className="size-4" />
                     </span>
                   )}
                 </Button>
@@ -342,7 +342,7 @@ export function LoginPage({ onSignup, branding }: Props) {
                     variant="outline"
                     onClick={handleGoogle}
                     disabled={googleLoading}
-                    className="w-full h-11 border-slate-200 rounded-lg font-semibold text-sm text-slate-700 hover:bg-slate-50"
+                    className="h-11 w-full rounded-md border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                   >
                     <span className="flex items-center gap-2.5">
                       <GoogleMark />

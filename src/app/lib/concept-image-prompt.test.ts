@@ -9,7 +9,10 @@ import {
   normalizePromptStyle,
 } from '../../../supabase/functions/_shared/concept-image-catalog.ts';
 import {
+  AI_ARTIFACTS_TO_AVOID,
   PLATFORM_FORBIDDEN_IN_IMAGES,
+  PROFESSIONAL_ART_DIRECTION_REQUIREMENTS,
+  RETAIL_READINESS_REQUIREMENTS,
   buildConceptImageBrief,
   buildConceptImagePrompt,
   type ConceptImageBriefInput,
@@ -161,6 +164,27 @@ describe('buildConceptImagePrompt', () => {
     }
   });
 
+  it('adds professional art-direction and retail-readiness criteria to every prompt', () => {
+    const { prompt } = buildConceptImagePrompt(buildConceptImageBrief(baseInput));
+    expect(prompt).toContain('Professional art direction requirements');
+    expect(prompt).toContain('Retail readiness requirements');
+    for (const requirement of PROFESSIONAL_ART_DIRECTION_REQUIREMENTS) {
+      expect(prompt).toContain(requirement);
+    }
+    for (const requirement of RETAIL_READINESS_REQUIREMENTS) {
+      expect(prompt).toContain(requirement);
+    }
+  });
+
+  it('suppresses common AI-image artifacts explicitly', () => {
+    const { prompt } = buildConceptImagePrompt(buildConceptImageBrief(baseInput));
+    expect(prompt).toContain('Avoid AI-image tells');
+    for (const artifact of AI_ARTIFACTS_TO_AVOID) {
+      expect(prompt).toContain(artifact);
+    }
+    expect(prompt).toContain('no obvious generative artifacts');
+  });
+
   it('includes concept-level forbidden claims', () => {
     const { prompt } = buildConceptImagePrompt(buildConceptImageBrief(baseInput));
     expect(prompt).toContain('lowers cholesterol');
@@ -190,6 +214,25 @@ describe('buildConceptImagePrompt', () => {
     expect(lifestyle.prompt).toContain('Do not render readable text');
     const shelf = buildConceptImagePrompt(buildConceptImageBrief({ ...baseInput, imageMode: 'shelf' }));
     expect(shelf.prompt).toContain('at most the product name');
+  });
+
+  it('applies retail-format craft directions to the core retail modes', () => {
+    const packaging = buildConceptImagePrompt(buildConceptImageBrief({ ...baseInput, imageMode: 'packaging' }));
+    expect(packaging.prompt).toContain('Packaging craft');
+    expect(packaging.prompt).toContain('dieline/pack shape');
+    expect(packaging.prompt).toContain('front label hierarchy');
+
+    const shelf = buildConceptImagePrompt(buildConceptImageBrief({ ...baseInput, imageMode: 'shelf' }));
+    expect(shelf.prompt).toContain('Shelf craft');
+    expect(shelf.prompt).toContain('generic neighboring products');
+
+    const ecommerce = buildConceptImagePrompt(buildConceptImageBrief({ ...baseInput, imageMode: 'ecommerce' }));
+    expect(ecommerce.prompt).toContain('Ecommerce craft');
+    expect(ecommerce.prompt).toContain('clean margins');
+
+    const buyer = buildConceptImagePrompt(buildConceptImageBrief({ ...baseInput, imageMode: 'buyer_presentation' }));
+    expect(buyer.prompt).toContain('Buyer-presentation craft');
+    expect(buyer.prompt).toContain('commercialization deck');
   });
 
   it('varies the style direction across all ten styles', () => {

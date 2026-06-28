@@ -12,3 +12,12 @@ export function parseBatchSelection(subCategory: string | null | undefined): str
 export function encodeBatchSelection(batchId: string): string {
   return `batch:${batchId}`;
 }
+
+export interface ProjectRouteIdentity {
+  id: string;
+  projectId?: string | null;
+}
+
+export function projectRoutePath(project: ProjectRouteIdentity): string {
+  return `/project/${project.projectId ?? project.id}`;
+}

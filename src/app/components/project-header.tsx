@@ -2,7 +2,7 @@ import { ArrowRight } from 'lucide-react';
 import { Link, useLocation } from 'react-router';
 import { Card, CardContent } from './ui/card';
 import { useFoodType } from '../contexts/food-type-context';
-import { parseBatchSelection } from '../lib/project-identity';
+import { parseBatchSelection, projectRoutePath } from '../lib/project-identity';
 import { useProjectStatus } from '../lib/use-project-status';
 import { useImportBatches } from '../lib/hooks';
 import { ProjectStatusBadge } from './project-status-badge';
@@ -33,6 +33,7 @@ export function ProjectHeader() {
   const currentBatch = importBatchId ? importBatches.find(batch => batch.id === importBatchId) ?? null : null;
   const isUnassignedBatch = currentBatch != null && !currentBatch.projectId;
   const displayName = currentBatch?.projectName ?? status.projectName;
+  const commandCenterPath = currentBatch ? projectRoutePath(currentBatch) : '/project';
 
   return (
     <Card className="border border-slate-200 bg-white">
@@ -41,7 +42,7 @@ export function ProjectHeader() {
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Current project</p>
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-lg font-bold text-slate-900 truncate">
-              <Link to="/project" className="hover:text-blue-700 transition-colors" title="Open this project's command center">
+              <Link to={commandCenterPath} className="hover:text-blue-700 transition-colors" title="Open this project's command center">
                 {displayName}
               </Link>
             </h2>
@@ -65,7 +66,7 @@ export function ProjectHeader() {
         </div>
 
         <div className="flex items-center gap-3">
-          <ProjectJourneyNav stages={status.stages} />
+          <ProjectJourneyNav stages={status.stages} projectId={currentBatch?.projectId ?? currentBatch?.id ?? null} />
           {showNextAction && (
             <Link
               to={status.nextAction.path}

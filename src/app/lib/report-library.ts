@@ -2,6 +2,8 @@ import type { CommercializationReportRecord, ConceptTest, DecisionRecord } from 
 import type { CommercializationReportSnapshot } from './commercialization-report';
 import type { ReportReadiness } from './report-context-builder';
 
+export type ReportReleaseStatus = 'client_ready' | 'internal_draft' | 'demonstration_only' | 'blocked';
+
 export interface ReportLibraryEntry {
   key: string;
   latest: CommercializationReportRecord;
@@ -16,6 +18,7 @@ export interface ReportLibraryEntry {
   blockers: string[];
   warnings: string[];
   evidenceProvenance: ReportReadiness['evidenceProvenance'];
+  releaseStatus: ReportReleaseStatus;
   readiness?: ReportReadiness;
 }
 
@@ -23,6 +26,22 @@ function asSnapshot(report: CommercializationReportRecord): CommercializationRep
   const snapshot = report.reportSnapshot as unknown as Partial<CommercializationReportSnapshot>;
   if (!snapshot?.product?.sampleName || !snapshot?.decision?.recordId) return null;
   return snapshot as CommercializationReportSnapshot;
+}
+
+export function getReportReleaseStatus(input: {
+  reportStatus: CommercializationReportRecord['status'];
+  exportReady: boolean;
+  approvalReady: boolean;
+  blockers: string[];
+  evidenceProvenance: ReportReadiness['evidenceProvenance'];
+}): ReportReleaseStatus {
+  const hasReferenceEvidence = Object.values(input.evidenceProvenance).some(value => value === 'reference');
+  const hasMissingRequiredEvidence = input.evidenceProvenance.concept === 'none' || input.blockers.length > 0;
+
+  if (hasReferenceEvidence) return 'demonstration_only';
+  if (hasMissingRequiredEvidence || !input.exportReady) return 'blocked';
+  if (input.reportStatus === 'approved' && input.approvalReady) return 'client_ready';
+  return 'internal_draft';
 }
 
 export function buildReportLibrary(
@@ -52,6 +71,11 @@ export function buildReportLibrary(
       const concept = conceptsById.get(latest.conceptTestId);
       const readiness = readinessByReportId[latest.id];
 
+      const exportReady = readiness?.exportReady ?? false;
+      const approvalReady = readiness?.approvalReady ?? false;
+      const blockers = readiness?.blockers ?? (snapshot ? [] : ['Saved report snapshot is incomplete.']);
+      const evidenceProvenance = readiness?.evidenceProvenance ?? { sensory: 'none', instrumental: 'none', concept: 'none', purchaseIntent: 'none' };
+
       return {
         key,
         latest,
@@ -61,11 +85,18 @@ export function buildReportLibrary(
         foodType: snapshot?.product.foodType ?? concept?.foodTypeSlug ?? 'Uncategorized',
         conceptName: snapshot?.concept.name ?? concept?.name ?? 'Concept not available',
         decision: snapshot?.decision.outcome ?? decision?.decision ?? 'Unknown',
-        exportReady: readiness?.exportReady ?? false,
-        approvalReady: readiness?.approvalReady ?? false,
-        blockers: readiness?.blockers ?? (snapshot ? [] : ['Saved report snapshot is incomplete.']),
+        exportReady,
+        approvalReady,
+        blockers,
         warnings: readiness?.warnings ?? [],
-        evidenceProvenance: readiness?.evidenceProvenance ?? { sensory: 'none', instrumental: 'none', concept: 'none', purchaseIntent: 'none' },
+        evidenceProvenance,
+        releaseStatus: getReportReleaseStatus({
+          reportStatus: latest.status,
+          exportReady,
+          approvalReady,
+          blockers,
+          evidenceProvenance,
+        }),
         readiness,
       };
     })

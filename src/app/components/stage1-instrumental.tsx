@@ -2,13 +2,11 @@ import { CHART_CHROME } from '../styles/tokens';
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useFoodType } from "../contexts/food-type-context";
-import { parseBatchSelection } from "../lib/project-identity";
 import { useAuth } from "../contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { FlaskConical, AlertCircle, Upload, X, Check, Download, BarChart3, ClipboardList, Lightbulb, ArrowRight } from "lucide-react";
-import { SAMPLES } from "../data/samples";
 import { formatFoodTypeLabel, slugifyFoodType } from "../lib/food-intelligence";
 import { useInsertInstrumentalImport, useInstrumentalDataset } from "../lib/hooks";
 import { isMissingFoodImportSchema, downloadPendingImportFile, markPendingImportImported } from "../lib/database";
@@ -28,22 +26,24 @@ import {
   Radar,
 } from "recharts";
 import { ProjectHeader } from "./project-header";
+import { ProductListItem, ProductListPanel } from './product-list';
 import { applyImportMappings, inferImportMappings } from "../lib/csv-import-mapping";
 
 
 import {
-  type ETongueMeasurement, type GCMSCompound, type ChemicalComposition,
   type ColumnReport, type ImportCompletionSummary, type RetestImportContext,
-  MAX_FILE_SIZE, DEMO_TYPES, RETEST_PARENT_DECISION_KEY,
-  parseCSVLine, mergeInstrumentalData,
-  inferType, inferCategory, getPointColor,
+  MAX_FILE_SIZE, DEMO_TYPES,
+  parseCSVLine,
+  getPointColor,
   buildImportedDataset, validateImportedDataset, applyImportedDataset, buildRetestBatchName,
 } from "./stage1-instrumental-data";
+import {
+  useInstrumentalChartViewModel,
+  useInstrumentalWorkspace,
+} from './stage1-instrumental-hooks';
 
 
 export function Stage1Instrumental() {
-  const storedImportedData = useMemo(() => null, []);
-  const initialDataset = useMemo(() => mergeInstrumentalData(storedImportedData), [storedImportedData]);
   const location = useLocation();
   const navigate = useNavigate();
   type LocationState = {
@@ -61,27 +61,42 @@ export function Stage1Instrumental() {
   const { user } = useAuth();
   const instrumentalDatasetQuery = useInstrumentalDataset(user?.role === 'admin');
   const insertInstrumentalImport = useInsertInstrumentalImport();
-  const [selectedSamples, setSelectedSamples] = useState<string[]>([]);
-  const [eTongueData, setETongueData] = useState<ETongueMeasurement[]>(initialDataset.eTongueData);
-  const [gcmsData, setGcmsData] = useState<Record<string, GCMSCompound[]>>(initialDataset.gcmsData);
-  const [compositionData, setCompositionData] = useState<Record<string, ChemicalComposition>>(initialDataset.compositionData);
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<Record<string, string>[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [importStep, setImportStep] = useState<1 | 2 | 3>(1);
   const [batchName, setBatchName] = useState('');
-  const [compareMode, setCompareMode] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [lastImportSummary, setLastImportSummary] = useState<ImportCompletionSummary | null>(null);
   const [columnReport, setColumnReport] = useState<ColumnReport | null>(null);
   const [foodTypeOverride, setFoodTypeOverride] = useState('');
-  const [, setUsingDemoData] = useState(!storedImportedData);
   const [isLoadingFromQueue, setIsLoadingFromQueue] = useState(!!pendingStoragePath);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const projectNameInputRef = useRef<HTMLInputElement>(null);
   const { foodType, subCategory, setSelection, registerFoodTypes, archivedFoodTypes, deletedFoodTypes } = useFoodType();
+  const {
+    selectedSamples,
+    setSelectedSamples,
+    setETongueData,
+    gcmsData,
+    setGcmsData,
+    compositionData,
+    setCompositionData,
+    compareMode,
+    setCompareMode,
+    filteredETongueData,
+  } = useInstrumentalWorkspace({
+    remoteDataset: instrumentalDatasetQuery.data,
+    foodType,
+    subCategory,
+    archivedFoodTypes,
+    deletedFoodTypes,
+    registerFoodTypes,
+    setSelection,
+    onDeleteSuccess: setImportSuccess,
+  });
 
   useEffect(() => {
     if (!newProjectIntent) return;
@@ -139,49 +154,6 @@ export function Stage1Instrumental() {
     if (!showPreview || !importSummary) return null;
     return validateImportedDataset(previewData, importSummary, columnReport, importSummary.detection);
   }, [columnReport, importSummary, previewData, showPreview]);
-
-  useEffect(() => {
-    const dataset = instrumentalDatasetQuery.data;
-    if (!dataset || dataset.eTongueData.length === 0) return;
-    const mergedDataset = mergeInstrumentalData(dataset);
-    setETongueData(mergedDataset.eTongueData);
-    setGcmsData(mergedDataset.gcmsData);
-    setCompositionData(mergedDataset.compositionData);
-    setUsingDemoData(false);
-    if (!mergedDataset.eTongueData.find(sample => sample.sampleId === selectedSamples[0])) {
-      setSelectedSamples([mergedDataset.eTongueData[0].sampleId]);
-    }
-  }, [instrumentalDatasetQuery.data, selectedSamples]);
-
-  const importedFoodTypes = useMemo(() => [...new Set(
-    eTongueData.map(s => s.type).filter((t): t is string => !!t && !DEMO_TYPES.has(t))
-  )].sort(), [eTongueData]);
-
-  // Reactively register any novel food types whenever imported data changes
-  useEffect(() => {
-    registerFoodTypes(importedFoodTypes);
-  }, [importedFoodTypes, registerFoodTypes]);
-
-  const filteredETongueData = eTongueData.filter(s => {
-    const t = (s.type || inferType(s.sampleId)).toLowerCase();
-    const canonicalType = t === 'dairy' || t === 'pbca' ? 'cheese' : t;
-    if (archivedFoodTypes.includes(canonicalType)) return false;
-    if (deletedFoodTypes.includes(canonicalType)) return false;
-    const batchSelection = parseBatchSelection(subCategory);
-    if (batchSelection) return s.importBatchId === batchSelection;
-    if (foodType === 'all') return true;
-    if (foodType === 'bread')  return t === 'bread'  || s.sampleId.toUpperCase().startsWith('B');
-    if (foodType === 'cheese') return t === 'dairy'  || t === 'pbca' || s.sampleId.toUpperCase().startsWith('S') || s.sampleId.toUpperCase().startsWith('D');
-    if (foodType === 'meat') return t === 'meat' || s.sampleId.toUpperCase().startsWith('M');
-    // Custom food type: direct match
-    return t === foodType.toLowerCase();
-  });
-
-  useEffect(() => {
-    if (filteredETongueData.length > 0 && !filteredETongueData.find(s => s.sampleId === selectedSamples[0])) {
-      setSelectedSamples([filteredETongueData[0].sampleId]);
-    }
-  }, [filteredETongueData, selectedSamples]);
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -301,9 +273,6 @@ export function Stage1Instrumental() {
           : undefined,
       });
 
-      if (retestImport?.parentDecisionId) {
-        localStorage.setItem(RETEST_PARENT_DECISION_KEY, retestImport.parentDecisionId);
-      }
       const nextDataset = savedDataset.eTongueData.length > 0 ? savedDataset : parsed;
       applyImportedDataset(nextDataset, setETongueData, setGcmsData, setCompositionData, setSelectedSamples);
     } catch (err) {
@@ -346,6 +315,7 @@ export function Stage1Instrumental() {
       gcmsCount: importedGCMSCount,
       compositionCount: importedCompCount,
       savedPermanently,
+      retestParentDecisionId: retestImport?.parentDecisionId ?? null,
     });
     setShowPreview(false);
     setUploadedFile(null);
@@ -353,7 +323,6 @@ export function Stage1Instrumental() {
     setFoodTypeOverride('');
     setBatchName('');
     setImportStep(1);
-    setUsingDemoData(false);
     setImportError(null);
 
     // reset file input so the same file can be re-uploaded
@@ -371,81 +340,27 @@ export function Stage1Instrumental() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const deleteImportedFoodTypeData = (type: string) => {
-    const sampleIds = eTongueData.filter(sample => sample.type === type).map(sample => sample.sampleId);
-    const remainingETongueData = eTongueData.filter(sample => sample.type !== type);
-    if (remainingETongueData.length === 0) {
-      setETongueData([]);
-      setGcmsData({});
-      setCompositionData({});
-      setSelectedSamples([]);
-      setUsingDemoData(false);
-      if (foodType === type) setSelection('', null);
-      return;
-    }
-    setETongueData(remainingETongueData);
-    setGcmsData(prev => {
-      const next = { ...prev };
-      sampleIds.forEach(sampleId => { delete next[sampleId]; });
-      return next;
-    });
-    setCompositionData(prev => {
-      const next = { ...prev };
-      sampleIds.forEach(sampleId => { delete next[sampleId]; });
-      return next;
-    });
-    setImportSuccess(`Deleted ${formatFoodTypeLabel(type)} data.`);
-    if (foodType === type) setSelection('', null);
-  };
-
-  // Listen for cross-component delete requests. Declared after
-  // deleteImportedFoodTypeData so the handler can call it without a TDZ hazard.
-  useEffect(() => {
-    const handleDelete = (event: Event) => {
-      const type = (event as CustomEvent<{ type?: string }>).detail?.type;
-      if (!type) return;
-      deleteImportedFoodTypeData(type);
-    };
-
-    window.addEventListener('sensory-food-type-delete', handleDelete);
-    return () => window.removeEventListener('sensory-food-type-delete', handleDelete);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eTongueData, foodType]);
-
   // ── derived display data ──────────────────────────────────────────────────
 
-  const displayedSamples = filteredETongueData.map((sample, idx) => {
-    const sampleInfo = SAMPLES.find((s) => s.id === sample.sampleId);
-    const type = sample.type || sampleInfo?.type || inferType(sample.sampleId);
-    const category = sample.category || sampleInfo?.category || inferCategory(sample.sampleId, "", type);
-    return { id: sample.sampleId, uniqueKey: `${sample.sampleId}-${idx}`, name: sample.sampleName || sampleInfo?.name || sample.sampleId, category, type };
+  const {
+    displayedSamples,
+    pcaData,
+    selectedSampleData,
+    selectedGCMSData,
+    selectedCompositionData,
+    selectedColor,
+    activeFoodTypeLabel,
+    radarData,
+    compareRadarSeries,
+    compareRadarChartData,
+  } = useInstrumentalChartViewModel({
+    filteredETongueData,
+    gcmsData,
+    compositionData,
+    selectedSamples,
+    compareMode,
+    foodType,
   });
-
-  const pcaData = filteredETongueData.map((sample, idx) => {
-    const pc1 = sample.saltiness * 0.5 + sample.umami * 0.4 - sample.sourness * 0.3;
-    const pc2 = sample.bitterness * 0.4 + sample.sourness * 0.35 - sample.sweetness * 0.25;
-    const sampleInfo = SAMPLES.find((s) => s.id === sample.sampleId);
-    const type = sample.type || sampleInfo?.type || inferType(sample.sampleId);
-    const category = sample.category || sampleInfo?.category || inferCategory(sample.sampleId, "", type);
-    return {
-      id: `pca-${sample.sampleId}-${idx}`,
-      sampleId: sample.sampleId,
-      uniqueKey: `${sample.sampleId}-${idx}`,
-      name: sample.sampleName || sampleInfo?.name || sample.sampleId,
-      pc1: Number(pc1.toFixed(2)),
-      pc2: Number(pc2.toFixed(2)),
-      category,
-      type,
-    };
-  });
-
-  const selectedSampleData      = filteredETongueData.find((s) => s.sampleId === selectedSamples[0]);
-  const selectedGCMSData        = gcmsData[selectedSamples[0]] || [];
-  const selectedCompositionData = compositionData[selectedSamples[0]] || {};
-  const selectedSampleInfo      = displayedSamples.find((s) => s.id === selectedSamples[0]);
-  const selectedColor           = getPointColor(selectedSampleInfo?.type, selectedSampleInfo?.category);
-  const comparisonColors        = ["#9333ea", "#ec4899"];
-  const activeFoodTypeLabel     = foodType === 'all' ? 'all sample types' : formatFoodTypeLabel(foodType);
 
   const viewImportedCharts = (summary: ImportCompletionSummary) => {
     setSelection(summary.foodTypeSlug, null);
@@ -454,55 +369,12 @@ export function Stage1Instrumental() {
     }, 0);
   };
 
-  const openImportedWorkflow = (summary: ImportCompletionSummary, path: '/admin' | '/concept-testing') => {
+  const openImportedWorkflow = (summary: ImportCompletionSummary, path: '/admin' | '/concept-testing' | '/decision') => {
     setSelection(summary.foodTypeSlug, null);
-    navigate(path);
+    navigate(path, {
+      state: summary.retestParentDecisionId ? { retestParentDecisionId: summary.retestParentDecisionId } : undefined,
+    });
   };
-
-  const radarData = selectedSampleData
-    ? [
-        { id: "sourness",   taste: "Sourness",   value: selectedSampleData.sourness,   fullMark: 5 },
-        { id: "bitterness", taste: "Bitterness", value: selectedSampleData.bitterness, fullMark: 5 },
-        { id: "saltiness",  taste: "Saltiness",  value: selectedSampleData.saltiness,  fullMark: 5 },
-        { id: "umami",      taste: "Umami",      value: selectedSampleData.umami,      fullMark: 5 },
-        { id: "sweetness",  taste: "Sweetness",  value: selectedSampleData.sweetness,  fullMark: 5 },
-      ]
-    : [];
-
-  const compareRadarSeries = compareMode
-    ? selectedSamples
-        .map((sampleId, idx) => {
-          const sample = filteredETongueData.find((s) => s.sampleId === sampleId);
-          if (!sample) return null;
-          return {
-            sampleId,
-            name: displayedSamples.find((s) => s.id === sampleId)?.name || sampleId,
-            color: comparisonColors[idx % comparisonColors.length],
-            dataKey: `sample_${idx}`,
-            values: {
-              Sourness: sample.sourness, Bitterness: sample.bitterness,
-              Saltiness: sample.saltiness, Umami: sample.umami, Sweetness: sample.sweetness,
-            },
-          };
-        })
-        .filter((item): item is NonNullable<typeof item> => item !== null)
-    : [];
-
-  const compareRadarChartData = compareMode
-    ? [
-        { id: "sourness",   taste: "Sourness",   fullMark: 5 },
-        { id: "bitterness", taste: "Bitterness", fullMark: 5 },
-        { id: "saltiness",  taste: "Saltiness",  fullMark: 5 },
-        { id: "umami",      taste: "Umami",      fullMark: 5 },
-        { id: "sweetness",  taste: "Sweetness",  fullMark: 5 },
-      ].map((row) => {
-        const nextRow: Record<string, string | number> = { ...row };
-        compareRadarSeries.forEach((series) => {
-          nextRow[series.dataKey] = series.values[row.taste as keyof typeof series.values];
-        });
-        return nextRow;
-      })
-    : [];
 
   // ── render ────────────────────────────────────────────────────────────────
 
@@ -689,6 +561,11 @@ export function Stage1Instrumental() {
                       <Button variant="outline" size="sm" onClick={() => viewImportedCharts(lastImportSummary)}>
                         <BarChart3 className="size-4 mr-1.5" />View charts
                       </Button>
+                      {lastImportSummary.retestParentDecisionId && (
+                        <Button variant="outline" size="sm" onClick={() => openImportedWorkflow(lastImportSummary, '/decision')}>
+                          <ArrowRight className="size-4 mr-1.5" />Re-run decision
+                        </Button>
+                      )}
                       <Button variant="outline" size="sm" className="text-slate-500" onClick={() => openImportedWorkflow(lastImportSummary, '/concept-testing')}>
                         <Lightbulb className="size-4 mr-1.5" />Concepts (after panel feedback)
                       </Button>
@@ -885,35 +762,31 @@ export function Stage1Instrumental() {
       )}
 
       <div id="machine-results" className="grid grid-cols-4 gap-6 scroll-mt-6">
-        <Card className="border-2 border-slate-200 shadow-sm">
-          <CardHeader className="bg-slate-50 border-b rounded-t-lg">
-            <div className="flex items-center justify-between mb-1">
-              <CardTitle className="text-lg">Sample Selection</CardTitle>
-              <Button
-                variant={compareMode ? "default" : "outline"}
-                size="sm"
-                onClick={() => {
-                  if (compareMode) {
-                    setCompareMode(false);
-                    setSelectedSamples([selectedSamples[0]]);
-                  } else {
-                    setCompareMode(true);
-                    if (selectedSamples.length === 0) setSelectedSamples(["S3"]);
-                  }
-                }}
-                className={compareMode ? "bg-slate-900 hover:bg-slate-700" : ""}
-              >
-                {compareMode ? "Comparing" : "Compare"}
-              </Button>
-            </div>
-            <p className="text-xs text-slate-600 mt-1">
-              {compareMode
-                ? `Select one comparison sample (${selectedSamples.length}/2 selected)`
-                : "Choose a sample to view detailed measurements"}
-            </p>
-          </CardHeader>
-          <CardContent className="pt-4 pr-2">
-            <div className="space-y-2 h-[620px] overflow-y-auto pr-2">
+        <ProductListPanel
+          title="Samples"
+          description={compareMode
+            ? `Select one comparison sample (${selectedSamples.length}/2 selected)`
+            : 'Choose a sample to view detailed measurements'}
+          actions={(
+            <Button
+              variant={compareMode ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                if (compareMode) {
+                  setCompareMode(false);
+                  setSelectedSamples([selectedSamples[0]]);
+                } else {
+                  setCompareMode(true);
+                  if (selectedSamples.length === 0) setSelectedSamples(["S3"]);
+                }
+              }}
+              className={compareMode ? "bg-slate-900 hover:bg-slate-700" : ""}
+            >
+              {compareMode ? "Comparing" : "Compare"}
+            </Button>
+          )}
+        >
+            <div className="max-h-[620px] space-y-1 overflow-y-auto pr-1">
               {displayedSamples.map((sample) => {
                 const hasOffNotes = gcmsData[sample.id]?.some(
                   (c) => c.threshold > 0 && c.concentration > c.threshold
@@ -921,8 +794,18 @@ export function Stage1Instrumental() {
                 const isSelected = selectedSamples.includes(sample.id);
 
                 return (
-                  <button
+                  <ProductListItem
                     key={sample.uniqueKey}
+                    active={isSelected}
+                    title={sample.name}
+                    meta={sample.id}
+                    signal={hasOffNotes ? 'Off-note threshold exceeded' : sample.category}
+                    signalTone={hasOffNotes ? 'critical' : 'neutral'}
+                    trailing={compareMode && isSelected && (
+                      <span className="flex size-5 items-center justify-center rounded-full bg-slate-900">
+                        <Check className="size-3 text-white" />
+                      </span>
+                    )}
                     onClick={() => {
                       if (compareMode) {
                         if (isSelected) {
@@ -936,32 +819,11 @@ export function Stage1Instrumental() {
                         setSelectedSamples([sample.id]);
                       }
                     }}
-                    className={`w-full text-left p-3 rounded-lg border-2 transition-all relative ${
-                      isSelected
-                        ? "border-slate-900 bg-slate-50"
-                        : "border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="font-bold text-slate-900">{sample.name}</div>
-                        <div className="text-xs text-slate-500">{sample.id}</div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {hasOffNotes && <AlertCircle className="size-5 text-rose-600" />}
-                        {compareMode && isSelected && (
-                          <div className="w-5 h-5 rounded-full bg-slate-900 flex items-center justify-center">
-                            <Check className="size-3 text-white" />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </button>
+                  />
                 );
               })}
             </div>
-          </CardContent>
-        </Card>
+        </ProductListPanel>
 
         <div className="col-span-3 space-y-6">
           <div className="grid grid-cols-3 gap-6">

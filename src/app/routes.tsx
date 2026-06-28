@@ -4,9 +4,11 @@ import { MainLayout } from "./components/main-layout";
 import { ProtectedRoute } from "./components/protected-route";
 import { AdminSettings } from "./components/admin-settings";
 import { RouteErrorBoundary } from "./components/route-error-boundary";
+import { LegacyWorkflowRoute } from "./components/legacy-workflow-route";
 
 const OverviewDashboard = lazy(() => import("./components/overview-dashboard").then(m => ({ default: m.OverviewDashboard })));
 const ProjectCommandCenter = lazy(() => import("./components/project-command-center").then(m => ({ default: m.ProjectCommandCenter })));
+const ProjectWorkflowRoute = lazy(() => import("./components/project-workflow-route").then(m => ({ default: m.ProjectWorkflowRoute })));
 const Stage1Instrumental = lazy(() => import("./components/stage1-instrumental").then(m => ({ default: m.Stage1Instrumental })));
 const SurveyAnalysis = lazy(() => import("./components/survey-analysis").then(m => ({ default: m.SurveyAnalysis })));
 const Stage4Enhanced = lazy(() => import("./components/stage4-enhanced").then(m => ({ default: m.Stage4Enhanced })));
@@ -73,16 +75,17 @@ export const router = createBrowserRouter([
         children: [
           { index: true, Component: OverviewDashboard },
           { path: "project", Component: ProjectCommandCenter },
-          { path: "project/:batchId", Component: ProjectCommandCenter },
-          { path: "stage1", Component: Stage1Instrumental },
-          { path: "survey-analysis", Component: SurveyAnalysis },
-          { path: "decision", Component: Stage4Enhanced },
-          { path: "admin", Component: AdminConfig },
+          { path: "project/:projectId", Component: ProjectWorkflowRoute },
+          { path: "project/:projectId/:step", Component: ProjectWorkflowRoute },
+          { path: "stage1", element: <LegacyWorkflowRoute><Stage1Instrumental /></LegacyWorkflowRoute> },
+          { path: "survey-analysis", element: <LegacyWorkflowRoute><SurveyAnalysis /></LegacyWorkflowRoute> },
+          { path: "decision", element: <LegacyWorkflowRoute><Stage4Enhanced /></LegacyWorkflowRoute> },
+          { path: "admin", element: <LegacyWorkflowRoute><AdminConfig /></LegacyWorkflowRoute> },
           { path: "settings", Component: AdminSettings },
-          { path: "concept-testing", Component: ConceptTesting },
-          { path: "reports", Component: ReportsPage },
-          { path: "report", Component: CommercializationReportPage },
-          { path: "commercialization-report", Component: CommercializationReportPage },
+          { path: "concept-testing", element: <LegacyWorkflowRoute><ConceptTesting /></LegacyWorkflowRoute> },
+          { path: "reports", element: <LegacyWorkflowRoute><ReportsPage /></LegacyWorkflowRoute> },
+          { path: "report", element: <LegacyWorkflowRoute><CommercializationReportPage /></LegacyWorkflowRoute> },
+          { path: "commercialization-report", element: <LegacyWorkflowRoute><CommercializationReportPage /></LegacyWorkflowRoute> },
         ],
       },
       {

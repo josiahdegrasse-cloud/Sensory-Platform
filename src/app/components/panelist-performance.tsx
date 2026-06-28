@@ -475,10 +475,10 @@ export function PanelistPerformancePanel() {
         {/* Legend */}
         <div className="pt-2 border-t border-slate-100 flex items-center gap-4 flex-wrap">
           <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">Legend</span>
-          <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /><span className="text-[10px] text-slate-500">Excellent</span></div>
-          <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" /><span className="text-[10px] text-slate-500">Good</span></div>
-          <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" /><span className="text-[10px] text-slate-500">Acceptable</span></div>
-          <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500 inline-block" /><span className="text-[10px] text-slate-500">Poor / Review</span></div>
+          <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /><span className="text-[10px] text-emerald-800">Excellent</span></div>
+          <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" /><span className="text-[10px] text-blue-800">Good</span></div>
+          <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" /><span className="text-[10px] text-amber-800">Acceptable</span></div>
+          <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500 inline-block" /><span className="text-[10px] text-rose-800">Poor / Review</span></div>
           <div className="ml-auto text-[10px] text-slate-400">Repeatability: Pearson r (run1 vs run2) · F-Ratio: ANOVA across products · Deviation: mean |score − panel mean|</div>
         </div>
       </CardContent>

@@ -24,6 +24,19 @@ export interface ImageGenerationOptions {
   spreadModes: boolean;
 }
 
+const CREATIVE_TERRITORY_GUIDANCE: Record<string, string> = {
+  premium_natural: 'Premium grocery restraint: matte materials, natural light, tactile but sparse props.',
+  clean_clinical: 'Precise and transparent: white space, crisp geometry, lab-clean without medical cues.',
+  playful_modern: 'Friendly challenger-brand energy with controlled color and simple graphic confidence.',
+  rustic_artisanal: 'Small-batch credibility with real material texture and no market-stall clutter.',
+  bold_retail: 'Highest shelf impact: simple product name, strong color, clear category recognition.',
+  health_forward: 'Fresh and active without claims: clean daylight, ingredient cues, practical vitality.',
+  indulgent_premium: 'Rich sensory appetite appeal with restrained premium materials and lighting.',
+  family_friendly: 'Warm everyday mealtime credibility, approachable but not cartoonish.',
+  sustainable_earthy: 'Responsible material cues without greenwashing symbols or leaf overload.',
+  minimalist_ecommerce: 'Commerce-first clarity: centered product, white field, no props.',
+};
+
 export function ImageDirectionPanel({
   draft,
   onChange,
@@ -43,10 +56,10 @@ export function ImageDirectionPanel({
   return (
     <div className="space-y-4">
       <div>
-        <Label className="font-medium">Lead visual direction</Label>
+        <Label className="font-medium">Lead marketing format</Label>
         <p className="text-xs text-slate-500 mt-1">
-          Each batch spans genuinely different marketing formats — pick which one leads the set, or switch off
-          “span formats” below to get variations of a single format.
+          Start with the format most useful for this decision. For retail concept work, packaging, shelf,
+          ecommerce, and buyer presentation usually give the cleanest signal.
         </p>
         <Select value={options.mode} onValueChange={(value: ConceptImageMode) => onOptionsChange({ ...options, mode: value })}>
           <SelectTrigger className="mt-3 w-full sm:max-w-sm"><SelectValue /></SelectTrigger>
@@ -68,14 +81,14 @@ export function ImageDirectionPanel({
         className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900"
       >
         <ChevronDown className={`size-3.5 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
-        Advanced image settings {advancedOpen ? '' : '— style, count, quality, and claim limits'}
+        Advanced image settings {advancedOpen ? '' : '- creative territory, count, quality, and claim limits'}
       </button>
 
       {advancedOpen && (
         <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-4">
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Visual style</Label>
+              <Label className="text-xs font-medium">Creative territory</Label>
               <Select value={style} onValueChange={(value) => onChange({ ...draft, promptStyle: value })}>
                 <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -84,6 +97,9 @@ export function ImageDirectionPanel({
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-[11px] leading-4 text-slate-500">
+                {CREATIVE_TERRITORY_GUIDANCE[style]}
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Images per batch</Label>
@@ -105,10 +121,15 @@ export function ImageDirectionPanel({
                 <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {['low', 'medium', 'high', 'auto'].map(quality => (
-                    <SelectItem key={quality} value={quality} className="text-xs capitalize">{quality}</SelectItem>
+                    <SelectItem key={quality} value={quality} className="text-xs capitalize">
+                      {quality}{quality === 'high' ? ' - recommended' : ''}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-[11px] leading-4 text-slate-500">
+                High quality is recommended for buyer-ready retail concept visuals.
+              </p>
             </div>
           </div>
 
@@ -116,7 +137,7 @@ export function ImageDirectionPanel({
             <div>
               <p className="text-xs font-semibold text-slate-700">Span marketing formats</p>
               <p className="text-[11px] text-slate-500">
-                On: each image uses a different format, led by your pick. Off: every image is a {`${CONCEPT_IMAGE_MODES.find(m => m.id === options.mode)?.label.toLowerCase()}`} variation.
+                On: each image uses a different retail/marketing format, led by your pick. Off: every image is a {`${CONCEPT_IMAGE_MODES.find(m => m.id === options.mode)?.label.toLowerCase()}`} variation.
               </p>
             </div>
             <Switch
@@ -131,7 +152,7 @@ export function ImageDirectionPanel({
             <Input
               value={draft.visualNotes}
               onChange={(e) => onChange({ ...draft, visualNotes: e.target.value })}
-              placeholder="Anything not already covered in the concept image brief"
+              placeholder="e.g. matte pouch, no hands, realistic cheese slice scale, room for buyer-slide copy"
               className="h-9 text-xs"
             />
           </div>

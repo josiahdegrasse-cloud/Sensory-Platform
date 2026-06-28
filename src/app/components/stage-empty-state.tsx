@@ -29,7 +29,7 @@ export function StageEmptyState({ icon: Icon, headline, body, cta, secondaryCta,
   return (
     <Card className={`border border-dashed border-slate-300 bg-slate-50 ${className ?? ''}`}>
       <CardContent className="py-10 text-center">
-        <span className="mx-auto mb-3 flex size-12 items-center justify-center rounded-full bg-white border border-slate-200">
+        <span className="mx-auto mb-3 flex size-12 items-center justify-center rounded-lg bg-white border border-slate-200">
           {locked
             ? <Lock className="size-5 text-slate-300" aria-hidden />
             : <Icon className="size-5 text-slate-400" aria-hidden />}
@@ -39,7 +39,7 @@ export function StageEmptyState({ icon: Icon, headline, body, cta, secondaryCta,
         {(cta || secondaryCta) && (
           <div className="mt-4 flex items-center justify-center gap-3 flex-wrap">
             {cta && (
-              <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Button asChild size="sm">
                 <Link to={cta.to}>
                   {cta.label} <ChevronRight className="size-3.5" aria-hidden />
                 </Link>
@@ -48,7 +48,7 @@ export function StageEmptyState({ icon: Icon, headline, body, cta, secondaryCta,
             {secondaryCta && (
               <Link
                 to={secondaryCta.to}
-                className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:text-blue-900"
+                className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 hover:text-slate-950"
               >
                 {secondaryCta.label} <ChevronRight className="size-3.5" aria-hidden />
               </Link>

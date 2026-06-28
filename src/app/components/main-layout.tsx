@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
-import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Tag, Archive, Trash2, Undo2, Database, ChevronDown, ChevronRight, Settings, AlertCircle, AlertTriangle, X, FileText, FolderKanban } from "lucide-react";
+import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Archive, Trash2, Undo2, Database, ChevronDown, ChevronRight, Settings, AlertCircle, AlertTriangle, X, FileText, FolderKanban, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../contexts/auth-context";
 import { useEffect, useMemo, useState } from "react";
 import { useFoodType } from "../contexts/food-type-context";
@@ -7,6 +7,8 @@ import { parseBatchSelection, encodeBatchSelection } from "../lib/project-identi
 import { useDeleteImportBatch, useImportBatches, useInstrumentalDataset, usePendingImports, useProducts, useUpdateImportBatchStatus, useWorkspaceSettings } from "../lib/hooks";
 import { matchFoodType } from "../contexts/food-type-context";
 import { useProjectStatus } from "../lib/use-project-status";
+import { currentPathToJourneyStep, legacyWorkflowPathToStep, projectPath } from "../lib/project-journey-routes";
+import type { ImportBatchRecord } from "../lib/database";
 import { ConsentGate } from "./consent-gate";
 import {
   AlertDialog,
@@ -19,8 +21,7 @@ import {
   AlertDialogTitle,
 } from "./ui/alert-dialog";
 
-const BREAD_CHEESE_CLEANUP_KEY = 'nfi:bread-cheese-cleanup:2026-06-16';
-const BREAD_CHEESE_CLEANUP_CUTOFF = Date.parse('2026-06-16T03:35:41Z');
+const LEGACY_DEMO_IMPORT_CUTOFF = Date.parse('2026-06-16T03:35:41Z');
 
 const NFI_BLUE = '#6B7890';
 
@@ -40,7 +41,101 @@ function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+function isLegacyDemoImportCandidate(batch: ImportBatchRecord) {
+  const createdAt = Date.parse(batch.createdAt);
+  return ['bread', 'cheese'].includes(batch.foodTypeSlug)
+    && Number.isFinite(createdAt)
+    && createdAt <= LEGACY_DEMO_IMPORT_CUTOFF;
+}
+
+function AdminCleanupReview({ batches }: { batches: ImportBatchRecord[] }) {
+  const deleteImportBatch = useDeleteImportBatch();
+  const [pendingCleanup, setPendingCleanup] = useState<ImportBatchRecord | null>(null);
+  const [confirmationText, setConfirmationText] = useState('');
+  const candidates = batches.filter(isLegacyDemoImportCandidate);
+  const canConfirm = confirmationText.trim().toUpperCase() === 'DELETE';
+
+  if (candidates.length === 0) return null;
+
+  return (
+    <>
+      <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+        <div className="flex items-start gap-2">
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-700" />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-amber-900">Cleanup review</p>
+            <p className="mt-1 text-[11px] leading-snug text-amber-800">
+              {candidates.length} old bread/cheese import{candidates.length === 1 ? '' : 's'} may be legacy demo data. Nothing is deleted automatically.
+            </p>
+            <div className="mt-2 space-y-1">
+              {candidates.slice(0, 4).map(batch => (
+                <button
+                  key={batch.id}
+                  type="button"
+                  onClick={() => {
+                    setPendingCleanup(batch);
+                    setConfirmationText('');
+                  }}
+                  className="block w-full rounded-md border border-amber-200 bg-white/80 px-2 py-1.5 text-left text-[11px] text-amber-950 transition-colors hover:bg-white"
+                >
+                  <span className="block truncate font-semibold">{batch.projectName ?? batch.fileName}</span>
+                  <span className="block text-amber-700">{batch.foodTypeLabel} · {new Date(batch.createdAt).toLocaleDateString()}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <AlertDialog open={!!pendingCleanup} onOpenChange={open => {
+        if (!open) {
+          setPendingCleanup(null);
+          setConfirmationText('');
+        }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete legacy import permanently?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes {pendingCleanup?.projectName ?? pendingCleanup?.fileName ?? 'this import'} and linked samples/surveys. This is no longer an automatic cleanup; only continue if you have confirmed it is disposable demo data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <label className="space-y-2 text-sm font-medium text-slate-700">
+            Type DELETE to confirm
+            <input
+              value={confirmationText}
+              onChange={event => setConfirmationText(event.target.value)}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20"
+              autoComplete="off"
+            />
+          </label>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-rose-600 hover:bg-rose-700 disabled:pointer-events-none disabled:opacity-50"
+              disabled={!pendingCleanup || !canConfirm || deleteImportBatch.isPending}
+              onClick={() => {
+                if (!pendingCleanup || !canConfirm) return;
+                deleteImportBatch.mutate(pendingCleanup.id, {
+                  onSuccess: () => {
+                    setPendingCleanup(null);
+                    setConfirmationText('');
+                  },
+                });
+              }}
+            >
+              Delete permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
 function CategorySidebar() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { foodType, subCategory, setSelection, extraFoodTypes, archivedFoodTypes, deletedFoodTypes, archiveFoodType, restoreFoodType, deleteFoodType, actionError, clearActionError } = useFoodType();
   const { data: products = [] } = useProducts();
   const { data: importBatches = [] } = useImportBatches();
@@ -94,6 +189,16 @@ function CategorySidebar() {
       updateImportBatchStatus.mutate({ id: project.id, status: nextStatus });
     });
   };
+  const navigateToProjectSelection = (project: ImportBatchRecord | null) => {
+    if (!project) return;
+    const projectId = project.projectId ?? project.id;
+    const step = currentPathToJourneyStep(location.pathname) ?? 'overview';
+    navigate(projectPath(projectId, step, location.search));
+  };
+  const selectType = (ft: string, project: ImportBatchRecord | null = null) => {
+    setSelection(ft, project ? encodeBatchSelection(project.id) : null);
+    navigateToProjectSelection(project);
+  };
 
   const btnStyle = (active: boolean) => ({
     background: active ? '#f1f5f9' : 'transparent',
@@ -103,7 +208,7 @@ function CategorySidebar() {
 
   return (
     <aside
-      className="w-48 shrink-0 self-start sticky top-[89px]"
+      className="hidden w-52 shrink-0 self-start sticky top-[89px] xl:block"
       style={{ minHeight: 'calc(100vh - 89px)' }}
     >
       {actionError && (
@@ -115,10 +220,10 @@ function CategorySidebar() {
           </button>
         </div>
       )}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
         <div className="flex items-center gap-1.5 px-3 py-2.5 border-b border-slate-100">
-          <Tag className="size-3.5 text-slate-400" />
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Food Type</span>
+          <FolderKanban className="size-3.5 text-slate-400" />
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Project Ledger</span>
         </div>
         <div className="p-1.5 flex flex-col gap-0.5">
           {allTypes.map(ft => {
@@ -130,7 +235,7 @@ function CategorySidebar() {
             return (
               <div key={ft}>
                 <div
-                  className="group flex items-center rounded-lg transition-colors"
+                  className="group flex items-center rounded-md transition-colors"
                   style={btnStyle(active)}
                 >
                   {hasMultipleProjects && (
@@ -144,7 +249,7 @@ function CategorySidebar() {
                     </button>
                   )}
                   <button
-                    onClick={() => setSelection(ft, singleProject ? encodeBatchSelection(singleProject.id) : null)}
+                    onClick={() => selectType(ft, singleProject)}
                     title={singleProject?.fileName}
                     className={`min-w-0 flex-1 text-left py-1.5 text-sm ${hasMultipleProjects ? 'px-1' : 'px-2.5'}`}
                   >
@@ -185,7 +290,7 @@ function CategorySidebar() {
                       >
                         <button
                           type="button"
-                          onClick={() => setSelection(ft, encodeBatchSelection(project.id))}
+                          onClick={() => selectType(ft, project)}
                           title={project.projectName ?? project.fileName}
                           className={`min-w-0 flex-1 truncate px-2 py-1 text-left text-xs ${selectedBatchId === project.id ? 'font-semibold text-slate-800' : `${project.projectId ? 'text-slate-500' : 'text-slate-400 italic'} group-hover/project:text-slate-800`}`}
                         >
@@ -266,22 +371,22 @@ function CategorySidebar() {
           )}
           {allTypes.length === 0 && archivedFoodTypes.length === 0 && (
             <div className="px-2.5 py-2 text-xs text-slate-400">
-              Upload a CSV to create a food type.
+              Import CSV data to create the first project.
             </div>
           )}
         </div>
       </div>
-      <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+      <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
         <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
           <Database className="size-3.5 text-slate-400" />
           {activeTypeLabel}
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-          <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
+          <div className="rounded-md bg-slate-50 border border-slate-100 p-2">
             <div className="font-bold text-slate-900">{selectedSamples.length}</div>
             <div className="text-slate-500">machine samples</div>
           </div>
-          <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
+          <div className="rounded-md bg-slate-50 border border-slate-100 p-2">
             <div className="font-bold text-slate-900">{activeSurveyCount}</div>
             <div className="text-slate-500">surveys</div>
           </div>
@@ -302,7 +407,7 @@ function CategorySidebar() {
         )}
       </div>
       {hasActiveProject && status.warnings.length > 0 && (
-        <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
           <div className="space-y-1.5">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700">
               <AlertTriangle className="size-3.5" />
@@ -316,6 +421,7 @@ function CategorySidebar() {
           </div>
         </div>
       )}
+      <AdminCleanupReview batches={importBatches} />
       <AlertDialog open={!!pendingAction} onOpenChange={open => !open && setPendingAction(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -403,10 +509,11 @@ export function MainLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { subCategory } = useFoodType();
   const { data: workspaceSettings } = useWorkspaceSettings();
-  const { data: cleanupBatches = [], isFetched: cleanupBatchesFetched } = useImportBatches(user?.role === 'admin');
-  const deleteImportBatch = useDeleteImportBatch();
+  const { data: navImportBatches = [] } = useImportBatches(user?.role === 'admin');
   const { data: pendingImports = [] } = usePendingImports(user?.role === 'admin');
+  const [clientMode, setClientMode] = useState(false);
 
   // Per-tenant branding (falls back to NFI when the org hasn't set its own).
   const brandLogo = workspaceSettings?.logoUrl ?? null;
@@ -418,8 +525,38 @@ export function MainLayout() {
     document.documentElement.style.setProperty('--brand', workspaceSettings?.primaryColor || NFI_BLUE);
   }, [workspaceSettings?.primaryColor]);
 
+  const activeAdminNavPath = (pathname: string) => {
+    const normalized = pathname.replace(/\/+$/, '') || '/';
+    const projectStep = normalized.match(/^\/project\/[^/]+(?:\/([^/]+))?$/)?.[1] ?? null;
+
+    if (projectStep) {
+      switch (projectStep) {
+        case 'data':
+          return '/stage1';
+        case 'studies':
+        case 'responses':
+          return '/admin';
+        case 'insights':
+          return '/survey-analysis';
+        case 'decision':
+          return '/decision';
+        case 'concept':
+          return '/concept-testing';
+        case 'report':
+          return '/reports';
+        default:
+          return '/project';
+      }
+    }
+
+    if (normalized === '/project' || /^\/project\/[^/]+$/.test(normalized)) return '/project';
+    if (normalized === '/report' || normalized === '/commercialization-report') return '/reports';
+    return normalized;
+  };
+
   const isActive = (path: string) => {
     if (path === "/" && location.pathname === "/") return true;
+    if (user?.role === 'admin') return activeAdminNavPath(location.pathname) === path;
     if (path !== "/" && location.pathname.startsWith(path)) return true;
     return false;
   };
@@ -439,32 +576,21 @@ export function MainLayout() {
   ];
 
   const navItems = user?.role === 'admin' ? getAdminNavItems() : getPanelistNavItems();
+  const selectedNavBatchId = parseBatchSelection(subCategory);
+  const selectedNavBatch = selectedNavBatchId
+    ? navImportBatches.find(batch => batch.id === selectedNavBatchId)
+    : null;
+  const selectedProjectId = selectedNavBatch?.projectId ?? selectedNavBatch?.id ?? null;
+  const adminNavTarget = (path: string) => {
+    if (!selectedProjectId) return path;
+    if (path === '/project') return projectPath(selectedProjectId, 'overview');
+    const step = legacyWorkflowPathToStep(path);
+    return step ? projectPath(selectedProjectId, step) : path;
+  };
 
   useEffect(() => {
     if (user?.role === 'panelist' && location.pathname === '/') navigate('/panelist');
   }, [user, location.pathname, navigate]);
-
-  useEffect(() => {
-    if (user?.role !== 'admin' || !cleanupBatchesFetched || deleteImportBatch.isPending) return;
-    if (typeof window === 'undefined' || window.localStorage.getItem(BREAD_CHEESE_CLEANUP_KEY)) return;
-
-    const batchesToDelete = cleanupBatches.filter(batch => {
-      const createdAt = Date.parse(batch.createdAt);
-      return ['bread', 'cheese'].includes(batch.foodTypeSlug)
-        && Number.isFinite(createdAt)
-        && createdAt <= BREAD_CHEESE_CLEANUP_CUTOFF;
-    });
-    if (batchesToDelete.length === 0) {
-      window.localStorage.setItem(BREAD_CHEESE_CLEANUP_KEY, 'none');
-      return;
-    }
-
-    void Promise.all(batchesToDelete.map(batch => deleteImportBatch.mutateAsync(batch.id)))
-      .then(() => window.localStorage.setItem(BREAD_CHEESE_CLEANUP_KEY, new Date().toISOString()))
-      .catch(() => {
-        // Leave the flag unset so the cleanup can retry after transient auth/network errors.
-      });
-  }, [cleanupBatches, cleanupBatchesFetched, deleteImportBatch, user?.role]);
 
   const handleLogout = async () => {
     await logout();
@@ -473,11 +599,11 @@ export function MainLayout() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-100 sticky top-0 z-50">
-        <div className="max-w-[1600px] mx-auto px-6">
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-[1600px] px-4 sm:px-6">
 
           {/* Top bar */}
-          <div className="flex items-center justify-between py-3 border-b border-slate-100">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 py-3">
             <Link to="/" className="flex items-center gap-2.5 hover:opacity-75 transition-opacity">
               {brandLogo ? (
                 <img
@@ -497,15 +623,27 @@ export function MainLayout() {
               )}
             </Link>
 
-            <div className="flex items-center gap-4">
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-4">
               {user?.role === 'admin' && <FoodTypeBadge />}
-              <div className="text-right">
+              <div className="hidden text-right sm:block">
                 <div className="text-sm font-semibold text-slate-900">{user?.name}</div>
                 <div className="text-xs text-slate-400">
                   {user?.role === 'panelist' ? `Panelist ${user?.panelistId ?? ''}` : 'Administrator'}
                 </div>
               </div>
               {user?.role === 'admin' && (
+                <button
+                  type="button"
+                  aria-pressed={clientMode}
+                  title={clientMode ? 'Return to internal admin view' : 'Preview client-facing view'}
+                  onClick={() => setClientMode(value => !value)}
+                  className="flex h-8 items-center gap-1.5 rounded-md border border-slate-200 px-2.5 text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                >
+                  {clientMode ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                  <span className="hidden md:inline">{clientMode ? 'Internal view' : 'Client mode'}</span>
+                </button>
+              )}
+              {user?.role === 'admin' && !clientMode && (
                 <Link
                   to="/settings"
                   title="Settings"
@@ -530,15 +668,15 @@ export function MainLayout() {
           </div>
 
           {/* Nav row */}
-          <div className="flex items-center">
+          <div className="flex items-center overflow-x-auto">
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.path);
               return (
                 <Link
                   key={item.path}
-                  to={item.path}
-                  className="flex items-center gap-1.5 px-4 py-3 text-sm transition-colors border-b-2"
+                  to={user?.role === 'admin' ? adminNavTarget(item.path) : item.path}
+                  className="flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-3 text-sm transition-colors sm:px-4"
                   style={{
                     borderBottomColor: active ? 'var(--brand)' : 'transparent',
                     color: active ? 'var(--brand)' : '#64748b',
@@ -562,8 +700,8 @@ export function MainLayout() {
         </div>
       </header>
 
-      <div className="max-w-[1600px] mx-auto px-6 py-8 flex gap-6 items-start">
-        {user?.role === 'admin' && <CategorySidebar />}
+      <div className="mx-auto flex max-w-[1600px] items-start gap-6 px-4 py-6 sm:px-6 lg:py-8">
+        {user?.role === 'admin' && !clientMode && <CategorySidebar />}
         <main className="flex-1 min-w-0">
           {user?.role === 'panelist' && (workspaceSettings?.requirePanelistConsent ?? true) && !user.consentAcceptedAt ? <ConsentGate /> : <Outlet />}
         </main>

@@ -127,8 +127,69 @@ describe('report library', () => {
     expect(entries[0]).toMatchObject({
       exportReady: true,
       approvalReady: false,
+      releaseStatus: 'blocked',
       warnings: ['Claims review is still pending.'],
       evidenceProvenance: { sensory: 'live', concept: 'none' },
     });
+  });
+
+  it('marks approved and approval-ready reports as client-ready', () => {
+    const readiness = {
+      exportReady: true,
+      approvalReady: true,
+      blockers: [],
+      warnings: [],
+      evidenceProvenance: {
+        sensory: 'live',
+        instrumental: 'live',
+        concept: 'live',
+        purchaseIntent: 'live',
+      },
+      evidenceBundleStatus: 'linked',
+      sensoryStatus: 'Live sensory evidence',
+      instrumentalStatus: 'Instrumental evidence included',
+      conceptStatus: 'Concept evidence included',
+      purchaseIntentStatus: 'Purchase intent available',
+      approvalBlockers: [],
+      exportBlockers: [],
+      qcWarnings: [],
+      agentStatus: 'passed',
+    } satisfies ReportReadiness;
+
+    const entries = buildReportLibrary([
+      report({ id: 'approved-ready', status: 'approved' }),
+    ], decisions, concepts, { 'approved-ready': readiness });
+
+    expect(entries[0].releaseStatus).toBe('client_ready');
+  });
+
+  it('keeps reference evidence demonstration-only even when export context exists', () => {
+    const readiness = {
+      exportReady: true,
+      approvalReady: false,
+      blockers: ['Reference/demo evidence must be replaced before approval.'],
+      warnings: [],
+      evidenceProvenance: {
+        sensory: 'reference',
+        instrumental: 'live',
+        concept: 'live',
+        purchaseIntent: 'live',
+      },
+      evidenceBundleStatus: 'linked',
+      sensoryStatus: 'Reference/demo sensory evidence',
+      instrumentalStatus: 'Instrumental evidence included',
+      conceptStatus: 'Concept evidence included',
+      purchaseIntentStatus: 'Purchase intent available',
+      approvalBlockers: ['Reference/demo evidence must be replaced before approval.'],
+      exportBlockers: [],
+      qcWarnings: [],
+      agentStatus: 'partial',
+    } satisfies ReportReadiness;
+
+    const entries = buildReportLibrary([
+      report({ id: 'demo-report', status: 'review' }),
+    ], decisions, concepts, { 'demo-report': readiness });
+
+    expect(entries[0].releaseStatus).toBe('demonstration_only');
   });
 });

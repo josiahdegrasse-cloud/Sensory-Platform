@@ -15,10 +15,10 @@ interface NextActionCardProps {
 /** Single, prominent "what should I click next" callout for a project. */
 export function NextActionCard({ projectName, action, projectPath, onNavigate }: NextActionCardProps) {
   return (
-    <Card className="border border-blue-200 bg-blue-50">
+    <Card className="border-slate-200 bg-white">
       <CardContent className="flex items-center justify-between gap-4 py-5">
         <div className="min-w-0">
-          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
             {projectPath ? (
               <Link to={projectPath} onClick={onNavigate} className="hover:text-slate-700 transition-colors">
                 Next for {projectName}

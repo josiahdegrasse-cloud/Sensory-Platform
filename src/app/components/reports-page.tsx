@@ -17,7 +17,12 @@ import {
   useAdminConceptTests, useCommercializationReports, useDecisionRecords,
   useUpdateCommercializationReportStatus,
 } from '../lib/hooks';
-import { buildReportLibrary, filterReportLibrary } from '../lib/report-library';
+import {
+  buildReportLibrary,
+  filterReportLibrary,
+  type ReportLibraryEntry,
+  type ReportReleaseStatus,
+} from '../lib/report-library';
 import {
   buildSavedReportExportContext,
   downloadSavedReportPdf,
@@ -43,22 +48,55 @@ const statusLabel: Record<CommercializationReportRecord['status'], string> = {
   archived: 'Archived',
 };
 
+type VaultStatus = ReportReleaseStatus | 'checking';
+
+const releaseCopy: Record<VaultStatus, { label: string; className: string; detail: string }> = {
+  checking: {
+    label: 'Checking',
+    className: 'border-slate-200 bg-slate-50 text-slate-600',
+    detail: 'Readiness context is being rebuilt.',
+  },
+  client_ready: {
+    label: 'Client-ready',
+    className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    detail: 'Approved and eligible for external delivery.',
+  },
+  internal_draft: {
+    label: 'Internal draft',
+    className: 'border-blue-200 bg-blue-50 text-blue-700',
+    detail: 'Exportable internally; approval is still pending.',
+  },
+  demonstration_only: {
+    label: 'Demonstration only',
+    className: 'border-orange-200 bg-orange-50 text-orange-700',
+    detail: 'Reference/demo evidence prevents external approval.',
+  },
+  blocked: {
+    label: 'Blocked',
+    className: 'border-rose-200 bg-rose-50 text-rose-700',
+    detail: 'Resolve evidence or context blockers before export.',
+  },
+};
+
+function displayReleaseStatus(entry: ReportLibraryEntry, loading: boolean): VaultStatus {
+  return loading ? 'checking' : entry.releaseStatus;
+}
+
 function ReadinessBadges({
   entry,
   loading,
 }: {
-  entry: ReturnType<typeof buildReportLibrary>[number];
+  entry: ReportLibraryEntry;
   loading: boolean;
 }) {
   const isReferenceEvidence = Object.values(entry.evidenceProvenance).some(value => value === 'reference');
   const missingConceptEvidence = entry.evidenceProvenance.concept === 'none';
+  const releaseStatus = displayReleaseStatus(entry, loading);
+  const release = releaseCopy[releaseStatus];
   return (
     <div className="mt-3 flex flex-wrap gap-2">
-      <Badge
-        variant={entry.exportReady ? 'default' : 'outline'}
-        className={entry.exportReady ? 'bg-emerald-600 text-white' : 'border-amber-200 bg-amber-50 text-amber-700'}
-      >
-        {entry.exportReady ? 'Export ready' : loading ? 'Checking context' : 'Needs context'}
+      <Badge variant="outline" className={release.className} title={release.detail}>
+        {release.label}
       </Badge>
       {isReferenceEvidence && (
         <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">
@@ -80,6 +118,59 @@ function ReadinessBadges({
       >
         {statusLabel[entry.latest.status]}
       </Badge>
+    </div>
+  );
+}
+
+function VersionStack({ entry }: { entry: ReportLibraryEntry }) {
+  if (entry.versions.length <= 1) return null;
+  return (
+    <details className="mt-4 rounded-lg border border-slate-200 bg-slate-50">
+      <summary className="cursor-pointer list-none px-3 py-2 text-xs font-semibold text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+        {entry.versions.length} saved versions
+      </summary>
+      <div className="divide-y divide-slate-200 border-t border-slate-200">
+        {entry.versions.map(version => (
+          <div key={version.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs">
+            <span className="font-medium text-slate-700">Version {version.version} · {statusLabel[version.status]}</span>
+            <span className="text-slate-500">{new Date(version.updatedAt).toLocaleString()}</span>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+const evidenceLabels: Record<keyof ReportReadiness['evidenceProvenance'], string> = {
+  sensory: 'Sensory',
+  instrumental: 'Instrumental',
+  concept: 'Concept',
+  purchaseIntent: 'Purchase intent',
+};
+
+const evidenceClassName: Record<ReportReadiness['evidenceProvenance'][keyof ReportReadiness['evidenceProvenance']], string> = {
+  live: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  reference: 'border-orange-200 bg-orange-50 text-orange-700',
+  none: 'border-slate-200 bg-slate-50 text-slate-500',
+};
+
+function EvidenceLedger({ entry }: { entry: ReportLibraryEntry }) {
+  return (
+    <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-slate-700">Evidence ledger</p>
+        <p className="text-[11px] text-slate-500">{releaseCopy[entry.releaseStatus].detail}</p>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {(Object.entries(entry.evidenceProvenance) as Array<[keyof ReportReadiness['evidenceProvenance'], ReportReadiness['evidenceProvenance'][keyof ReportReadiness['evidenceProvenance']]]>).map(([key, value]) => (
+          <div key={key} className="rounded-md border border-slate-200 bg-white px-3 py-2">
+            <p className="text-[11px] font-medium text-slate-500">{evidenceLabels[key]}</p>
+            <Badge variant="outline" className={`mt-1 ${evidenceClassName[value]}`}>
+              {value === 'live' ? 'Live' : value === 'reference' ? 'Reference/demo' : 'None'}
+            </Badge>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -158,11 +249,16 @@ export function ReportsPage() {
     () => filterReportLibrary(entries, search, status),
     [entries, search, status],
   );
-  const counts = useMemo(() => ({
-    active: entries.filter(entry => entry.latest.status !== 'archived').length,
-    review: entries.filter(entry => entry.latest.status === 'review').length,
-    approved: entries.filter(entry => entry.latest.status === 'approved').length,
-  }), [entries]);
+  const counts = useMemo(() => {
+    const active = entries.filter(entry => entry.latest.status !== 'archived');
+    return {
+      active: active.length,
+      clientReady: active.filter(entry => entry.releaseStatus === 'client_ready').length,
+      internal: active.filter(entry => entry.releaseStatus === 'internal_draft').length,
+      blocked: active.filter(entry => entry.releaseStatus === 'blocked').length,
+      demo: active.filter(entry => entry.releaseStatus === 'demonstration_only').length,
+    };
+  }, [entries]);
 
   const changeStatus = (
     report: CommercializationReportRecord,
@@ -176,7 +272,7 @@ export function ReportsPage() {
     );
   };
 
-  const download = async (entry: ReturnType<typeof buildReportLibrary>[number]) => {
+  const download = async (entry: ReportLibraryEntry) => {
     setExportingId(entry.latest.id);
     setError('');
     try {
@@ -196,20 +292,20 @@ export function ReportsPage() {
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-950">Reports</h1>
+          <h1 className="text-2xl font-semibold text-slate-950">Report Vault</h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            Review every saved client deliverable, manage approval, and download the latest branded PDF.
+            One row per client deliverable, with versions, approval state, evidence provenance, and export readiness kept together.
           </p>
         </div>
-        <Link to="/decision">
-          <Button><Sparkles className="size-4" />Build report</Button>
-        </Link>
+        <Button asChild><Link to="/decision"><Sparkles className="size-4" />Build report</Link></Button>
       </div>
 
       <div className="flex flex-wrap gap-x-8 gap-y-3 border-y border-slate-200 py-4">
         <div><strong className="text-xl text-slate-950">{counts.active}</strong><span className="ml-2 text-sm text-slate-500">active reports</span></div>
-        <div><strong className="text-xl text-amber-700">{counts.review}</strong><span className="ml-2 text-sm text-slate-500">awaiting review</span></div>
-        <div><strong className="text-xl text-emerald-700">{counts.approved}</strong><span className="ml-2 text-sm text-slate-500">approved</span></div>
+        <div><strong className="text-xl text-emerald-700">{counts.clientReady}</strong><span className="ml-2 text-sm text-slate-500">client-ready</span></div>
+        <div><strong className="text-xl text-blue-700">{counts.internal}</strong><span className="ml-2 text-sm text-slate-500">internal drafts</span></div>
+        <div><strong className="text-xl text-orange-700">{counts.demo}</strong><span className="ml-2 text-sm text-slate-500">demo only</span></div>
+        <div><strong className="text-xl text-rose-700">{counts.blocked}</strong><span className="ml-2 text-sm text-slate-500">blocked</span></div>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row">
@@ -279,12 +375,14 @@ export function ReportsPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  <Link
-                    to={`/report?report=${entry.latest.id}`}
-                    onClick={() => setSelection(entry.foodType, null)}
-                  >
-                    <Button size="sm" variant="outline"><FolderOpen className="size-4" />Open report</Button>
-                  </Link>
+                  <Button size="sm" variant="outline" asChild>
+                    <Link
+                      to={`/report?report=${entry.latest.id}`}
+                      onClick={() => setSelection(entry.foodType, null)}
+                    >
+                      <FolderOpen className="size-4" />Open report
+                    </Link>
+                  </Button>
                   {entry.exportReady ? (
                     <Button
                       size="sm"
@@ -294,23 +392,29 @@ export function ReportsPage() {
                     >
                       <Download className="size-4" />{exportingId === entry.latest.id ? 'Preparing…' : 'Download PDF'}
                     </Button>
+                  ) : readinessLoading[entry.latest.id] ? (
+                    <Button size="sm" variant="outline" disabled>
+                      Checking…
+                    </Button>
                   ) : (
-                    <Link
-                      to={`/report?report=${entry.latest.id}`}
-                      onClick={() => setSelection(entry.foodType, null)}
-                    >
-                      <Button size="sm" variant="outline" disabled={Boolean(readinessLoading[entry.latest.id])}>
-                        {readinessLoading[entry.latest.id] ? 'Checking…' : entry.blockers.length ? 'Needs Review' : 'Open to Export'}
-                      </Button>
-                    </Link>
+                    <Button size="sm" variant="outline" asChild>
+                      <Link
+                        to={`/report?report=${entry.latest.id}`}
+                        onClick={() => setSelection(entry.foodType, null)}
+                      >
+                        {entry.blockers.length ? 'Needs Review' : 'Open to Export'}
+                      </Link>
+                    </Button>
                   )}
                   {entry.latest.status === 'review' && (
-                    <Link
-                      to={`/report?report=${entry.latest.id}`}
-                      onClick={() => setSelection(entry.foodType, null)}
-                    >
-                      <Button size="sm">Review report</Button>
-                    </Link>
+                    <Button size="sm" asChild>
+                      <Link
+                        to={`/report?report=${entry.latest.id}`}
+                        onClick={() => setSelection(entry.foodType, null)}
+                      >
+                        Review report
+                      </Link>
+                    </Button>
                   )}
                   {entry.latest.status === 'approved' && (
                     <Button size="sm" variant="outline" disabled={updateStatus.isPending} onClick={() => changeStatus(entry.latest, 'draft')}>
@@ -334,6 +438,8 @@ export function ReportsPage() {
                   Approved deliverable{entry.latest.approvedAt ? ` on ${new Date(entry.latest.approvedAt).toLocaleDateString()}` : ''}
                 </div>
               )}
+              <EvidenceLedger entry={entry} />
+              <VersionStack entry={entry} />
             </article>
           ))}
         </div>
