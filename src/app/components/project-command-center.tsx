@@ -75,20 +75,21 @@ function JourneyRail({
         style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(0, 1fr))` }}
       >
         {stages.map(stage => {
-          const tone = workflowToneToSemanticTone(workflowTone(stage.status));
-          const Icon = STAGE_STATUS_ICONS[stage.status];
+          const displayStatus = stage.id === 'concept' && stage.status === 'blocked' ? 'not_started' : stage.status;
+          const tone = workflowToneToSemanticTone(workflowTone(displayStatus));
+          const Icon = STAGE_STATUS_ICONS[displayStatus];
           const isActive = stage.id === activeStageId;
           return (
             <li key={stage.id} className="min-w-0">
               <Link
                 to={stage.nextActionRoute}
-                title={`${stage.label}: ${workflowStatusLabel(stage.status)}`}
+                title={`${stage.label}: ${workflowStatusLabel(displayStatus)}`}
                 className={`group flex h-full min-w-0 items-center justify-center gap-1.5 rounded-md border px-1.5 py-2 text-center text-[11px] font-semibold leading-tight transition-colors sm:px-2 sm:text-xs ${
                   isActive
                     ? 'border-blue-300 bg-blue-50 text-blue-900'
-                    : stage.status === 'complete'
+                    : displayStatus === 'complete'
                       ? 'border-emerald-200 bg-white text-emerald-900 hover:border-emerald-300 hover:bg-emerald-50'
-                      : stage.status === 'blocked'
+                      : displayStatus === 'blocked'
                         ? 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 hover:text-slate-700'
                         : 'border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-white hover:text-blue-900'
                 }`}
@@ -114,10 +115,14 @@ function StageTimelineItem({
   stage: WorkflowStageSummary;
   active: boolean;
 }) {
-  const tone = workflowToneToSemanticTone(workflowTone(stage.status));
-  const Icon = STAGE_STATUS_ICONS[stage.status];
-  const canNavigate = stage.status !== 'blocked' || stage.nextActionRoute;
-  const shouldExpand = active || stage.status === 'ready' || stage.status === 'needs_review' || stage.blockers.length > 0 || stage.warnings.length > 0;
+  const hideConceptBlockedState = stage.id === 'concept' && stage.status === 'blocked';
+  const displayStatus = hideConceptBlockedState ? 'not_started' : stage.status;
+  const displayBlockers = hideConceptBlockedState ? [] : stage.blockers;
+  const displayDetail = hideConceptBlockedState ? 'No concept test has been created yet.' : stage.detail;
+  const tone = workflowToneToSemanticTone(workflowTone(displayStatus));
+  const Icon = STAGE_STATUS_ICONS[displayStatus];
+  const canNavigate = displayStatus !== 'blocked' || stage.nextActionRoute;
+  const shouldExpand = active || displayStatus === 'ready' || displayStatus === 'needs_review' || displayBlockers.length > 0 || stage.warnings.length > 0;
   const evidence = stage.completedItems.slice(0, 3);
   return (
     <article className={`rounded-lg border bg-white p-4 ${active ? 'border-blue-200 ring-1 ring-blue-100' : 'border-slate-200'}`}>
@@ -129,9 +134,9 @@ function StageTimelineItem({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-semibold text-slate-950">{stage.label}</h3>
-              <ProjectStatusBadge label={workflowStatusLabel(stage.status)} tone={tone} showIcon={false} />
+              <ProjectStatusBadge label={workflowStatusLabel(displayStatus)} tone={tone} showIcon={false} />
             </div>
-            <p className="mt-1 text-sm text-slate-600">{stage.detail}</p>
+            <p className="mt-1 text-sm text-slate-600">{displayDetail}</p>
             {!shouldExpand && evidence[0] && (
               <p className="mt-1 text-xs text-slate-500">{evidence[0]}</p>
             )}
@@ -162,11 +167,11 @@ function StageTimelineItem({
               </ul>
             </div>
           )}
-          {stage.blockers.length > 0 && (
+          {displayBlockers.length > 0 && (
             <div>
               <h4 className="text-xs font-semibold text-rose-800">Gate</h4>
               <ul className="mt-2 space-y-1 text-xs leading-5 text-rose-700">
-                {stage.blockers.slice(0, 2).map(item => <li key={item}>{item}</li>)}
+                {displayBlockers.slice(0, 2).map(item => <li key={item}>{item}</li>)}
               </ul>
             </div>
           )}
@@ -178,7 +183,7 @@ function StageTimelineItem({
               </ul>
             </div>
           )}
-          {evidence.length === 0 && stage.blockers.length === 0 && stage.warnings.length === 0 && (
+          {evidence.length === 0 && displayBlockers.length === 0 && stage.warnings.length === 0 && (
             <p className="text-xs text-slate-500">No project artifact has been saved for this stage yet.</p>
           )}
         </div>
@@ -230,7 +235,7 @@ function NoProjectState() {
       headline="No project selected"
       body="Pick a project from the sidebar or import instrumental data to start the workflow."
       cta={{ label: 'Import data', to: '/stage1?new=project' }}
-      secondaryCta={{ label: 'Back to dashboard', to: '/' }}
+      secondaryCta={{ label: 'Back to overview', to: '/' }}
     />
   );
 }
@@ -420,8 +425,8 @@ export function ProjectCommandCenter() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routedBatch?.id]);
 
-  const effectiveFoodType = routedBatch?.foodTypeSlug ?? foodType;
-  const effectiveBatchId = routedBatch?.id ?? parseBatchSelection(subCategory);
+  const effectiveFoodType = routedBatch?.foodTypeSlug ?? (routeProjectId ? foodType : 'all');
+  const effectiveBatchId = routedBatch?.id ?? (routeProjectId ? parseBatchSelection(subCategory) : null);
   const workflow = useProjectWorkflow(effectiveFoodType, effectiveBatchId);
   const batch = routedBatch ?? (effectiveBatchId ? importBatches.find(item => item.id === effectiveBatchId) ?? null : null);
 
@@ -475,16 +480,15 @@ export function ProjectCommandCenter() {
     batch && `Imported ${new Date(batch.createdAt).toLocaleDateString()}`,
     batch && `${batch.sampleCount} sample${batch.sampleCount === 1 ? '' : 's'}`,
   ].filter(Boolean).join(' · ');
-  const overallTone = workflowToneToSemanticTone(workflow.overallTone);
   const activeStageId = workflow.nextAction.stageId;
   const nextActionTone = workflowToneToSemanticTone(workflow.nextAction.tone);
-  const gateStages = workflow.stages.filter(stage => stage.id === 'concept' || stage.id === 'report');
+  const gateStages = workflow.stages.filter(stage => stage.id === 'report');
   const gateBlockers = uniqueItems(gateStages.flatMap(stage => stage.blockers));
   const gateWarnings = uniqueItems(gateStages.flatMap(stage => stage.warnings));
   const readinessLine = workflow.latestDecision?.decision === 'GO'
     ? 'GO is confirmed. Concept and report work can move forward from the saved decision evidence.'
     : gateBlockers.length > 0
-      ? 'Decision confirmation is the gate before concept testing or report building.'
+      ? 'Decision confirmation is the gate before report building.'
       : workflow.nextAction.description;
 
   return (
@@ -493,14 +497,13 @@ export function ProjectCommandCenter() {
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="min-w-0">
             <Link to="/" className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition-colors hover:text-slate-800">
-              <ArrowLeft className="size-3.5" aria-hidden /> All projects
+              <ArrowLeft className="size-3.5" aria-hidden /> Overview
             </Link>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <h1 className="text-2xl font-semibold text-slate-950">{workflow.projectName}</h1>
-              <ProjectStatusBadge label={workflow.overallStatusLabel} tone={overallTone} />
             </div>
             <p className="mt-1 max-w-3xl text-sm text-slate-600">
-              {contextLine || 'A guided overview of what exists, what is blocked, and what to do next.'}
+              {contextLine || 'A guided overview of what exists and what to do next.'}
             </p>
             <p className="mt-4 max-w-2xl text-sm font-medium text-slate-800">{readinessLine}</p>
             <div className="mt-5">
@@ -544,7 +547,7 @@ export function ProjectCommandCenter() {
                 Commercialization gates
               </h2>
               <p className="mt-1 max-w-3xl text-sm text-slate-600">
-                Concept testing and report building stay locked until the saved decision evidence supports them.
+                Report building stays locked until the saved decision evidence supports it.
               </p>
             </div>
             <Link

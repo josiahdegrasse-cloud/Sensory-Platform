@@ -40,7 +40,7 @@ describe('getConceptReadiness', () => {
     const { items } = getConceptReadiness({ draft, questions, assignedPanelistIds: [] });
     expect(items.find(item => item.id === 'panelists')).toMatchObject({
       ready: false,
-      fixStep: 'survey',
+      fixStep: 'panel',
     });
   });
 

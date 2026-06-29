@@ -16,7 +16,7 @@ const PROVENANCE_CONFIG: Record<DataProvenance, {
     className: 'bg-emerald-50 text-emerald-800 border-emerald-300',
   },
   reference: {
-    label: 'Reference data',
+    label: '',
     title: 'Simulated research dataset for demonstration and method validation — not collected from your panel. Do not use in client deliverables.',
     icon: FlaskConical,
     className: 'bg-amber-50 text-amber-800 border-amber-300',
@@ -60,6 +60,8 @@ export function DataProvenanceBadge({ provenance, n, detail, className }: {
   detail?: string;
   className?: string;
 }) {
+  if (provenance === 'reference') return null;
+
   const config = PROVENANCE_CONFIG[provenance];
   const Icon = config.icon;
   return (

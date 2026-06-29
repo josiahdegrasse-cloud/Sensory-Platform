@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
 import { AttributeTooltip } from './attribute-tooltip';
 import { getBlindStudyCategoryLabel, getBlindStudyDisplayName, getPanelistSampleOrder } from '../lib/blind-study';
+import { useScrollToTop } from '../lib/use-scroll-to-top';
 
 function sliderFill(value: number, min: number, max: number, color: string): React.CSSProperties {
   const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
@@ -50,6 +51,7 @@ export function MultiSampleQuestionnaire() {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  useScrollToTop(productId);
   
   const [product, setProduct] = useState<Product | null>(null);
 

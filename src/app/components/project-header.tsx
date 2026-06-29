@@ -8,7 +8,6 @@ import { ProjectStatusBadge } from './project-status-badge';
 import { ProjectJourneyNav } from './project-journey-nav';
 import { AssignProjectControl } from './assign-project-control';
 import { useProjectWorkflow } from '../lib/workflow/use-project-workflow';
-import { workflowToneToSemanticTone } from '../lib/workflow/workflow-actions';
 
 /**
  * Persistent project context bar shown across the admin workflow pages
@@ -49,9 +48,7 @@ export function ProjectHeader() {
             </h2>
             {isUnassignedBatch ? (
               <ProjectStatusBadge label="No project assigned" tone="neutral" />
-            ) : (
-              <ProjectStatusBadge label={workflow.overallStatusLabel} tone={workflowToneToSemanticTone(workflow.overallTone)} />
-            )}
+            ) : null}
           </div>
           <p className="mt-0.5 text-xs text-slate-500">{workflow.foodTypeLabel}</p>
           {isUnassignedBatch && currentBatch && (

@@ -13,6 +13,7 @@ import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Edit2 } from 'luc
 import { Alert, AlertDescription } from './ui/alert';
 import { AttributeTooltip } from './attribute-tooltip';
 import { getBlindStudyDisplayName } from '../lib/blind-study';
+import { useScrollToTop } from '../lib/use-scroll-to-top';
 
 function sliderFill(value: number, min: number, max: number, color: string): React.CSSProperties {
   const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
@@ -41,6 +42,7 @@ export function QuestionnaireForm() {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  useScrollToTop(productId);
 
   const [product, setProduct] = useState<Product | null>(null);
   const [productLoading, setProductLoading] = useState(true);
@@ -259,7 +261,7 @@ export function QuestionnaireForm() {
               </div>
             </div>
             <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-sm text-slate-700">
-              <strong>Tip:</strong> Hover over any underlined term <span className="underline decoration-dotted cursor-help">like this</span> to see its definition.
+              <strong>Tip:</strong> Hover over any underlined term <span className="underline decoration-dotted cursor-help" title="Exactly — this is how definitions appear.">like this</span> to see its definition.
             </div>
             <Button
               onClick={() => setShowIntro(false)}

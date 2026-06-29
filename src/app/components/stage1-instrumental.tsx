@@ -6,7 +6,7 @@ import { useAuth } from "../contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { FlaskConical, AlertCircle, Upload, X, Check, Download, BarChart3, ClipboardList, Lightbulb, ArrowRight } from "lucide-react";
+import { FlaskConical, AlertCircle, Upload, X, Check, BarChart3, ClipboardList, Lightbulb, ArrowRight } from "lucide-react";
 import { formatFoodTypeLabel, slugifyFoodType } from "../lib/food-intelligence";
 import { useInsertInstrumentalImport, useInstrumentalDataset } from "../lib/hooks";
 import { isMissingFoodImportSchema, downloadPendingImportFile, markPendingImportImported } from "../lib/database";
@@ -28,6 +28,7 @@ import {
 import { ProjectHeader } from "./project-header";
 import { ProductListItem, ProductListPanel } from './product-list';
 import { applyImportMappings, inferImportMappings } from "../lib/csv-import-mapping";
+import { encodeBatchSelection } from "../lib/project-identity";
 
 
 import {
@@ -73,10 +74,10 @@ export function Stage1Instrumental() {
   const [lastImportSummary, setLastImportSummary] = useState<ImportCompletionSummary | null>(null);
   const [columnReport, setColumnReport] = useState<ColumnReport | null>(null);
   const [foodTypeOverride, setFoodTypeOverride] = useState('');
+  const [projectNameEdited, setProjectNameEdited] = useState(false);
   const [isLoadingFromQueue, setIsLoadingFromQueue] = useState(!!pendingStoragePath);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const projectNameInputRef = useRef<HTMLInputElement>(null);
   const { foodType, subCategory, setSelection, registerFoodTypes, archivedFoodTypes, deletedFoodTypes } = useFoodType();
   const {
     selectedSamples,
@@ -99,11 +100,6 @@ export function Stage1Instrumental() {
     setSelection,
     onDeleteSuccess: setImportSuccess,
   });
-
-  useEffect(() => {
-    if (!newProjectIntent) return;
-    window.setTimeout(() => projectNameInputRef.current?.focus(), 0);
-  }, [newProjectIntent]);
 
   // Auto-load file from the import queue when navigated here via "Review"
   useEffect(() => {
@@ -152,6 +148,11 @@ export function Stage1Instrumental() {
       }, new Set<string>()).size;
   }, [importSummary, instrumentalDatasetQuery.data]);
 
+  useEffect(() => {
+    if (!showPreview || !importSummary || projectNameEdited || retestImport) return;
+    setBatchName(importSummary.detection.label);
+  }, [importSummary, projectNameEdited, retestImport, showPreview]);
+
   const validationReport = useMemo(() => {
     if (!showPreview || !importSummary) return null;
     return validateImportedDataset(previewData, importSummary, columnReport, importSummary.detection);
@@ -162,25 +163,10 @@ export function Stage1Instrumental() {
     if (file) handleFile(file);
   };
 
-  const downloadCSVTemplate = () => {
-    const rows = [
-      ['sampleId', 'sampleName', 'foodType', 'category', 'sourness', 'bitterness', 'saltiness', 'umami', 'sweetness', 'compound', 'concentration', 'aroma', 'threshold', 'protein', 'fat', 'moisture', 'pH', 'saltContent', 'calciumMg'],
-      ['M1', 'Plant-Based Burger v1', 'meat', 'Burger', '1.2', '1.8', '2.6', '4.2', '0.8', 'Hexanal', '2.1', 'green/fatty', '5', '18.4', '12.2', '54.1', '6.1', '1.2', '42'],
-      ['M2', 'Plant-Based Burger v2', 'meat', 'Burger', '1.0', '1.4', '2.4', '4.8', '0.7', '2-methyl-3-furanthiol', '0.6', 'meaty', '0', '19.1', '11.8', '53.6', '6.0', '1.3', '44'],
-    ];
-    const csv = rows.map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'sensory-machine-import-template.csv';
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
   const handleFile = (file: File) => {
     setImportError(null);
     setFoodTypeOverride('');
+    setProjectNameEdited(false);
     setImportSuccess(null);
     setLastImportSummary(null);
 
@@ -227,13 +213,16 @@ export function Stage1Instrumental() {
 
     const inferredMappings = inferImportMappings(headers);
     const mappedData = applyImportMappings(data, inferredMappings);
+    const parsed = buildImportedDataset(mappedData, fileName);
+    const detectedProjectName = parsed.detection.label || formatFoodTypeLabel(parsed.detection.slug);
     setColumnReport({
       recognised: inferredMappings.filter(item => item.target !== 'ignore').map(item => item.source),
       ignored: inferredMappings.filter(item => item.target === 'ignore').map(item => item.source),
     });
     setPreviewData(mappedData);
     setUploadedFile(fileName);
-    setBatchName(overrideBatchName ?? (retestImport ? buildRetestBatchName(retestImport) : batchName.trim() || fileName.replace(/\.csv$/i, '')));
+    setBatchName(overrideBatchName ?? (retestImport ? buildRetestBatchName(retestImport) : detectedProjectName));
+    setProjectNameEdited(Boolean(overrideBatchName || retestImport));
     setShowPreview(true);
     setImportStep(2);
     setImportError(null);
@@ -244,11 +233,11 @@ export function Stage1Instrumental() {
     const importedETongue = parsed.eTongueData;
     const importedGCMSCount = Object.keys(parsed.gcmsData).length;
     const importedCompCount = Object.keys(parsed.compositionData).length;
-    const projectName = batchName.trim() || uploadedFile?.replace(/\.csv$/i, '') || `${parsed.detection.label} import`;
+    const projectName = batchName.trim() || parsed.detection.label || uploadedFile?.replace(/\.csv$/i, '') || `${parsed.detection.label} import`;
 
     if (importedETongue.length === 0 && importedGCMSCount === 0 && importedCompCount === 0) {
       setImportError(
-        "No data could be parsed. Column names may not match the template — download it to check."
+        "No data could be parsed. Check that the CSV includes supported sample, sensory, GC-MS, or composition columns."
       );
       return;
     }
@@ -258,6 +247,7 @@ export function Stage1Instrumental() {
     }
 
     let savedPermanently = true;
+    let importedBatchId: string | undefined;
 
     try {
       const savedDataset = await insertInstrumentalImport.mutateAsync({
@@ -275,6 +265,7 @@ export function Stage1Instrumental() {
           : undefined,
       });
 
+      importedBatchId = savedDataset.importBatchId;
       const nextDataset = savedDataset.eTongueData.length > 0 ? savedDataset : parsed;
       applyImportedDataset(nextDataset, setETongueData, setGcmsData, setCompositionData, setSelectedSamples);
     } catch (err) {
@@ -293,8 +284,11 @@ export function Stage1Instrumental() {
 
     if (!DEMO_TYPES.has(parsed.detection.slug)) {
       registerFoodTypes([parsed.detection.slug]);
-      setSelection(parsed.detection.slug, null);
     }
+    setSelection(
+      parsed.detection.slug,
+      importedBatchId ? encodeBatchSelection(importedBatchId) : null,
+    );
 
     const parts: string[] = [];
     if (importedETongue.length > 0)
@@ -317,12 +311,14 @@ export function Stage1Instrumental() {
       gcmsCount: importedGCMSCount,
       compositionCount: importedCompCount,
       savedPermanently,
+      importBatchId: importedBatchId ?? null,
       retestParentDecisionId: retestImport?.parentDecisionId ?? null,
     });
     setShowPreview(false);
     setUploadedFile(null);
     setColumnReport(null);
     setFoodTypeOverride('');
+    setProjectNameEdited(false);
     setBatchName('');
     setImportStep(1);
     setImportError(null);
@@ -336,6 +332,7 @@ export function Stage1Instrumental() {
     setUploadedFile(null);
     setColumnReport(null);
     setFoodTypeOverride('');
+    setProjectNameEdited(false);
     setBatchName('');
     setImportStep(1);
     setImportError(null);
@@ -410,10 +407,6 @@ export function Stage1Instrumental() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={downloadCSVTemplate} className="flex items-center gap-2">
-            <Download className="size-4" />
-            CSV template
-          </Button>
           <input
             ref={fileInputRef}
             type="file"
@@ -439,44 +432,25 @@ export function Stage1Instrumental() {
             <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Create new project</p>
-                <h2 className="mt-1 text-lg font-semibold text-slate-950">Name the project, then upload the CSV data.</h2>
+                <h2 className="mt-1 text-lg font-semibold text-slate-950">Upload the CSV, then review the detected project.</h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  This creates a project folder and turns each imported sample into a questionnaire-ready item.
+                  The platform will detect the food type, create the matching project folder, and turn each imported sample into a questionnaire-ready item.
                 </p>
-                <label htmlFor="new-project-name" className="mt-4 block text-xs font-semibold text-slate-700">
-                  Project name
-                </label>
-                <Input
-                  ref={projectNameInputRef}
-                  id="new-project-name"
-                  value={batchName}
-                  onChange={event => setBatchName(event.target.value)}
-                  placeholder="e.g., Coconut Cheddar June Trial"
-                  className="mt-1 bg-white"
-                />
               </div>
               <div className="rounded-xl border border-blue-100 bg-white p-4">
                 <p className="text-sm font-bold text-slate-900">CSV data</p>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Upload machine data with sample IDs, food type/category, e-tongue values, GC-MS compounds, and composition fields.
+                  After upload, review the detected project name such as Yogurt, Cheese, or Bread before saving.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Button
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={!batchName.trim()}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+                    className="bg-blue-600 hover:bg-blue-700"
                   >
                     <Upload className="size-4" />
                     Choose CSV
                   </Button>
-                  <Button variant="outline" onClick={downloadCSVTemplate}>
-                    <Download className="size-4" />
-                    Template
-                  </Button>
                 </div>
-                {!batchName.trim() && (
-                  <p className="mt-2 text-xs font-medium text-blue-700">Enter a project name to unlock CSV upload.</p>
-                )}
               </div>
             </div>
           </CardContent>
@@ -676,7 +650,7 @@ export function Stage1Instrumental() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-emerald-600 italic">None — check column names match the template.</p>
+                    <p className="text-emerald-600 italic">None — check that the CSV uses supported import column names.</p>
                   )}
                 </div>
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
@@ -745,13 +719,13 @@ export function Stage1Instrumental() {
             {/* Name and confirm */}
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
               <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Name this food project</p>
-              <p className="text-xs text-slate-500">This becomes a project group in Studies, with one questionnaire created per sample.</p>
+              <p className="text-xs text-slate-500">Detected as {importSummary?.detection.label ?? 'this category'}. Keep that project name or edit it before creating the surveys.</p>
               <input
                 type="text"
                 value={batchName}
-                onChange={e => { setBatchName(e.target.value); setImportStep(3); }}
+                onChange={e => { setBatchName(e.target.value); setProjectNameEdited(true); setImportStep(3); }}
                 onFocus={() => setImportStep(3)}
-                placeholder="e.g., Plant-Based Meat June Trial"
+                placeholder={importSummary?.detection.label ?? 'e.g., Yogurt'}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
               />
             </div>
@@ -800,9 +774,6 @@ export function Stage1Instrumental() {
         >
             <div className="max-h-[620px] space-y-1 overflow-y-auto pr-1">
               {displayedSamples.map((sample) => {
-                const hasOffNotes = gcmsData[sample.id]?.some(
-                  (c) => c.threshold > 0 && c.concentration > c.threshold
-                );
                 const isSelected = selectedSamples.includes(sample.id);
 
                 return (
@@ -811,8 +782,6 @@ export function Stage1Instrumental() {
                     active={isSelected}
                     title={sample.name}
                     meta={sample.id}
-                    signal={hasOffNotes ? 'Off-note threshold exceeded' : sample.category}
-                    signalTone={hasOffNotes ? 'critical' : 'neutral'}
                     trailing={compareMode && isSelected && (
                       <span className="flex size-5 items-center justify-center rounded-full bg-slate-900">
                         <Check className="size-3 text-white" />
@@ -949,28 +918,21 @@ export function Stage1Instrumental() {
                 <div className="space-y-2 max-h-[380px] overflow-y-auto pr-2">
                   {selectedGCMSData.length > 0 ? (
                     selectedGCMSData.map((compound, idx) => {
-                      const overThreshold = compound.threshold > 0 ? compound.concentration > compound.threshold : false;
                       return (
                         <div
                           key={`${compound.name}-${idx}`}
-                          className={`p-2 rounded-lg border text-xs ${overThreshold ? "border-rose-300 bg-rose-50" : "border-slate-200 bg-white"}`}
+                          className="p-2 rounded-lg border border-slate-200 bg-white text-xs"
                         >
                           <div className="font-semibold text-slate-900 mb-0.5">{compound.name}</div>
                           <div className="text-slate-600 mb-0.5">{compound.aroma}</div>
                           <div className="flex items-center justify-between">
-                            <span className={overThreshold ? "text-rose-600 font-semibold" : "text-slate-700"}>
+                            <span className="text-slate-700">
                               {compound.concentration.toFixed(1)} ppm
                             </span>
                             {compound.threshold > 0 && (
                               <span className="text-slate-500">↑ {compound.threshold}</span>
                             )}
                           </div>
-                          {overThreshold && (
-                            <div className="mt-1 font-semibold text-rose-700 flex items-center gap-1">
-                              <AlertCircle className="size-3" />
-                              Over threshold
-                            </div>
-                          )}
                         </div>
                       );
                     })

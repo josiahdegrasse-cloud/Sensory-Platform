@@ -263,17 +263,6 @@ export function ReportsPage() {
       .filter(entry => release === 'all' || entry.releaseStatus === release),
     [entries, release, search, status],
   );
-  const counts = useMemo(() => {
-    const active = entries.filter(entry => entry.latest.status !== 'archived');
-    return {
-      active: active.length,
-      clientReady: active.filter(entry => entry.releaseStatus === 'client_ready').length,
-      internal: active.filter(entry => entry.releaseStatus === 'internal_draft').length,
-      blocked: active.filter(entry => entry.releaseStatus === 'blocked').length,
-      demo: active.filter(entry => entry.releaseStatus === 'demonstration_only').length,
-    };
-  }, [entries]);
-
   const changeStatus = (
     report: CommercializationReportRecord,
     nextStatus: CommercializationReportRecord['status'],
@@ -312,14 +301,6 @@ export function ReportsPage() {
           </p>
         </div>
         <Button asChild><Link to="/decision"><Sparkles className="size-4" />Build report</Link></Button>
-      </div>
-
-      <div className="flex flex-wrap gap-x-8 gap-y-3 border-y border-slate-200 py-4">
-        <div><strong className="text-xl text-slate-950">{counts.active}</strong><span className="ml-2 text-sm text-slate-500">active reports</span></div>
-        <div><strong className="text-xl text-emerald-700">{counts.clientReady}</strong><span className="ml-2 text-sm text-slate-500">client-ready</span></div>
-        <div><strong className="text-xl text-blue-700">{counts.internal}</strong><span className="ml-2 text-sm text-slate-500">internal drafts</span></div>
-        <div><strong className="text-xl text-orange-700">{counts.demo}</strong><span className="ml-2 text-sm text-slate-500">demo only</span></div>
-        <div><strong className="text-xl text-rose-700">{counts.blocked}</strong><span className="ml-2 text-sm text-slate-500">blocked</span></div>
       </div>
 
       <div className="flex flex-col gap-3 lg:flex-row">

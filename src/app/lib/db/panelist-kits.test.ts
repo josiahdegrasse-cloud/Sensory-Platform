@@ -34,6 +34,7 @@ describe('panelist kit data access', () => {
         manual_code: 'NFI-8F2K1A3B',
         sample_code: '123',
         product_id: 'product-1',
+        assigned_product_ids: ['product-1', 'product-2'],
         status: 'generated',
         expires_at: null,
         response_deadline: '2026-07-01',
@@ -51,12 +52,14 @@ describe('panelist kit data access', () => {
       responseDeadline: '2026-07-01',
       handlingInstructions: 'Keep chilled.',
       recipients: [{ name: 'Avery Panelist', email: 'avery@example.com' }],
+      assignedProductIds: ['product-1', 'product-2'],
     })).resolves.toEqual([expect.objectContaining({
       id: 'kit-1',
       token: 'secret-token',
       kitCode: 'KIT-001',
       manualCode: 'NFI-8F2K1A3B',
       sampleCode: '123',
+      assignedProductIds: ['product-1', 'product-2'],
       responseDeadline: '2026-07-01',
       handlingInstructions: 'Keep chilled.',
       recipientName: 'Avery Panelist',
@@ -67,6 +70,7 @@ describe('panelist kit data access', () => {
       target_product_id: 'product-1',
       kit_count: 1,
       p_recipients: [{ name: 'Avery Panelist', email: 'avery@example.com' }],
+      p_assigned_product_ids: ['product-1', 'product-2'],
     }));
   });
 
@@ -79,6 +83,65 @@ describe('panelist kit data access', () => {
     await expect(fetchPanelistKits('product-1')).resolves.toEqual([]);
   });
 
+  it('retries the legacy generate function for one-task boxes when the box-pass RPC signature is not cached', async () => {
+    dbMocks.rpc
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          message: 'Could not find the function public.generate_panelist_kits(kit_count, p_assigned_product_ids, p_expires_at, p_handling_instructions, p_recipients, p_response_deadline, target_product_id) in the schema cache',
+        },
+      })
+      .mockResolvedValueOnce({
+        data: [{
+          id: 'kit-1',
+          token: 'secret-token',
+          kit_code: 'KIT-001',
+          manual_code: 'NFI-8F2K1A3B',
+          sample_code: '123',
+          product_id: 'product-1',
+          status: 'generated',
+          expires_at: null,
+          response_deadline: null,
+          handling_instructions: '',
+          recipient_name: 'Avery Panelist',
+          recipient_email: null,
+          created_at: '2026-06-28T12:00:00.000Z',
+        }],
+        error: null,
+      });
+
+    await expect(generatePanelistKits({
+      productId: 'product-1',
+      kitCount: 1,
+      assignedProductIds: ['product-1'],
+    })).resolves.toEqual([expect.objectContaining({
+      kitCode: 'KIT-001',
+      assignedProductIds: ['product-1'],
+    })]);
+
+    expect(dbMocks.rpc).toHaveBeenNthCalledWith(1, 'generate_panelist_kits', expect.objectContaining({
+      p_assigned_product_ids: ['product-1'],
+    }));
+    expect(dbMocks.rpc).toHaveBeenNthCalledWith(2, 'generate_panelist_kits', expect.not.objectContaining({
+      p_assigned_product_ids: expect.anything(),
+    }));
+  });
+
+  it('explains that the box-pass migration is required when assigning multiple tasks', async () => {
+    dbMocks.rpc.mockResolvedValue({
+      data: null,
+      error: {
+        message: 'Could not find the function public.generate_panelist_kits(kit_count, p_assigned_product_ids, p_expires_at, p_handling_instructions, p_recipients, p_response_deadline, target_product_id) in the schema cache',
+      },
+    });
+
+    await expect(generatePanelistKits({
+      productId: 'product-1',
+      kitCount: 1,
+      assignedProductIds: ['product-1', 'product-2'],
+    })).rejects.toThrow(/box-pass migration/i);
+  });
+
   it('maps admin kit rows with fielding metadata', async () => {
     dbMocks.rpc.mockResolvedValue({
       data: [{
@@ -87,6 +150,9 @@ describe('panelist kit data access', () => {
         manual_code: 'NFI-8F2K1A3B',
         sample_code: '123',
         product_id: 'product-1',
+        assigned_product_ids: ['product-1', 'product-2'],
+        assigned_product_count: 2,
+        completed_product_count: '1',
         product_name: 'Cheddar trial',
         calculated_status: 'shipped',
         stored_status: 'shipped',
@@ -121,6 +187,8 @@ describe('panelist kit data access', () => {
       kitCode: 'KIT-001',
       manualCode: 'NFI-8F2K1A3B',
       calculatedStatus: 'shipped',
+      assignedProductCount: 2,
+      completedProductCount: 1,
       trackingNumber: 'TRACK-1',
       issueStatus: 'open',
       reminderCount: 2,
@@ -133,6 +201,8 @@ describe('panelist kit data access', () => {
         id: 'kit-1',
         org_id: 'org-1',
         product_id: 'product-1',
+        assigned_product_ids: ['product-1', 'product-2'],
+        assigned_product_count: 2,
         product_name: 'Cheddar trial',
         product_category: 'Cheese',
         is_multi_sample: false,
@@ -153,6 +223,8 @@ describe('panelist kit data access', () => {
       productName: 'Cheddar trial',
       kitCode: 'KIT-001',
       manualCode: 'NFI-8F2K1A3B',
+      assignedProductIds: ['product-1', 'product-2'],
+      assignedProductCount: 2,
       calculatedStatus: 'claimed',
       claimedBy: 'user-1',
     }));
@@ -164,6 +236,8 @@ describe('panelist kit data access', () => {
         id: 'kit-1',
         org_id: 'org-1',
         product_id: 'product-1',
+        assigned_product_ids: ['product-1', 'product-2'],
+        assigned_product_count: 2,
         product_name: 'Cheddar trial',
         product_category: 'Cheese',
         is_multi_sample: false,

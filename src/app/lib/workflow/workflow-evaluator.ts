@@ -59,15 +59,15 @@ function pickNextAction(stages: WorkflowStageSummary[]): WorkflowNextAction {
 }
 
 function overall(stages: WorkflowStageSummary[]) {
-  const critical = stages.find(item => item.status === 'blocked');
-  if (critical) return { label: `${critical.label} blocked`, tone: 'critical' as const };
   const review = stages.find(item => item.status === 'needs_review');
   if (review) return { label: `${review.label} needs review`, tone: 'warning' as const };
   const ready = stages.find(item => item.status === 'ready');
   if (ready) return { label: `${ready.label} ready`, tone: workflowTone(ready.status) };
-  const completed = stages.filter(item => item.status === 'complete');
-  const progress = completed[completed.length - 1] ?? stages.find(item => item.status === 'in_progress');
+  const progress = stages.find(item => item.status === 'in_progress');
   if (progress) return { label: `${progress.label} ${progress.status === 'complete' ? 'complete' : 'in progress'}`, tone: workflowTone(progress.status) };
+  const completed = stages.filter(item => item.status === 'complete');
+  const latestCompleted = completed[completed.length - 1];
+  if (latestCompleted) return { label: `${latestCompleted.label} complete`, tone: workflowTone(latestCompleted.status) };
   return { label: 'Awaiting data', tone: 'neutral' as const };
 }
 
@@ -87,7 +87,9 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
   const routeProjectId = batch?.projectId ?? batch?.id ?? null;
   const routeFor = (stageId: WorkflowStageId, search = '') => workflowStagePath(stageId, routeProjectId, search);
   const samples = (input.instrumentalDataset?.eTongueData ?? []).filter(sample =>
-    sample.type === input.foodType && (!input.importBatchId || sample.importBatchId === input.importBatchId)
+    input.importBatchId
+      ? sample.importBatchId === input.importBatchId
+      : sample.type === input.foodType
   );
   const batchSamples = (input.instrumentalDataset?.eTongueData ?? []).filter(sample =>
     !input.importBatchId || sample.importBatchId === input.importBatchId
@@ -134,10 +136,11 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
   const latestDecision = latestByDate(projectDecisions, decision => decision.timestamp);
   projectDecisions.forEach(record => sampleIds.add(record.sampleId));
 
-  const projectProducts = input.products.filter(product =>
-    product.status !== 'archived' &&
-    (product.sourceSampleId ? sampleIds.has(product.sourceSampleId) : false)
-  );
+  const projectProducts = input.products.filter(product => {
+    if (product.status === 'archived') return false;
+    if (input.importBatchId) return product.sourceImportBatchId === input.importBatchId;
+    return product.sourceSampleId ? sampleIds.has(product.sourceSampleId) : false;
+  });
   const activeStudies = projectProducts.filter(product => product.status === 'active');
   const multiSampleStudies = activeStudies.filter(product => product.isMultiSample);
   const studyWarnings = [
@@ -218,7 +221,7 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
       !hasEtongue ? 'Import instrumental data before reviewing insights. Insights compare sensory results with machine evidence, so the project needs linked data first.' : null,
       responseCompleted === 0 ? 'Collect panelist responses before reviewing insights. Sensory aggregation cannot run until at least one response exists.' : null,
     ].filter((item): item is string => Boolean(item)),
-    warnings: enoughResponses ? [] : ['Insights are directional until response targets are met. Continue collecting responses before using insights for a final decision.'],
+    warnings: [],
     completedItems: [
       responseCompleted > 0 ? 'Survey aggregation available' : null,
       hasEtongue ? 'Instrumental comparison available' : null,

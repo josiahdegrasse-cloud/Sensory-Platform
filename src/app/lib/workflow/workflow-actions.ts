@@ -32,7 +32,7 @@ export function workflowTone(status: WorkflowStageStatus): WorkflowTone {
     case 'needs_review':
       return 'warning';
     case 'blocked':
-      return 'critical';
+      return 'neutral';
     default:
       return 'neutral';
   }
@@ -47,7 +47,7 @@ export function workflowStatusLabel(status: WorkflowStageStatus): string {
     case 'not_started': return 'Not started';
     case 'in_progress': return 'In progress';
     case 'needs_review': return 'Needs review';
-    case 'blocked': return 'Blocked';
+    case 'blocked': return 'Pending';
     case 'ready': return 'Ready';
     case 'complete': return 'Complete';
   }

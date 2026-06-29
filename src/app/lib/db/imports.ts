@@ -56,6 +56,7 @@ export interface InstrumentalDataset {
   eTongueData: ETongueMeasurementRecord[];
   gcmsData: Record<string, GCMSCompoundRecord[]>;
   compositionData: Record<string, ChemicalCompositionRecord>;
+  importBatchId?: string;
 }
 
 export interface InstrumentalImportInput extends InstrumentalDataset {
@@ -173,6 +174,128 @@ async function seedDemoResponsesForImport(input: {
   if (rows.length === 0) return;
   const { error } = await supabase.from('responses').insert(rows);
   if (error) throw dbError(error);
+}
+
+async function fetchImportSurveySettings(): Promise<{
+  autoCreateSurveys: boolean;
+  requireImportReview: boolean;
+}> {
+  const { data, error } = await supabase
+    .from('workspace_settings')
+    .select('auto_create_surveys_from_imports, require_import_review')
+    .maybeSingle();
+
+  if (error) return { autoCreateSurveys: true, requireImportReview: false };
+  return {
+    autoCreateSurveys: Boolean(data?.auto_create_surveys_from_imports ?? true),
+    requireImportReview: Boolean(data?.require_import_review ?? false),
+  };
+}
+
+async function ensureSurveysForImportBatch(input: {
+  batchId: string;
+  foodTypeSlug: string;
+  foodTypeLabel: string;
+  customAttributes: string[];
+  eTongueData: ETongueMeasurementRecord[];
+  gcmsData: Record<string, GCMSCompoundRecord[]>;
+  compositionData: Record<string, ChemicalCompositionRecord>;
+}) {
+  const settings = await fetchImportSurveySettings();
+  if (!settings.autoCreateSurveys) return;
+
+  const { data: batch, error: batchError } = await supabase
+    .from('import_batches')
+    .select('id, project_id')
+    .eq('id', input.batchId)
+    .maybeSingle();
+  if (batchError) throw dbError(batchError);
+  if (!batch) return;
+
+  const { data: samples, error: samplesError } = await supabase
+    .from('instrumental_samples')
+    .select('sample_id, sample_name, category, project_id')
+    .eq('import_batch_id', input.batchId);
+  if (samplesError) throw dbError(samplesError);
+
+  const { data: existingProducts, error: productsError } = await supabase
+    .from('products')
+    .select('source_sample_id, name')
+    .eq('source_import_batch_id', input.batchId);
+  if (productsError) throw dbError(productsError);
+
+  const existingSampleIds = new Set((existingProducts ?? [])
+    .map(product => product.source_sample_id)
+    .filter(Boolean) as string[]);
+  const sampleMetaById = new Map<string, {
+    sampleId: string;
+    sampleName: string | null;
+    category: string | null;
+    projectId: string | null;
+  }>();
+
+  samples.forEach(sample => {
+    const sampleId = (sample.sample_id as string | null)?.trim();
+    if (!sampleId) return;
+    sampleMetaById.set(sampleId, {
+      sampleId,
+      sampleName: (sample.sample_name as string | null) ?? null,
+      category: (sample.category as string | null) ?? null,
+      projectId: (sample.project_id as string | null) ?? null,
+    });
+  });
+
+  input.eTongueData.forEach(sample => {
+    const sampleId = sample.sampleId.trim();
+    if (!sampleId || sampleMetaById.has(sampleId)) return;
+    sampleMetaById.set(sampleId, {
+      sampleId,
+      sampleName: sample.sampleName ?? null,
+      category: sample.category ?? null,
+      projectId: null,
+    });
+  });
+
+  Object.keys(input.gcmsData).forEach(sampleId => {
+    const trimmed = sampleId.trim();
+    if (!trimmed || sampleMetaById.has(trimmed)) return;
+    sampleMetaById.set(trimmed, {
+      sampleId: trimmed,
+      sampleName: null,
+      category: null,
+      projectId: null,
+    });
+  });
+
+  Object.keys(input.compositionData).forEach(sampleId => {
+    const trimmed = sampleId.trim();
+    if (!trimmed || sampleMetaById.has(trimmed)) return;
+    sampleMetaById.set(trimmed, {
+      sampleId: trimmed,
+      sampleName: null,
+      category: null,
+      projectId: null,
+    });
+  });
+
+  const productStatus = settings.requireImportReview ? 'draft' : 'active';
+  const fallbackCategory = input.foodTypeLabel || formatFoodTypeLabel(input.foodTypeSlug);
+  const missingProducts = [...sampleMetaById.values()]
+    .filter(sample => !existingSampleIds.has(sample.sampleId))
+    .map(sample => ({
+      name: sample.sampleName ? `${sample.sampleName} (${sample.sampleId})` : sample.sampleId,
+      category: sample.category || fallbackCategory,
+      status: productStatus,
+      custom_attributes: asJson(input.customAttributes),
+      assigned_panelist_ids: [],
+      source_import_batch_id: input.batchId,
+      source_sample_id: sample.sampleId,
+      project_id: sample.projectId ?? (batch.project_id as string | null) ?? null,
+    }));
+
+  if (missingProducts.length === 0) return;
+  const { error: insertError } = await supabase.from('products').insert(missingProducts);
+  if (insertError) throw dbError(insertError);
 }
 
 function toFoodType(row: Tables['food_types']['Row']): FoodTypeRecord {
@@ -490,6 +613,16 @@ export async function insertInstrumentalImport(input: InstrumentalImportInput): 
   });
   if (error) throw dbError(error);
   if (typeof batchId === 'string') {
+    await ensureSurveysForImportBatch({
+      batchId,
+      foodTypeSlug: slugifyFoodType(input.detection.slug),
+      foodTypeLabel: input.detection.label || formatFoodTypeLabel(input.detection.slug),
+      customAttributes: getDefaultCataAttributesForFoodType(input.detection.slug),
+      eTongueData: input.eTongueData,
+      gcmsData: input.gcmsData,
+      compositionData: input.compositionData,
+    });
+
     if (input.reformulationNotes) {
       await supabase
         .from('import_batches')
@@ -503,5 +636,6 @@ export async function insertInstrumentalImport(input: InstrumentalImportInput): 
     });
   }
 
-  return fetchInstrumentalDataset();
+  const dataset = await fetchInstrumentalDataset();
+  return typeof batchId === 'string' ? { ...dataset, importBatchId: batchId } : dataset;
 }

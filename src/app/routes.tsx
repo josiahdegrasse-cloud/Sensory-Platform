@@ -7,7 +7,6 @@ import { RouteErrorBoundary } from "./components/route-error-boundary";
 import { LegacyWorkflowRoute } from "./components/legacy-workflow-route";
 
 const OverviewDashboard = lazy(() => import("./components/overview-dashboard").then(m => ({ default: m.OverviewDashboard })));
-const ProjectCommandCenter = lazy(() => import("./components/project-command-center").then(m => ({ default: m.ProjectCommandCenter })));
 const ProjectWorkflowRoute = lazy(() => import("./components/project-workflow-route").then(m => ({ default: m.ProjectWorkflowRoute })));
 const Stage1Instrumental = lazy(() => import("./components/stage1-instrumental").then(m => ({ default: m.Stage1Instrumental })));
 const SurveyAnalysis = lazy(() => import("./components/survey-analysis").then(m => ({ default: m.SurveyAnalysis })));
@@ -93,7 +92,7 @@ export const router = createBrowserRouter([
         ),
         children: [
           { index: true, Component: OverviewDashboard },
-          { path: "project", Component: ProjectCommandCenter },
+          { path: "project", element: <Navigate to="/" replace /> },
           { path: "project/:projectId", Component: ProjectWorkflowRoute },
           { path: "project/:projectId/:step", Component: ProjectWorkflowRoute },
           { path: "stage1", element: <LegacyWorkflowRoute><Stage1Instrumental /></LegacyWorkflowRoute> },

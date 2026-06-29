@@ -91,7 +91,7 @@ export function getConceptReadiness({
         : assignedPanelistIds.length > 0
           ? 'The saved selections are inactive or archived. Assign at least one active panelist.'
           : 'Assign at least one active panelist.',
-      fixStep: 'survey',
+      fixStep: 'panel',
     },
   ];
 

@@ -69,11 +69,11 @@ export function ProjectWorkflowRoute() {
     setSelection(batch.foodTypeSlug, encodeBatchSelection(batch.id));
   }, [batch, selectedBatchId, setSelection]);
 
-  if (!projectId) return <Navigate to="/project" replace />;
+  if (!projectId) return <Navigate to="/" replace />;
   if (!isProjectJourneyStep(journeyStep)) return <Navigate to={projectPath(projectId)} replace />;
   if (journeyStep === 'responses') return <Navigate to={projectPath(projectId, 'studies')} replace />;
   if (isLoading) return <LoadingProjectScope />;
-  if (!batch) return <ProjectCommandCenter />;
+  if (!batch) return <Navigate to="/" replace />;
   if (selectedBatchId !== batch.id) return <LoadingProjectScope />;
 
   return <ProjectStepContent step={journeyStep} />;

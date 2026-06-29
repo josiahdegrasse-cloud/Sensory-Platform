@@ -1,11 +1,10 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
-import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Archive, Trash2, Undo2, Database, ChevronDown, ChevronRight, Settings, AlertCircle, AlertTriangle, X, FileText, FolderKanban, Menu } from "lucide-react";
+import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Archive, Trash2, Undo2, ChevronDown, ChevronRight, Settings, AlertCircle, AlertTriangle, X, FileText, FolderKanban, Menu } from "lucide-react";
 import { useAuth } from "../contexts/auth-context";
 import { useEffect, useMemo, useState } from "react";
 import { useFoodType } from "../contexts/food-type-context";
 import { parseBatchSelection, encodeBatchSelection } from "../lib/project-identity";
-import { useDeleteImportBatch, useImportBatches, useInstrumentalDataset, usePendingImports, useProducts, useUpdateImportBatchStatus, useWorkspaceSettings } from "../lib/hooks";
-import { matchFoodType } from "../contexts/food-type-context";
+import { useDeleteImportBatch, useImportBatches, usePendingImports, useUpdateImportBatchStatus, useWorkspaceSettings } from "../lib/hooks";
 import { useProjectStatus } from "../lib/use-project-status";
 import { currentPathToJourneyStep, legacyWorkflowPathToStep, projectPath } from "../lib/project-journey-routes";
 import type { ImportBatchRecord } from "../lib/database";
@@ -132,9 +131,7 @@ function CategorySidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { foodType, subCategory, setSelection, extraFoodTypes, archivedFoodTypes, deletedFoodTypes, archiveFoodType, restoreFoodType, deleteFoodType, actionError, clearActionError } = useFoodType();
-  const { data: products = [] } = useProducts();
   const { data: importBatches = [] } = useImportBatches();
-  const { data: instrumentalDataset } = useInstrumentalDataset();
   const updateImportBatchStatus = useUpdateImportBatchStatus();
   const [pendingAction, setPendingAction] = useState<{ type: string; action: 'archive' | 'delete' } | null>(null);
   const [pendingProjectAction, setPendingProjectAction] = useState<{ id: string; label: string; action: 'archive' | 'delete' } | null>(null);
@@ -144,19 +141,7 @@ function CategorySidebar() {
     .filter(type => !archivedFoodTypes.includes(type) && !deletedFoodTypes.includes(type));
   const label = (ft: string) =>
     ft === 'cheese' ? 'Cheese' : ft === 'bread' ? 'Bread' : capitalize(ft);
-  const activeTypeLabel = label(foodType);
   const selectedBatchId = parseBatchSelection(subCategory);
-  const selectedSamples = useMemo(() => {
-    const samples = instrumentalDataset?.eTongueData ?? [];
-    return samples.filter(sample =>
-      sample.type === foodType &&
-      (!selectedBatchId || sample.importBatchId === selectedBatchId)
-    );
-  }, [foodType, instrumentalDataset, selectedBatchId]);
-  const selectedSampleIds = useMemo(() => new Set(selectedSamples.map(sample => sample.sampleId)), [selectedSamples]);
-  const selectedBatch = selectedBatchId
-    ? importBatches.find(batch => batch.id === selectedBatchId)
-    : importBatches.find(batch => batch.foodTypeSlug === foodType && batch.status === 'active');
   const projectBatchesByType = useMemo(() => {
     const groups: Record<string, typeof importBatches> = {};
     importBatches
@@ -167,16 +152,6 @@ function CategorySidebar() {
       });
     return groups;
   }, [importBatches]);
-  const selectedDataTypes = [
-    selectedSamples.length > 0 ? 'E-tongue' : null,
-    Object.keys(instrumentalDataset?.gcmsData ?? {}).some(sampleId => selectedSampleIds.has(sampleId)) ? 'GC-MS' : null,
-    Object.keys(instrumentalDataset?.compositionData ?? {}).some(sampleId => selectedSampleIds.has(sampleId)) ? 'Composition' : null,
-  ].filter(Boolean);
-  const activeSurveyCount = products.filter(product =>
-    product.status !== 'archived' &&
-    matchFoodType(product.category) === foodType &&
-    (!selectedBatchId || product.sourceImportBatchId === selectedBatchId)
-  ).length;
   const status = useProjectStatus(foodType, selectedBatchId);
   const hasActiveProject = foodType !== 'all' && Boolean(foodType);
   const applyTypeProjectStatus = (type: string, nextStatus: 'archived' | 'deleted') => {
@@ -371,36 +346,6 @@ function CategorySidebar() {
           )}
         </div>
       </div>
-      <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
-          <Database className="size-3.5 text-slate-400" />
-          {activeTypeLabel}
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-          <div className="rounded-md bg-slate-50 border border-slate-100 p-2">
-            <div className="font-bold text-slate-900">{selectedSamples.length}</div>
-            <div className="text-slate-500">machine samples</div>
-          </div>
-          <div className="rounded-md bg-slate-50 border border-slate-100 p-2">
-            <div className="font-bold text-slate-900">{activeSurveyCount}</div>
-            <div className="text-slate-500">surveys</div>
-          </div>
-        </div>
-        <div className="mt-3 text-[11px] text-slate-500">
-          {selectedBatch
-            ? `Last import: ${new Date(selectedBatch.createdAt).toLocaleDateString()}`
-            : 'No saved import batches yet.'}
-        </div>
-        {selectedDataTypes.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {selectedDataTypes.map(kind => (
-              <span key={kind} className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
-                {kind}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
       {hasActiveProject && status.warnings.length > 0 && (
         <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
           <div className="space-y-1.5">
@@ -544,13 +489,13 @@ export function MainLayout() {
       }
     }
 
-    if (normalized === '/project' || /^\/project\/[^/]+$/.test(normalized)) return '/project';
+    if (normalized === '/' || normalized === '/project') return '/';
+    if (/^\/project\/[^/]+$/.test(normalized)) return '/';
     if (normalized === '/report' || normalized === '/commercialization-report') return '/reports';
     return normalized;
   };
 
   const isActive = (path: string) => {
-    if (path === "/" && location.pathname === "/") return true;
     if (user?.role === 'admin') return activeAdminNavPath(location.pathname) === path;
     if (path !== "/" && location.pathname.startsWith(path)) return true;
     return false;
@@ -565,23 +510,21 @@ export function MainLayout() {
     ? navImportBatches.find(batch => batch.id === selectedNavBatchId)
     : null;
   const selectedProjectId = selectedNavBatch?.projectId ?? selectedNavBatch?.id ?? null;
-  const getAdminNavItems = () => selectedProjectId ? [
-    { path: "/project",        label: "Overview",  icon: FolderKanban },
+  const getAdminNavItems = () => [
+    { path: "/",               label: "Overview",  icon: FolderKanban },
     { path: "/stage1",         label: "Data",      icon: FlaskConical },
     { path: "/admin",          label: "Studies",   icon: ClipboardList },
     { path: "/survey-analysis", label: "Insights", icon: BarChart3 },
     { path: "/decision",       label: "Decision",  icon: GitMerge },
     { path: "/concept-testing", label: "Concept",  icon: Lightbulb },
     { path: "/reports",        label: "Report",    icon: FileText },
-  ] : [
-    { path: "/project", label: "Projects", icon: FolderKanban },
   ];
   const navItems = user?.role === 'admin' ? getAdminNavItems() : getPanelistNavItems();
   const activeNavItem = navItems.find(item => isActive(item.path)) ?? navItems[0];
   const ActiveNavIcon = activeNavItem?.icon;
   const adminNavTarget = (path: string) => {
     if (!selectedProjectId) return path;
-    if (path === '/project') return projectPath(selectedProjectId, 'overview');
+    if (path === '/') return '/';
     const step = legacyWorkflowPathToStep(path);
     return step ? projectPath(selectedProjectId, step) : path;
   };
@@ -602,7 +545,7 @@ export function MainLayout() {
 
           {/* Top bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 py-3">
-            <Link to="/" className="flex items-center gap-2.5 hover:opacity-75 transition-opacity">
+            <Link to={user?.role === 'panelist' ? '/panelist' : '/'} className="flex items-center gap-2.5 hover:opacity-75 transition-opacity">
               <TenantOrNfiLogo
                 logoUrl={brandLogo}
                 organizationName={brandName}

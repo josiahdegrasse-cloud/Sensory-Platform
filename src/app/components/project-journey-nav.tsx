@@ -32,8 +32,8 @@ function isActiveItem(item: JourneyItem, pathname: string, projectId?: string | 
   return pathname === scopedStepPath(projectId, item.step);
 }
 
-function isBlocked(status?: WorkflowStageStatus) {
-  return status === 'blocked';
+function isBlocked(item: JourneyItem, status?: WorkflowStageStatus) {
+  return item.step !== 'concept' && status === 'blocked';
 }
 
 export function ProjectJourneyNav({ stages, projectId }: { stages: WorkflowStageSummary[]; projectId?: string | null }) {
@@ -49,7 +49,7 @@ export function ProjectJourneyNav({ stages, projectId }: { stages: WorkflowStage
               ? projectPath(projectId, item.step)
               : stage?.nextActionRoute ?? `/${item.step}`;
           const active = isActiveItem(item, location.pathname, projectId);
-          const blocked = isBlocked(stage?.status);
+          const blocked = isBlocked(item, stage?.status);
           const className = cn(
             'flex items-center gap-1.5 rounded-md px-3 py-2 text-xs font-semibold transition-colors',
             active ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950',

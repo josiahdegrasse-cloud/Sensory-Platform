@@ -97,7 +97,7 @@ async function runQuickConfirm(item: PendingImportRecord, userId: string): Promi
   if (validation.errors.length > 0) throw new Error(validation.errors[0]);
 
   await insertInstrumentalImport({
-    fileName: fileName.replace(/\.csv$/i, ''),
+    fileName: parsed.detection.label,
     rowCount: previewData.length,
     recognizedColumns: colReport.recognised,
     ignoredColumns: colReport.ignored,

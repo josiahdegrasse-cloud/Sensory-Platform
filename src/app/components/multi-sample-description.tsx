@@ -8,11 +8,13 @@ import { useMemo, useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle2, Clock, Layers, Target, Trophy, Lock } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { getBlindStudyCategoryLabel, getBlindStudyDisplayName, getPanelistSampleOrder } from '../lib/blind-study';
+import { useScrollToTop } from '../lib/use-scroll-to-top';
 
 export function MultiSampleDescription() {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  useScrollToTop(productId);
 
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);

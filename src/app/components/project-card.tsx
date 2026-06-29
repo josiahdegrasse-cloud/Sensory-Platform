@@ -205,7 +205,6 @@ export function ProjectCard({ projectId, realProjectId, status, projectPath, onO
             Continue <ArrowRight className="size-4" />
           </Link>
         </div>
-        <p className="text-[11px] text-slate-400">Double-click the project name to rename it.</p>
       </CardContent>
     </Card>
   );

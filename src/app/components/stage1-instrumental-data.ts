@@ -52,6 +52,7 @@ export interface ImportCompletionSummary {
   gcmsCount: number;
   compositionCount: number;
   savedPermanently: boolean;
+  importBatchId?: string | null;
   retestParentDecisionId?: string | null;
 }
 
@@ -271,10 +272,27 @@ export function inferType(sampleId: string, csvType?: string, csvCategory?: stri
   return prefix.startsWith("D") ? "dairy" : "pbca";
 }
 
-export function inferCategory(sampleId: string, csvCategory?: string, type?: string) {
+export function inferYogurtCategory(sampleName?: string, csvCategory?: string) {
+  const text = `${csvCategory ?? ""} ${sampleName ?? ""}`.toLowerCase();
+  if (!text.trim()) return "";
+  if (text.includes("coconut")) return "Coconut cultured";
+  if (text.includes("oat")) return "Oat cultured";
+  if (text.includes("skyr")) return "Low sugar skyr";
+  if (text.includes("greek") || text.includes("strained")) return "Greek strained";
+  if (text.includes("kefir")) return "Lemon kefir";
+  if (text.includes("strawberry") || text.includes("fruit")) return "Strawberry fruit";
+  if (text.includes("vanilla") || text.includes("high protein") || text.includes("protein")) return "High protein vanilla";
+  if (text.includes("whole milk") || text.includes("plain")) return "Whole milk plain";
+  return "";
+}
+
+export function inferCategory(sampleId: string, csvCategory?: string, type?: string, sampleName?: string) {
   const normalized = normalize(csvCategory);
+  const yogurtCategory = type === "yogurt" ? inferYogurtCategory(sampleName, normalized) : "";
+  if (yogurtCategory) return yogurtCategory;
   if (normalized) return normalized;
   if (type === "dairy") return "Dairy";
+  if (type === "yogurt") return "Yogurt";
   if (type === "bread") return "Bread";
   if (type === "meat") return "Meat";
   if (type) return formatFoodTypeLabel(type);
@@ -283,6 +301,18 @@ export function inferCategory(sampleId: string, csvCategory?: string, type?: str
 
 export function getPointColor(type?: string, category?: string) {
   if (type === "dairy" || category === "Dairy") return STATUS.go;
+  if (type === "yogurt") {
+    const c = (category || "").toLowerCase();
+    if (c.includes("coconut")) return "#0ea5a4";
+    if (c.includes("oat")) return "#84cc16";
+    if (c.includes("skyr")) return "#2563eb";
+    if (c.includes("greek") || c.includes("strained")) return "#7c3aed";
+    if (c.includes("kefir") || c.includes("lemon")) return "#eab308";
+    if (c.includes("strawberry") || c.includes("fruit")) return "#e11d48";
+    if (c.includes("vanilla") || c.includes("protein")) return "#f97316";
+    if (c.includes("whole milk") || c.includes("plain")) return "#64748b";
+    return "#0891b2";
+  }
   if (type === "bread") {
     const c = (category || "").toLowerCase();
     if (c.includes("sourdough")) return "#d97706";
@@ -323,7 +353,7 @@ export function buildImportedDataset(previewData: Record<string, string>[], uplo
     const csvCategory = getRowValue(row, ["category", "foodType", "food_type", "productType", "product_type"]);
     const csvType = getRowValue(row, ["type", "foodType", "food_type", "productType", "product_type"]);
     const type = inferType(sampleId, csvType, csvCategory, sampleName);
-    const category = inferCategory(sampleId, csvCategory, type);
+    const category = inferCategory(sampleId, csvCategory, type, sampleName);
 
     detectionValues.push(sampleId, sampleName, csvCategory, csvType, category, type);
 

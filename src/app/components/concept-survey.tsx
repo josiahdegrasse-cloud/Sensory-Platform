@@ -11,6 +11,7 @@ import {
 } from '../lib/database';
 import { useConceptTest, useInsertConceptResponse } from '../lib/hooks';
 import { CheckCircle2, ChevronLeft, ChevronRight, Image as ImageIcon, AlertCircle, Megaphone } from 'lucide-react';
+import { useScrollToTop } from '../lib/use-scroll-to-top';
 
 const SCALE_MIDPOINT = 5;
 
@@ -18,6 +19,7 @@ export function ConceptSurvey() {
   const { conceptId } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  useScrollToTop(conceptId);
   const { data: test, isLoading: loading, isError } = useConceptTest(conceptId);
   const insertResponse = useInsertConceptResponse();
   const [answers, setAnswers] = useState<Record<string, string | number | string[]>>({});

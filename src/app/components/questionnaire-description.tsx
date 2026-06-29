@@ -8,11 +8,13 @@ import { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle2, Clock, ClipboardList } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { getBlindStudyCategoryLabel, getBlindStudyDisplayName } from '../lib/blind-study';
+import { useScrollToTop } from '../lib/use-scroll-to-top';
 
 export function QuestionnaireDescription() {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  useScrollToTop(productId);
 
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);

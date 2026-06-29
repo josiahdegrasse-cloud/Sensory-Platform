@@ -141,7 +141,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
   const [newProductCategory, setNewProductCategory] = useState('');
   const [blindedStudy, setBlindedStudy] = useState(false);
   const [samples, setSamples] = useState<{ id: string; code: string; label: string }[]>([
-    { id: '1', code: '', label: '' },
+    { id: '1', code: generateBlindCode('manual-sample:1'), label: '' },
   ]);
 
   useEffect(() => {
@@ -165,9 +165,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
   const selectedProductStdAttrs = getDefaultCataAttributes(selectedProductCategory);
   const modalStdAttrs = getDefaultCataAttributes(newProductCategory);
   const activePanelists = filterAssignablePanelists(panelists);
-  const configuredSampleCount = blindedStudy
-    ? samples.filter(sample => sample.label.trim()).length
-    : samples.filter(sample => sample.code.trim() && sample.label.trim()).length;
+  const configuredSampleCount = samples.filter(sample => sample.code.trim() && sample.label.trim()).length;
 
   const allStudySummaries = useMemo(() => buildStudySummaries({
     products,
@@ -188,8 +186,9 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
   const scopedStudySummaries = allStudySummaries.filter(study => {
     if (study.type === 'concept_test') return scopedConceptStudyIds.has(study.id);
     const product = products.find(p => p.id === study.id);
-    if (!product || matchFoodType(product.category) !== foodType) return false;
+    if (!product) return false;
     if (selectedBatchId) return product.sourceImportBatchId === selectedBatchId;
+    if (matchFoodType(product.category) !== foodType) return false;
     if (subCategory && product.category !== subCategory) return false;
     return true;
   });
@@ -216,11 +215,26 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
   const totalStudyResponses = scopedStudySummaries.reduce((sum, study) => sum + study.responseCount, 0);
   const productById = new Map(products.map(product => [product.id, product]));
   const recoverableImportCount = importBatches.filter(batch => batch.status !== 'active').length;
+  const selectableSourceSamples = products
+    .filter(product => {
+      if (product.status === 'archived' || product.isMultiSample || !product.sourceSampleId) return false;
+      if (selectedBatchId) return product.sourceImportBatchId === selectedBatchId;
+      return matchFoodType(product.category) === foodType;
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  const selectedSampleIds = new Set(samples.map(sample => sample.id));
+  const selectedImportedSampleCount = selectableSourceSamples.filter(product =>
+    selectedSampleIds.has(product.sourceSampleId ?? product.id)
+  ).length;
 
   // ── Sample handlers ───────────────────────────────────────────────────────────
 
   const handleAddSample = () =>
-    setSamples(prev => prev.length >= 8 ? prev : [...prev, { id: String(prev.length + 1), code: '', label: '' }]);
+    setSamples(prev => {
+      if (prev.length >= 8) return prev;
+      const id = `manual-${prev.length + 1}`;
+      return [...prev, { id, code: generateBlindCode(`manual-sample:${id}`, prev.map(sample => sample.code)), label: '' }];
+    });
 
   const handleRemoveSample = (index: number) => {
     if (samples.length <= 1) return;
@@ -229,6 +243,27 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
 
   const handleUpdateSample = (index: number, field: 'code' | 'label', value: string) =>
     setSamples(prev => prev.map((s, i) => i === index ? { ...s, [field]: value } : s));
+
+  const handleToggleSourceSample = (product: Product) => {
+    const sampleId = product.sourceSampleId ?? product.id;
+    setSamples(prev => {
+      if (prev.some(sample => sample.id === sampleId)) {
+        const next = prev.filter(sample => sample.id !== sampleId);
+        return next.length > 0 ? next : [{ id: '1', code: generateBlindCode('manual-sample:1'), label: '' }];
+      }
+      if (prev.length >= 8) return prev;
+      const reusableBlankIndex = prev.findIndex(sample => !sample.label.trim());
+      const nextSample = {
+        id: sampleId,
+        code: generateBlindCode(`source-sample:${product.sourceImportBatchId ?? 'project'}:${sampleId}`, prev.map(sample => sample.code)),
+        label: product.name,
+      };
+      if (reusableBlankIndex >= 0) {
+        return prev.map((sample, index) => index === reusableBlankIndex ? nextSample : sample);
+      }
+      return [...prev, nextSample];
+    });
+  };
 
   // ── Modal helpers ─────────────────────────────────────────────────────────────
 
@@ -239,7 +274,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
     setNewProductName('');
     setNewProductCategory(currentFoodTypeLabel);
     setProductType(initialType);
-    setSamples([{ id: '1', code: '', label: '' }]);
+    setSamples([{ id: '1', code: generateBlindCode('manual-sample:1'), label: '' }]);
     setBlindedStudy(false);
     setCustomAttributes(getDefaultCataAttributes(currentFoodTypeLabel));
     setReferenceScores({ overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 });
@@ -252,7 +287,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
     setNewProductName('');
     setNewProductCategory('');
     setProductType('single');
-    setSamples([{ id: '1', code: '', label: '' }]);
+    setSamples([{ id: '1', code: generateBlindCode('manual-sample:1'), label: '' }]);
     setBlindedStudy(false);
     setCustomAttributes(getDefaultCataAttributes('generic'));
     setReferenceScores({ overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 });
@@ -270,18 +305,14 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
           code: sample.code.trim(),
           label: sample.label.trim(),
         }))
-        .filter(sample => blindedStudy ? sample.label : sample.code && sample.label);
+        .filter(sample => sample.label);
 
       if (candidateSamples.length < 2) {
-        alert(blindedStudy
-          ? 'Multi-sample blinded studies require at least 2 sample labels.'
-          : 'Multi-sample products require at least 2 samples with code and label.');
+        alert('Multi-sample studies require at least 2 selected samples.');
         return;
       }
 
-      configuredSamples = blindedStudy
-        ? withBlindSampleCodes(candidateSamples, `${productId}:${newProductName}`)
-        : candidateSamples;
+      configuredSamples = withBlindSampleCodes(candidateSamples, `${productId}:${newProductName}`);
 
       if (configuredSamples.some(sample => !isValidBlindCode(sample.code))) {
         alert('Each sample code must be a 3-digit number.');
@@ -320,6 +351,9 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
   const finalizeProductCreation = async () => {
     if (!pendingProduct) return;
     setMutationError('');
+    const recipientIds = pendingProduct.assignedPanelistIds?.length
+      ? pendingProduct.assignedPanelistIds
+      : activePanelists.map(panelist => panelist.id);
     try {
       await insertProductMutation.mutateAsync({
         name: pendingProduct.name,
@@ -332,15 +366,12 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
         referenceScores: pendingProduct.referenceScores,
         blinded: pendingProduct.blinded,
         blindCode: pendingProduct.blindCode,
-        assignedPanelistIds: pendingProduct.assignedPanelistIds,
+        assignedPanelistIds: recipientIds,
       });
+      await notifyPanelistsOfSurveys(recipientIds, [pendingProduct.name]);
       closeCreateModal();
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
-      const recipientIds = pendingProduct.assignedPanelistIds?.length
-        ? pendingProduct.assignedPanelistIds
-        : activePanelists.map(panelist => panelist.id);
-      void notifyPanelistsOfSurveys(recipientIds, [pendingProduct.name]);
     } catch (err) {
       setMutationError(err instanceof Error ? err.message : 'Failed to create product. Please try again.');
     }
@@ -539,28 +570,28 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
         </p>
       </div>
 
-      {/* Tab bar */}
-      <div className="flex items-center border-b border-slate-200 gap-1">
-        {tabs.map(tab => {
-          const Icon = tab.icon;
-          const active = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              disabled={tabs.length === 1}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                active
-                  ? 'border-slate-800 text-slate-900'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-              } ${tabs.length === 1 ? 'cursor-default' : ''}`}
-            >
-              <Icon className="size-3.5" />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      {tabs.length > 1 && (
+        <div className="flex items-center border-b border-slate-200 gap-1">
+          {tabs.map(tab => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                  active
+                    ? 'border-slate-800 text-slate-900'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <Icon className="size-3.5" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {showSuccess && (
         <Alert className="border-emerald-300 bg-emerald-50">
@@ -1178,18 +1209,60 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                         <div>
                           <Label className="text-sm font-bold text-slate-900">Sample Configuration</Label>
                           <p className="mt-1 text-xs leading-5 text-slate-600">
-                            {blindedStudy
-                              ? 'Define each internal sample label. Missing or invalid codes will be generated before panelists see the study.'
-                              : 'Define each sample with a 3-digit code and label. Minimum 2 required.'}
+                            Select imported samples or add a manual sample. Each selected sample gets a three-digit code for panelist evaluation.
                           </p>
                         </div>
                         <Button size="sm" onClick={handleAddSample} variant="outline"><Plus className="size-4 mr-1" />Add Sample</Button>
                       </div>
+                      {selectableSourceSamples.length > 0 && (
+                        <div className="rounded-lg border border-slate-200 bg-white p-3">
+                          <div className="mb-2 flex items-center justify-between gap-3">
+                            <p className="text-xs font-semibold text-slate-700">Imported samples</p>
+                            <span className="text-[11px] font-medium text-slate-500">{selectedImportedSampleCount} selected</span>
+                          </div>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            {selectableSourceSamples.map(product => {
+                              const sampleId = product.sourceSampleId ?? product.id;
+                              const selectedSample = samples.find(sample => sample.id === sampleId);
+                              return (
+                                <button
+                                  key={product.id}
+                                  type="button"
+                                  onClick={() => handleToggleSourceSample(product)}
+                                  className={`flex min-h-14 items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition-colors ${
+                                    selectedSample
+                                      ? 'border-slate-900 bg-slate-50'
+                                      : 'border-slate-200 bg-white hover:border-slate-400'
+                                  }`}
+                                >
+                                  <span className="min-w-0">
+                                    <span className="block truncate text-sm font-semibold text-slate-900">{product.name}</span>
+                                    <span className="mt-0.5 block truncate text-xs text-slate-500">{sampleId}</span>
+                                  </span>
+                                  <span className="flex shrink-0 items-center gap-2">
+                                    {selectedSample && (
+                                      <span className="rounded bg-slate-900 px-2 py-1 font-mono text-xs font-bold text-white">{selectedSample.code}</span>
+                                    )}
+                                    <span
+                                      aria-hidden
+                                      className={`flex size-4 items-center justify-center rounded border ${
+                                        selectedSample ? 'border-slate-900 bg-slate-900' : 'border-slate-300 bg-white'
+                                      }`}
+                                    >
+                                      {selectedSample && <CheckCircle2 className="size-3 text-white" />}
+                                    </span>
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                       <div className="space-y-2">
                         {samples.map((sample, index) => (
                           <div key={index} className="grid gap-2 rounded border border-slate-200 bg-white p-3 sm:grid-cols-[32px_128px_minmax(0,1fr)_auto] sm:items-center">
                             <div className="flex size-8 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-white">{index + 1}</div>
-                            <Input placeholder="3-digit code" value={sample.code} onChange={e => handleUpdateSample(index, 'code', e.target.value)} maxLength={3} />
+                            <Input placeholder="3-digit code" value={sample.code} onChange={e => handleUpdateSample(index, 'code', e.target.value.replace(/\D/g, '').slice(0, 3))} maxLength={3} />
                             <Input placeholder="Sample label" value={sample.label} onChange={e => handleUpdateSample(index, 'label', e.target.value)} />
                             {samples.length > 1 && (
                               <Button size="sm" variant="ghost" onClick={() => handleRemoveSample(index)} className="text-rose-600 hover:text-rose-700"><Trash2 className="size-4" /></Button>
@@ -1330,17 +1403,27 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                     <div className="flex items-start gap-3">
                       <CheckCircle2 className="size-5 text-slate-500 flex-shrink-0 mt-0.5" />
                       <div className="text-sm text-slate-700">
-                        <strong>Ready to finalize:</strong> Product will be created with {customAttributes.length} attributes for {pendingProduct.name}.
+                        <strong>Ready to send:</strong> Study will be created with {customAttributes.length} attributes and assigned to {activePanelists.length} active panelist{activePanelists.length === 1 ? '' : 's'}.
                       </div>
                     </div>
                   </div>
                 </div>
                 <div className="flex gap-3 border-t border-slate-200 px-6 pb-6 pt-4">
                   <Button variant="outline" onClick={closeCreateModal} className="flex-1">Cancel</Button>
-                  <Button onClick={finalizeProductCreation} className="flex-1 bg-slate-900 hover:bg-slate-800">
-                    <Save className="size-5 mr-2" />Create Study & Save Configuration
+                  <Button
+                    onClick={finalizeProductCreation}
+                    disabled={insertProductMutation.isPending || activePanelists.length === 0}
+                    className="flex-1 bg-slate-900 hover:bg-slate-800 disabled:opacity-60"
+                  >
+                    <Save className="size-5 mr-2" />
+                    {insertProductMutation.isPending ? 'Sending…' : 'Create study and send to panelists'}
                   </Button>
                 </div>
+                {activePanelists.length === 0 && (
+                  <p className="px-6 pb-6 text-sm font-medium text-amber-700">
+                    Add at least one active panelist before sending this study.
+                  </p>
+                )}
               </>
             )}
           </div>

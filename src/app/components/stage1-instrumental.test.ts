@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   buildImportedDataset,
   buildRetestBatchName,
+  getPointColor,
+  inferYogurtCategory,
   mergeInstrumentalData,
   recogniseColumns,
   validateImportedDataset,
@@ -82,5 +84,38 @@ describe('CSV import workflow intelligence', () => {
     expect(dataset.gcmsData.M1).toHaveLength(1);
     expect(dataset.compositionData.M2.protein).toBe(19.1);
     expect(validation.errors).toEqual([]);
+  });
+
+  it('categorizes yogurt styles from sample names and gives each chart group a distinct color', () => {
+    const names = [
+      'Coconut cultured',
+      'Low sugar skyr',
+      'Whole milk plain',
+      'Greek strained',
+      'High protein vanilla',
+      'Strawberry fruit',
+      'Oat cultured',
+      'Lemon kefir',
+    ];
+
+    const rows = names.map((sampleName, index) => ({
+      sampleId: `Y${index + 1}`,
+      sampleName,
+      foodType: 'yogurt',
+      category: 'Yogurt',
+      sourness: String(1 + index / 10),
+      bitterness: '1',
+      saltiness: '1',
+      umami: '1',
+      sweetness: '1',
+    }));
+
+    const dataset = buildImportedDataset(rows, 'yogurt-import.csv');
+    const categories = dataset.eTongueData.map(sample => sample.category);
+    const colors = dataset.eTongueData.map(sample => getPointColor(sample.type, sample.category));
+
+    expect(categories).toEqual(names);
+    expect(new Set(colors).size).toBe(names.length);
+    expect(inferYogurtCategory('Greek strained', 'Yogurt')).toBe('Greek strained');
   });
 });

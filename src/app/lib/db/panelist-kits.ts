@@ -8,6 +8,7 @@ export interface GeneratedPanelistKit {
   manualCode: string | null;
   sampleCode: string | null;
   productId: string;
+  assignedProductIds: string[];
   status: PanelistKitStatus;
   expiresAt: string | null;
   responseDeadline: string | null;
@@ -25,6 +26,9 @@ export interface PanelistKitRecord {
   manualCode: string | null;
   sampleCode: string | null;
   productId: string;
+  assignedProductIds: string[];
+  assignedProductCount: number;
+  completedProductCount: number;
   productName: string;
   calculatedStatus: PanelistKitStatus;
   storedStatus: PanelistKitStatus;
@@ -57,6 +61,8 @@ export interface PanelistKitInvite {
   id: string;
   orgId: string;
   productId: string;
+  assignedProductIds: string[];
+  assignedProductCount: number;
   productName: string;
   productCategory: string;
   isMultiSample: boolean;
@@ -90,6 +96,9 @@ interface KitRow {
   manual_code?: string | null;
   sample_code: string | null;
   product_id: string;
+  assigned_product_ids?: string[] | null;
+  assigned_product_count?: number | string | null;
+  completed_product_count?: number | string | null;
   product_name?: string;
   product_category?: string;
   is_multi_sample?: boolean;
@@ -139,6 +148,12 @@ function rpc<T>(fn: string, args?: Record<string, unknown>): RpcResult<T> {
   return (supabase.rpc as unknown as UntypedRpc)(fn, args);
 }
 
+function isMissingAssignedProductsRpc(error: { message?: string; code?: string } | null) {
+  const message = error?.message ?? '';
+  return /generate_panelist_kits|schema cache|could not find the function|p_assigned_product_ids/i.test(message)
+    && /p_assigned_product_ids/i.test(message);
+}
+
 function toGeneratedKit(row: KitRow): GeneratedPanelistKit {
   return {
     id: row.id,
@@ -147,6 +162,7 @@ function toGeneratedKit(row: KitRow): GeneratedPanelistKit {
     manualCode: row.manual_code ?? null,
     sampleCode: row.sample_code,
     productId: row.product_id,
+    assignedProductIds: row.assigned_product_ids ?? [row.product_id],
     status: (row.status ?? row.calculated_status ?? 'generated') as PanelistKitStatus,
     expiresAt: row.expires_at,
     responseDeadline: row.response_deadline,
@@ -164,6 +180,9 @@ function toKitRecord(row: KitRow): PanelistKitRecord {
     manualCode: row.manual_code ?? null,
     sampleCode: row.sample_code,
     productId: row.product_id,
+    assignedProductIds: row.assigned_product_ids ?? [row.product_id],
+    assignedProductCount: Number(row.assigned_product_count ?? row.assigned_product_ids?.length ?? 1),
+    completedProductCount: Number(row.completed_product_count ?? 0),
     productName: row.product_name ?? 'Unknown study',
     calculatedStatus: (row.calculated_status ?? row.status ?? 'generated') as PanelistKitStatus,
     storedStatus: (row.stored_status ?? row.status ?? 'generated') as PanelistKitStatus,
@@ -204,6 +223,8 @@ function toInvite(row: KitRow): PanelistKitInvite {
     sampleCode: row.sample_code,
     kitCode: row.kit_code,
     manualCode: row.manual_code ?? null,
+    assignedProductIds: row.assigned_product_ids ?? [row.product_id],
+    assignedProductCount: Number(row.assigned_product_count ?? row.assigned_product_ids?.length ?? 1),
     calculatedStatus: (row.calculated_status ?? row.status ?? 'generated') as PanelistKitStatus,
     expiresAt: row.expires_at,
     responseDeadline: row.response_deadline,
@@ -234,15 +255,29 @@ export async function generatePanelistKits(input: {
   responseDeadline?: string | null;
   handlingInstructions?: string;
   recipients?: Array<{ name: string; email?: string }>;
+  assignedProductIds?: string[];
 }): Promise<GeneratedPanelistKit[]> {
-  const { data, error } = await rpc<KitRow[]>('generate_panelist_kits', {
+  const assignedProductIds = input.assignedProductIds?.length ? input.assignedProductIds : [input.productId];
+  const baseArgs = {
     target_product_id: input.productId,
     kit_count: input.kitCount,
     p_expires_at: input.expiresAt ?? null,
     p_response_deadline: input.responseDeadline ?? null,
     p_handling_instructions: input.handlingInstructions ?? '',
     p_recipients: input.recipients ?? [],
+  };
+  const { data, error } = await rpc<KitRow[]>('generate_panelist_kits', {
+    ...baseArgs,
+    p_assigned_product_ids: assignedProductIds,
   });
+  if (error && isMissingAssignedProductsRpc(error)) {
+    if (assignedProductIds.length > 1) {
+      throw new Error('The database is missing the box-pass migration needed for one QR to assign multiple tasting tasks. Apply the latest panelist box migration, then reload the Supabase API schema cache.');
+    }
+    const fallback = await rpc<KitRow[]>('generate_panelist_kits', baseArgs);
+    if (fallback.error) throw dbError(fallback.error);
+    return (fallback.data ?? []).map(toGeneratedKit);
+  }
   if (error) throw dbError(error);
   return (data ?? []).map(toGeneratedKit);
 }

@@ -9,7 +9,6 @@ import {
 import { insertConceptTest } from '../lib/database';
 import { detectFoodType } from '../lib/food-intelligence';
 import {
-  useAdminConceptTests,
   useConceptGenerationSettings,
   useConceptLabDiagnostics,
   usePanelists,
@@ -26,8 +25,6 @@ import { ReviewStep } from './concept-testing/ReviewStep';
 import { getConceptReadiness } from './concept-testing/concept-readiness';
 import { buildTailoredConceptQuestions, defaultConceptPanelistIds } from './concept-testing/smart-defaults';
 import { ProjectHeader } from './project-header';
-import { Badge } from './ui/badge';
-import { TEMPORARY_CHEESE_DEMO_LABEL } from '../data/demo/temporary-cheese-demo';
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
@@ -79,27 +76,22 @@ interface SourceDecisionSeed {
   timestamp: string;
 }
 
-const QUESTION_CATEGORIES = new Set<Question['category']>([
-  'appeal',
-  'purchase',
-  'price',
-  'attributes',
-  'demographics',
-  'usage',
-]);
+const STEP_LABELS: Record<WizardStep, string> = {
+  concept: 'Brief',
+  visuals: 'Visuals',
+  survey: 'Survey',
+  panel: 'Panel',
+  review: 'Launch',
+  launched: '',
+};
 
-function normalizeQuestionCategory(category: string): Question['category'] {
-  return QUESTION_CATEGORIES.has(category as Question['category'])
-    ? category as Question['category']
-    : 'attributes';
-}
-
-function normalizeQuestions(questions: Array<Omit<Question, 'category'> & { category: string }>): Question[] {
-  return questions.map(question => ({
-    ...question,
-    category: normalizeQuestionCategory(question.category),
-  }));
-}
+const STEP_SUMMARIES: Record<Exclude<WizardStep, 'launched'>, string> = {
+  concept: 'Product, promise, and claims',
+  visuals: 'Panelist-facing images',
+  survey: 'Questions and approval',
+  panel: 'Recipients and target size',
+  review: 'Final launch check',
+};
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -121,13 +113,13 @@ export function ConceptTesting() {
   const [saveState, setSaveState] = useState<'idle' | 'saved'>('idle');
   const [sourceDecision, setSourceDecision] = useState<SourceDecisionSeed | null>(null);
   const { data: settings } = useConceptGenerationSettings();
-  const { data: existingConcepts = [] } = useAdminConceptTests();
   const { data: workspaceSettings } = useWorkspaceSettings();
   const { data: diagnostics } = useConceptLabDiagnostics();
   const smartDefaultsApplied = useRef(false);
 
-  const STEPS: WizardStep[] = ['concept', 'visuals', 'survey', 'review'];
-  const stepIndex = STEPS.indexOf(step);
+  const STEPS: Exclude<WizardStep, 'launched'>[] = ['concept', 'visuals', 'survey', 'panel', 'review'];
+  const activeWizardStep: Exclude<WizardStep, 'launched'> = step === 'launched' ? 'review' : step;
+  const stepIndex = STEPS.indexOf(activeWizardStep);
 
   const detection = detectFoodType(draft.category, draft.name, draft.description);
   const { items: readinessItems } = getConceptReadiness({ draft, questions, assignedPanelistIds, panelists });
@@ -135,6 +127,7 @@ export function ConceptTesting() {
   const conceptStepReady = readinessItems.filter(item => item.fixStep === 'concept').every(item => item.ready);
   const visualsStepReady = readinessItems.filter(item => item.fixStep === 'visuals').every(item => item.ready);
   const surveyStepReady = readinessItems.filter(item => item.fixStep === 'survey').every(item => item.ready);
+  const panelStepReady = readinessItems.filter(item => item.fixStep === 'panel').every(item => item.ready);
   const setupWarnings = diagnostics?.messages ?? [];
   const draftHasWork = useMemo(() => (
     draft.name.trim()
@@ -245,28 +238,6 @@ export function ConceptTesting() {
     localStorage.removeItem(DRAFT_STORAGE_KEY);
   };
 
-  const loadExistingConcept = (concept: (typeof existingConcepts)[number]) => {
-    const nextDraft = {
-      ...makeEmptyDraft(settings?.promptStyle ?? 'balanced'),
-      name: concept.name,
-      category: concept.category,
-      projectName: concept.projectName ?? 'Project 1',
-      description: concept.description,
-      marketingImages: concept.imageUrls,
-      marketingImageIds: concept.imageIds ?? [],
-      targetMarket: concept.targetMarket,
-      pricePoint: concept.pricePoint,
-      keyBenefits: concept.keyBenefits,
-    };
-    setDraft(nextDraft);
-    setQuestions(normalizeQuestions(concept.questions));
-    setQuestionsReviewState('draft');
-    setPanelSize(concept.panelSize);
-    setAssignedPanelistIds(concept.assignedPanelistIds);
-    setStep('concept');
-    setDraftNotice(`Loaded "${concept.name}" as a new working draft. The launched concept remains unchanged.`);
-  };
-
   const handleLaunch = async () => {
     if (launching) return;
     if (!launchReady) {
@@ -339,6 +310,22 @@ export function ConceptTesting() {
     );
   }
 
+  const currentStepReady = step === 'concept'
+    ? conceptStepReady
+    : step === 'visuals'
+      ? visualsStepReady
+      : step === 'survey'
+        ? surveyStepReady
+        : step === 'panel'
+          ? panelStepReady
+          : launchReady;
+  const currentBlockers = readinessItems.filter(item => !item.ready && (
+    step === 'review' || item.fixStep === step
+  ));
+  const blockerMessage = currentBlockers[0]?.detail ?? '';
+  const nextStep = STEPS[stepIndex + 1];
+  const nextActionLabel = nextStep ? `Continue to ${STEP_LABELS[nextStep]}` : 'Continue';
+
   return (
     <div className="mx-auto max-w-5xl space-y-5 pb-8">
       <ProjectHeader />
@@ -403,13 +390,10 @@ export function ConceptTesting() {
         </div>
       )}
 
-      <nav aria-label="Concept test progress" className="grid grid-cols-4 gap-2">
+      <nav aria-label="Concept test progress" className="grid grid-cols-2 gap-2 md:grid-cols-5">
         {STEPS.map((s, i) => {
           const done = i < stepIndex;
           const active = s === step;
-          const labels: Record<WizardStep, string> = {
-            concept: 'Concept', visuals: 'Visuals', survey: 'Survey & panel', review: 'Review', launched: '',
-          };
           return (
             <button
               key={s}
@@ -426,13 +410,17 @@ export function ConceptTesting() {
               }`}
             >
               {done ? <CheckCircle2 className="size-3.5 shrink-0" /> : <Circle className="size-3.5 shrink-0" />}
-              <span className="truncate"><span className="hidden sm:inline">{i + 1}. </span>{labels[s]}</span>
+              <span className="min-w-0">
+                <span className="block truncate"><span className="hidden sm:inline">{i + 1}. </span>{STEP_LABELS[s]}</span>
+                <span className={`mt-0.5 hidden truncate text-[10px] font-medium md:block ${active ? 'text-white/70' : done ? 'text-emerald-700/70' : 'text-slate-400'}`}>
+                  {STEP_SUMMARIES[s]}
+                </span>
+              </span>
             </button>
           );
         })}
       </nav>
 
-      {/* Step content */}
       <Card className="border border-slate-200 shadow-none">
         <CardContent className="space-y-8 py-6">
           {step === 'concept' && (
@@ -442,18 +430,23 @@ export function ConceptTesting() {
             <ImagesStep draft={draft} onChange={setDraft} settings={settings} />
           )}
           {step === 'survey' && (
-            <>
-              <QuestionsStep
-                draft={draft}
-                questions={questions}
-                onChange={setQuestions}
-                reviewState={questionsReviewState}
-                onReviewStateChange={setQuestionsReviewState}
-              />
-              <div className="border-t border-slate-100 pt-8">
-                <PanelStep panelSize={panelSize} setPanelSize={setPanelSize} targetSegments={segments} setTargetSegments={setSegments} assignedPanelistIds={assignedPanelistIds} setAssignedPanelistIds={setAssignedPanelistIds} />
-              </div>
-            </>
+            <QuestionsStep
+              draft={draft}
+              questions={questions}
+              onChange={setQuestions}
+              reviewState={questionsReviewState}
+              onReviewStateChange={setQuestionsReviewState}
+            />
+          )}
+          {step === 'panel' && (
+            <PanelStep
+              panelSize={panelSize}
+              setPanelSize={setPanelSize}
+              targetSegments={segments}
+              setTargetSegments={setSegments}
+              assignedPanelistIds={assignedPanelistIds}
+              setAssignedPanelistIds={setAssignedPanelistIds}
+            />
           )}
           {step === 'review' && (
             <ReviewStep
@@ -465,58 +458,11 @@ export function ConceptTesting() {
               onEditConcept={() => setStep('concept')}
               onEditVisuals={() => setStep('visuals')}
               onEditSurvey={() => setStep('survey')}
+              onEditPanel={() => setStep('panel')}
             />
           )}
         </CardContent>
       </Card>
-
-      {existingConcepts.length > 0 && (
-        <details className="rounded-xl border border-slate-200 bg-white">
-          <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-            <div>
-              <h2 className="text-base font-semibold text-slate-950">Concept library</h2>
-              <p className="mt-0.5 text-sm text-slate-600">Previously launched concepts live here when you need to review or reuse them.</p>
-            </div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-              {existingConcepts.length} saved
-              <ChevronRight className="size-4" aria-hidden />
-            </div>
-          </summary>
-          <div className="border-t border-slate-100 p-4">
-            <div className="flex justify-end">
-              <Button asChild size="sm" variant="outline">
-                <Link to="/survey-analysis">View concept insights</Link>
-              </Button>
-            </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {existingConcepts.slice(0, 6).map(concept => {
-                const isTemporary = concept.approvalNotes === TEMPORARY_CHEESE_DEMO_LABEL;
-                return (
-                  <article key={concept.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <h3 className="font-semibold text-slate-950">{concept.name}</h3>
-                        <p className="mt-0.5 text-xs text-slate-500">{concept.category} · {concept.projectName}</p>
-                      </div>
-                      <div className="flex gap-1.5">
-                        {isTemporary && <Badge className="bg-amber-100 text-amber-800">Temporary demo</Badge>}
-                        <Badge variant="outline">{concept.status}</Badge>
-                      </div>
-                    </div>
-                    <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-700">{concept.description}</p>
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-xs text-slate-500">{concept.panelSize} invited · {concept.questions.length} questions</span>
-                      <Button size="sm" variant="outline" onClick={() => loadExistingConcept(concept)}>
-                        Use as starting point
-                      </Button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </div>
-        </details>
-      )}
 
       {launchError && (
         <p className="text-sm text-rose-600 font-medium text-center">{launchError}</p>
@@ -526,7 +472,10 @@ export function ConceptTesting() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Button
             variant="outline"
-            onClick={() => setStep(STEPS[stepIndex - 1])}
+            onClick={() => {
+              const previous = STEPS[stepIndex - 1];
+              if (previous) setStep(previous);
+            }}
             disabled={stepIndex === 0}
             className="gap-1.5 sm:w-auto"
           >
@@ -546,19 +495,27 @@ export function ConceptTesting() {
             ) : (
               <>
                 <Button
-                  onClick={() => setStep(STEPS[stepIndex + 1])}
-                  disabled={step === 'concept' ? !conceptStepReady : step === 'visuals' ? !visualsStepReady : !surveyStepReady}
+                  onClick={() => {
+                    if (nextStep) setStep(nextStep);
+                  }}
+                  disabled={!currentStepReady}
                   className="gap-1.5 bg-blue-600 text-white hover:bg-blue-700"
                 >
-                  Continue <ChevronRight className="size-4" />
+                  {nextActionLabel} <ChevronRight className="size-4" />
                 </Button>
-                {((step === 'concept' && !conceptStepReady) || (step === 'visuals' && !visualsStepReady) || (step === 'survey' && !surveyStepReady)) && (
-                  <p className="max-w-md text-xs text-amber-700 sm:text-right">
-                    {readinessItems
-                      .filter(item => !item.ready && item.fixStep === step)
-                      .map(item => item.detail)
-                      .join(' ')}
-                  </p>
+                {!currentStepReady && blockerMessage && (
+                  <div className="flex max-w-md flex-col gap-1 text-xs text-amber-700 sm:items-end sm:text-right">
+                    <p>{blockerMessage}</p>
+                    {currentBlockers[0] && (
+                      <button
+                        type="button"
+                        onClick={() => setStep(currentBlockers[0].fixStep)}
+                        className="font-semibold text-blue-700 hover:text-blue-900"
+                      >
+                        Fix {currentBlockers[0].label.toLowerCase()}
+                      </button>
+                    )}
+                  </div>
                 )}
               </>
             )}

@@ -124,6 +124,7 @@ export function ReviewStep({
   onEditConcept,
   onEditVisuals,
   onEditSurvey,
+  onEditPanel,
 }: {
   draft: ConceptDraft;
   questions: Question[];
@@ -133,6 +134,7 @@ export function ReviewStep({
   onEditConcept: () => void;
   onEditVisuals: () => void;
   onEditSurvey: () => void;
+  onEditPanel: () => void;
 }) {
   const { data: panelists = [] } = usePanelists();
   const { data: workspaceSettings } = useWorkspaceSettings();
@@ -169,10 +171,10 @@ export function ReviewStep({
                       <span className="text-sm text-amber-950"><strong>{item.label}:</strong> {item.detail}</span>
                       <button
                         type="button"
-                        onClick={item.fixStep === 'concept' ? onEditConcept : item.fixStep === 'visuals' ? onEditVisuals : onEditSurvey}
+                        onClick={item.fixStep === 'concept' ? onEditConcept : item.fixStep === 'visuals' ? onEditVisuals : item.fixStep === 'panel' ? onEditPanel : onEditSurvey}
                         className="shrink-0 text-left text-xs font-semibold text-blue-700 hover:text-blue-900"
                       >
-                        Edit {item.fixStep === 'concept' ? 'concept' : item.fixStep === 'visuals' ? 'visuals' : 'survey and panel'}
+                        Edit {item.fixStep === 'concept' ? 'concept' : item.fixStep === 'visuals' ? 'visuals' : item.fixStep === 'panel' ? 'panel' : 'survey'}
                       </button>
                     </li>
                   ))}

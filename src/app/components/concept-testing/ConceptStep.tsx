@@ -45,6 +45,7 @@ function DimPicker<T extends string>({
 
 export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: ConceptDraft) => void }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [positioningOpen, setPositioningOpen] = useState(false);
   const set = (field: keyof ConceptDraft) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     onChange({ ...draft, [field]: e.target.value });
   const setDim = <K extends keyof VariantDimensions>(dim: K) => (value: VariantDimensions[K] | null) =>
@@ -55,39 +56,45 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-bold text-slate-900">Define your concept</h2>
-        <p className="text-slate-500 text-sm mt-1">Describe the product you want consumers to evaluate.</p>
+        <h2 className="text-xl font-bold text-slate-900">Build the concept brief</h2>
+        <p className="text-slate-500 text-sm mt-1">Start with the consumer-facing product promise, then add the visual details needed for panelist review.</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="concept-product-name" className="font-medium">Product name <span className="text-rose-500">*</span></Label>
-          <Input id="concept-product-name" value={draft.name} onChange={set('name')} placeholder="e.g. Vitacheeze Original Cheddar" />
+      <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-950">Product basics</h3>
+          <p className="mt-1 text-xs text-slate-500">These fields become the plain-language concept that consumers evaluate.</p>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="concept-category" className="font-medium">Category <span className="text-rose-500">*</span></Label>
-          <Input id="concept-category" value={draft.category} onChange={set('category')} placeholder="e.g. Plant-based cheese" />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="concept-product-name" className="font-medium">Product name <span className="text-rose-500">*</span></Label>
+            <Input id="concept-product-name" value={draft.name} onChange={set('name')} placeholder="e.g. Vitacheeze Original Cheddar" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="concept-category" className="font-medium">Category <span className="text-rose-500">*</span></Label>
+            <Input id="concept-category" value={draft.category} onChange={set('category')} placeholder="e.g. Plant-based cheese" />
+          </div>
         </div>
-      </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="concept-description" className="font-medium">Concept description <span className="text-rose-500">*</span></Label>
-        <Textarea
-          id="concept-description"
-          value={draft.description}
-          onChange={set('description')}
-          placeholder="Describe the product concept as consumers would read it: ingredients, format, occasion, and key claims."
-          rows={4}
-          className="resize-none"
-        />
-      </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="concept-description" className="font-medium">Concept description <span className="text-rose-500">*</span></Label>
+          <Textarea
+            id="concept-description"
+            value={draft.description}
+            onChange={set('description')}
+            placeholder="Describe the product concept as consumers would read it: ingredients, format, occasion, and key claims."
+            rows={4}
+            className="resize-none"
+          />
+        </div>
+      </section>
 
       <section className="space-y-4 rounded-lg border border-blue-200 bg-blue-50/50 p-4">
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_18rem]">
           <div>
-            <h3 className="text-sm font-semibold text-slate-950">Marketing image brief</h3>
+            <h3 className="text-sm font-semibold text-slate-950">Panelist-facing visual brief</h3>
             <p className="mt-1 text-xs leading-relaxed text-slate-600">
-              Give the image generator concrete packaging, product, audience, and scene details. The more physical the brief is, the less generic the image options become.
+              Capture the concrete product, package, audience, and claim constraints before generating visuals.
             </p>
           </div>
           <div className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs text-slate-700">
@@ -192,17 +199,19 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
         </div>
       </section>
 
-      <section className="space-y-4 rounded-lg border border-slate-200 bg-slate-50/60 p-4">
-        <div>
-          <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
-            <Layers className="size-3.5" /> Concept Positioning
-          </h3>
-          <p className="mt-1 text-xs text-slate-500">
-            These structured dimensions are stored as metadata so consumer responses can later be
-            correlated with positioning choices. Select any that apply — unset dimensions are fine.
-          </p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+      <Collapsible open={positioningOpen} onOpenChange={setPositioningOpen} className="rounded-lg border border-slate-200 bg-slate-50/60">
+        <CollapsibleTrigger className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left">
+          <div>
+            <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+              <Layers className="size-3.5" /> Optional positioning metadata
+            </h3>
+            <p className="mt-1 text-xs text-slate-500">
+              Use when you want to compare consumer response against positioning choices later.
+            </p>
+          </div>
+          <ChevronDown className={`size-4 shrink-0 text-slate-500 transition-transform ${positioningOpen ? 'rotate-180' : ''}`} />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="grid gap-4 border-t border-slate-200 px-4 py-4 sm:grid-cols-2">
           <DimPicker
             label="Brand positioning"
             value={draft.variantDimensions?.positioning ?? null}
@@ -267,14 +276,14 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
             ]}
             onChange={setDim('pricePositioning')}
           />
-        </div>
-      </section>
+        </CollapsibleContent>
+      </Collapsible>
 
       <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen} className="rounded-lg border border-slate-200">
         <CollapsibleTrigger className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left">
           <div>
-            <p className="text-sm font-semibold text-slate-900">Additional concept details</p>
-            <p className="mt-0.5 text-xs text-slate-500">Project, price, benefits, and internal R&D notes.</p>
+            <p className="text-sm font-semibold text-slate-900">Consumer promise and internal context</p>
+            <p className="mt-0.5 text-xs text-slate-500">Project, price, benefits, and R&D notes that support the brief.</p>
           </div>
           <ChevronDown className={`size-4 shrink-0 text-slate-500 transition-transform ${detailsOpen ? 'rotate-180' : ''}`} />
         </CollapsibleTrigger>

@@ -3,11 +3,12 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { useAuth } from '../contexts/auth-context';
 import { useActiveProducts, useUserResponses, useConceptTestsForPanelist, useConceptResponses } from '../lib/hooks';
-import { CheckCircle2, Clock, ClipboardList, Edit2, Layers, AlertCircle, Megaphone, ImageIcon } from 'lucide-react';
+import { CheckCircle2, ClipboardList, Edit2, Layers, AlertCircle, Megaphone, ImageIcon, PackageCheck } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Link } from 'react-router';
 import { isPanelistAssignedToProduct } from '../lib/assignments';
 import { getBlindStudyCategoryLabel, getBlindStudyDisplayName } from '../lib/blind-study';
+import { taskSummary } from '../lib/panelist-box-workflow';
 
 export function PanelistDashboard() {
   const { user } = useAuth();
@@ -33,11 +34,10 @@ export function PanelistDashboard() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Welcome Header */}
       <div className="bg-white p-6 rounded-lg border border-slate-200">
         <h1 className="text-2xl font-semibold text-slate-900">Welcome, {user?.name}!</h1>
         <p className="text-slate-600 mt-2">Panelist ID: <span className="font-bold text-slate-900">{user?.panelistId}</span></p>
-        <p className="text-sm text-slate-600 mt-1">Complete questionnaires for active product evaluations below.</p>
+        <p className="text-sm text-slate-600 mt-1">Start with the samples in your tasting box. Match the sample cue on each task before opening or tasting anything.</p>
       </div>
 
       {fetchError && (
@@ -80,21 +80,22 @@ export function PanelistDashboard() {
         </Card>
       </div>
 
-      {/* Available Questionnaires */}
       {availableProducts.length > 0 && (
         <div>
           <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <Clock className="size-6 text-slate-500" />
-            Available Questionnaires
+            <PackageCheck className="size-6 text-slate-500" />
+            Your tasting box
           </h2>
           <div className="grid gap-4">
-            {availableProducts.map(product => {
-              const displayName = getBlindStudyDisplayName(product);
-              const categoryLabel = getBlindStudyCategoryLabel(product);
+            {availableProducts.map((product, index) => {
+              const summary = taskSummary(product);
               return (
               <Card key={product.id} className="border border-slate-200 bg-white transition hover:border-slate-400">
                 <CardHeader>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-sm font-bold text-white">
+                      {index + 1}
+                    </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
                         {product.isMultiSample ? (
@@ -108,46 +109,38 @@ export function PanelistDashboard() {
                         )}
                         <div>
                           <div className="flex items-center gap-2">
-                            <CardTitle className="text-lg">{displayName}</CardTitle>
+                            <CardTitle className="text-lg">{summary.label}</CardTitle>
                             {product.blinded && <Badge variant="outline" className="border-slate-300 text-slate-700 text-xs">Blinded</Badge>}
                           </div>
-                          <p className="text-xs text-slate-600">{categoryLabel}</p>
+                          <p className="text-xs text-slate-600">{summary.category}</p>
                         </div>
                       </div>
 
-                      {product.isMultiSample && product.samples ? (
-                        <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge variant="outline" className="border-slate-300 text-slate-700">
-                              <Layers className="size-3 mr-1" />
-                              Multi-Sample Comparison
-                            </Badge>
-                          </div>
-                          <div className="text-sm text-slate-700 space-y-1">
-                            <p className="font-medium flex items-center gap-1.5"><Layers className="size-3.5" />{product.samples.length} Samples to Evaluate</p>
-                            <p className="text-xs text-slate-600">+ Discrimination Test + Preference Ranking</p>
-                            <p className="text-xs text-slate-500">Est. {15 + (product.samples.length - 3) * 5}-{20 + (product.samples.length - 3) * 5} minutes</p>
-                          </div>
+                      <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline" className="border-slate-300 text-slate-700">
+                            {product.isMultiSample ? <Layers className="size-3 mr-1" /> : <ClipboardList className="size-3 mr-1" />}
+                            {summary.taskType}
+                          </Badge>
+                          <Badge variant="outline" className="border-slate-300 text-slate-700">{summary.estimate}</Badge>
                         </div>
-                      ) : (
-                        <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Badge variant="outline" className="border-slate-300 text-slate-700">Single Product Evaluation</Badge>
-                          </div>
-                          <p className="text-xs text-slate-600">CATA + Intensity + Hedonic + Emotional Response</p>
-                          <p className="text-xs text-slate-500 mt-1">Est. 10-15 minutes</p>
-                        </div>
-                      )}
+                        <p className="mt-2 text-sm font-medium text-slate-900">{summary.sampleCue}</p>
+                        <p className="mt-1 text-xs text-slate-600">Use the matching sample from your box. Complete this task before moving to the next sample.</p>
+                      </div>
 
-                      <p className="text-xs text-slate-400 mt-2">Created {new Date(product.createdDate).toLocaleDateString()}</p>
+                      {product.isMultiSample && product.samples?.length ? (
+                        <p className="mt-2 text-xs text-slate-600">
+                          Includes discrimination testing and preference ranking across {product.samples.length} samples.
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <Link to={product.isMultiSample ? `/multi-sample-info/${product.id}` : `/questionnaire-info/${product.id}`}>
+                  <Link to={summary.route}>
                     <Button className="w-full text-base py-6 bg-slate-900 hover:bg-slate-800">
                       {product.isMultiSample ? <Layers className="size-5 mr-2" /> : <ClipboardList className="size-5 mr-2" />}
-                      {product.isMultiSample ? 'Begin Comparison Study' : 'Begin Product Evaluation'}
+                      Start task {index + 1}
                     </Button>
                   </Link>
                 </CardContent>
@@ -344,8 +337,8 @@ export function PanelistDashboard() {
         <Card className="bg-slate-50">
           <CardContent className="pt-12 pb-12 text-center">
             <ClipboardList className="size-16 text-slate-400 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-slate-700 mb-2">No Active Questionnaires</h3>
-            <p className="text-slate-600">Check back later for new product evaluations.</p>
+            <h3 className="text-xl font-bold text-slate-700 mb-2">No active tasting tasks</h3>
+            <p className="text-slate-600">If you just scanned a box QR code, refresh once. If tasks still do not appear, use the issue option on the box pass page or contact the study administrator with your box code.</p>
           </CardContent>
         </Card>
       )}

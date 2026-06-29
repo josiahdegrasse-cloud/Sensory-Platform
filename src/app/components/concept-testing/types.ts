@@ -65,7 +65,7 @@ export interface ConceptDraft {
   variantDimensions: VariantDimensions;
 }
 
-export type WizardStep = 'concept' | 'visuals' | 'survey' | 'review' | 'launched';
+export type WizardStep = 'concept' | 'visuals' | 'survey' | 'panel' | 'review' | 'launched';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
