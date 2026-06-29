@@ -1,6 +1,6 @@
 # Sensory Platform Design Contract
 
-The product is a project-first workflow for food innovation evidence: Data -> Studies -> Responses -> Insights -> Decision -> Concept -> Report. Screens should feel calm, operational, and client-ready. Avoid treating each module as a separate app.
+The product is a project-first workflow for food innovation evidence: Data -> Studies -> Insights -> Decision -> Concept -> Report. Screens should feel calm, operational, and client-ready. Avoid treating each module as a separate app. Panel responses are collected and monitored inside Studies, then interpreted in Insights; they are not a separate top-level destination.
 
 ## Navigation
 

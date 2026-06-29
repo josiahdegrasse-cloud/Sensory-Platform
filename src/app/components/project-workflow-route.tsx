@@ -12,7 +12,6 @@ import type { ImportBatchRecord } from '../lib/database';
 import { CommercializationReportPage } from './commercialization-report-page';
 import { ConceptTesting } from './concept-testing';
 import { ProjectCommandCenter } from './project-command-center';
-import { ResponsesWorkspace } from './responses-workspace';
 import { ReportsPage } from './reports-page';
 import { Stage1Instrumental } from './stage1-instrumental';
 import { Stage4Enhanced } from './stage4-enhanced';
@@ -44,8 +43,6 @@ function ProjectStepContent({ step }: { step: ProjectJourneyStep }) {
       return <Stage1Instrumental />;
     case 'studies':
       return <StudiesWorkspace />;
-    case 'responses':
-      return <ResponsesWorkspace />;
     case 'insights':
       return <SurveyAnalysis />;
     case 'decision':
@@ -74,6 +71,7 @@ export function ProjectWorkflowRoute() {
 
   if (!projectId) return <Navigate to="/project" replace />;
   if (!isProjectJourneyStep(journeyStep)) return <Navigate to={projectPath(projectId)} replace />;
+  if (journeyStep === 'responses') return <Navigate to={projectPath(projectId, 'studies')} replace />;
   if (isLoading) return <LoadingProjectScope />;
   if (!batch) return <ProjectCommandCenter />;
   if (selectedBatchId !== batch.id) return <LoadingProjectScope />;

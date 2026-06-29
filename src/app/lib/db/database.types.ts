@@ -1150,6 +1150,95 @@ export type Database = {
         }
         Relationships: []
       }
+      panelist_kits: {
+        Row: {
+          claimed_at: string | null
+          claimed_by: string | null
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          handling_instructions: string
+          id: string
+          kit_code: string
+          org_id: string
+          product_id: string
+          response_deadline: string | null
+          sample_code: string | null
+          started_at: string | null
+          status: string
+          submitted_at: string | null
+          token_hash: string
+          updated_at: string
+        }
+        Insert: {
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          handling_instructions?: string
+          id?: string
+          kit_code: string
+          org_id: string
+          product_id: string
+          response_deadline?: string | null
+          sample_code?: string | null
+          started_at?: string | null
+          status?: string
+          submitted_at?: string | null
+          token_hash: string
+          updated_at?: string
+        }
+        Update: {
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          handling_instructions?: string
+          id?: string
+          kit_code?: string
+          org_id?: string
+          product_id?: string
+          response_deadline?: string | null
+          sample_code?: string | null
+          started_at?: string | null
+          status?: string
+          submitted_at?: string | null
+          token_hash?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "panelist_kits_claimed_by_fkey"
+            columns: ["claimed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "panelist_kits_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "panelist_kits_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "panelist_kits_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pending_imports: {
         Row: {
           created_at: string
@@ -1667,6 +1756,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_panelist_kit: {
+        Args: { p_token: string }
+        Returns: {
+          calculated_status: string
+          claimed_by: string
+          expires_at: string
+          handling_instructions: string
+          id: string
+          is_multi_sample: boolean
+          kit_code: string
+          org_id: string
+          product_category: string
+          product_id: string
+          product_name: string
+          response_deadline: string
+          sample_code: string
+        }[]
+      }
       create_commercialization_report: {
         Args: {
           target_concept_test_id: string
@@ -1735,6 +1842,45 @@ export type Database = {
         Args: { p_email: string }
         Returns: boolean
       }
+      generate_panelist_kits: {
+        Args: {
+          kit_count: number
+          p_expires_at?: string
+          p_handling_instructions?: string
+          p_response_deadline?: string
+          target_product_id: string
+        }
+        Returns: {
+          created_at: string
+          expires_at: string
+          handling_instructions: string
+          id: string
+          kit_code: string
+          product_id: string
+          response_deadline: string
+          sample_code: string
+          status: string
+          token: string
+        }[]
+      }
+      get_panelist_kit_by_token: {
+        Args: { p_token: string }
+        Returns: {
+          calculated_status: string
+          claimed_by: string
+          expires_at: string
+          handling_instructions: string
+          id: string
+          is_multi_sample: boolean
+          kit_code: string
+          org_id: string
+          product_category: string
+          product_id: string
+          product_name: string
+          response_deadline: string
+          sample_code: string
+        }[]
+      }
       get_public_workspace_config: {
         Args: { org_slug?: string }
         Returns: {
@@ -1748,7 +1894,37 @@ export type Database = {
       is_active_user: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       is_public_email_domain: { Args: { p_domain: string }; Returns: boolean }
+      list_panelist_kits: {
+        Args: { target_product_id: string }
+        Returns: {
+          calculated_status: string
+          claimed_at: string
+          claimed_by: string
+          claimed_panelist_name: string
+          created_at: string
+          expires_at: string
+          handling_instructions: string
+          id: string
+          kit_code: string
+          product_id: string
+          product_name: string
+          response_deadline: string
+          sample_code: string
+          started_at: string
+          stored_status: string
+          submitted_at: string
+        }[]
+      }
+      mark_panelist_kit_started: {
+        Args: { p_token: string }
+        Returns: undefined
+      }
+      mark_panelist_kit_submitted: {
+        Args: { p_token: string }
+        Returns: undefined
+      }
       org_id_for_email: { Args: { p_email: string }; Returns: string }
+      panelist_kit_token_hash: { Args: { p_token: string }; Returns: string }
       provision_organization: {
         Args: { org_name: string; org_slug: string }
         Returns: string

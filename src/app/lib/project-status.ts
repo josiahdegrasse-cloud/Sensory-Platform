@@ -282,7 +282,7 @@ export function computeProjectStatus(input: ComputeProjectStatusInput): ProjectS
   } else if (projectProducts.length === 0) {
     nextAction = { label: 'Create the survey', description: 'Turn this sample into a panelist questionnaire.', path: pathFor('testing'), tone: 'info' };
   } else if (!testingComplete) {
-    nextAction = { label: 'Collect responses', description: `${Math.max(responseTarget - responseCompleted, 0)} more response${responseTarget - responseCompleted === 1 ? '' : 's'} needed before analysis.`, path: routeProjectId ? projectPath(routeProjectId, 'responses') : '/admin', tone: 'info' };
+    nextAction = { label: 'Collect responses', description: `${Math.max(responseTarget - responseCompleted, 0)} more response${responseTarget - responseCompleted === 1 ? '' : 's'} needed before analysis.`, path: pathFor('testing'), tone: 'info' };
   } else if (!latestDecision) {
     nextAction = { label: 'Review results', description: 'Survey is complete — review insights and make the call.', path: pathFor('insights'), tone: 'info' };
   } else if (latestDecision.decision === 'GO' && !conceptComplete) {

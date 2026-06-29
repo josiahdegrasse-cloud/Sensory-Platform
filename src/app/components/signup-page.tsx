@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { supabase } from '../lib/supabase';
-import { AlertCircle, CheckCircle2, FlaskConical } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, FlaskConical } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { CURRENT_CONSENT_VERSION, emailDomainHasWorkspace } from '../lib/database';
 
@@ -134,6 +134,14 @@ export function SignupPage({ onBack }: Props) {
       <div className="max-w-md w-full">
         <Card className="shadow-2xl">
           <CardHeader className="space-y-2">
+            <button
+              type="button"
+              onClick={onBack}
+              className="mb-2 inline-flex w-fit items-center gap-1.5 rounded-md text-sm font-medium text-slate-500 transition-colors hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
+            >
+              <ArrowLeft className="size-4" />
+              Back to sign in
+            </button>
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center">
                 <FlaskConical className="size-7 text-white" />

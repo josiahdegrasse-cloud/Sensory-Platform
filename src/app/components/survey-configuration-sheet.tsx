@@ -14,6 +14,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from './ui/sheet';
+import { PanelistKitInserts } from './panelist-kit-inserts';
 
 export function SurveyConfigurationSheet({
   product,
@@ -225,6 +226,8 @@ export function SurveyConfigurationSheet({
                 </div>
               </div>
             </section>
+
+            <PanelistKitInserts product={product} />
           </div>
         )}
 

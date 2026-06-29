@@ -6,7 +6,7 @@ import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
 import { useAuth } from '../contexts/auth-context';
 import { ESSENSE25_EMOTIONS, getDefaultCataAttributes, type Product } from '../data/survey-domain';
-import { fetchProduct, fetchLatestUserResponse, insertResponse } from '../lib/database';
+import { fetchProduct, fetchLatestUserResponse, insertResponse, markPanelistKitSubmitted } from '../lib/database';
 import { CATA_DEFINITIONS, INTENSITY_DEFINITIONS, HEDONIC_DEFINITIONS, EMOTION_DEFINITIONS } from '../data/attribute-definitions';
 import { AlertCircle, CheckCircle2, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
@@ -234,6 +234,13 @@ export function MultiSampleQuestionnaire() {
           presentationOrder: samples.map(sample => sample.code),
           comments: '',
         });
+      }
+      const kitToken = sessionStorage.getItem(`panelist_kit_token_${productId}`);
+      const manualCode = sessionStorage.getItem(`panelist_kit_manual_code_${productId}`);
+      if (kitToken || manualCode) {
+        await markPanelistKitSubmitted({ token: kitToken, manualCode });
+        sessionStorage.removeItem(`panelist_kit_token_${productId}`);
+        sessionStorage.removeItem(`panelist_kit_manual_code_${productId}`);
       }
       setCurrentStep('submitted');
       setTimeout(() => navigate('/panelist'), 3000);

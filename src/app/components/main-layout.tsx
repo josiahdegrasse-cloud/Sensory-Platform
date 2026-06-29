@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
-import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Archive, Trash2, Undo2, Database, ChevronDown, ChevronRight, Settings, AlertCircle, AlertTriangle, X, FileText, FolderKanban, Menu, Users } from "lucide-react";
+import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Archive, Trash2, Undo2, Database, ChevronDown, ChevronRight, Settings, AlertCircle, AlertTriangle, X, FileText, FolderKanban, Menu } from "lucide-react";
 import { useAuth } from "../contexts/auth-context";
 import { useEffect, useMemo, useState } from "react";
 import { useFoodType } from "../contexts/food-type-context";
@@ -530,7 +530,7 @@ export function MainLayout() {
         case 'studies':
           return '/admin';
         case 'responses':
-          return '/responses';
+          return '/admin';
         case 'insights':
           return '/survey-analysis';
         case 'decision':
@@ -569,7 +569,6 @@ export function MainLayout() {
     { path: "/project",        label: "Overview",  icon: FolderKanban },
     { path: "/stage1",         label: "Data",      icon: FlaskConical },
     { path: "/admin",          label: "Studies",   icon: ClipboardList },
-    { path: "/responses",      label: "Responses", icon: Users },
     { path: "/survey-analysis", label: "Insights", icon: BarChart3 },
     { path: "/decision",       label: "Decision",  icon: GitMerge },
     { path: "/concept-testing", label: "Concept",  icon: Lightbulb },
@@ -583,7 +582,6 @@ export function MainLayout() {
   const adminNavTarget = (path: string) => {
     if (!selectedProjectId) return path;
     if (path === '/project') return projectPath(selectedProjectId, 'overview');
-    if (path === '/responses') return projectPath(selectedProjectId, 'responses');
     const step = legacyWorkflowPathToStep(path);
     return step ? projectPath(selectedProjectId, step) : path;
   };

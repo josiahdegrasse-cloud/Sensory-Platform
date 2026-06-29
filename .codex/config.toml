@@ -34,3 +34,6 @@ approval_mode = "approve"
 
 [mcp_servers.claude-flow.tools.hooks_route]
 approval_mode = "approve"
+
+[mcp_servers.claude-flow.tools.guidance_recommend]
+approval_mode = "approve"

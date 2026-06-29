@@ -14,6 +14,10 @@ import {
   fetchProjects, createProject, renameProject, assignBatchToProject,
   fetchWorkspaceSettings, updateWorkspaceSettings, fetchAuditEvents,
   fetchDecisionRecords,
+  fetchPanelistKits, fetchPanelistKitInvite, fetchPanelistKitInviteByManualCode, generatePanelistKits,
+  claimPanelistKit, markPanelistKitStarted, markPanelistKitSubmitted,
+  updatePanelistKitFulfillment, reportPanelistKitIssue, recordPanelistKitReminder,
+  voidPanelistKit, createReplacementPanelistKit, fetchPanelistKitEvents,
   fetchPublicWorkspaceConfig,
   fetchOrgEmailDomains, addOrgEmailDomain, removeOrgEmailDomain,
   insertProduct, updateProduct, updateProductAssignments, deleteProduct,
@@ -37,6 +41,10 @@ export const queryKeys = {
   pendingImports: ['pendingImports'] as const,
   driveFiles: ['driveFiles'] as const,
   products: ['products'] as const,
+  panelistKits: (productId: string) => ['panelistKits', productId] as const,
+  panelistKitInvite: (token: string) => ['panelistKitInvite', token] as const,
+  panelistKitManualInvite: (code: string) => ['panelistKitManualInvite', code] as const,
+  panelistKitEvents: (kitId: string) => ['panelistKitEvents', kitId] as const,
   activeProducts: ['activeProducts'] as const,
   templates: ['templates'] as const,
   panelists: ['panelists'] as const,
@@ -74,6 +82,125 @@ export function useProducts() {
 
 export function useActiveProducts() {
   return useQuery({ queryKey: queryKeys.activeProducts, queryFn: fetchActiveProducts })
+}
+
+export function usePanelistKits(productId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.panelistKits(productId ?? ''),
+    queryFn: () => fetchPanelistKits(productId!),
+    enabled: !!productId,
+  })
+}
+
+export function useGeneratePanelistKits() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: generatePanelistKits,
+    onSuccess: (_kits, input) => {
+      qc.invalidateQueries({ queryKey: queryKeys.panelistKits(input.productId) })
+      qc.invalidateQueries({ queryKey: queryKeys.products })
+      qc.invalidateQueries({ queryKey: queryKeys.activeProducts })
+    },
+  })
+}
+
+export function usePanelistKitInvite(token: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.panelistKitInvite(token ?? ''),
+    queryFn: () => fetchPanelistKitInvite(token!),
+    enabled: !!token,
+    retry: false,
+  })
+}
+
+export function usePanelistKitInviteByManualCode(code: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.panelistKitManualInvite(code ?? ''),
+    queryFn: () => fetchPanelistKitInviteByManualCode(code!),
+    enabled: !!code,
+    retry: false,
+  })
+}
+
+export function useClaimPanelistKit() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: claimPanelistKit,
+    onSuccess: (invite, input) => {
+      if (input.token) qc.invalidateQueries({ queryKey: queryKeys.panelistKitInvite(input.token) })
+      if (input.manualCode) qc.invalidateQueries({ queryKey: queryKeys.panelistKitManualInvite(input.manualCode) })
+      qc.invalidateQueries({ queryKey: queryKeys.panelistKits(invite.productId) })
+      qc.invalidateQueries({ queryKey: queryKeys.products })
+      qc.invalidateQueries({ queryKey: queryKeys.activeProducts })
+    },
+  })
+}
+
+export function useMarkPanelistKitStarted() {
+  return useMutation({ mutationFn: markPanelistKitStarted })
+}
+
+export function useMarkPanelistKitSubmitted() {
+  return useMutation({ mutationFn: markPanelistKitSubmitted })
+}
+
+export function useUpdatePanelistKitFulfillment(productId?: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: updatePanelistKitFulfillment,
+    onSuccess: () => {
+      if (productId) qc.invalidateQueries({ queryKey: queryKeys.panelistKits(productId) })
+    },
+  })
+}
+
+export function useReportPanelistKitIssue() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: reportPanelistKitIssue,
+    onSuccess: (_result, input) => {
+      if (input.token) qc.invalidateQueries({ queryKey: queryKeys.panelistKitInvite(input.token) })
+      if (input.manualCode) qc.invalidateQueries({ queryKey: queryKeys.panelistKitManualInvite(input.manualCode) })
+    },
+  })
+}
+
+export function useRecordPanelistKitReminder(productId?: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: recordPanelistKitReminder,
+    onSuccess: () => {
+      if (productId) qc.invalidateQueries({ queryKey: queryKeys.panelistKits(productId) })
+    },
+  })
+}
+
+export function useVoidPanelistKit(productId?: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: voidPanelistKit,
+    onSuccess: () => {
+      if (productId) qc.invalidateQueries({ queryKey: queryKeys.panelistKits(productId) })
+    },
+  })
+}
+
+export function useCreateReplacementPanelistKit(productId?: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: createReplacementPanelistKit,
+    onSuccess: () => {
+      if (productId) qc.invalidateQueries({ queryKey: queryKeys.panelistKits(productId) })
+    },
+  })
+}
+
+export function usePanelistKitEvents(kitId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.panelistKitEvents(kitId ?? ''),
+    queryFn: () => fetchPanelistKitEvents(kitId!),
+    enabled: !!kitId,
+  })
 }
 
 export function useTemplates() {

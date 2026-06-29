@@ -3,8 +3,9 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useAuth } from '../contexts/auth-context';
-import { AlertCircle, CheckCircle2, ChevronRight } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
+import { NfiBrandMark } from './nfi-brand';
 
 export interface LoginBranding {
   workspaceName?: string;
@@ -17,15 +18,13 @@ interface Props {
   branding?: LoginBranding;
 }
 
-
-function NfiLogoMark({ size = 40 }: { size?: number }) {
+function NfiLoginMark({ size = 40 }: { size?: number }) {
   return (
-    <div style={{ width: size, height: size, borderRadius: '26%', overflow: 'hidden', background: '#000', flexShrink: 0 }}>
-      <img
-        src="/new_foodinnovation_ltd_logo.jpg"
-        alt="NFI"
-        style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(1) contrast(10)', transform: 'scale(1.18)' }}
-      />
+    <div
+      className="shrink-0 overflow-hidden rounded-[26%] bg-black"
+      style={{ width: size, height: size }}
+    >
+      <NfiBrandMark size={size} monochrome />
     </div>
   );
 }
@@ -67,11 +66,12 @@ const googleSignInEnabled = import.meta.env.VITE_ENABLE_GOOGLE_SIGNIN === 'true'
 
 export function LoginPage({ onSignup, branding }: Props) {
   // A tenant is "branded" once it has its own logo; until then the default NFI
-  // look is preserved exactly (accent stays #111 with the #333 hover).
+  // login keeps a black brand panel with a restrained light workspace form.
   const hasBranding = !!branding?.logoUrl;
   const brandName = hasBranding ? (branding?.workspaceName || 'your') : 'NFI';
-  const accent = branding?.primaryColor || '#111';
-  const accentHover = branding?.primaryColor || '#333';
+  const logoAlt = branding?.workspaceName ?? 'Logo';
+  const primaryButtonBackground = branding?.primaryColor || '#111';
+  const primaryButtonText = '#fff';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -120,10 +120,10 @@ export function LoginPage({ onSignup, branding }: Props) {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="flex min-h-screen bg-[#111111]">
       {/* Left panel */}
       <div
-        className="hidden lg:flex lg:w-[46%] flex-col justify-between p-12"
+        className="hidden lg:flex lg:w-[46%] flex-col justify-between border-r border-white/10 p-12 xl:p-14"
         style={{ background: '#111111' }}
       >
         {/* Logo */}
@@ -134,120 +134,125 @@ export function LoginPage({ onSignup, branding }: Props) {
             <div style={{ background: '#fff', borderRadius: 10, padding: '10px 14px', display: 'inline-flex', alignItems: 'center' }}>
               <img
                 src={branding!.logoUrl!}
-                alt={branding?.workspaceName ?? 'Logo'}
+                alt={logoAlt}
                 style={{ height: 44, width: 'auto', maxWidth: 200, objectFit: 'contain', display: 'block' }}
               />
             </div>
           ) : (
             <>
-              <NfiLogoMark size={42} />
+              <NfiLoginMark size={42} />
               <div style={{ lineHeight: '1.3' }}>
-                <div className="text-white/80 text-sm">new</div>
-                <div className="text-white/80 text-sm">food</div>
-                <div className="text-white/80 text-sm">innovation</div>
+                <div className="text-sm font-medium text-white/80">new</div>
+                <div className="text-sm font-medium text-white/80">food</div>
+                <div className="text-sm font-medium text-white/80">innovation</div>
               </div>
             </>
           )}
         </div>
 
         {/* Centre copy */}
-        <div>
-          <p className="text-white/35 text-xs font-semibold uppercase tracking-widest mb-5">
-            Sensory Analysis Platform
+        <div className="max-w-[430px]">
+          <p className="mb-5 text-xs font-semibold uppercase tracking-[0.18em] text-white/45">
+            Sensory Intelligence Platform
           </p>
-          <h1 className="text-[2.5rem] font-bold text-white leading-[1.15] mb-6">
-            Guiding your journey,<br />
-            from concept to<br />
-            commercialisation.
+          <h1 className="mb-6 text-[2.625rem] font-semibold leading-[1.08] tracking-[-0.02em] text-white">
+            Turn sensory evidence into confident launch decisions.
           </h1>
-          <p className="text-white/45 text-base leading-relaxed max-w-[300px]">
-            A professional sensory intelligence platform for food developers, R&D teams, and innovation consultants.
+          <p className="max-w-[360px] text-base leading-7 text-white/60">
+            Keep lab data, panel feedback, decisions, concepts, and reports moving through one controlled product workflow.
           </p>
         </div>
 
         {/* Footer */}
-        <p className="text-white/25 text-sm">
+        <p className="max-w-[360px] text-sm leading-6 text-white/40">
           {hasBranding
             ? 'Powered by New Food Innovation'
-            : 'Supporting over 60 international food companies.'}
+            : 'Built for food teams turning research into market-ready decisions.'}
         </p>
       </div>
 
       {/* Right panel — form */}
-      <div className="flex-1 flex flex-col justify-center px-8 sm:px-16 bg-white">
+      <div className="flex flex-1 flex-col bg-[#f3f3ef]">
         {/* Mobile logo */}
-        <div className="lg:hidden flex items-center gap-3 mb-8">
-          {hasBranding ? (
-            // Mobile right panel is white, so the contained logo shows as-is.
-            <img
-              src={branding!.logoUrl!}
-              alt={branding?.workspaceName ?? 'Logo'}
-              style={{ height: 32, width: 'auto', maxWidth: 180, objectFit: 'contain', display: 'block' }}
-            />
-          ) : (
-            <>
-              <NfiLogoMark size={36} />
-              <div style={{ lineHeight: '1.22' }}>
-                <div className="text-[11px] text-slate-700">new</div>
-                <div className="text-[11px] text-slate-700">food</div>
-                <div className="text-[11px] text-slate-700">innovation</div>
+        <div className="flex items-center justify-between gap-4 border-b border-white/10 bg-[#111111] px-6 py-5 lg:hidden">
+          <div className="flex items-center gap-3">
+            {hasBranding ? (
+              <div className="inline-flex items-center rounded-md bg-white px-3 py-2">
+                <img
+                  src={branding!.logoUrl!}
+                  alt={logoAlt}
+                  style={{ height: 30, width: 'auto', maxWidth: 170, objectFit: 'contain', display: 'block' }}
+                />
               </div>
-            </>
-          )}
+            ) : (
+              <>
+                <NfiLoginMark size={36} />
+                <div style={{ lineHeight: '1.22' }}>
+                  <div className="text-[11px] font-medium text-white/80">new</div>
+                  <div className="text-[11px] font-medium text-white/80">food</div>
+                  <div className="text-[11px] font-medium text-white/80">innovation</div>
+                </div>
+              </>
+            )}
+          </div>
+          <span className="hidden text-xs font-medium uppercase tracking-[0.16em] text-white/38 sm:inline">
+            Sensory Intelligence
+          </span>
         </div>
 
-        <div className="max-w-sm w-full mx-auto">
+        <div className="flex flex-1 items-center justify-center px-6 py-10 sm:px-10 lg:px-16">
+        <div className="w-full max-w-[430px]">
           {resetMode ? (
             <>
               <button
                 type="button"
                 onClick={() => { setResetMode(false); setResetSent(false); setResetError(''); setResetEmail(''); }}
-                className="text-xs text-slate-400 hover:text-slate-700 transition-colors mb-6"
+                className="mb-7 inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-slate-500 transition-colors hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
               >
-                ← Back to sign in
+                <ArrowLeft className="size-3.5" />
+                Return to sign in
               </button>
               <div className="mb-8">
-                <h2 className="text-2xl font-bold text-slate-900">Reset password</h2>
-                <p className="text-slate-500 text-sm mt-1">We'll send a link to your email address</p>
+                <h2 className="text-2xl font-semibold tracking-[-0.01em] text-slate-950">Reset your password</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600">Enter your workspace email. We will send a secure link if the account exists.</p>
               </div>
               {resetSent ? (
-                <Alert className="py-2.5 border-green-200 bg-green-50">
-                  <CheckCircle2 className="size-4 text-green-600" />
-                  <AlertDescription className="text-xs text-green-700">
-                    Check your email — a reset link is on its way.
+                <Alert className="border-emerald-200 bg-emerald-50 py-3">
+                  <CheckCircle2 className="size-4 text-emerald-700" />
+                  <AlertDescription className="text-sm text-emerald-800">
+                    Check your inbox. If that email matches a workspace account, a reset link is on its way.
                   </AlertDescription>
                 </Alert>
               ) : (
                 <form onSubmit={handleReset} className="space-y-5">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="reset-email" className="text-slate-700 font-medium text-sm">
+                  <div className="space-y-2">
+                    <Label htmlFor="reset-email" className="text-sm font-medium text-slate-800">
                       Email address
                     </Label>
                     <Input
                       id="reset-email"
                       type="email"
+                      autoComplete="email"
                       placeholder="you@company.com"
                       value={resetEmail}
                       onChange={(e) => setResetEmail(e.target.value)}
-                      className="h-11 rounded-md border-slate-200"
+                      className="h-11 rounded-md border-slate-300 bg-white text-slate-950 placeholder:text-slate-500 focus-visible:border-slate-900 focus-visible:ring-slate-900/15"
                       required
                     />
                   </div>
                   {resetError && (
-                    <Alert variant="destructive" className="py-2.5">
+                    <Alert variant="destructive" className="py-3">
                       <AlertCircle className="size-4" />
-                      <AlertDescription className="text-xs">{resetError}</AlertDescription>
+                      <AlertDescription className="text-sm">{resetError}</AlertDescription>
                     </Alert>
                   )}
                   <Button
                     type="submit"
-                    className="h-11 w-full rounded-md text-sm font-semibold text-white transition-colors"
-                    style={{ background: accent }}
-                    onMouseEnter={e => (e.currentTarget.style.background = accentHover)}
-                    onMouseLeave={e => (e.currentTarget.style.background = accent)}
+                    className="h-11 w-full rounded-md text-sm font-semibold transition-[filter,background-color] hover:brightness-90"
+                    style={{ backgroundColor: primaryButtonBackground, color: primaryButtonText }}
                     disabled={resetLoading}
                   >
-                    {resetLoading ? 'Sending…' : 'Send reset link'}
+                    {resetLoading ? 'Sending…' : 'Email reset link'}
                   </Button>
                 </form>
               )}
@@ -255,44 +260,47 @@ export function LoginPage({ onSignup, branding }: Props) {
           ) : (
             <>
               <div className="mb-8">
-                <h2 className="text-2xl font-bold text-slate-900">Sign in</h2>
-                <p className="text-slate-500 text-sm mt-1">Access your {brandName} workspace</p>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace sign-in</p>
+                <h2 className="text-2xl font-semibold tracking-[-0.01em] text-slate-950">Welcome back</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600">Open your {brandName} workspace to review studies, decisions, concepts, and reports.</p>
               </div>
 
               {authNotice && !error && (
-                <Alert variant="destructive" className="py-2.5 mb-5">
+                <Alert variant="destructive" className="mb-5 py-3">
                   <AlertCircle className="size-4" />
-                  <AlertDescription className="text-xs">{authNotice}</AlertDescription>
+                  <AlertDescription className="text-sm">{authNotice}</AlertDescription>
                 </Alert>
               )}
 
               <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="space-y-1.5">
-                  <Label htmlFor="email" className="text-slate-700 font-medium text-sm">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-sm font-medium text-slate-800">
                     Email address
                   </Label>
                   <Input
                     id="email"
                     type="email"
+                    autoComplete="email"
                     placeholder="you@company.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="h-11 rounded-md border-slate-200"
+                    className="h-11 rounded-md border-slate-300 bg-white text-slate-950 placeholder:text-slate-500 focus-visible:border-slate-900 focus-visible:ring-slate-900/15"
                     required
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="password" className="text-slate-700 font-medium text-sm">
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-sm font-medium text-slate-800">
                     Password
                   </Label>
                   <Input
                     id="password"
                     type="password"
+                    autoComplete="current-password"
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="h-11 rounded-md border-slate-200"
+                    className="h-11 rounded-md border-slate-300 bg-white text-slate-950 placeholder:text-slate-500 focus-visible:border-slate-900 focus-visible:ring-slate-900/15"
                     required
                   />
                 </div>
@@ -301,25 +309,23 @@ export function LoginPage({ onSignup, branding }: Props) {
                   <button
                     type="button"
                     onClick={() => { setResetMode(true); setError(''); }}
-                    className="text-xs text-slate-400 hover:text-slate-700 transition-colors"
+                    className="rounded-md text-sm font-medium text-slate-500 transition-colors hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
                   >
                     Forgot password?
                   </button>
                 </div>
 
                 {error && (
-                  <Alert variant="destructive" className="py-2.5">
+                  <Alert variant="destructive" className="py-3">
                     <AlertCircle className="size-4" />
-                    <AlertDescription className="text-xs">{error}</AlertDescription>
+                    <AlertDescription className="text-sm">{error}</AlertDescription>
                   </Alert>
                 )}
 
                 <Button
                   type="submit"
-                  className="h-11 w-full rounded-md text-sm font-semibold text-white transition-colors"
-                  style={{ background: accent }}
-                  onMouseEnter={e => (e.currentTarget.style.background = accentHover)}
-                  onMouseLeave={e => (e.currentTarget.style.background = accent)}
+                  className="h-11 w-full rounded-md text-sm font-semibold transition-[filter,background-color] hover:brightness-90"
+                  style={{ backgroundColor: primaryButtonBackground, color: primaryButtonText }}
                   disabled={loading}
                 >
                   {loading ? 'Signing in…' : (
@@ -342,7 +348,7 @@ export function LoginPage({ onSignup, branding }: Props) {
                     variant="outline"
                     onClick={handleGoogle}
                     disabled={googleLoading}
-                    className="h-11 w-full rounded-md border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    className="h-11 w-full rounded-md border-slate-300 bg-white text-sm font-semibold text-slate-800 hover:border-slate-400 hover:bg-slate-50"
                   >
                     <span className="flex items-center gap-2.5">
                       <GoogleMark />
@@ -352,29 +358,30 @@ export function LoginPage({ onSignup, branding }: Props) {
                 </>
               )}
 
-              <div className="mt-6 pt-6 border-t border-slate-100 text-center">
+              <div className="mt-7 border-t border-slate-300/70 pt-6 text-center">
                 {onSignup ? (
                   <button
                     type="button"
                     onClick={onSignup}
-                    className="text-sm text-slate-500 hover:text-slate-900 transition-colors"
+                    className="rounded-md text-sm text-slate-600 transition-colors hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
                   >
-                    New panelist?{' '}
+                    Joining a panel?{' '}
                     <span className="font-semibold underline underline-offset-2">Create account</span>
                   </button>
                 ) : (
-                  <p className="text-sm text-slate-500">Panelist accounts are invite-only for this workspace.</p>
+                  <p className="text-sm leading-6 text-slate-600">Panelist access is managed by the workspace admin.</p>
                 )}
-                <div className="mt-4 flex items-center justify-center gap-3 text-xs text-slate-400">
-                  <a href="/privacy" className="hover:text-slate-700">Privacy</a>
+                <div className="mt-5 flex items-center justify-center gap-3 text-xs font-medium text-slate-500">
+                  <a href="/privacy" className="rounded-sm hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20">Privacy</a>
                   <span aria-hidden="true">/</span>
-                  <a href="/terms" className="hover:text-slate-700">Terms</a>
+                  <a href="/terms" className="rounded-sm hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20">Terms</a>
                   <span aria-hidden="true">/</span>
-                  <a href="/panelist-consent" className="hover:text-slate-700">Consent</a>
+                  <a href="/panelist-consent" className="rounded-sm hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20">Consent</a>
                 </div>
               </div>
             </>
           )}
+        </div>
         </div>
       </div>
     </div>

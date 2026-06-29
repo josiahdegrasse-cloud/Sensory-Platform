@@ -13,6 +13,7 @@ function AppContent() {
   const { data: workspaceConfig } = usePublicWorkspaceConfig();
   const [showSignup, setShowSignup] = useState(false);
   const isPublicLegalRoute = ['/privacy', '/terms', '/panelist-consent'].includes(window.location.pathname);
+  const isPublicKitRoute = window.location.pathname === '/join' || window.location.pathname.startsWith('/join/');
   const allowSelfSignup = workspaceConfig?.allowSelfSignup ?? false;
 
   if (loading) {
@@ -25,7 +26,7 @@ function AppContent() {
 
   if (isPasswordRecovery) return <ResetPasswordPage />;
 
-  if (isPublicLegalRoute) return <RouterProvider router={router} />;
+  if (isPublicLegalRoute || isPublicKitRoute) return <RouterProvider router={router} />;
 
   if (!isAuthenticated) {
     if (showSignup && allowSelfSignup) {

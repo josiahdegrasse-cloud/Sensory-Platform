@@ -21,6 +21,7 @@ describe('project journey routes', () => {
   it('maps legacy workflow routes to journey steps', () => {
     expect(legacyWorkflowPathToStep('/stage1')).toBe('data');
     expect(legacyWorkflowPathToStep('/admin')).toBe('studies');
+    expect(legacyWorkflowPathToStep('/responses')).toBe('studies');
     expect(legacyWorkflowPathToStep('/survey-analysis')).toBe('insights');
     expect(legacyWorkflowPathToStep('/decision')).toBe('decision');
     expect(legacyWorkflowPathToStep('/concept-testing')).toBe('concept');
@@ -45,7 +46,7 @@ describe('project journey routes', () => {
   });
 
   it('scopes workflow and status stages when a project is known', () => {
-    expect(workflowStagePath('responses', 'project-1')).toBe('/project/project-1/responses');
+    expect(workflowStagePath('responses', 'project-1')).toBe('/project/project-1/studies');
     expect(workflowStagePath('report', 'project-1', '?report=report-1')).toBe('/project/project-1/report?report=report-1');
     expect(projectStatusStagePath('concept', 'project-1')).toBe('/project/project-1/concept');
   });

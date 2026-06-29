@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { createBrowserRouter } from "react-router";
+import { createBrowserRouter, Navigate } from "react-router";
 import { MainLayout } from "./components/main-layout";
 import { ProtectedRoute } from "./components/protected-route";
 import { AdminSettings } from "./components/admin-settings";
@@ -18,7 +18,6 @@ const QuestionnaireForm = lazy(() => import("./components/questionnaire-form").t
 const MultiSampleDescription = lazy(() => import("./components/multi-sample-description").then(m => ({ default: m.MultiSampleDescription })));
 const MultiSampleQuestionnaire = lazy(() => import("./components/multi-sample-questionnaire").then(m => ({ default: m.MultiSampleQuestionnaire })));
 const AdminConfig = lazy(() => import("./components/admin-config").then(m => ({ default: m.AdminConfig })));
-const ResponsesWorkspace = lazy(() => import("./components/responses-workspace").then(m => ({ default: m.ResponsesWorkspace })));
 const ConceptTesting = lazy(() => import("./components/concept-testing").then(m => ({ default: m.ConceptTesting })));
 const CommercializationReportPage = lazy(() => import("./components/commercialization-report-page").then(m => ({ default: m.CommercializationReportPage })));
 const ReportsPage = lazy(() => import("./components/reports-page").then(m => ({ default: m.ReportsPage })));
@@ -26,6 +25,7 @@ const ConceptSurvey = lazy(() => import("./components/concept-survey").then(m =>
 const PrivacyPolicy = lazy(() => import("./components/legal-pages").then(m => ({ default: m.PrivacyPolicy })));
 const TermsOfUse = lazy(() => import("./components/legal-pages").then(m => ({ default: m.TermsOfUse })));
 const PanelistConsent = lazy(() => import("./components/legal-pages").then(m => ({ default: m.PanelistConsent })));
+const PanelistKitJoinPage = lazy(() => import("./components/panelist-kit-join-page").then(m => ({ default: m.PanelistKitJoinPage })));
 const NotFound = lazy(() => import("./components/not-found").then(m => ({ default: m.NotFound })));
 
 const fallback = (
@@ -63,6 +63,24 @@ export const router = createBrowserRouter([
     ),
   },
   {
+    path: "/join",
+    errorElement: <RouteErrorBoundary />,
+    element: (
+      <Suspense fallback={fallback}>
+        <PanelistKitJoinPage />
+      </Suspense>
+    ),
+  },
+  {
+    path: "/join/:token",
+    errorElement: <RouteErrorBoundary />,
+    element: (
+      <Suspense fallback={fallback}>
+        <PanelistKitJoinPage />
+      </Suspense>
+    ),
+  },
+  {
     path: "/",
     Component: MainLayout,
     errorElement: <RouteErrorBoundary />,
@@ -82,7 +100,7 @@ export const router = createBrowserRouter([
           { path: "survey-analysis", element: <LegacyWorkflowRoute><SurveyAnalysis /></LegacyWorkflowRoute> },
           { path: "decision", element: <LegacyWorkflowRoute><Stage4Enhanced /></LegacyWorkflowRoute> },
           { path: "admin", element: <LegacyWorkflowRoute><AdminConfig mode="admin" /></LegacyWorkflowRoute> },
-          { path: "responses", element: <LegacyWorkflowRoute><ResponsesWorkspace /></LegacyWorkflowRoute> },
+          { path: "responses", element: <Navigate to="/admin" replace /> },
           { path: "settings", Component: AdminSettings },
           { path: "concept-testing", element: <LegacyWorkflowRoute><ConceptTesting /></LegacyWorkflowRoute> },
           { path: "reports", element: <LegacyWorkflowRoute><ReportsPage /></LegacyWorkflowRoute> },

@@ -1,3 +1,32 @@
 @import './fonts.css';
 @import './tailwind.css';
 @import './theme.css';
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .kit-print-area,
+  .kit-print-area * {
+    visibility: visible;
+  }
+
+  .kit-print-area {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    background: white;
+  }
+
+  .kit-insert-page {
+    break-after: page;
+    border-radius: 0;
+    box-shadow: none;
+    page-break-after: always;
+  }
+
+  @page {
+    margin: 0.5in;
+  }
+}

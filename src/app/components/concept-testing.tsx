@@ -326,7 +326,7 @@ export function ConceptTesting() {
             New concept test
           </Button>
           <Button variant="outline" onClick={() => navigate('/survey-analysis')}>
-            View responses
+            View insights
           </Button>
           <Button
             className="bg-emerald-600 hover:bg-emerald-700 text-white"

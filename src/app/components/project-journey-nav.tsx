@@ -15,8 +15,7 @@ interface JourneyItem {
 const ITEMS: JourneyItem[] = [
   { label: 'Overview', step: 'overview', legacyPaths: ['/project'] },
   { label: 'Data', step: 'data', legacyPaths: ['/stage1'], stageId: 'data' },
-  { label: 'Studies', step: 'studies', legacyPaths: ['/admin'], stageId: 'studies' },
-  { label: 'Responses', step: 'responses', legacyPaths: ['/admin'], stageId: 'responses' },
+  { label: 'Studies', step: 'studies', legacyPaths: ['/admin', '/responses'], stageId: 'studies' },
   { label: 'Insights', step: 'insights', legacyPaths: ['/survey-analysis'], stageId: 'insights' },
   { label: 'Decision', step: 'decision', legacyPaths: ['/decision'], stageId: 'decision' },
   { label: 'Concept', step: 'concept', legacyPaths: ['/concept-testing'], stageId: 'concept' },
