@@ -77,6 +77,7 @@ export interface PanelistKitInvite {
   issueNote: string | null;
   issueStatus: 'none' | 'open' | 'reviewed' | 'resolved';
   claimedBy: string | null;
+  claimedByCurrentUser: boolean;
 }
 
 export interface PanelistKitEvent {
@@ -90,12 +91,12 @@ export interface PanelistKitEvent {
 }
 
 interface KitRow {
-  id: string;
+  id?: string;
   token?: string;
   kit_code: string;
   manual_code?: string | null;
   sample_code: string | null;
-  product_id: string;
+  product_id?: string;
   assigned_product_ids?: string[] | null;
   assigned_product_count?: number | string | null;
   completed_product_count?: number | string | null;
@@ -122,6 +123,7 @@ interface KitRow {
   void_reason?: string | null;
   replacement_for_kit_id?: string | null;
   claimed_by?: string | null;
+  claimed_by_current_user?: boolean | null;
   claimed_panelist_name?: string | null;
   claimed_at?: string | null;
   started_at?: string | null;
@@ -156,13 +158,13 @@ function isMissingAssignedProductsRpc(error: { message?: string; code?: string }
 
 function toGeneratedKit(row: KitRow): GeneratedPanelistKit {
   return {
-    id: row.id,
+    id: row.id ?? '',
     token: row.token ?? '',
     kitCode: row.kit_code,
     manualCode: row.manual_code ?? null,
     sampleCode: row.sample_code,
-    productId: row.product_id,
-    assignedProductIds: row.assigned_product_ids ?? [row.product_id],
+    productId: row.product_id ?? '',
+    assignedProductIds: row.assigned_product_ids ?? (row.product_id ? [row.product_id] : []),
     status: (row.status ?? row.calculated_status ?? 'generated') as PanelistKitStatus,
     expiresAt: row.expires_at,
     responseDeadline: row.response_deadline,
@@ -175,12 +177,12 @@ function toGeneratedKit(row: KitRow): GeneratedPanelistKit {
 
 function toKitRecord(row: KitRow): PanelistKitRecord {
   return {
-    id: row.id,
+    id: row.id ?? '',
     kitCode: row.kit_code,
     manualCode: row.manual_code ?? null,
     sampleCode: row.sample_code,
-    productId: row.product_id,
-    assignedProductIds: row.assigned_product_ids ?? [row.product_id],
+    productId: row.product_id ?? '',
+    assignedProductIds: row.assigned_product_ids ?? (row.product_id ? [row.product_id] : []),
     assignedProductCount: Number(row.assigned_product_count ?? row.assigned_product_ids?.length ?? 1),
     completedProductCount: Number(row.completed_product_count ?? 0),
     productName: row.product_name ?? 'Unknown study',
@@ -214,16 +216,16 @@ function toKitRecord(row: KitRow): PanelistKitRecord {
 
 function toInvite(row: KitRow): PanelistKitInvite {
   return {
-    id: row.id,
+    id: row.id ?? '',
     orgId: row.org_id ?? '',
-    productId: row.product_id,
+    productId: row.product_id ?? '',
     productName: row.product_name ?? 'Tasting study',
     productCategory: row.product_category ?? '',
     isMultiSample: Boolean(row.is_multi_sample),
     sampleCode: row.sample_code,
     kitCode: row.kit_code,
     manualCode: row.manual_code ?? null,
-    assignedProductIds: row.assigned_product_ids ?? [row.product_id],
+    assignedProductIds: row.assigned_product_ids ?? (row.product_id ? [row.product_id] : []),
     assignedProductCount: Number(row.assigned_product_count ?? row.assigned_product_ids?.length ?? 1),
     calculatedStatus: (row.calculated_status ?? row.status ?? 'generated') as PanelistKitStatus,
     expiresAt: row.expires_at,
@@ -233,6 +235,7 @@ function toInvite(row: KitRow): PanelistKitInvite {
     issueNote: row.issue_note ?? null,
     issueStatus: (row.issue_status ?? 'none') as PanelistKitInvite['issueStatus'],
     claimedBy: row.claimed_by ?? null,
+    claimedByCurrentUser: Boolean(row.claimed_by_current_user),
   };
 }
 

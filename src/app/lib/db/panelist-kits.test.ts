@@ -198,22 +198,20 @@ describe('panelist kit data access', () => {
   it('maps a public invite token lookup', async () => {
     dbMocks.rpc.mockResolvedValue({
       data: [{
-        id: 'kit-1',
         org_id: 'org-1',
-        product_id: 'product-1',
-        assigned_product_ids: ['product-1', 'product-2'],
         assigned_product_count: 2,
         product_name: 'Cheddar trial',
         product_category: 'Cheese',
         is_multi_sample: false,
         sample_code: '123',
         kit_code: 'KIT-001',
-        manual_code: 'NFI-8F2K1A3B',
         calculated_status: 'claimed',
         expires_at: null,
         response_deadline: null,
         handling_instructions: '',
-        claimed_by: 'user-1',
+        issue_type: 'damaged',
+        issue_status: 'open',
+        claimed_by_current_user: true,
       }],
       error: null,
     });
@@ -222,47 +220,72 @@ describe('panelist kit data access', () => {
       orgId: 'org-1',
       productName: 'Cheddar trial',
       kitCode: 'KIT-001',
-      manualCode: 'NFI-8F2K1A3B',
-      assignedProductIds: ['product-1', 'product-2'],
+      manualCode: null,
+      assignedProductIds: [],
       assignedProductCount: 2,
       calculatedStatus: 'claimed',
-      claimedBy: 'user-1',
+      issueNote: null,
+      claimedBy: null,
+      claimedByCurrentUser: true,
     }));
   });
 
   it('looks up and claims kits by manual code', async () => {
-    dbMocks.rpc.mockResolvedValue({
-      data: [{
-        id: 'kit-1',
-        org_id: 'org-1',
-        product_id: 'product-1',
-        assigned_product_ids: ['product-1', 'product-2'],
-        assigned_product_count: 2,
-        product_name: 'Cheddar trial',
-        product_category: 'Cheese',
-        is_multi_sample: false,
-        sample_code: '123',
-        kit_code: 'KIT-001',
-        manual_code: 'NFI-8F2K1A3B',
-        calculated_status: 'claimed',
-        expires_at: null,
-        response_deadline: null,
-        handling_instructions: '',
-        issue_type: null,
-        issue_note: null,
-        issue_status: 'none',
-        claimed_by: 'user-1',
-      }],
-      error: null,
-    });
+    dbMocks.rpc
+      .mockResolvedValueOnce({
+        data: [{
+          org_id: 'org-1',
+          assigned_product_count: 2,
+          product_name: 'Cheddar trial',
+          product_category: 'Cheese',
+          is_multi_sample: false,
+          sample_code: '123',
+          kit_code: 'KIT-001',
+          calculated_status: 'generated',
+          expires_at: null,
+          response_deadline: null,
+          handling_instructions: '',
+          issue_type: null,
+          issue_status: 'none',
+          claimed_by_current_user: false,
+        }],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [{
+          id: 'kit-1',
+          org_id: 'org-1',
+          product_id: 'product-1',
+          assigned_product_ids: ['product-1', 'product-2'],
+          assigned_product_count: 2,
+          product_name: 'Cheddar trial',
+          product_category: 'Cheese',
+          is_multi_sample: false,
+          sample_code: '123',
+          kit_code: 'KIT-001',
+          manual_code: 'NFI-8F2K1A3B',
+          calculated_status: 'claimed',
+          expires_at: null,
+          response_deadline: null,
+          handling_instructions: '',
+          issue_type: null,
+          issue_status: 'none',
+          claimed_by_current_user: true,
+        }],
+        error: null,
+      });
 
     await expect(fetchPanelistKitInviteByManualCode('NFI-8F2K1A3B')).resolves.toEqual(expect.objectContaining({
-      manualCode: 'NFI-8F2K1A3B',
+      manualCode: null,
+      assignedProductIds: [],
+      claimedByCurrentUser: false,
     }));
     expect(dbMocks.rpc).toHaveBeenCalledWith('get_panelist_kit_by_manual_code', { p_manual_code: 'NFI-8F2K1A3B' });
 
     await expect(claimPanelistKit({ manualCode: 'NFI-8F2K1A3B' })).resolves.toEqual(expect.objectContaining({
-      claimedBy: 'user-1',
+      manualCode: 'NFI-8F2K1A3B',
+      assignedProductIds: ['product-1', 'product-2'],
+      claimedByCurrentUser: true,
     }));
     expect(dbMocks.rpc).toHaveBeenCalledWith('claim_panelist_kit', {
       p_token: null,

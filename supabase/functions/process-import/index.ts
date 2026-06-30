@@ -153,6 +153,25 @@ Deno.serve(async (req: Request) => {
     global: { headers: { Authorization: `Bearer ${callerToken}` } },
   });
 
+  const { data: profile, error: profileError } = await callerClient
+    .from('profiles')
+    .select('role, status')
+    .eq('id', callerUser.id)
+    .single();
+  if (profileError || profile?.role !== 'admin' || profile?.status !== 'active') {
+    return new Response(JSON.stringify({ error: 'Admin access required' }), {
+      status: 403,
+      headers: { ...headers, 'Content-Type': 'application/json' },
+    });
+  }
+
+  if (!storagePath.startsWith(`${callerUser.id}/`)) {
+    return new Response(JSON.stringify({ error: 'Storage path is outside the caller upload scope' }), {
+      status: 403,
+      headers: { ...headers, 'Content-Type': 'application/json' },
+    });
+  }
+
   // Download the file via service role to bypass storage RLS
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
   const { data: fileBlob, error: downloadError } = await serviceClient.storage

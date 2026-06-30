@@ -57,8 +57,8 @@ export function PanelistKitJoinPage() {
   const activeManualCode = manualCodeLookup || invite?.manualCode || '';
   const claimKey = token || activeManualCode;
 
-  const claimedByThisUser = Boolean(user?.id && invite?.claimedBy === user.id);
-  const needsClaim = Boolean(user?.id && invite && !invite.claimedBy);
+  const claimedByThisUser = Boolean(user?.id && (invite?.claimedByCurrentUser || invite?.claimedBy === user.id));
+  const needsClaim = Boolean(user?.id && invite && !claimedByThisUser && !invite.claimedBy);
   const hasBlockingIssue = Boolean(invite?.issueStatus === 'open' && invite.issueType && blockingIssueTypes.has(invite.issueType));
   const canBegin = claimedByThisUser && boxReady;
   const assignedTaskCount = invite?.assignedProductCount ?? 1;
@@ -67,10 +67,17 @@ export function PanelistKitJoinPage() {
 
   useEffect(() => {
     if (!invite || !user?.id || invite.claimedBy) return;
+    if (invite.calculatedStatus === 'claimed' && !invite.claimedByCurrentUser) return;
     if (!claimKey || claimAttemptRef.current === claimKey || claimKit.isPending) return;
     claimAttemptRef.current = claimKey;
     claimKit.mutate({ token: token || null, manualCode: token ? null : activeManualCode });
   }, [activeManualCode, claimKey, claimKit, invite, token, user?.id]);
+
+  useEffect(() => {
+    if (!claimKit.error) return;
+    setMessageType('error');
+    setMessage(claimKit.error instanceof Error ? claimKit.error.message : 'Unable to claim this box pass.');
+  }, [claimKit.error]);
 
   const handleManualLookup = (event: React.FormEvent) => {
     event.preventDefault();
@@ -290,7 +297,11 @@ export function PanelistKitJoinPage() {
   }
 
   const unavailable = invite.calculatedStatus === 'expired' || invite.calculatedStatus === 'void' || invite.calculatedStatus === 'submitted';
-  const claimedByOther = Boolean(invite.claimedBy && user?.id && invite.claimedBy !== user.id);
+  const claimedByOther = Boolean(
+    user?.id
+    && !claimedByThisUser
+    && (Boolean(invite.claimedBy && invite.claimedBy !== user.id) || invite.calculatedStatus === 'claimed')
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6">

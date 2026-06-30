@@ -327,7 +327,7 @@ export function ConceptTesting() {
   const nextActionLabel = nextStep ? `Continue to ${STEP_LABELS[nextStep]}` : 'Continue';
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5 pb-8">
+    <div className="space-y-6 pb-8">
       <ProjectHeader />
       <WorkflowPageHeader
         title="Concept Lab"

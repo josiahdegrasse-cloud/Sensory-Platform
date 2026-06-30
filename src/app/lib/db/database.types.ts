@@ -1150,8 +1150,61 @@ export type Database = {
         }
         Relationships: []
       }
+      panelist_kit_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          kit_id: string
+          metadata: Json
+          org_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          kit_id: string
+          metadata?: Json
+          org_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          kit_id?: string
+          metadata?: Json
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "panelist_kit_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "panelist_kit_events_kit_id_fkey"
+            columns: ["kit_id"]
+            isOneToOne: false
+            referencedRelation: "panelist_kits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "panelist_kit_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       panelist_kits: {
         Row: {
+          assigned_product_ids: string[]
           claimed_at: string | null
           claimed_by: string | null
           created_at: string
@@ -1159,18 +1212,33 @@ export type Database = {
           expires_at: string | null
           handling_instructions: string
           id: string
+          issue_note: string | null
+          issue_reported_at: string | null
+          issue_status: string
+          issue_type: string | null
           kit_code: string
+          manual_code: string | null
           org_id: string
+          packed_at: string | null
+          printed_at: string | null
           product_id: string
+          recipient_email: string | null
+          recipient_name: string | null
+          replacement_for_kit_id: string | null
           response_deadline: string | null
           sample_code: string | null
+          shipped_at: string | null
           started_at: string | null
           status: string
           submitted_at: string | null
           token_hash: string
+          tracking_number: string | null
           updated_at: string
+          void_reason: string | null
+          voided_at: string | null
         }
         Insert: {
+          assigned_product_ids?: string[]
           claimed_at?: string | null
           claimed_by?: string | null
           created_at?: string
@@ -1178,18 +1246,33 @@ export type Database = {
           expires_at?: string | null
           handling_instructions?: string
           id?: string
+          issue_note?: string | null
+          issue_reported_at?: string | null
+          issue_status?: string
+          issue_type?: string | null
           kit_code: string
+          manual_code?: string | null
           org_id: string
+          packed_at?: string | null
+          printed_at?: string | null
           product_id: string
+          recipient_email?: string | null
+          recipient_name?: string | null
+          replacement_for_kit_id?: string | null
           response_deadline?: string | null
           sample_code?: string | null
+          shipped_at?: string | null
           started_at?: string | null
           status?: string
           submitted_at?: string | null
           token_hash: string
+          tracking_number?: string | null
           updated_at?: string
+          void_reason?: string | null
+          voided_at?: string | null
         }
         Update: {
+          assigned_product_ids?: string[]
           claimed_at?: string | null
           claimed_by?: string | null
           created_at?: string
@@ -1197,16 +1280,30 @@ export type Database = {
           expires_at?: string | null
           handling_instructions?: string
           id?: string
+          issue_note?: string | null
+          issue_reported_at?: string | null
+          issue_status?: string
+          issue_type?: string | null
           kit_code?: string
+          manual_code?: string | null
           org_id?: string
+          packed_at?: string | null
+          printed_at?: string | null
           product_id?: string
+          recipient_email?: string | null
+          recipient_name?: string | null
+          replacement_for_kit_id?: string | null
           response_deadline?: string | null
           sample_code?: string | null
+          shipped_at?: string | null
           started_at?: string | null
           status?: string
           submitted_at?: string | null
           token_hash?: string
+          tracking_number?: string | null
           updated_at?: string
+          void_reason?: string | null
+          voided_at?: string | null
         }
         Relationships: [
           {
@@ -1235,6 +1332,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "panelist_kits_replacement_for_kit_id_fkey"
+            columns: ["replacement_for_kit_id"]
+            isOneToOne: false
+            referencedRelation: "panelist_kits"
             referencedColumns: ["id"]
           },
         ]
@@ -1757,15 +1861,20 @@ export type Database = {
     }
     Functions: {
       claim_panelist_kit: {
-        Args: { p_token: string }
+        Args: { p_manual_code?: string; p_token?: string }
         Returns: {
+          assigned_product_count: number
+          assigned_product_ids: string[]
           calculated_status: string
-          claimed_by: string
+          claimed_by_current_user: boolean
           expires_at: string
           handling_instructions: string
           id: string
           is_multi_sample: boolean
+          issue_status: string
+          issue_type: string
           kit_code: string
+          manual_code: string
           org_id: string
           product_category: string
           product_id: string
@@ -1833,6 +1942,25 @@ export type Database = {
         }
       }
       create_instrumental_import: { Args: { payload: Json }; Returns: string }
+      create_replacement_panelist_kit: {
+        Args: { p_reason?: string; target_kit_id: string }
+        Returns: {
+          assigned_product_ids: string[]
+          created_at: string
+          expires_at: string
+          handling_instructions: string
+          id: string
+          kit_code: string
+          manual_code: string
+          product_id: string
+          recipient_email: string
+          recipient_name: string
+          response_deadline: string
+          sample_code: string
+          status: string
+          token: string
+        }[]
+      }
       current_org_id: { Args: never; Returns: string }
       delete_import_batch: {
         Args: { target_batch_id: string }
@@ -1842,40 +1970,79 @@ export type Database = {
         Args: { p_email: string }
         Returns: boolean
       }
+      fetch_panelist_kit_events: {
+        Args: { target_kit_id: string }
+        Returns: {
+          actor_id: string
+          actor_name: string
+          created_at: string
+          event_type: string
+          id: string
+          kit_id: string
+          metadata: Json
+        }[]
+      }
+      generate_panelist_kit_manual_code: { Args: never; Returns: string }
       generate_panelist_kits: {
         Args: {
           kit_count: number
+          p_assigned_product_ids?: string[]
           p_expires_at?: string
           p_handling_instructions?: string
+          p_recipients?: Json
           p_response_deadline?: string
           target_product_id: string
         }
         Returns: {
+          assigned_product_ids: string[]
           created_at: string
           expires_at: string
           handling_instructions: string
           id: string
           kit_code: string
+          manual_code: string
           product_id: string
+          recipient_email: string
+          recipient_name: string
           response_deadline: string
           sample_code: string
           status: string
           token: string
         }[]
       }
-      get_panelist_kit_by_token: {
-        Args: { p_token: string }
+      get_panelist_kit_by_manual_code: {
+        Args: { p_manual_code: string }
         Returns: {
+          assigned_product_count: number
           calculated_status: string
-          claimed_by: string
+          claimed_by_current_user: boolean
           expires_at: string
           handling_instructions: string
-          id: string
           is_multi_sample: boolean
+          issue_status: string
+          issue_type: string
           kit_code: string
           org_id: string
           product_category: string
-          product_id: string
+          product_name: string
+          response_deadline: string
+          sample_code: string
+        }[]
+      }
+      get_panelist_kit_by_token: {
+        Args: { p_token: string }
+        Returns: {
+          assigned_product_count: number
+          calculated_status: string
+          claimed_by_current_user: boolean
+          expires_at: string
+          handling_instructions: string
+          is_multi_sample: boolean
+          issue_status: string
+          issue_type: string
+          kit_code: string
+          org_id: string
+          product_category: string
           product_name: string
           response_deadline: string
           sample_code: string
@@ -1897,30 +2064,48 @@ export type Database = {
       list_panelist_kits: {
         Args: { target_product_id: string }
         Returns: {
+          assigned_product_count: number
+          assigned_product_ids: string[]
           calculated_status: string
           claimed_at: string
           claimed_by: string
           claimed_panelist_name: string
+          completed_product_count: number
           created_at: string
           expires_at: string
           handling_instructions: string
           id: string
+          issue_note: string
+          issue_reported_at: string
+          issue_status: string
+          issue_type: string
           kit_code: string
+          manual_code: string
+          packed_at: string
+          printed_at: string
           product_id: string
           product_name: string
+          recipient_email: string
+          recipient_name: string
+          reminder_count: number
+          replacement_for_kit_id: string
           response_deadline: string
           sample_code: string
+          shipped_at: string
           started_at: string
           stored_status: string
           submitted_at: string
+          tracking_number: string
+          void_reason: string
+          voided_at: string
         }[]
       }
       mark_panelist_kit_started: {
-        Args: { p_token: string }
+        Args: { p_manual_code?: string; p_token?: string }
         Returns: undefined
       }
       mark_panelist_kit_submitted: {
-        Args: { p_token: string }
+        Args: { p_manual_code?: string; p_token?: string }
         Returns: undefined
       }
       org_id_for_email: { Args: { p_email: string }; Returns: string }
@@ -1929,12 +2114,37 @@ export type Database = {
         Args: { org_name: string; org_slug: string }
         Returns: string
       }
+      record_panelist_kit_event: {
+        Args: { p_event_type: string; p_metadata?: Json; target_kit_id: string }
+        Returns: undefined
+      }
+      record_panelist_kit_reminder: {
+        Args: { p_reason?: string; target_kit_id: string }
+        Returns: undefined
+      }
+      report_panelist_kit_issue: {
+        Args: {
+          p_issue_note?: string
+          p_issue_type?: string
+          p_manual_code?: string
+          p_token?: string
+        }
+        Returns: undefined
+      }
       set_food_type_status: {
         Args: { next_status: string; target_slug: string }
         Returns: undefined
       }
       set_import_batch_status: {
         Args: { next_status: string; target_batch_id: string }
+        Returns: undefined
+      }
+      update_panelist_kit_fulfillment: {
+        Args: {
+          p_status: string
+          p_tracking_number?: string
+          target_kit_id: string
+        }
         Returns: undefined
       }
       upsert_workspace_settings: {
@@ -1991,6 +2201,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      void_panelist_kit: {
+        Args: { p_reason?: string; target_kit_id: string }
+        Returns: undefined
       }
     }
     Enums: {

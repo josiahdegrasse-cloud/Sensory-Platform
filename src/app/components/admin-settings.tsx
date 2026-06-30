@@ -238,7 +238,7 @@ export function AdminSettings() {
 
       <Tabs defaultValue="study" className="gap-4">
         <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-lg p-1 sm:inline-flex sm:w-fit sm:grid-cols-none">
-          <TabsTrigger className="h-10 justify-start sm:h-8 sm:justify-center" value="study"><ClipboardCheck className="size-4" />Study</TabsTrigger>
+          <TabsTrigger className="h-10 justify-start sm:h-8 sm:justify-center" value="study"><ClipboardCheck className="size-4" />Study setup</TabsTrigger>
           <TabsTrigger className="h-10 justify-start sm:h-8 sm:justify-center" value="access"><Users className="size-4" />Access</TabsTrigger>
           <TabsTrigger className="h-10 justify-start sm:h-8 sm:justify-center" value="automation"><Database className="size-4" />Automation</TabsTrigger>
           <TabsTrigger className="h-10 justify-start sm:h-8 sm:justify-center" value="decision"><Brain className="size-4" />Decision</TabsTrigger>
@@ -248,15 +248,6 @@ export function AdminSettings() {
 
         <TabsContent value="study">
           <div className="grid gap-4 xl:grid-cols-[1.1fr_1fr]">
-            <Card className="border-slate-200 shadow-sm">
-              <CardHeader><CardTitle className="text-lg">Study defaults</CardTitle></CardHeader>
-              <CardContent className="space-y-5">
-                <NumberField id="default-panel-size" label="Default panel size" value={draft.defaultPanelSize} min={1} max={500} onChange={value => updateDraft('defaultPanelSize', value)} />
-                <p className="text-sm text-slate-600">
-                  New concept studies start with this response target. Panelists must still be assigned before launch.
-                </p>
-              </CardContent>
-            </Card>
             <Card className="border-slate-200 shadow-sm">
               <CardHeader><CardTitle className="text-lg">Workspace identity</CardTitle></CardHeader>
               <CardContent className="grid gap-4">
@@ -278,6 +269,17 @@ export function AdminSettings() {
                 </div>
               </CardContent>
             </Card>
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader><CardTitle className="text-lg">Questionnaire defaults</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <NumberField id="default-panel-size" label="Default response target" value={draft.defaultPanelSize} min={1} max={500} onChange={value => updateDraft('defaultPanelSize', value)} />
+                <ToggleRow title="Require liking section" detail="Include hedonic liking questions in new product surveys." checked={draft.requireHedonicSection} onChange={checked => updateDraft('requireHedonicSection', checked)} />
+                <ToggleRow title="Require intensity section" detail="Include sensory intensity scales in new product surveys." checked={draft.requireIntensitySection} onChange={checked => updateDraft('requireIntensitySection', checked)} />
+                <ToggleRow title="Require emotions section" detail="Ask panelists how the sample made them feel after tasting." checked={draft.requireEmotionSection} onChange={checked => updateDraft('requireEmotionSection', checked)} />
+                <ToggleRow title="Allow panelist comments" detail="Let panelists add free-text notes before submitting." checked={draft.allowPanelistComments} onChange={checked => updateDraft('allowPanelistComments', checked)} />
+                <ToggleRow title="Require every assigned sample" detail="Prevent submission until all samples in the study are completed." checked={draft.requireAllSamplesBeforeSubmit} onChange={checked => updateDraft('requireAllSamplesBeforeSubmit', checked)} />
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
 
@@ -289,6 +291,9 @@ export function AdminSettings() {
                 <CardContent className="space-y-3">
                   <ToggleRow title="Allow self signup" detail="Show the create-account option on the sign-in page." checked={draft.allowSelfSignup} onChange={checked => updateDraft('allowSelfSignup', checked)} />
                   <ToggleRow title="Require panelist consent" detail="Gate questionnaires until consent is accepted." checked={draft.requirePanelistConsent} onChange={checked => updateDraft('requirePanelistConsent', checked)} />
+                  <ToggleRow title="Require panelist IDs" detail="Use internal panelist IDs as required roster metadata." checked={draft.requirePanelistId} onChange={checked => updateDraft('requirePanelistId', checked)} />
+                  <ToggleRow title="Show panelist history" detail="Allow panelists to see their previously completed questionnaires." checked={draft.allowPanelistsViewHistory} onChange={checked => updateDraft('allowPanelistsViewHistory', checked)} />
+                  <NumberField id="inactive-panelist-days" label="Mark inactive after" value={draft.inactivePanelistDays} min={1} max={730} suffix="days" onChange={value => updateDraft('inactivePanelistDays', value)} />
                 </CardContent>
               </Card>
               <OrgEmailDomainsCard />
@@ -355,14 +360,23 @@ export function AdminSettings() {
         </TabsContent>
 
         <TabsContent value="decision">
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Brain className="size-5 text-slate-500" />Go / Tweak / Stop rules</CardTitle></CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-3">
-              <NumberField id="stop-threshold" label="STOP below" value={draft.decisionStopThreshold} min={0} max={99} suffix="score" onChange={value => updateDraft('decisionStopThreshold', value)} />
-              <NumberField id="go-threshold" label="GO at or above" value={draft.decisionGoThreshold} min={1} max={100} suffix="score" onChange={value => updateDraft('decisionGoThreshold', value)} />
-              <NumberField id="min-responses" label="Minimum responses" value={draft.decisionMinResponses} min={1} max={500} onChange={value => updateDraft('decisionMinResponses', value)} />
-            </CardContent>
-          </Card>
+          <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Brain className="size-5 text-slate-500" />Go / Tweak / Stop rules</CardTitle></CardHeader>
+              <CardContent className="grid gap-4 md:grid-cols-3">
+                <NumberField id="stop-threshold" label="STOP below" value={draft.decisionStopThreshold} min={0} max={99} suffix="score" onChange={value => updateDraft('decisionStopThreshold', value)} />
+                <NumberField id="go-threshold" label="GO at or above" value={draft.decisionGoThreshold} min={1} max={100} suffix="score" onChange={value => updateDraft('decisionGoThreshold', value)} />
+                <NumberField id="min-responses" label="Minimum responses" value={draft.decisionMinResponses} min={1} max={500} onChange={value => updateDraft('decisionMinResponses', value)} />
+              </CardContent>
+            </Card>
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader><CardTitle className="text-lg">Governance</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <ToggleRow title="Lock confirmed decisions" detail="Prevent confirmed GO/TWEAK/STOP records from being silently changed after approval." checked={draft.decisionLockConfirmed} onChange={checked => updateDraft('decisionLockConfirmed', checked)} />
+                <ToggleRow title="Anonymize panelists in reports" detail="Use panelist IDs or aggregate labels instead of names in report exports." checked={draft.anonymizePanelistsInReports} onChange={checked => updateDraft('anonymizePanelistsInReports', checked)} />
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="branding">

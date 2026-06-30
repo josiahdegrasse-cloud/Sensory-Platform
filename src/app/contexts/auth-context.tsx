@@ -31,6 +31,17 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function clearPanelistSessionArtifacts() {
+  if (typeof window === 'undefined') return;
+  for (const storage of [window.sessionStorage, window.localStorage]) {
+    Object.keys(storage).forEach(key => {
+      if (key.startsWith('qs_draft_') || key.startsWith('panelist_kit_')) {
+        storage.removeItem(key);
+      }
+    });
+  }
+}
+
 interface ProfileResult {
   profile: User | null;
   blockedMessage: string | null;
@@ -151,6 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    clearPanelistSessionArtifacts();
     await supabase.auth.signOut();
     setUser(null);
   };

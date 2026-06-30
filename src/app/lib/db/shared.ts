@@ -79,12 +79,19 @@ export async function insertAuditEvent(input: {
   entityId?: string | null;
   metadata?: Record<string, unknown>;
 }): Promise<void> {
+  const uuidEntityId = input.entityId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.entityId)
+    ? input.entityId
+    : null;
+  const metadata = input.entityId && !uuidEntityId
+    ? { entityId: input.entityId, ...input.metadata }
+    : input.metadata;
+
   const { error } = await supabase.from('audit_events').insert({
     actor_id: input.actorId ?? null,
     event_type: input.eventType,
     entity_type: input.entityType,
-    entity_id: input.entityId ?? null,
-    metadata: asJson(input.metadata ?? {}),
+    entity_id: uuidEntityId,
+    metadata: asJson(metadata ?? {}),
   });
   if (error && !/audit_events|schema cache|does not exist/i.test(error.message ?? '')) throw dbError(error);
 }

@@ -103,11 +103,13 @@ export function QuestionnaireForm() {
         setShowIntro(false);
         setAlreadyCompleted(true);
       } else {
-        const draft = localStorage.getItem(`qs_draft_${user.id}_${productId}`);
+        const draftKey = `qs_draft_${user.id}_${productId}`;
+        const draft = sessionStorage.getItem(draftKey) ?? localStorage.getItem(draftKey);
         if (draft) {
           try {
             setFormData(JSON.parse(draft) as FormData);
             setShowDraftBanner(true);
+            localStorage.removeItem(draftKey);
           } catch { /* ignore invalid JSON */ }
         }
       }
@@ -118,9 +120,9 @@ export function QuestionnaireForm() {
 
   // Persist draft on every formData change — guarded so we never overwrite a real draft on mount
   useEffect(() => {
-    if (!productId || !initialLoadComplete.current) return;
-    localStorage.setItem(`qs_draft_${user?.id}_${productId}`, JSON.stringify(formData));
-  }, [formData, productId]);
+    if (!productId || !user?.id || !initialLoadComplete.current) return;
+    sessionStorage.setItem(`qs_draft_${user?.id}_${productId}`, JSON.stringify(formData));
+  }, [formData, productId, user?.id]);
 
   const handleCataToggle = (attr: string) => {
     setFormData(prev => ({
@@ -198,6 +200,7 @@ export function QuestionnaireForm() {
         sessionStorage.removeItem(`panelist_kit_token_${productId}`);
         sessionStorage.removeItem(`panelist_kit_manual_code_${productId}`);
       }
+      sessionStorage.removeItem(`qs_draft_${user?.id}_${productId}`);
       localStorage.removeItem(`qs_draft_${user?.id}_${productId}`);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.userResponses(user.id) }),
@@ -397,6 +400,7 @@ export function QuestionnaireForm() {
             <span>You have a saved draft for this product. Your answers have been restored.</span>
             <button
               onClick={() => {
+                sessionStorage.removeItem(`qs_draft_${user?.id}_${productId}`);
                 localStorage.removeItem(`qs_draft_${user?.id}_${productId}`);
                 setFormData({ selectedCata: [], intensityRatings: {}, hedonicScores: { overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 }, emotions: {}, comments: '' });
                 setShowDraftBanner(false);
