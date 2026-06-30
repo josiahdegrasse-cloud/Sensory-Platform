@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router';
 import { Check, Lock } from 'lucide-react';
-import { projectPath, type ProjectJourneyStep } from '../lib/project-journey-routes';
+import { currentPathToJourneyStep, projectPath, type ProjectJourneyStep } from '../lib/project-journey-routes';
 import { workflowStatusLabel } from '../lib/workflow/workflow-actions';
 import type { WorkflowStageId, WorkflowStageStatus, WorkflowStageSummary } from '../lib/workflow/workflow-types';
 import { cn } from './ui/utils';
@@ -22,14 +22,12 @@ const ITEMS: JourneyItem[] = [
   { label: 'Report', step: 'report', legacyPaths: ['/reports', '/report', '/commercialization-report'], stageId: 'report' },
 ];
 
-function scopedStepPath(projectId: string, step: ProjectJourneyStep): string {
-  return step === 'overview' ? '/' : `/project/${projectId}/${step}`;
-}
-
 function isActiveItem(item: JourneyItem, pathname: string, projectId?: string | null): boolean {
+  const currentStep = currentPathToJourneyStep(pathname);
+  if (currentStep) return currentStep === item.step;
   if (item.legacyPaths.includes(pathname)) return true;
   if (!projectId) return pathname === (item.step === 'overview' ? '/project' : `/${item.step}`);
-  return pathname === scopedStepPath(projectId, item.step);
+  return pathname === projectPath(projectId, item.step);
 }
 
 function isBlocked(item: JourneyItem, status?: WorkflowStageStatus) {
@@ -51,14 +49,16 @@ export function ProjectJourneyNav({ stages, projectId }: { stages: WorkflowStage
           const active = isActiveItem(item, location.pathname, projectId);
           const blocked = isBlocked(item, stage?.status);
           const className = cn(
-            'flex items-center gap-1.5 rounded-md px-3 py-2 text-xs font-semibold transition-colors',
+            'flex h-9 w-[92px] items-center justify-center gap-1.5 rounded-md px-2 text-xs font-semibold transition-colors',
             active ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950',
             blocked && 'cursor-not-allowed text-slate-300 hover:bg-transparent hover:text-slate-300',
           );
           const content = (
             <>
-              {stage?.status === 'complete' && <Check className="size-3.5" aria-hidden />}
-              {blocked && <Lock className="size-3" aria-hidden />}
+              <span className="flex size-3.5 shrink-0 items-center justify-center">
+                {stage?.status === 'complete' && <Check className="size-3.5" aria-hidden />}
+                {blocked && <Lock className="size-3" aria-hidden />}
+              </span>
               <span>{item.label}</span>
               {stage && <span className="sr-only">: {workflowStatusLabel(stage.status)}</span>}
             </>

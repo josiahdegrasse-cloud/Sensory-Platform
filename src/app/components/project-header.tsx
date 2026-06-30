@@ -1,5 +1,5 @@
 import { ArrowRight } from 'lucide-react';
-import { Link, useLocation } from 'react-router';
+import { Link } from 'react-router';
 import { Card, CardContent } from './ui/card';
 import { useFoodType } from '../contexts/food-type-context';
 import { parseBatchSelection, projectRoutePath } from '../lib/project-identity';
@@ -17,12 +17,10 @@ import { useProjectWorkflow } from '../lib/workflow/use-project-workflow';
  * the next required review instead of sending users back through the overview.
  */
 export function ProjectHeader() {
-  const location = useLocation();
   const { foodType, subCategory } = useFoodType();
   const importBatchId = parseBatchSelection(subCategory);
   const workflow = useProjectWorkflow(foodType, importBatchId);
   const { data: importBatches = [] } = useImportBatches();
-  const showNextAction = workflow.nextAction.route !== location.pathname;
 
   if (foodType === 'all' || !foodType) return null;
 
@@ -65,16 +63,14 @@ export function ProjectHeader() {
 
         <div className="flex items-center gap-3">
           <ProjectJourneyNav stages={workflow.stages} projectId={currentBatch?.projectId ?? currentBatch?.id ?? null} />
-          {showNextAction && (
-            <Link
-              to={workflow.nextAction.route}
-              className="hidden shrink-0 items-center gap-1.5 rounded-md bg-blue-700 px-3 py-2 text-xs font-bold text-white hover:bg-blue-800 xl:flex"
-              title={workflow.nextAction.description}
-            >
-              {workflow.nextAction.label}
-              <ArrowRight className="size-3.5" aria-hidden />
-            </Link>
-          )}
+          <Link
+            to={workflow.nextAction.route}
+            className="hidden h-9 w-44 shrink-0 items-center justify-between gap-1.5 rounded-md bg-blue-700 px-3 text-xs font-bold text-white hover:bg-blue-800 xl:flex"
+            title={workflow.nextAction.description}
+          >
+            <span className="truncate">{workflow.nextAction.label}</span>
+            <ArrowRight className="size-3.5 shrink-0" aria-hidden />
+          </Link>
         </div>
       </CardContent>
     </Card>
