@@ -21,10 +21,11 @@ import {
 import type { ConceptTest } from '../lib/database';
 import {
   Plus, Settings, Trash2, Save, CheckCircle2, Layers,
-  ClipboardList, Users, AlertCircle, Search, Activity, FlaskConical, Archive, RotateCcw,
+  ClipboardList, Users, AlertCircle, Search, Activity, Archive, RotateCcw,
   Upload, Database, Eye, ArrowRight, Lightbulb, PlayCircle, Edit2,
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
+import { Progress } from './ui/progress';
 import { PanelistPerformancePanel } from './panelist-performance';
 import { formatFoodTypeLabel } from '../lib/food-intelligence';
 import { notifyPanelistsOfSurveys } from '../lib/database';
@@ -135,8 +136,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createStep, setCreateStep] = useState<'form' | 'review' | 'configure'>('form');
   const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
-  const [productType, setProductType] = useState<'single' | 'multi' | 'calibration'>('single');
-  const [referenceScores, setReferenceScores] = useState({ overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 });
+  const [productType, setProductType] = useState<'single' | 'multi'>('single');
   const [newProductName, setNewProductName] = useState('');
   const [newProductCategory, setNewProductCategory] = useState('');
   const [blindedStudy, setBlindedStudy] = useState(false);
@@ -173,7 +173,8 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
     responses: allResponses,
     conceptResponseCounts,
     importBatches,
-  }), [allResponses, conceptResponseCounts, conceptStudies, importBatches, products]);
+    activePanelistCount: activePanelists.length,
+  }), [activePanelists.length, allResponses, conceptResponseCounts, conceptStudies, importBatches, products]);
   const scopedConceptStudyIds = useMemo(() => new Set(
     conceptStudies
       .filter(concept => {
@@ -212,7 +213,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
     (sum, study) => sum + study.blockers.filter(blocker => blocker.severity === 'blocker').length,
     0
   );
-  const totalStudyResponses = scopedStudySummaries.reduce((sum, study) => sum + study.responseCount, 0);
+  const totalStudyResponses = scopedStudySummaries.reduce((sum, study) => sum + study.completedCount, 0);
   const productById = new Map(products.map(product => [product.id, product]));
   const recoverableImportCount = importBatches.filter(batch => batch.status !== 'active').length;
   const selectableSourceSamples = products
@@ -267,7 +268,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
 
   // ── Modal helpers ─────────────────────────────────────────────────────────────
 
-  const openCreateModal = (initialType: 'single' | 'multi' | 'calibration' = 'single') => {
+  const openCreateModal = (initialType: 'single' | 'multi' = 'single') => {
     setShowCreateModal(true);
     setCreateStep('form');
     setPendingProduct(null);
@@ -277,7 +278,6 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
     setSamples([{ id: '1', code: generateBlindCode('manual-sample:1'), label: '' }]);
     setBlindedStudy(false);
     setCustomAttributes(getDefaultCataAttributes(currentFoodTypeLabel));
-    setReferenceScores({ overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 });
   };
 
   const closeCreateModal = () => {
@@ -290,7 +290,6 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
     setSamples([{ id: '1', code: generateBlindCode('manual-sample:1'), label: '' }]);
     setBlindedStudy(false);
     setCustomAttributes(getDefaultCataAttributes('generic'));
-    setReferenceScores({ overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 });
   };
 
   const handleCreateProduct = () => {
@@ -335,8 +334,8 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
       customAttributes: getDefaultCataAttributes(newProductCategory),
       isMultiSample: productType === 'multi',
       samples: configuredSamples,
-      isCalibration: productType === 'calibration',
-      referenceScores: productType === 'calibration' ? { ...referenceScores } : null,
+      isCalibration: false,
+      referenceScores: null,
       blinded: blindedStudy,
       blindCode: blindedStudy && productType !== 'multi'
         ? generateBlindCode(`${productId}:${newProductName}:${newProductCategory}`)
@@ -767,7 +766,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
                           <span>{study.linkedLabel}</span>
                           <span>{study.assignmentLabel}</span>
-                          <span>{study.responseCount} response{study.responseCount !== 1 ? 's' : ''}</span>
+                          <span>{study.responseProgressLabel}</span>
                           {study.sourceImportBatchName && <span className="truncate">Source: {study.sourceImportBatchName.replace(/\.csv$/i, '')}</span>}
                         </div>
                       </div>
@@ -776,6 +775,14 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                           <Edit2 className="mr-1 inline size-3" />Edit
                         </button>
                       )}
+                    </div>
+
+                    <div className="mt-3 rounded-lg border border-slate-100 bg-white p-3">
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <span className="text-xs font-semibold text-slate-700">Panel completion</span>
+                        <span className="text-xs font-semibold text-slate-500">{study.responseProgressLabel}</span>
+                      </div>
+                      <Progress value={study.completionPercent} className="h-1.5 bg-slate-100" />
                     </div>
 
                     <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
@@ -1113,11 +1120,10 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                         <Label className="text-base font-bold text-slate-900">Study Type</Label>
                         <p className="mt-1 text-sm text-slate-500">Choose how panelists will evaluate this study.</p>
                       </div>
-                      <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                         {([
                           { type: 'single' as const, icon: ClipboardList, label: 'Single Sample', desc: 'Full evaluation: CATA, intensity, hedonic, and emotional response' },
                           { type: 'multi' as const, icon: Layers, label: 'Multi-Sample', desc: 'Compare samples with discrimination test and preference ranking' },
-                          { type: 'calibration' as const, icon: FlaskConical, label: 'Calibration Session', desc: 'Panel training: set reference scores to measure panelist accuracy' },
                         ]).map(({ type, icon: Icon, label, desc }) => (
                           <button
                             key={type}
@@ -1177,31 +1183,6 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                       </div>
                     </section>
                   </div>
-
-                  {/* Reference scores for calibration type */}
-                  {productType === 'calibration' && (
-                    <section className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-5">
-                      <div>
-                        <Label className="text-sm font-bold text-slate-900">Reference Scores (known correct answers)</Label>
-                        <p className="mt-1 text-xs leading-5 text-slate-600">Set the expected hedonic scores for this calibration product. Panelists are scored by how closely they match these values.</p>
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-5">
-                        {(['overall', 'appearance', 'aroma', 'flavor', 'texture'] as const).map(key => (
-                          <div key={key} className="space-y-1">
-                            <Label className="text-xs capitalize text-slate-600">{key}</Label>
-                            <Input
-                              type="number"
-                              min={1} max={9} step={0.5}
-                              value={referenceScores[key]}
-                              onChange={e => setReferenceScores(prev => ({ ...prev, [key]: parseFloat(e.target.value) || 5 }))}
-                              className="h-9 bg-white text-center text-sm"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-[10px] text-slate-500">Scale: 1 (Dislike extremely) → 9 (Like extremely)</p>
-                    </section>
-                  )}
 
                   {productType === 'multi' && (
                     <section className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-5">
@@ -1288,7 +1269,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                     className="sm:w-64 bg-slate-900 hover:bg-slate-800"
                     disabled={!newProductName || !newProductCategory}
                   >
-                    {productType === 'multi' ? <Layers className="size-4 mr-2" /> : productType === 'calibration' ? <FlaskConical className="size-4 mr-2" /> : <Plus className="size-4 mr-2" />}
+                    {productType === 'multi' ? <Layers className="size-4 mr-2" /> : <Plus className="size-4 mr-2" />}
                     Review & Configure
                   </Button>
                 </div>
