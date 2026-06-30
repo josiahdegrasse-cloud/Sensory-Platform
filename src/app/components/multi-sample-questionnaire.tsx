@@ -14,6 +14,8 @@ import { Badge } from './ui/badge';
 import { AttributeTooltip } from './attribute-tooltip';
 import { getBlindStudyCategoryLabel, getBlindStudyDisplayName, getPanelistSampleOrder } from '../lib/blind-study';
 import { useScrollToTop } from '../lib/use-scroll-to-top';
+import { queryClient } from '../lib/query-client';
+import { queryKeys } from '../lib/hooks';
 
 function sliderFill(value: number, min: number, max: number, color: string): React.CSSProperties {
   const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
@@ -24,7 +26,7 @@ const SLIDER_MIN = 1;
 const SLIDER_MAX = 9;
 const SLIDER_MIDPOINT = 5;
 
-type Step = 'intro' | 'sample' | 'cleanse' | 'discrimination' | 'ranking' | 'confirmation' | 'submitted';
+type Step = 'intro' | 'sample' | 'cleanse' | 'discrimination' | 'confirmation' | 'submitted';
 
 const DEFAULT_MULTI_SAMPLES = [
   { id: '1', code: '341', label: 'Sample 1' },
@@ -89,16 +91,12 @@ export function MultiSampleQuestionnaire() {
   // Discrimination question state
   const [differentSample, setDifferentSample] = useState<string>('');
   
-  // Ranking state
-  const [ranking, setRanking] = useState<string[]>([]);
-
   // Palate cleanse countdown
   const [cleanseCountdown, setCleanseCountdown] = useState(30);
   const cleanseIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [discriminationError, setDiscriminationError] = useState('');
-  const [rankingError, setRankingError] = useState('');
 
   useEffect(() => {
     if (currentStep !== 'cleanse') return;
@@ -192,27 +190,6 @@ export function MultiSampleQuestionnaire() {
       return;
     }
     setDiscriminationError('');
-    setCurrentStep('ranking');
-  };
-
-  const handleRanking = (sampleCode: string, position: number) => {
-    const newRanking = [...ranking];
-    // Remove sample from any existing position
-    const existingIndex = newRanking.indexOf(sampleCode);
-    if (existingIndex !== -1) {
-      newRanking.splice(existingIndex, 1);
-    }
-    // Add to new position
-    newRanking.splice(position, 0, sampleCode);
-    setRanking(newRanking);
-  };
-
-  const handleContinueFromRanking = () => {
-    if (ranking.length !== samples.length) {
-      setRankingError(`Please rank all ${samples.length} samples before continuing.`);
-      return;
-    }
-    setRankingError('');
     setCurrentStep('confirmation');
   };
 
@@ -220,6 +197,11 @@ export function MultiSampleQuestionnaire() {
     if (!user?.id || !productId) return;
     setIsSubmitting(true);
     setSubmitError('');
+    if (user.role !== 'panelist') {
+      setSubmitError('Preview mode only. Sign in as a panelist to submit a response.');
+      setIsSubmitting(false);
+      return;
+    }
     try {
       for (const response of sampleResponses) {
         await insertResponse({
@@ -232,7 +214,7 @@ export function MultiSampleQuestionnaire() {
           sessionType: `${samples.length}-sample-sequential`,
           sampleCode: response.sampleCode,
           differentSample,
-          ranking,
+          ranking: [],
           presentationOrder: samples.map(sample => sample.code),
           comments: '',
         });
@@ -244,6 +226,10 @@ export function MultiSampleQuestionnaire() {
         sessionStorage.removeItem(`panelist_kit_token_${productId}`);
         sessionStorage.removeItem(`panelist_kit_manual_code_${productId}`);
       }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.userResponses(user.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.allResponses }),
+      ]);
       setCurrentStep('submitted');
       setTimeout(() => navigate('/panelist'), 3000);
     } catch (err) {
@@ -300,7 +286,7 @@ export function MultiSampleQuestionnaire() {
           </CardHeader>
           <CardContent>
             <p className="text-slate-700 mb-4">
-              You have already completed the multi-sample evaluation for <strong>{displayName}</strong>.
+              You have already completed the triangle test for <strong>{displayName}</strong>.
             </p>
             <Button onClick={() => navigate('/panelist')}>
               Return to Dashboard
@@ -317,17 +303,16 @@ export function MultiSampleQuestionnaire() {
       <div className="max-w-4xl mx-auto">
         <Card className="border border-slate-200 bg-white">
           <CardHeader className="border-b border-slate-100 bg-white">
-            <CardTitle className="text-2xl">Multi-Sample Sequential Evaluation</CardTitle>
+            <CardTitle className="text-2xl">Triangle Test</CardTitle>
           </CardHeader>
           <CardContent className="pt-6 space-y-4">
             <div>
               <h3 className="font-bold text-slate-900 mb-2">Instructions:</h3>
               <ol className="list-decimal list-inside space-y-2 text-slate-700">
-                <li>You will evaluate <strong>{samples.length} samples</strong> sequentially</li>
+                <li>You will evaluate <strong>3 coded servings</strong> sequentially</li>
                 <li>Each sample is identified only by a unique <strong>3-digit code</strong></li>
                 <li>Complete the questionnaire for each sample before continuing</li>
-                <li>After all samples, you will identify which sample is <strong>different</strong></li>
-                <li>Finally, you will <strong>rank</strong> the samples from best to worst</li>
+                <li>After all samples, you will identify which coded serving is <strong>different</strong></li>
                 <li>Review all responses before final submission</li>
               </ol>
             </div>
@@ -340,7 +325,7 @@ export function MultiSampleQuestionnaire() {
               <p className="text-sm text-slate-700">
                 {product.blinded
                   ? 'Sample identities are concealed to ensure unbiased evaluation. You will only see 3-digit codes during this test. Do not discuss or attempt to identify samples.'
-                  : 'Use the assigned 3-digit codes when answering sample, discrimination, and ranking questions.'}
+                  : 'Use the assigned 3-digit codes when answering sample and triangle-test questions.'}
               </p>
             </div>
             
@@ -381,16 +366,16 @@ export function MultiSampleQuestionnaire() {
     const progress = Math.round(((currentSampleIndex + 1) / samples.length) * 100);
     
     return (
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-4xl mx-auto space-y-4 px-3 pb-24 sm:px-0 sm:space-y-6">
         {/* Progress indicator */}
         <Card className="border border-slate-200 bg-white">
           <CardContent className="pt-4">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between gap-3 mb-2">
               <div>
                 <h3 className="font-bold text-slate-900">Evaluating Sample: <span className="text-slate-900">{currentSample.code}</span></h3>
                 <p className="text-sm text-slate-600">{currentSampleIndex + 1} of {samples.length} samples completed</p>
               </div>
-              <div className="w-16 h-16 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xl flex-shrink-0">
+              <div className="flex size-14 flex-shrink-0 items-center justify-center rounded-full bg-slate-900 text-lg font-bold text-white sm:size-16 sm:text-xl">
                 {currentSample.code}
               </div>
             </div>
@@ -412,7 +397,7 @@ export function MultiSampleQuestionnaire() {
             </p>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
               {cataAttributes.map(attr => (
                 <div key={attr} className="flex items-center space-x-2">
                   <Checkbox
@@ -530,7 +515,7 @@ export function MultiSampleQuestionnaire() {
             </p>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <div>
                 <h4 className="font-bold text-emerald-700 mb-3">Positive Emotions</h4>
                 <div className="space-y-3">
@@ -595,18 +580,15 @@ export function MultiSampleQuestionnaire() {
           </CardContent>
         </Card>
 
-        {/* Continue Button */}
-        <Card className="border border-slate-200 bg-slate-50">
-          <CardContent className="pt-6">
-            <Button 
-              onClick={handleContinueFromSample}
-              className="w-full bg-slate-900 hover:bg-slate-800 text-lg py-6"
-            >
-              {currentSampleIndex < samples.length - 1 ? 'Continue to Next Sample' : 'Continue to Discrimination Test'}
-              <ChevronRight className="size-5 ml-2" />
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="sticky bottom-0 z-20 -mx-3 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:mx-0 sm:rounded-t-lg sm:border">
+          <Button 
+            onClick={handleContinueFromSample}
+            className="w-full bg-slate-900 hover:bg-slate-800 text-base py-6 sm:text-lg"
+          >
+            {currentSampleIndex < samples.length - 1 ? 'Continue to Next Sample' : 'Continue to Discrimination Test'}
+            <ChevronRight className="size-5 ml-2" />
+          </Button>
+        </div>
       </div>
     );
   }
@@ -618,7 +600,7 @@ export function MultiSampleQuestionnaire() {
       ? 'border-slate-300 text-slate-700 bg-slate-50'
       : 'border-emerald-300 text-emerald-800 bg-emerald-50';
     return (
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto px-3 sm:px-0">
         <Card className="border border-slate-200 bg-white">
           <CardHeader className="text-center pb-4">
             <CardTitle className="text-2xl text-slate-900">Palate Cleanse Required</CardTitle>
@@ -650,31 +632,31 @@ export function MultiSampleQuestionnaire() {
   // Discrimination question screen
   if (currentStep === 'discrimination') {
     return (
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-4xl mx-auto space-y-4 px-3 pb-24 sm:px-0 sm:space-y-6">
         <Card className="border border-slate-200 bg-white">
           <CardContent className="pt-4">
             <Badge variant="outline" className="border-slate-300 text-slate-700 text-lg px-4 py-2">
-              Step 4/5
+              Step 4/4
             </Badge>
           </CardContent>
         </Card>
 
         <Card className="border border-slate-200">
           <CardHeader className="bg-white">
-            <CardTitle className="text-2xl">Discrimination Task</CardTitle>
+            <CardTitle className="text-2xl">Triangle Test Choice</CardTitle>
             <p className="text-slate-600 mt-2">
-              You have just tasted {samples.length} samples. One of them is different from the others.
+              You have just tasted three coded servings. Two are the same and one is different.
             </p>
           </CardHeader>
           <CardContent className="pt-6">
             <div className="space-y-4">
-              <Label className="text-lg font-bold">Which sample is different?</Label>
-              <div className="grid grid-cols-3 gap-4">
+              <Label className="text-lg font-bold">Which coded serving is different?</Label>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
                 {samples.map(sample => (
                   <button
                     key={sample.code}
                     onClick={() => setDifferentSample(sample.code)}
-                    className={`p-6 rounded-lg border-2 transition-all ${
+                    className={`rounded-lg border-2 p-5 transition-all sm:p-6 ${
                       differentSample === sample.code
                         ? 'border-slate-900 bg-slate-50'
                         : 'border-slate-300 bg-white hover:border-slate-500'
@@ -704,111 +686,16 @@ export function MultiSampleQuestionnaire() {
           </Alert>
         )}
 
-        <Card className="border border-slate-200 bg-slate-50">
-          <CardContent className="pt-6">
-            <Button
-              onClick={handleContinueFromDiscrimination}
-              disabled={!differentSample}
-              className="w-full bg-slate-900 hover:bg-slate-800 text-lg py-6 disabled:opacity-50"
-            >
-              Continue to Ranking
-              <ChevronRight className="size-5 ml-2" />
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Ranking screen
-  if (currentStep === 'ranking') {
-    return (
-      <div className="max-w-4xl mx-auto space-y-6">
-        <Card className="border border-slate-200 bg-white">
-          <CardContent className="pt-4">
-            <Badge variant="outline" className="border-slate-300 text-slate-700 text-lg px-4 py-2">
-              Step 5/5
-            </Badge>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-slate-200">
-          <CardHeader className="bg-white">
-            <CardTitle className="text-2xl">Preference Ranking</CardTitle>
-            <p className="text-slate-600 mt-2">
-              Rank all {samples.length} samples from <strong>BEST</strong> to <strong>WORST</strong> based on overall preference
-            </p>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="space-y-6">
-              {samples.map((_, position) => {
-                const rankMedals: Record<number, string> = { 0: '🥇', 1: '🥈', 2: '🥉' };
-                const medal = rankMedals[position] ?? `#${position + 1}`;
-                const isLast = position === samples.length - 1;
-                return (
-                <div key={position} className="space-y-2">
-                  <Label className="text-lg font-bold">
-                    {medal} {position === 0 ? 'Best' : isLast ? 'Worst' : `Rank ${position + 1}`} (Rank {position + 1})
-                  </Label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {samples.map(sample => {
-                      const isSelected = ranking[position] === sample.code;
-                      const isUsed = ranking.includes(sample.code) && !isSelected;
-                      
-                      return (
-                        <button
-                          key={sample.code}
-                          onClick={() => !isUsed && handleRanking(sample.code, position)}
-                          disabled={isUsed}
-                          className={`p-4 rounded-lg border-2 transition-all ${
-                            isSelected
-                              ? 'border-slate-900 bg-slate-50'
-                              : isUsed
-                              ? 'border-slate-200 bg-slate-100 opacity-50 cursor-not-allowed'
-                              : 'border-slate-300 bg-white hover:border-slate-500'
-                          }`}
-                        >
-                          <div className="text-2xl font-bold text-slate-900">{sample.code}</div>
-                          {isSelected && <CheckCircle2 className="size-5 text-slate-700 mx-auto mt-2" />}
-                          {isUsed && <div className="text-xs text-slate-500 mt-1">Already ranked</div>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                );
-              })}
-
-              {ranking.length === samples.length && (
-                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                  <p className="text-sm font-bold text-slate-900">
-                    <CheckCircle2 className="size-4 inline mr-1.5 text-slate-600" />Your ranking: {ranking.map((code, i) => `${code}${i === 0 ? ' (Best)' : i === ranking.length - 1 ? ' (Worst)' : ''}`).join(' → ')}
-                  </p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {rankingError && (
-          <Alert variant="destructive">
-            <AlertCircle className="size-4" />
-            <AlertDescription>{rankingError}</AlertDescription>
-          </Alert>
-        )}
-
-        <Card className="border border-slate-200 bg-slate-50">
-          <CardContent className="pt-6">
-            <Button
-              onClick={handleContinueFromRanking}
-              disabled={ranking.length !== samples.length}
-              className="w-full bg-slate-900 hover:bg-slate-800 text-lg py-6 disabled:opacity-50"
-            >
-              Review & Confirm
-              <ChevronRight className="size-5 ml-2" />
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="sticky bottom-0 z-20 -mx-3 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:mx-0 sm:rounded-t-lg sm:border">
+          <Button
+            onClick={handleContinueFromDiscrimination}
+            disabled={!differentSample}
+            className="w-full bg-slate-900 hover:bg-slate-800 text-base py-6 disabled:opacity-50 sm:text-lg"
+          >
+            Review & Confirm
+            <ChevronRight className="size-5 ml-2" />
+          </Button>
+        </div>
       </div>
     );
   }
@@ -816,7 +703,7 @@ export function MultiSampleQuestionnaire() {
   // Confirmation screen
   if (currentStep === 'confirmation') {
     return (
-      <div className="max-w-6xl mx-auto space-y-6">
+      <div className="max-w-6xl mx-auto space-y-4 px-3 pb-24 sm:px-0 sm:space-y-6">
         <Card className="border border-slate-200 bg-white">
           <CardHeader>
             <CardTitle className="text-2xl">Review Your Responses</CardTitle>
@@ -836,7 +723,7 @@ export function MultiSampleQuestionnaire() {
               </div>
             </CardHeader>
             <CardContent className="pt-4">
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
                   <h4 className="font-bold text-slate-900 mb-2">CATA Attributes Selected:</h4>
                   <div className="flex flex-wrap gap-2">
@@ -861,30 +748,23 @@ export function MultiSampleQuestionnaire() {
           </Card>
         ))}
 
-        {/* Discrimination & Ranking */}
+        {/* Triangle test choice */}
         <Card className="border border-slate-200">
           <CardHeader className="bg-white">
-            <CardTitle>Discrimination & Ranking</CardTitle>
+            <CardTitle>Triangle Test Choice</CardTitle>
           </CardHeader>
           <CardContent className="pt-4">
             <div className="space-y-3">
               <div>
-                <span className="font-bold text-slate-900">Different Sample: </span>
+                <span className="font-bold text-slate-900">Different coded serving: </span>
                 <Badge variant="outline" className="border-slate-300 text-lg text-slate-700">{differentSample}</Badge>
-              </div>
-              <div>
-                <span className="font-bold text-slate-900">Preference Ranking: </span>
-                <span className="text-lg text-slate-700">
-                  {ranking.map((code, i) => `${code}${i === 0 ? ' (Best)' : i === ranking.length - 1 ? ' (Worst)' : ''}`).join(' → ')}
-                </span>
               </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Submit */}
-        <Card className="border border-slate-200 bg-slate-50">
-          <CardContent className="pt-6 space-y-4">
+        <div className="sticky bottom-0 z-20 -mx-3 space-y-3 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:mx-0 sm:rounded-t-lg sm:border">
             <Alert className="border-slate-300 bg-white">
               <AlertCircle className="size-4 text-slate-500" />
               <AlertDescription className="text-slate-700">
@@ -902,13 +782,12 @@ export function MultiSampleQuestionnaire() {
             <Button
               onClick={handleFinalSubmit}
               disabled={isSubmitting}
-              className="w-full bg-slate-900 hover:bg-slate-800 text-lg py-6 disabled:opacity-70"
+              className="w-full bg-slate-900 hover:bg-slate-800 text-base py-6 disabled:opacity-70 sm:text-lg"
             >
               <CheckCircle2 className="size-5 mr-2" />
               {isSubmitting ? 'Submitting…' : 'Submit Final Questionnaire'}
             </Button>
-          </CardContent>
-        </Card>
+        </div>
       </div>
     );
   }
@@ -921,12 +800,12 @@ export function MultiSampleQuestionnaire() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckCircle2 className="size-6 text-emerald-600" />
-              Multi-Sample Evaluation Submitted Successfully!
+              Triangle Test Submitted Successfully!
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-slate-700 mb-2">
-              Thank you for completing the {samples.length}-sample sequential evaluation for <strong>{displayName}</strong>.
+              Thank you for completing the triangle test for <strong>{displayName}</strong>.
             </p>
             <p className="text-sm text-slate-600">
               Redirecting to dashboard...

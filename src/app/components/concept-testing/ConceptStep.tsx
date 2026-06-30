@@ -56,8 +56,8 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-bold text-slate-900">Build the concept brief</h2>
-        <p className="text-slate-500 text-sm mt-1">Start with the consumer-facing product promise, then add the visual details needed for panelist review.</p>
+        <h2 className="text-xl font-semibold text-slate-900">Concept brief</h2>
+        <p className="text-slate-500 text-sm mt-1">Define what panelists will evaluate.</p>
       </div>
 
       <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
@@ -89,23 +89,12 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
         </div>
       </section>
 
-      <section className="space-y-4 rounded-lg border border-blue-200 bg-blue-50/50 p-4">
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_18rem]">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-950">Panelist-facing visual brief</h3>
-            <p className="mt-1 text-xs leading-relaxed text-slate-600">
-              Capture the concrete product, package, audience, and claim constraints before generating visuals.
-            </p>
-          </div>
-          <div className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs text-slate-700">
-            <p className="font-semibold text-slate-900">Best image briefs include:</p>
-            <ul className="mt-1.5 space-y-1">
-              <li>Product form and texture</li>
-              <li>Package shape, size, label, and window</li>
-              <li>Who buys it and where they use it</li>
-              <li>Approved claims, badges, and must-show cues</li>
-            </ul>
-          </div>
+      <section className="space-y-4 rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-950">Visual brief</h3>
+          <p className="mt-1 text-xs leading-relaxed text-slate-500">
+            Give AI enough concrete product and package detail to create usable options.
+          </p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">

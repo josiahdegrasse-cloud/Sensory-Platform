@@ -74,9 +74,34 @@ describe('study summary adapters', () => {
     expect(summary.type).toBe('product_sensory');
     expect(summary.status).toBe('active');
     expect(summary.responseCount).toBe(1);
+    expect(summary.completedCount).toBe(1);
+    expect(summary.invitedCount).toBe(1);
+    expect(summary.responseProgressLabel).toBe('1/1 complete');
     expect(summary.openToAll).toBe(true);
     expect(summary.previewPath).toBe('/questionnaire-info/prod-1');
     expect(summary.sourceImportBatchName).toBe('cheddar.csv');
+  });
+
+  it('tracks multi-sample completion by panelist instead of sample rows', () => {
+    const multiSampleResponses = [
+      { ...response, id: 'resp-1', userId: 'panelist-1', productId: 'prod-1', sampleCode: '101', sessionType: '3-sample-sequential' },
+      { ...response, id: 'resp-2', userId: 'panelist-1', productId: 'prod-1', sampleCode: '102', sessionType: '3-sample-sequential' },
+      { ...response, id: 'resp-3', userId: 'panelist-2', productId: 'prod-1', sampleCode: '101', sessionType: '3-sample-sequential' },
+    ];
+
+    const summary = adaptProductToStudySummary(
+      { ...baseProduct, isMultiSample: true, assignedPanelistIds: ['panelist-1', 'panelist-2', 'panelist-3'], samples: [
+        { id: '1', code: '101', label: 'A' },
+        { id: '2', code: '102', label: 'B' },
+      ] },
+      multiSampleResponses,
+    );
+
+    expect(summary.responseCount).toBe(3);
+    expect(summary.completedCount).toBe(2);
+    expect(summary.invitedCount).toBe(3);
+    expect(summary.completionPercent).toBe(67);
+    expect(summary.responseProgressLabel).toBe('2/3 complete');
   });
 
   it('validates multi-sample structure through the compatibility adapter', () => {
@@ -92,11 +117,42 @@ describe('study summary adapters', () => {
     expect(blockers.some(blocker => blocker.id === 'unique-sample-codes')).toBe(true);
   });
 
+  it('validates triangle tests as 2 underlying samples presented as 3 coded servings', () => {
+    const blockers = validateMultiSampleStudy({
+      ...baseProduct,
+      isMultiSample: true,
+      samples: [
+        { id: '1', code: '101', label: 'Control' },
+        { id: '2', code: '204', label: 'Variant' },
+        { id: '3', code: '339', label: 'Control' },
+      ],
+    });
+
+    expect(blockers.some(blocker => blocker.severity === 'blocker')).toBe(false);
+  });
+
+  it('does not surface compatibility defaults as study warnings', () => {
+    const summary = adaptProductToStudySummary(baseProduct, []);
+    expect(summary.blockers.map(blocker => blocker.id)).not.toContain('target-response-count');
+
+    const multiSampleBlockers = validateMultiSampleStudy({
+      ...baseProduct,
+      isMultiSample: true,
+      samples: [
+        { id: '1', code: '101', label: 'Control' },
+        { id: '2', code: '204', label: 'Variant' },
+        { id: '3', code: '339', label: 'Control' },
+      ],
+    });
+    expect(multiSampleBlockers.map(blocker => blocker.id)).not.toContain('sample-order');
+  });
+
   it('keeps concept drafts in the shared study lifecycle and validates launch blockers', () => {
     const summary = adaptConceptToStudySummary(baseConcept, { 'concept-1': 3 });
     expect(summary.type).toBe('concept_test');
     expect(summary.status).toBe('draft');
     expect(summary.responseCount).toBe(3);
+    expect(summary.responseProgressLabel).toBe('3/3 complete');
     expect(summary.previewPath).toBe('/concept-survey/concept-1');
 
     const blockers = validateConceptStudy({

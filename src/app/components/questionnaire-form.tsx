@@ -14,6 +14,8 @@ import { Alert, AlertDescription } from './ui/alert';
 import { AttributeTooltip } from './attribute-tooltip';
 import { getBlindStudyDisplayName } from '../lib/blind-study';
 import { useScrollToTop } from '../lib/use-scroll-to-top';
+import { queryClient } from '../lib/query-client';
+import { queryKeys } from '../lib/hooks';
 
 function sliderFill(value: number, min: number, max: number, color: string): React.CSSProperties {
   const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
@@ -167,6 +169,10 @@ export function QuestionnaireForm() {
   const handleSubmit = async () => {
     if (!user?.id || !productId) return;
     setSubmitError('');
+    if (user.role !== 'panelist') {
+      setSubmitError('Preview mode only. Sign in as a panelist to submit a response.');
+      return;
+    }
     const completedIntensityRatings = Object.fromEntries(
       intensityAttributes.map(attr => [attr, formData.intensityRatings[attr] ?? SLIDER_MIDPOINT]),
     );
@@ -193,6 +199,10 @@ export function QuestionnaireForm() {
         sessionStorage.removeItem(`panelist_kit_manual_code_${productId}`);
       }
       localStorage.removeItem(`qs_draft_${user?.id}_${productId}`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.userResponses(user.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.allResponses }),
+      ]);
       setSubmitted(true);
       setTimeout(() => navigate('/panelist'), 3000);
     } catch (err) {
@@ -337,11 +347,11 @@ export function QuestionnaireForm() {
   const progressPercent = (currentStep / totalSteps) * 100;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-4 px-3 pb-24 sm:px-0 sm:space-y-6">
       {/* Header with Progress */}
       <Card className="border border-slate-200 bg-white">
         <CardHeader>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-start justify-between gap-4 mb-4">
             <div>
               <CardTitle className="text-2xl">Product Evaluation</CardTitle>
               <div className="space-y-1 text-sm text-slate-600 mt-2">
@@ -349,8 +359,8 @@ export function QuestionnaireForm() {
                 <p><strong>Your ID:</strong> {user?.panelistId}</p>
               </div>
             </div>
-            <div className="text-right">
-                <div className="text-3xl font-bold text-slate-900">
+            <div className="shrink-0 text-right">
+                <div className="text-2xl font-bold text-slate-900 sm:text-3xl">
                 {currentStep}/{totalSteps}
               </div>
               <div className="text-xs text-slate-600 mt-1">Steps</div>
@@ -409,7 +419,7 @@ export function QuestionnaireForm() {
             </p>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
               {cataAttributes.map(attr => (
                 <div key={attr} className="flex items-center space-x-2">
                   <Checkbox
@@ -678,14 +688,14 @@ export function QuestionnaireForm() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {formData.selectedCata.length > 0 ? formData.selectedCata.map(attr => (
                   <div key={attr} className="flex items-center justify-between text-sm">
                     <span className="text-slate-700">{attr}:</span>
                     <span className="font-bold text-slate-900">{formData.intensityRatings[attr] ?? SLIDER_MIDPOINT}/9</span>
                   </div>
                 )) : (
-                  <span className="text-sm text-slate-500 italic col-span-2">No attributes rated</span>
+                  <span className="text-sm text-slate-500 italic sm:col-span-2">No attributes rated</span>
                 )}
               </div>
             </CardContent>
@@ -703,7 +713,7 @@ export function QuestionnaireForm() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {Object.entries(formData.hedonicScores).map(([aspect, value]) => (
                   <div key={aspect} className="flex items-center justify-between text-sm">
                     <span className="text-slate-700 capitalize">{aspect.replace(/([A-Z])/g, ' $1').trim()}:</span>
@@ -775,8 +785,7 @@ export function QuestionnaireForm() {
           </Card>
 
           {/* Final Confirmation */}
-        <Card className="border border-slate-200 bg-slate-50">
-            <CardContent className="pt-6 space-y-4">
+        <div className="sticky bottom-0 z-20 -mx-3 space-y-3 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:mx-0 sm:rounded-t-lg sm:border">
               <Alert className="border-amber-300 bg-amber-50">
                 <AlertCircle className="size-4" />
                 <AlertDescription>
@@ -791,23 +800,22 @@ export function QuestionnaireForm() {
               )}
               <Button
                 onClick={handleSubmit}
-                className="w-full bg-slate-900 hover:bg-slate-800 text-lg py-6"
+                className="w-full bg-slate-900 hover:bg-slate-800 text-base py-6 sm:text-lg"
               >
                 <CheckCircle2 className="size-5 mr-2" />
                 {alreadyCompleted ? 'Submit New Run' : 'Submit Questionnaire'}
               </Button>
-            </CardContent>
-          </Card>
+          </div>
         </div>
       )}
 
       {/* Navigation Buttons */}
-      <div className="flex gap-4">
+      <div className={`sticky bottom-0 z-20 -mx-3 gap-3 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:mx-0 sm:rounded-t-lg sm:border ${currentStep === totalSteps ? 'hidden' : 'flex'}`}>
         <Button
           variant="outline"
           onClick={handleBack}
           disabled={currentStep === 1}
-          className="flex-1"
+          className="flex-1 py-6"
         >
           <ChevronLeft className="size-4 mr-2" />
           Back
@@ -815,7 +823,7 @@ export function QuestionnaireForm() {
         {currentStep < totalSteps && (
           <Button
             onClick={handleNext}
-            className="flex-1 bg-slate-900 hover:bg-slate-800"
+            className="flex-1 bg-slate-900 hover:bg-slate-800 py-6"
           >
             Next
             <ChevronRight className="size-4 ml-2" />

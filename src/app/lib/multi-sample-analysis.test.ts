@@ -29,6 +29,8 @@ describe('analyzeMultiSampleStudy', () => {
     const result = analyzeMultiSampleStudy([], 3);
 
     expect(result.summary.evidenceTone).toBe('empty');
+    expect(result.summary.agreementState).toBe('empty');
+    expect(result.completedPanelistCount).toBe(0);
     expect(result.summary.differenceLeader).toBeNull();
     expect(result.summary.nextAction).toMatch(/Field the study/);
   });
@@ -39,8 +41,9 @@ describe('analyzeMultiSampleStudy', () => {
     ], 3);
 
     expect(result.summary.evidenceTone).toBe('limited');
+    expect(result.summary.agreementState).toBe('directional');
     expect(result.summary.evidenceLabel).toContain('1/3');
-    expect(result.summary.nextAction).toMatch(/Collect more responses/);
+    expect(result.summary.recommendedAction).toMatch(/Keep collecting responses/);
   });
 
   it('identifies difference consensus without claiming formal accuracy', () => {
@@ -51,12 +54,13 @@ describe('analyzeMultiSampleStudy', () => {
     ], 3);
 
     expect(result.summary.evidenceTone).toBe('ready');
+    expect(result.completedPanelistCount).toBe(3);
     expect(result.summary.differenceLeader).toBe('341');
     expect(result.summary.differenceSignal).toContain('most often identified as different');
     expect(result.summary.differenceSignal).not.toMatch(/accur/i);
   });
 
-  it('promotes a preference leader when ranking and liking agree', () => {
+  it('uses odd-sample consensus as the triangle-test agreement state', () => {
     const result = analyzeMultiSampleStudy([
       session('1', '341', ['341', '872', '529'], { '341': 8, '872': 6, '529': 5 }, { '341': ['Creamy'] }),
       session('2', '341', ['341', '872', '529'], { '341': 7, '872': 6, '529': 5 }, { '341': ['Creamy'] }),
@@ -64,23 +68,25 @@ describe('analyzeMultiSampleStudy', () => {
     ], 3);
 
     expect(result.summary.preferenceAgreement).toBe(true);
+    expect(result.summary.agreementState).toBe('aligned');
     expect(result.summary.preferenceLeader).toBe('341');
     expect(result.summary.likingLeader).toBe('341');
-    expect(result.summary.preferenceSignal).toContain('leads both preference ranking and average liking');
+    expect(result.summary.preferenceSignal).toContain('highest average liking');
     expect(result.summary.driverSignal).toContain('341');
   });
 
-  it('flags a preference conflict when rank and liking leaders differ', () => {
+  it('marks the triangle-test evidence as mixed when odd-sample consensus is split', () => {
     const result = analyzeMultiSampleStudy([
       session('1', '341', ['341', '872', '529'], { '341': 6, '872': 8, '529': 5 }),
-      session('2', '341', ['341', '529', '872'], { '341': 6, '872': 8, '529': 5 }),
+      session('2', '872', ['341', '529', '872'], { '341': 6, '872': 8, '529': 5 }),
       session('3', '529', ['872', '341', '529'], { '341': 6, '872': 8, '529': 5 }),
     ], 3);
 
     expect(result.summary.preferenceAgreement).toBe(false);
-    expect(result.summary.preferenceLeader).toBe('341');
+    expect(result.summary.agreementState).toBe('mixed');
+    expect(result.summary.preferenceLeader).toBe('872');
     expect(result.summary.likingLeader).toBe('872');
-    expect(result.summary.nextAction).toMatch(/Resolve the preference conflict/);
+    expect(result.summary.recommendedAction).toMatch(/repeat the triangle test/);
   });
 
   it('supports more than three samples in ranking output', () => {

@@ -22,7 +22,7 @@ import type { ConceptTest } from '../lib/database';
 import {
   Plus, Settings, Trash2, Save, CheckCircle2, Layers,
   ClipboardList, Users, AlertCircle, Search, Activity, Archive, RotateCcw,
-  Upload, Database, Eye, ArrowRight, Lightbulb, PlayCircle, Edit2,
+  Upload, Database, Eye, ArrowRight, Lightbulb, Edit2,
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Progress } from './ui/progress';
@@ -31,8 +31,14 @@ import { formatFoodTypeLabel } from '../lib/food-intelligence';
 import { notifyPanelistsOfSurveys } from '../lib/database';
 import { filterAssignablePanelists } from '../lib/assignments';
 import { SurveyConfigurationSheet } from './survey-configuration-sheet';
-import { buildStudySummaries, type StudyLifecycleStatus, type StudyType } from '../lib/studies';
+import {
+  buildStudySummaries,
+  TRIANGLE_TEST_UNDERLYING_SAMPLE_COUNT,
+  type StudyLifecycleStatus,
+  type StudyType,
+} from '../lib/studies';
 import { generateBlindCode, isValidBlindCode, withBlindSampleCodes } from '../lib/blind-study';
+import { WorkflowPageHeader } from './workflow-page-header';
 
 type AdminTab = 'products' | 'panelists' | 'imports';
 type StudyStatusFilter = 'all' | StudyLifecycleStatus;
@@ -58,9 +64,9 @@ function getStudyTypeMeta(type: StudyType): {
 } {
   if (type === 'multi_sample') {
     return {
-      label: 'Multi-Sample Comparison',
+      label: 'Triangle Test',
       shortLabel: 'Multi',
-      description: 'Compares coded samples with ranking, difference consensus, and preference drivers.',
+      description: 'Presents three coded samples and asks panelists to identify the odd sample.',
       className: 'border-purple-300 bg-purple-50 text-purple-800',
       iconClassName: 'bg-purple-600 text-white',
       cardClassName: 'border-purple-200 hover:border-purple-400',
@@ -126,6 +132,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
   const { foodType, subCategory } = useFoodType();
   const currentFoodTypeLabel = formatFoodTypeLabel(foodType);
   const selectedBatchId = parseBatchSelection(subCategory);
+  const scopedDefaultCategory = selectedBatchId ? currentFoodTypeLabel : subCategory ?? currentFoodTypeLabel;
 
   // List filters
   const [filterStatus, setFilterStatus] = useState<StudyStatusFilter>('all');
@@ -166,6 +173,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
   const modalStdAttrs = getDefaultCataAttributes(newProductCategory);
   const activePanelists = filterAssignablePanelists(panelists);
   const configuredSampleCount = samples.filter(sample => sample.code.trim() && sample.label.trim()).length;
+  const canReviewStudy = Boolean(newProductName && newProductCategory && (productType !== 'multi' || configuredSampleCount === TRIANGLE_TEST_UNDERLYING_SAMPLE_COUNT));
 
   const allStudySummaries = useMemo(() => buildStudySummaries({
     products,
@@ -232,7 +240,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
 
   const handleAddSample = () =>
     setSamples(prev => {
-      if (prev.length >= 8) return prev;
+      if (prev.length >= TRIANGLE_TEST_UNDERLYING_SAMPLE_COUNT) return prev;
       const id = `manual-${prev.length + 1}`;
       return [...prev, { id, code: generateBlindCode(`manual-sample:${id}`, prev.map(sample => sample.code)), label: '' }];
     });
@@ -245,6 +253,19 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
   const handleUpdateSample = (index: number, field: 'code' | 'label', value: string) =>
     setSamples(prev => prev.map((s, i) => i === index ? { ...s, [field]: value } : s));
 
+  const buildTrianglePresentationSamples = (candidateSamples: NonNullable<Product['samples']>, seed: string): NonNullable<Product['samples']> => {
+    if (candidateSamples.length !== TRIANGLE_TEST_UNDERLYING_SAMPLE_COUNT) return candidateSamples;
+    const duplicateIndex = seed.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % TRIANGLE_TEST_UNDERLYING_SAMPLE_COUNT;
+    const replicate = candidateSamples[duplicateIndex];
+    return [
+      ...candidateSamples,
+      {
+        ...replicate,
+        id: `${replicate.id}-replicate`,
+      },
+    ];
+  };
+
   const handleToggleSourceSample = (product: Product) => {
     const sampleId = product.sourceSampleId ?? product.id;
     setSamples(prev => {
@@ -252,7 +273,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
         const next = prev.filter(sample => sample.id !== sampleId);
         return next.length > 0 ? next : [{ id: '1', code: generateBlindCode('manual-sample:1'), label: '' }];
       }
-      if (prev.length >= 8) return prev;
+      if (prev.length >= TRIANGLE_TEST_UNDERLYING_SAMPLE_COUNT) return prev;
       const reusableBlankIndex = prev.findIndex(sample => !sample.label.trim());
       const nextSample = {
         id: sampleId,
@@ -273,11 +294,11 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
     setCreateStep('form');
     setPendingProduct(null);
     setNewProductName('');
-    setNewProductCategory(currentFoodTypeLabel);
+    setNewProductCategory(scopedDefaultCategory);
     setProductType(initialType);
     setSamples([{ id: '1', code: generateBlindCode('manual-sample:1'), label: '' }]);
     setBlindedStudy(false);
-    setCustomAttributes(getDefaultCataAttributes(currentFoodTypeLabel));
+    setCustomAttributes(getDefaultCataAttributes(scopedDefaultCategory));
   };
 
   const closeCreateModal = () => {
@@ -306,12 +327,15 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
         }))
         .filter(sample => sample.label);
 
-      if (candidateSamples.length < 2) {
-        alert('Multi-sample studies require at least 2 selected samples.');
+      if (candidateSamples.length !== TRIANGLE_TEST_UNDERLYING_SAMPLE_COUNT) {
+        alert('Triangle tests require exactly 2 selected samples. The third coded serving is generated as a duplicate.');
         return;
       }
 
-      configuredSamples = withBlindSampleCodes(candidateSamples, `${productId}:${newProductName}`);
+      configuredSamples = withBlindSampleCodes(
+        buildTrianglePresentationSamples(candidateSamples, `${productId}:${newProductName}`),
+        `${productId}:${newProductName}`,
+      );
 
       if (configuredSamples.some(sample => !isValidBlindCode(sample.code))) {
         alert('Each sample code must be a 3-digit number.');
@@ -341,6 +365,8 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
         ? generateBlindCode(`${productId}:${newProductName}:${newProductCategory}`)
         : null,
       assignedPanelistIds: [],
+      sourceImportBatchId: selectedBatchId ?? null,
+      sourceSampleId: null,
     };
     setPendingProduct(p);
     setCustomAttributes(getDefaultCataAttributes(newProductCategory));
@@ -366,6 +392,8 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
         blinded: pendingProduct.blinded,
         blindCode: pendingProduct.blindCode,
         assignedPanelistIds: recipientIds,
+        sourceImportBatchId: pendingProduct.sourceImportBatchId,
+        sourceSampleId: pendingProduct.sourceSampleId,
       });
       await notifyPanelistsOfSurveys(recipientIds, [pendingProduct.name]);
       closeCreateModal();
@@ -560,14 +588,12 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">{isResponsesMode ? 'Responses' : 'Studies'}</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          {isResponsesMode
-            ? 'Track fielding progress, response targets, and blockers before insights are used for decision review.'
-            : 'Create, configure, launch, and review product sensory and multi-sample studies.'}
-        </p>
-      </div>
+      <WorkflowPageHeader
+        title={isResponsesMode ? 'Responses' : 'Studies'}
+        description={isResponsesMode
+          ? 'Track fielding progress, response targets, and blockers before insights are used for decision review.'
+          : 'Create, configure, launch, and review product sensory studies and triangle tests.'}
+      />
 
       {tabs.length > 1 && (
         <div className="flex items-center border-b border-slate-200 gap-1">
@@ -622,8 +648,8 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
           onClick={() => openCreateModal('multi')}
           className="rounded-lg border border-purple-200 bg-purple-50 p-4 text-left transition hover:border-purple-400 hover:bg-purple-100"
         >
-          <div className="flex items-center gap-2 font-semibold text-purple-950"><Layers className="size-4 text-purple-700" />Multi-Sample Comparison</div>
-          <p className="mt-1 text-xs leading-5 text-purple-800">Multiple coded samples, ranked together with difference and preference signals.</p>
+          <div className="flex items-center gap-2 font-semibold text-purple-950"><Layers className="size-4 text-purple-700" />Triangle Test</div>
+          <p className="mt-1 text-xs leading-5 text-purple-800">Three coded samples with one odd-sample discrimination choice.</p>
         </button>
         <Link
           to="/concept-testing"
@@ -732,11 +758,11 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
               <p className="mt-1 max-w-md text-xs text-slate-500">
                 {isResponsesMode
                   ? 'Create and launch a study before response collection can begin.'
-                  : 'Start with a product sensory study, a multi-sample comparison, or a concept test. Each template stays structured for scoring and reporting.'}
+                  : 'Start with a product sensory study, a triangle test, or a concept test. Each template stays structured for scoring and reporting.'}
               </p>
               {!isResponsesMode && <div className="mt-4 flex gap-2">
                 <Button size="sm" onClick={() => openCreateModal('single')}><Plus className="size-3.5 mr-1" />Product sensory</Button>
-                <Button size="sm" variant="outline" onClick={() => openCreateModal('multi')}><Layers className="size-3.5 mr-1" />Multi-sample</Button>
+                <Button size="sm" variant="outline" onClick={() => openCreateModal('multi')}><Layers className="size-3.5 mr-1" />Triangle test</Button>
                 <Button size="sm" variant="outline" asChild><Link to="/concept-testing"><Lightbulb className="size-3.5 mr-1" />Concept test</Link></Button>
               </div>}
             </div>
@@ -783,16 +809,6 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                         <span className="text-xs font-semibold text-slate-500">{study.responseProgressLabel}</span>
                       </div>
                       <Progress value={study.completionPercent} className="h-1.5 bg-slate-100" />
-                    </div>
-
-                    <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
-                      <div className="flex items-start gap-2">
-                        <PlayCircle className="mt-0.5 size-4 shrink-0 text-slate-500" />
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">{study.nextAction.label}</p>
-                          <p className="text-xs text-slate-500">{study.nextAction.description}</p>
-                        </div>
-                      </div>
                     </div>
 
                     {blockerPreview.length > 0 && (
@@ -1123,7 +1139,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                         {([
                           { type: 'single' as const, icon: ClipboardList, label: 'Single Sample', desc: 'Full evaluation: CATA, intensity, hedonic, and emotional response' },
-                          { type: 'multi' as const, icon: Layers, label: 'Multi-Sample', desc: 'Compare samples with discrimination test and preference ranking' },
+                          { type: 'multi' as const, icon: Layers, label: 'Triangle Test', desc: 'Select two samples; panelists receive three coded servings and identify the odd one out' },
                         ]).map(({ type, icon: Icon, label, desc }) => (
                           <button
                             key={type}
@@ -1160,11 +1176,11 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                       <div className="space-y-4">
                         <div className="space-y-2">
                           <Label htmlFor="productName">Study Name</Label>
-                          <Input id="productName" placeholder={productType === 'single' ? 'e.g., Coconut Cheddar v3.0' : 'e.g., Coconut Cheddar Comparison'} value={newProductName} onChange={e => setNewProductName(e.target.value)} className="bg-white" />
+                          <Input id="productName" placeholder={productType === 'single' ? 'e.g., Coconut Cheddar v3.0' : 'e.g., Coconut Cheddar Triangle Test'} value={newProductName} onChange={e => setNewProductName(e.target.value)} className="bg-white" />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="productCategory">Category</Label>
-                          <Input id="productCategory" placeholder={productType === 'single' ? 'e.g., Coconut-based' : 'e.g., Multi-sample comparison'} value={newProductCategory} onChange={e => setNewProductCategory(e.target.value)} className="bg-white" />
+                          <Input id="productCategory" placeholder={productType === 'single' ? 'e.g., Coconut-based' : 'e.g., Triangle test'} value={newProductCategory} onChange={e => setNewProductCategory(e.target.value)} className="bg-white" />
                         </div>
                       </div>
 
@@ -1188,31 +1204,35 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                     <section className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-5">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                          <Label className="text-sm font-bold text-slate-900">Sample Configuration</Label>
+                          <Label className="text-sm font-bold text-slate-900">Triangle Test Samples</Label>
                           <p className="mt-1 text-xs leading-5 text-slate-600">
-                            Select imported samples or add a manual sample. Each selected sample gets a three-digit code for panelist evaluation.
+                            Select exactly two underlying samples. The third coded serving is generated as a duplicate.
                           </p>
                         </div>
-                        <Button size="sm" onClick={handleAddSample} variant="outline"><Plus className="size-4 mr-1" />Add Sample</Button>
+                        <Button size="sm" onClick={handleAddSample} variant="outline" disabled={samples.length >= TRIANGLE_TEST_UNDERLYING_SAMPLE_COUNT}><Plus className="size-4 mr-1" />Add Sample</Button>
                       </div>
                       {selectableSourceSamples.length > 0 && (
                         <div className="rounded-lg border border-slate-200 bg-white p-3">
                           <div className="mb-2 flex items-center justify-between gap-3">
                             <p className="text-xs font-semibold text-slate-700">Imported samples</p>
-                            <span className="text-[11px] font-medium text-slate-500">{selectedImportedSampleCount} selected</span>
+                            <span className="text-[11px] font-medium text-slate-500">{selectedImportedSampleCount}/{TRIANGLE_TEST_UNDERLYING_SAMPLE_COUNT} selected</span>
                           </div>
                           <div className="grid gap-2 sm:grid-cols-2">
                             {selectableSourceSamples.map(product => {
                               const sampleId = product.sourceSampleId ?? product.id;
                               const selectedSample = samples.find(sample => sample.id === sampleId);
+                              const selectionDisabled = !selectedSample && samples.length >= TRIANGLE_TEST_UNDERLYING_SAMPLE_COUNT;
                               return (
                                 <button
                                   key={product.id}
                                   type="button"
                                   onClick={() => handleToggleSourceSample(product)}
+                                  disabled={selectionDisabled}
                                   className={`flex min-h-14 items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition-colors ${
                                     selectedSample
                                       ? 'border-slate-900 bg-slate-50'
+                                      : selectionDisabled
+                                        ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-60'
                                       : 'border-slate-200 bg-white hover:border-slate-400'
                                   }`}
                                 >
@@ -1251,11 +1271,11 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                           </div>
                         ))}
                       </div>
-                      {configuredSampleCount >= 2 && (
+                      {configuredSampleCount === TRIANGLE_TEST_UNDERLYING_SAMPLE_COUNT && (
                         <div className="grid gap-2 rounded-lg border border-slate-300 bg-white p-3 text-xs text-slate-700 sm:grid-cols-3">
-                          <p><strong>{configuredSampleCount} samples</strong> evaluated sequentially</p>
-                          <p>Full questionnaire per sample</p>
-                          <p>Discrimination test + preference ranking</p>
+                          <p><strong>2 underlying samples</strong> selected</p>
+                          <p>3 coded servings generated</p>
+                          <p>Odd-sample triangle choice</p>
                         </div>
                       )}
                     </section>
@@ -1267,7 +1287,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                   <Button
                     onClick={handleCreateProduct}
                     className="sm:w-64 bg-slate-900 hover:bg-slate-800"
-                    disabled={!newProductName || !newProductCategory}
+                    disabled={!canReviewStudy}
                   >
                     {productType === 'multi' ? <Layers className="size-4 mr-2" /> : <Plus className="size-4 mr-2" />}
                     Review & Configure
@@ -1285,7 +1305,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                       <div className="text-sm text-slate-600 mb-1">Study Name</div>
                       <div className="font-bold text-slate-900 text-lg flex items-center gap-2 flex-wrap">
                         {pendingProduct.name}
-                        {pendingProduct.isMultiSample && <Badge variant="outline" className="border-slate-300 text-slate-700"><Layers className="size-3 mr-1" />Multi-Sample</Badge>}
+                        {pendingProduct.isMultiSample && <Badge variant="outline" className="border-slate-300 text-slate-700"><Layers className="size-3 mr-1" />Triangle Test</Badge>}
                         {pendingProduct.blinded && <Badge variant="outline" className="border-slate-300 text-slate-700">Blinded</Badge>}
                       </div>
                     </div>
@@ -1302,7 +1322,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                   )}
                   {pendingProduct.isMultiSample && pendingProduct.samples && (
                     <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                      <div className="text-sm font-bold text-slate-900 mb-3">Samples ({pendingProduct.samples.length})</div>
+                      <div className="text-sm font-bold text-slate-900 mb-3">Coded servings ({pendingProduct.samples.length})</div>
                       <div className="space-y-2">
                         {pendingProduct.samples.map((sample, idx) => (
                           <div key={sample.id} className="flex items-center gap-3 p-3 bg-white rounded border border-slate-200">
@@ -1318,7 +1338,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                     <ul className="text-sm text-slate-600 space-y-2">
                       <li className="flex items-start gap-2"><CheckCircle2 className="size-4 text-emerald-600 flex-shrink-0 mt-0.5" />Study created through the existing product questionnaire flow and set active</li>
                       <li className="flex items-start gap-2"><CheckCircle2 className="size-4 text-emerald-600 flex-shrink-0 mt-0.5" />Configure which attributes panelists will evaluate</li>
-                      <li className="flex items-start gap-2"><CheckCircle2 className="size-4 text-emerald-600 flex-shrink-0 mt-0.5" />{pendingProduct.isMultiSample ? 'Panelists evaluate each sample and rank them' : 'Panelists see this product in their questionnaire'}</li>
+                      <li className="flex items-start gap-2"><CheckCircle2 className="size-4 text-emerald-600 flex-shrink-0 mt-0.5" />{pendingProduct.isMultiSample ? 'Panelists evaluate three coded servings and identify the odd sample' : 'Panelists see this product in their questionnaire'}</li>
                     </ul>
                   </div>
                 </div>
@@ -1339,10 +1359,10 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                     <div className="text-sm font-semibold text-slate-700 mb-1">Configuring:</div>
                     <div className="font-bold text-slate-900 text-lg flex items-center gap-2 flex-wrap">
                       {pendingProduct.name}
-                      {pendingProduct.isMultiSample && <Badge variant="outline" className="border-slate-300 text-slate-700"><Layers className="size-3 mr-1" />Multi-Sample</Badge>}
+                      {pendingProduct.isMultiSample && <Badge variant="outline" className="border-slate-300 text-slate-700"><Layers className="size-3 mr-1" />Triangle Test</Badge>}
                     </div>
                     {pendingProduct.isMultiSample && (
-                      <div className="text-xs text-slate-500 mt-1">All {pendingProduct.samples?.length} samples use the same questionnaire attributes</div>
+                      <div className="text-xs text-slate-500 mt-1">All {pendingProduct.samples?.length} coded servings use the same questionnaire attributes</div>
                     )}
                   </div>
 

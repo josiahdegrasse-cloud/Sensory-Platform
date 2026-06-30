@@ -45,6 +45,7 @@ import {
   type InsightsPrototypeOption,
 } from './insights-prototype-workspace';
 import { TEMPORARY_CHEESE_PRODUCT } from '../data/demo/temporary-cheese-demo';
+import { WorkflowPageHeader } from './workflow-page-header';
 
 function buildImportedProfiles(dataset: ReturnType<typeof useInstrumentalDataset>['data']): EnhancedSensoryProfile[] {
   return (dataset?.eTongueData ?? []).map(sample => {
@@ -164,10 +165,10 @@ export function SurveyAnalysis() {
     return (
       <div className="space-y-6">
         <ProjectHeader />
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-950">Insights</h1>
-          <p className="mt-1 text-sm text-slate-600">Interpret panel and instrumental evidence for {activeLabel}.</p>
-        </div>
+        <WorkflowPageHeader
+          title="Insights"
+          description={`Interpret panel and instrumental evidence for ${activeLabel}.`}
+        />
         <StageEmptyState
           icon={BarChart3}
           headline={`No analyzable samples for ${activeLabel}`}
@@ -322,17 +323,15 @@ export function SurveyAnalysis() {
     <div className="space-y-6">
       <ProjectHeader />
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-950">Insights</h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            Separate trained panel evidence from concept testing evidence so product performance and marketing appeal stay clear.
-          </p>
-        </div>
-        <p className="text-xs font-semibold text-slate-500">
+      <WorkflowPageHeader
+        title="Insights"
+        description="Separate trained panel evidence from concept testing evidence so product performance and marketing appeal stay clear."
+        actions={(
+          <span className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-500">
           {projectSamples.length} prototype{projectSamples.length === 1 ? '' : 's'} · {prototypeOptions.reduce((total, prototype) => total + prototype.responseCount, 0)} live responses
-        </p>
-      </div>
+          </span>
+        )}
+      />
 
       {usingTemporaryDemo && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">

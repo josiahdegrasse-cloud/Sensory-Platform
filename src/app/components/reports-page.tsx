@@ -30,6 +30,7 @@ import {
 } from '../lib/report-context-builder';
 import type { CommercializationReportRecord } from '../lib/database';
 import type { SemanticTone } from '../lib/project-status';
+import { WorkflowPageHeader } from './workflow-page-header';
 
 const STATUS_OPTIONS = ['all', 'draft', 'review', 'approved', 'archived'] as const;
 type StatusFilter = typeof STATUS_OPTIONS[number];
@@ -293,15 +294,11 @@ export function ReportsPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-950">Report Vault</h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            One row per client deliverable, with versions, approval state, evidence provenance, and export readiness kept together.
-          </p>
-        </div>
-        <Button asChild><Link to="/decision"><Sparkles className="size-4" />Build report</Link></Button>
-      </div>
+      <WorkflowPageHeader
+        title="Report Vault"
+        description="One row per client deliverable, with versions, approval state, evidence provenance, and export readiness kept together."
+        actions={<Button asChild><Link to="/decision"><Sparkles className="size-4" />Build report</Link></Button>}
+      />
 
       <div className="flex flex-col gap-3 lg:flex-row">
         <div className="relative flex-1">

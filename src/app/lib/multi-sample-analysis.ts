@@ -45,12 +45,15 @@ export interface MultiSampleAttributeDriver {
 
 export interface MultiSampleDecisionSummary {
   responseCount: number;
+  completedPanelistCount: number;
   evidenceTone: 'empty' | 'limited' | 'ready';
+  agreementState: 'empty' | 'directional' | 'aligned' | 'mixed';
   evidenceLabel: string;
   differenceSignal: string;
   preferenceSignal: string;
   driverSignal: string;
   nextAction: string;
+  recommendedAction: string;
   differenceLeader: string | null;
   preferenceLeader: string | null;
   likingLeader: string | null;
@@ -60,6 +63,7 @@ export interface MultiSampleDecisionSummary {
 export interface MultiSampleAnalysisResult {
   sampleCodes: string[];
   responseCount: number;
+  completedPanelistCount: number;
   minimumResponses: number;
   summary: MultiSampleDecisionSummary;
   differenceRows: MultiSampleDifferenceRow[];
@@ -183,6 +187,7 @@ function buildAttributeDrivers(sessions: MultiSampleSessionLike[]): MultiSampleA
 
 function buildSummary(input: {
   responseCount: number;
+  completedPanelistCount: number;
   minimumResponses: number;
   differenceRows: MultiSampleDifferenceRow[];
   rankingRows: MultiSampleRankingRow[];
@@ -191,9 +196,9 @@ function buildSummary(input: {
 }): MultiSampleDecisionSummary {
   const tone = evidenceTone(input.responseCount, input.minimumResponses);
   const differenceLeader = input.differenceRows[0] ?? null;
-  const preferenceLeader = input.rankingRows[0] ?? null;
   const likingLeader = input.hedonicRows[0] ?? null;
-  const preferenceAgreement = Boolean(preferenceLeader && likingLeader && preferenceLeader.sampleCode === likingLeader.sampleCode);
+  const hasDifferenceConsensus = Boolean(differenceLeader && differenceLeader.share >= 0.5);
+  const preferenceAgreement = hasDifferenceConsensus;
   const topDriver = likingLeader
     ? input.attributeDrivers.find(driver => driver.sampleCode === likingLeader.sampleCode)
     : undefined;
@@ -201,12 +206,15 @@ function buildSummary(input: {
   if (tone === 'empty') {
     return {
       responseCount: 0,
+      completedPanelistCount: 0,
       evidenceTone: tone,
+      agreementState: 'empty',
       evidenceLabel: 'No evidence yet',
       differenceSignal: 'No panelists have completed this study yet.',
       preferenceSignal: 'Preference cannot be interpreted until responses are collected.',
       driverSignal: 'Attribute drivers will appear after sample evaluations are submitted.',
       nextAction: 'Field the study with assigned panelists.',
+      recommendedAction: 'Field the study with assigned panelists.',
       differenceLeader: null,
       preferenceLeader: null,
       likingLeader: null,
@@ -220,29 +228,36 @@ function buildSummary(input: {
   const differenceSignal = differenceLeader && differenceLeader.share >= 0.5
     ? `${differenceLeader.sampleCode} is most often identified as different (${pct(differenceLeader.share)} of responses).`
     : 'No single sample has a clear difference consensus.';
-  const preferenceSignal = preferenceAgreement && preferenceLeader && likingLeader
-    ? `${preferenceLeader.sampleCode} leads both preference ranking and average liking (${likingLeader.averageOverall.toFixed(1)}/9).`
-    : preferenceLeader && likingLeader
-      ? `Preference is mixed: ${preferenceLeader.sampleCode} has the best average rank, while ${likingLeader.sampleCode} has the highest liking score.`
-      : 'Preference evidence is incomplete.';
+  const preferenceSignal = likingLeader
+    ? `${likingLeader.sampleCode} has the highest average liking (${likingLeader.averageOverall.toFixed(1)}/9). Use this as diagnostic context, not the triangle-test answer.`
+    : 'Liking evidence is incomplete.';
   const driverSignal = topDriver
     ? `${topDriver.attribute} is the leading descriptor for ${topDriver.sampleCode} (${pct(topDriver.share)} selection rate).`
     : 'No attribute driver has emerged yet.';
+  const agreementState: MultiSampleDecisionSummary['agreementState'] = tone === 'limited'
+    ? 'directional'
+    : preferenceAgreement
+      ? 'aligned'
+      : 'mixed';
+  const recommendedAction = tone === 'limited'
+    ? 'Keep collecting responses before naming a winner or making external claims.'
+    : hasDifferenceConsensus
+      ? 'Compare the panel odd-sample consensus with the intended different formulation before moving to the next project gate.'
+      : 'Keep fielding or repeat the triangle test before concluding the samples are perceptibly different.';
 
   return {
     responseCount: input.responseCount,
+    completedPanelistCount: input.completedPanelistCount,
     evidenceTone: tone,
+    agreementState,
     evidenceLabel,
     differenceSignal,
     preferenceSignal,
     driverSignal,
-    nextAction: tone === 'limited'
-      ? 'Collect more responses before naming a winner or making external claims.'
-      : preferenceAgreement
-        ? 'Review the leading sample against formulation constraints and move it to the next project gate.'
-        : 'Resolve the preference conflict before selecting a prototype winner.',
+    nextAction: recommendedAction,
+    recommendedAction,
     differenceLeader: differenceLeader?.sampleCode ?? null,
-    preferenceLeader: preferenceLeader?.sampleCode ?? null,
+    preferenceLeader: likingLeader?.sampleCode ?? null,
     likingLeader: likingLeader?.sampleCode ?? null,
     preferenceAgreement,
   };
@@ -257,8 +272,10 @@ export function analyzeMultiSampleStudy(
   const rankingRows = buildRankingRows(sessions, sampleCodes);
   const hedonicRows = buildHedonicRows(sessions, sampleCodes);
   const attributeDrivers = buildAttributeDrivers(sessions);
+  const completedPanelistCount = new Set(sessions.map(session => session.userId).filter(Boolean)).size;
   const summary = buildSummary({
     responseCount: sessions.length,
+    completedPanelistCount,
     minimumResponses,
     differenceRows,
     rankingRows,
@@ -269,6 +286,7 @@ export function analyzeMultiSampleStudy(
   return {
     sampleCodes,
     responseCount: sessions.length,
+    completedPanelistCount,
     minimumResponses,
     summary,
     differenceRows,

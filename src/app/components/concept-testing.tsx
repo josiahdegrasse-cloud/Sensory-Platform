@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import {
-  Lightbulb, ChevronRight, ChevronLeft, Send, CheckCircle2,
+  ChevronRight, ChevronLeft, Send, CheckCircle2,
   AlertTriangle, Gauge, Circle,
 } from 'lucide-react';
 import { insertConceptTest } from '../lib/database';
@@ -25,6 +25,7 @@ import { ReviewStep } from './concept-testing/ReviewStep';
 import { getConceptReadiness } from './concept-testing/concept-readiness';
 import { buildTailoredConceptQuestions, defaultConceptPanelistIds } from './concept-testing/smart-defaults';
 import { ProjectHeader } from './project-header';
+import { WorkflowPageHeader } from './workflow-page-header';
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
@@ -83,14 +84,6 @@ const STEP_LABELS: Record<WizardStep, string> = {
   panel: 'Panel',
   review: 'Launch',
   launched: '',
-};
-
-const STEP_SUMMARIES: Record<Exclude<WizardStep, 'launched'>, string> = {
-  concept: 'Product, promise, and claims',
-  visuals: 'Panelist-facing images',
-  survey: 'Questions and approval',
-  panel: 'Recipients and target size',
-  review: 'Final launch check',
 };
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -287,7 +280,7 @@ export function ConceptTesting() {
         <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
           <CheckCircle2 className="size-10 text-emerald-600" />
         </div>
-        <h2 className="text-3xl font-black text-slate-900">Concept test launched!</h2>
+        <h2 className="text-2xl font-semibold text-slate-900">Concept test launched</h2>
         <p className="text-slate-500 text-lg">
           Your survey has been sent to <strong>{assignedPanelistIds.length} panelist{assignedPanelistIds.length === 1 ? '' : 's'}</strong>.
           Results will appear in <strong>Insights</strong> as responses come in.
@@ -310,6 +303,13 @@ export function ConceptTesting() {
     );
   }
 
+  const saveStatus = (
+    <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-500" aria-live="polite">
+      <CheckCircle2 className={`size-3.5 ${saveState === 'saved' ? 'text-emerald-600' : 'text-slate-400'}`} />
+      {saveState === 'saved' ? 'Draft saved' : 'Autosaves'}
+    </span>
+  );
+
   const currentStepReady = step === 'concept'
     ? conceptStepReady
     : step === 'visuals'
@@ -329,21 +329,11 @@ export function ConceptTesting() {
   return (
     <div className="mx-auto max-w-5xl space-y-5 pb-8">
       <ProjectHeader />
-      <div className="flex flex-col gap-3 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-lg bg-slate-900">
-            <Lightbulb className="size-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Concept Lab</h1>
-            <p className="text-sm text-slate-500">Prepare and launch one consumer concept test.</p>
-          </div>
-        </div>
-        <p className="flex items-center gap-1.5 text-xs text-slate-500" aria-live="polite">
-          <CheckCircle2 className={`size-3.5 ${saveState === 'saved' ? 'text-emerald-600' : 'text-slate-400'}`} />
-          {saveState === 'saved' ? 'Draft saved' : 'Draft saves automatically'}
-        </p>
-      </div>
+      <WorkflowPageHeader
+        title="Concept Lab"
+        description="Prepare one consumer concept test for launch."
+        actions={saveStatus}
+      />
 
       {setupWarnings.length > 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -390,7 +380,7 @@ export function ConceptTesting() {
         </div>
       )}
 
-      <nav aria-label="Concept test progress" className="grid grid-cols-2 gap-2 md:grid-cols-5">
+      <nav aria-label="Concept test progress" className="flex gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-white p-1">
         {STEPS.map((s, i) => {
           const done = i < stepIndex;
           const active = s === step;
@@ -401,21 +391,16 @@ export function ConceptTesting() {
               onClick={() => i <= stepIndex && setStep(s)}
               disabled={i > stepIndex}
               aria-current={active ? 'step' : undefined}
-              className={`flex min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-xs font-semibold transition-colors sm:px-3 ${
+              className={`flex min-w-fit items-center gap-1.5 rounded-md px-3 py-2 text-left text-xs font-semibold transition-colors ${
                 active
-                  ? 'border-slate-900 bg-slate-900 text-white'
+                  ? 'bg-slate-900 text-white'
                   : done
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                    : 'border-slate-200 bg-white text-slate-400'
+                    ? 'text-emerald-800 hover:bg-emerald-50'
+                    : 'text-slate-500 hover:bg-slate-50 disabled:hover:bg-transparent'
               }`}
             >
               {done ? <CheckCircle2 className="size-3.5 shrink-0" /> : <Circle className="size-3.5 shrink-0" />}
-              <span className="min-w-0">
-                <span className="block truncate"><span className="hidden sm:inline">{i + 1}. </span>{STEP_LABELS[s]}</span>
-                <span className={`mt-0.5 hidden truncate text-[10px] font-medium md:block ${active ? 'text-white/70' : done ? 'text-emerald-700/70' : 'text-slate-400'}`}>
-                  {STEP_SUMMARIES[s]}
-                </span>
-              </span>
+              <span><span className="hidden sm:inline">{i + 1}. </span>{STEP_LABELS[s]}</span>
             </button>
           );
         })}

@@ -29,6 +29,7 @@ import { CommercializationReportBuilder } from "./commercialization-report-build
 import { ProjectHeader } from "./project-header";
 import { DecisionReviewDialog } from "./decision-review-dialog";
 import { DecisionReviewWorkspace } from "./decision-review-workspace";
+import { WorkflowPageHeader } from "./workflow-page-header";
 import type { DecisionOutcome } from "../utils/go-stop-tweak-engine";
 type SampleDecision = GoStopTweakDecision;
 type ConfirmedSampleDecision = SampleDecision & {
@@ -207,12 +208,10 @@ export function Stage4Enhanced() {
 
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Final Decision</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Decision scoring will unlock after imported {activeLabel} samples have questionnaire responses.
-          </p>
-        </div>
+        <WorkflowPageHeader
+          title="Final Decision"
+          description={`Decision scoring will unlock after imported ${activeLabel} samples have questionnaire responses.`}
+        />
 
         <Card className="border-dashed">
           <CardContent className="py-10">
@@ -338,17 +337,11 @@ export function Stage4Enhanced() {
   return (
     <div className="space-y-6">
       <ProjectHeader />
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-semibold text-slate-900">Decision Review</h1>
-            {selected && (
-              <DataProvenanceBadge provenance={selectedIsReference ? 'reference' : 'live'} />
-            )}
-          </div>
-          <p className="text-sm text-slate-500 mt-1">Review the recommendation, confirm the outcome, and move the project forward.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <WorkflowPageHeader
+        title="Decision Review"
+        description="Review the recommendation, confirm the outcome, and move the project forward."
+        status={selected ? <DataProvenanceBadge provenance={selectedIsReference ? 'reference' : 'live'} /> : null}
+        actions={(
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" disabled={reportExporting}>
@@ -367,8 +360,8 @@ export function Stage4Enhanced() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-      </div>
+        )}
+      />
       {reportError && (
         <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{reportError}</p>
       )}

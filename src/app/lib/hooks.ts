@@ -216,7 +216,12 @@ export function usePanelistReliability() {
 }
 
 export function useAllResponses() {
-  return useQuery({ queryKey: queryKeys.allResponses, queryFn: () => fetchAllResponses() })
+  return useQuery({
+    queryKey: queryKeys.allResponses,
+    queryFn: () => fetchAllResponses(),
+    staleTime: 0,
+    refetchOnMount: 'always',
+  })
 }
 
 export function useDecisionRecords() {
@@ -228,6 +233,8 @@ export function useUserResponses(userId: string) {
     queryKey: queryKeys.userResponses(userId),
     queryFn: () => fetchUserResponses(userId),
     enabled: !!userId,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 }
 

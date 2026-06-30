@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/auth-context';
 import { type Product } from '../data/survey-domain';
 import { fetchProduct } from '../lib/database';
 import { useMemo, useState, useEffect } from 'react';
-import { AlertCircle, CheckCircle2, Clock, Layers, Target, Trophy, Lock } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, Layers, Target, Lock } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { getBlindStudyCategoryLabel, getBlindStudyDisplayName, getPanelistSampleOrder } from '../lib/blind-study';
 import { useScrollToTop } from '../lib/use-scroll-to-top';
@@ -85,7 +85,7 @@ export function MultiSampleDescription() {
         <CardHeader>
           <div className="flex items-center gap-2 mb-2">
             <Layers className="size-6 text-slate-500" />
-            <CardTitle className="text-2xl">Multi-Sample Evaluation</CardTitle>
+            <CardTitle className="text-2xl">Triangle Test</CardTitle>
           </div>
           <div className="space-y-1 text-sm text-slate-600">
             <p><strong>Study:</strong> {displayName}</p>
@@ -106,7 +106,7 @@ export function MultiSampleDescription() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-slate-700 mb-4">
-            You will taste and evaluate <strong>{sampleCount} different samples</strong> in this session.
+            You will taste and evaluate <strong>three coded samples</strong> in this session.
             Each sample is identified by a unique 3-digit code.
           </p>
           <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
@@ -117,7 +117,7 @@ export function MultiSampleDescription() {
             <p className="text-sm text-slate-700">
               {product.blinded
                 ? 'Sample identities are concealed to ensure unbiased evaluation. You will only see sample codes during the test.'
-                : 'Use the sample codes shown here when evaluating and ranking each sample.'}
+                : 'Use the sample codes shown here when evaluating each serving and choosing the odd one out.'}
             </p>
           </div>
           <div className="grid grid-cols-3 gap-3">
@@ -140,7 +140,7 @@ export function MultiSampleDescription() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-slate-700">
-            This multi-sample evaluation consists of <strong>5 main steps</strong>:
+            This triangle test consists of <strong>4 main steps</strong>:
           </p>
 
           <div className="grid gap-4">
@@ -164,24 +164,11 @@ export function MultiSampleDescription() {
               <div className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold flex-shrink-0">{sampleCount + 1}</div>
               <div>
                 <h4 className="font-bold text-slate-900 flex items-center gap-2">
-                  Discrimination Test
+                  Triangle Test Choice
                   <Target className="size-4 text-slate-500" />
                 </h4>
                 <p className="text-sm text-slate-600 mt-1">
-                  Identify which sample is different from the others based on taste, texture, aroma, and appearance.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
-              <div className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold flex-shrink-0">{sampleCount + 2}</div>
-              <div>
-                <h4 className="font-bold text-slate-900 flex items-center gap-2">
-                  Preference Ranking
-                  <Trophy className="size-4 text-slate-500" />
-                </h4>
-                <p className="text-sm text-slate-600 mt-1">
-                  Rank all {sampleCount} samples from <strong>best to worst</strong> based on your overall preference.
+                  Identify the odd sample that is different from the other two based on taste, texture, aroma, and appearance.
                 </p>
               </div>
             </div>
@@ -201,7 +188,7 @@ export function MultiSampleDescription() {
           <div className="flex items-start gap-2">
             <CheckCircle2 className="size-5 text-emerald-600 flex-shrink-0 mt-0.5" />
             <p className="text-sm text-slate-700">
-              <strong>Estimated Time:</strong> {15 + (sampleCount - 3) * 5}-{20 + (sampleCount - 3) * 5} minutes
+              <strong>Estimated Time:</strong> 15-20 minutes
             </p>
           </div>
           <div className="flex items-start gap-2">
@@ -239,7 +226,7 @@ export function MultiSampleDescription() {
           className="flex-1 bg-slate-900 hover:bg-slate-800"
         >
           <Layers className="size-4 mr-2" />
-          Begin Multi-Sample Evaluation
+          Begin Triangle Test
         </Button>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { STATUS } from '../styles/tokens';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend } from "recharts";
-import { AlertTriangle, CheckCircle2, Download, Heart, Layers, Target, Trophy } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from "recharts";
+import { AlertTriangle, CheckCircle2, Download, Heart, Layers, Target } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { DataProvenanceBadge } from './data-provenance-badge';
@@ -32,6 +32,13 @@ function percent(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
+function agreementStateLabel(state: ReturnType<typeof analyzeMultiSampleStudy>['summary']['agreementState']) {
+  if (state === 'aligned') return 'Aligned';
+  if (state === 'mixed') return 'Mixed';
+  if (state === 'directional') return 'Directional';
+  return 'Collecting';
+}
+
 export function MultiSampleAnalysis({
   multiSampleResponses,
   multiSampleProducts,
@@ -42,6 +49,7 @@ export function MultiSampleAnalysis({
   const selectedProduct = multiSampleProducts.find(p => p.id === selectedMultiProduct);
   const productResponses = multiSampleResponses.filter(r => r.productId === selectedMultiProduct);
   const analysis = analyzeMultiSampleStudy(productResponses, minimumResponses);
+  const completedPanelistCount = analysis.completedPanelistCount;
 
   if (productResponses.length === 0) {
     return (
@@ -63,11 +71,6 @@ export function MultiSampleAnalysis({
     selections: row.count,
     share: Math.round(row.share * 100),
   }));
-  const rankingChartData = analysis.rankingRows.map(row => ({
-    sample: row.sampleCode,
-    'Ranked #1': Math.round(row.firstPlaceShare * 100),
-    'Average rank': row.averageRank ?? 0,
-  }));
   const hedonicChartData = analysis.hedonicRows.map(row => ({
     sample: row.sampleCode,
     avgScore: Number(row.averageOverall.toFixed(2)),
@@ -81,11 +84,6 @@ export function MultiSampleAnalysis({
     productResponses.forEach((response) => {
       // Discrimination
       rows.push(`${response.id},${response.userId},${response.productId},N/A,Discrimination,${response.differentSample}`);
-
-      // Ranking
-      response.ranking.forEach((code: string, idx: number) => {
-        rows.push(`${response.id},${response.userId},${response.productId},${code},Ranking,${idx + 1}`);
-      });
 
       // Sample data
       response.samples.forEach((sample) => {
@@ -112,10 +110,10 @@ export function MultiSampleAnalysis({
                 <Layers className="size-5 text-blue-600" />
                 Select Multi-Sample Study
               </CardTitle>
-              <p className="text-sm text-slate-600 mt-1">{productResponses.length} panelist responses</p>
+              <p className="text-sm text-slate-600 mt-1">{completedPanelistCount} panelist{completedPanelistCount === 1 ? '' : 's'} complete</p>
             </div>
             <div className="flex items-center gap-2">
-              <DataProvenanceBadge provenance="live" n={productResponses.length} />
+              <DataProvenanceBadge provenance="live" n={completedPanelistCount} />
               <Button onClick={exportMultiSampleCSV} variant="outline">
                 <Download className="size-4 mr-2" />
                 Export CSV
@@ -138,7 +136,7 @@ export function MultiSampleAnalysis({
                 <div className="font-bold text-slate-900">{product.name}</div>
                 <div className="text-xs text-slate-600 mt-1">{product.category}</div>
                 <div className="text-xs text-blue-700 mt-1 font-medium">
-                  {multiSampleResponses.filter(r => r.productId === product.id).length} responses
+                  {new Set(multiSampleResponses.filter(r => r.productId === product.id).map(r => r.userId)).size} complete
                 </div>
               </button>
             ))}
@@ -151,8 +149,10 @@ export function MultiSampleAnalysis({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <CardTitle className="flex items-center gap-2">
-                {analysis.summary.preferenceAgreement ? (
+                {analysis.summary.agreementState === 'aligned' ? (
                   <CheckCircle2 className="size-5 text-emerald-600" />
+                ) : analysis.summary.agreementState === 'directional' ? (
+                  <Target className="size-5 text-blue-600" />
                 ) : (
                   <AlertTriangle className="size-5 text-amber-600" />
                 )}
@@ -162,7 +162,7 @@ export function MultiSampleAnalysis({
                 Difference evidence is reported as consensus, not formal triangle accuracy.
               </p>
             </div>
-            <DataProvenanceBadge provenance="live" n={productResponses.length} />
+            <DataProvenanceBadge provenance="live" n={completedPanelistCount} />
           </div>
         </CardHeader>
         <CardContent className="space-y-5 pt-5">
@@ -170,30 +170,31 @@ export function MultiSampleAnalysis({
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Evidence</div>
               <div className="mt-2 text-lg font-bold text-slate-950">{analysis.summary.evidenceLabel}</div>
+              <div className="mt-1 text-xs text-slate-500">{completedPanelistCount} unique panelist{completedPanelistCount === 1 ? '' : 's'}</div>
             </div>
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
               <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">Different sample</div>
               <div className="mt-2 text-lg font-bold text-amber-950">{analysis.summary.differenceLeader ?? 'Mixed'}</div>
             </div>
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-              <div className="text-xs font-semibold uppercase tracking-wide text-blue-700">Preference leader</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-blue-700">Liking diagnostic</div>
               <div className="mt-2 text-lg font-bold text-blue-950">{analysis.summary.preferenceLeader ?? 'Not established'}</div>
             </div>
-            <div className={`rounded-lg border p-4 ${analysis.summary.preferenceAgreement ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
-              <div className={`text-xs font-semibold uppercase tracking-wide ${analysis.summary.preferenceAgreement ? 'text-emerald-700' : 'text-amber-700'}`}>Decision state</div>
-              <div className={`mt-2 text-lg font-bold ${analysis.summary.preferenceAgreement ? 'text-emerald-950' : 'text-amber-950'}`}>
-                {analysis.summary.preferenceAgreement ? 'Aligned' : 'Needs review'}
+            <div className={`rounded-lg border p-4 ${analysis.summary.agreementState === 'aligned' ? 'border-emerald-200 bg-emerald-50' : analysis.summary.agreementState === 'directional' ? 'border-blue-200 bg-blue-50' : 'border-amber-200 bg-amber-50'}`}>
+              <div className={`text-xs font-semibold uppercase tracking-wide ${analysis.summary.agreementState === 'aligned' ? 'text-emerald-700' : analysis.summary.agreementState === 'directional' ? 'text-blue-700' : 'text-amber-700'}`}>Decision state</div>
+              <div className={`mt-2 text-lg font-bold ${analysis.summary.agreementState === 'aligned' ? 'text-emerald-950' : analysis.summary.agreementState === 'directional' ? 'text-blue-950' : 'text-amber-950'}`}>
+                {agreementStateLabel(analysis.summary.agreementState)}
               </div>
             </div>
           </div>
 
           <div className="grid gap-3 lg:grid-cols-2">
             <InsightInterpretationBlock
-              tone={evidenceIsLimited || !analysis.summary.preferenceAgreement ? 'warning' : 'info'}
+              tone={analysis.summary.agreementState === 'mixed' ? 'warning' : 'info'}
               finding={analysis.summary.preferenceSignal}
               evidence={analysis.summary.differenceSignal}
               confidence={analysis.summary.evidenceLabel}
-              action={analysis.summary.nextAction}
+              action={analysis.summary.recommendedAction}
             />
             <InsightInterpretationBlock
               tone="info"
@@ -210,7 +211,7 @@ export function MultiSampleAnalysis({
         <InsightInterpretationBlock
           tone="warning"
           finding="The multi-sample results are directional."
-          evidence={`${productResponses.length} completed multi-sample response${productResponses.length === 1 ? '' : 's'} are available.`}
+          evidence={`${completedPanelistCount} panelist${completedPanelistCount === 1 ? '' : 's'} have completed the multi-sample study.`}
           confidence="Low until the configured panel threshold is reached."
           action="Collect more responses before naming a preferred sample or presenting the result as representative."
         />
@@ -247,43 +248,6 @@ export function MultiSampleAnalysis({
                 <Bar dataKey="share" fill={STATUS.tweak} name="Selected as different (%)" />
               </BarChart>
             </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border border-slate-200">
-        <CardHeader className="border-b border-slate-100">
-          <CardTitle className="flex items-center gap-2">
-            <Trophy className="size-5 text-blue-600" />
-            Preference ranking
-          </CardTitle>
-          <p className="text-sm text-slate-600">First-place share and average rank across completed sessions.</p>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={rankingChartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="sample" />
-              <YAxis />
-              <RechartsTooltip />
-              <Legend />
-              <Bar key="rank-best" dataKey="Ranked #1" fill={STATUS.go} name="Ranked #1 (%)" />
-            </BarChart>
-          </ResponsiveContainer>
-
-          <div className="mt-6 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {analysis.rankingRows.map(row => (
-              <div key={row.sampleCode} className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-center">
-                <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-blue-600 text-lg font-bold text-white">
-                  {row.sampleCode}
-                </div>
-                <div className="mb-1 text-sm text-slate-600">Ranked #1</div>
-                <div className="text-2xl font-bold text-blue-900">{percent(row.firstPlaceShare)}</div>
-                <div className="mt-1 text-xs text-slate-500">
-                  Avg rank {row.averageRank?.toFixed(1) ?? 'n/a'} · {row.firstPlaceCount}/{row.totalRankings}
-                </div>
-              </div>
-            ))}
           </div>
         </CardContent>
       </Card>

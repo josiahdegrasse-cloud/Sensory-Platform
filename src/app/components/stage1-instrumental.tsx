@@ -42,6 +42,7 @@ import {
   useInstrumentalChartViewModel,
   useInstrumentalWorkspace,
 } from './stage1-instrumental-hooks';
+import { WorkflowPageHeader } from "./workflow-page-header";
 
 
 export function Stage1Instrumental() {
@@ -398,15 +399,11 @@ export function Stage1Instrumental() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Machine Testing</h1>
-          <p className="text-sm text-slate-600 mt-1">
-            High-precision sensory analysis using electronic tongue and GC-O equipment
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+      <WorkflowPageHeader
+        title="Machine Testing"
+        description="Import machine and instrumental data for the active project."
+        actions={(
+          <>
           <input
             ref={fileInputRef}
             type="file"
@@ -415,16 +412,17 @@ export function Stage1Instrumental() {
             className="hidden"
             id="csv-upload-header"
           />
-          <label htmlFor="csv-upload-header">
-            <Button className="cursor-pointer bg-slate-900 hover:bg-slate-700" asChild>
-              <span className="flex items-center gap-2">
-                <Upload className="size-4" />
-                Import CSV
-              </span>
-            </Button>
-          </label>
-        </div>
-      </div>
+          <Button
+            type="button"
+            className="bg-slate-900 hover:bg-slate-700"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="size-4" />
+            Import CSV
+          </Button>
+          </>
+        )}
+      />
 
       {newProjectIntent && !showPreview && !lastImportSummary && (
         <Card className="border-2 border-blue-200 bg-blue-50/60 shadow-sm">

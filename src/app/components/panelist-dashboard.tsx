@@ -130,7 +130,7 @@ export function PanelistDashboard() {
 
                       {product.isMultiSample && product.samples?.length ? (
                         <p className="mt-2 text-xs text-slate-600">
-                          Includes discrimination testing and preference ranking across {product.samples.length} samples.
+                          Includes three coded servings: two are the same and one is different.
                         </p>
                       ) : null}
                     </div>

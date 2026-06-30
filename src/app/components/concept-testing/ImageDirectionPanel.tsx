@@ -8,12 +8,17 @@ import {
 } from '../ui/select';
 import {
   ChevronDown,
+  Images,
+  LayoutPanelTop,
+  Package,
+  ShoppingBasket,
 } from 'lucide-react';
 import {
   CONCEPT_IMAGE_MODES,
   PROMPT_STYLES,
   normalizePromptStyle,
   type ConceptImageMode,
+  type PromptStyleId,
 } from '../../../../supabase/functions/_shared/concept-image-catalog.ts';
 import type { ConceptDraft } from './types';
 
@@ -37,6 +42,63 @@ const CREATIVE_TERRITORY_GUIDANCE: Record<string, string> = {
   minimalist_ecommerce: 'Commerce-first clarity: centered product, white field, no props.',
 };
 
+const IMAGE_PRESETS: Array<{
+  id: string;
+  label: string;
+  detail: string;
+  icon: typeof Package;
+  mode: ConceptImageMode;
+  promptStyle: PromptStyleId;
+  count: number;
+  spreadModes: boolean;
+  quality: string;
+}> = [
+  {
+    id: 'retail-pack',
+    label: 'Retail pack',
+    detail: 'Front-of-pack options',
+    icon: Package,
+    mode: 'packaging',
+    promptStyle: 'bold_retail',
+    count: 4,
+    spreadModes: true,
+    quality: 'high',
+  },
+  {
+    id: 'buyer-deck',
+    label: 'Buyer deck',
+    detail: 'Boardroom-ready visuals',
+    icon: LayoutPanelTop,
+    mode: 'buyer_presentation',
+    promptStyle: 'premium_natural',
+    count: 3,
+    spreadModes: true,
+    quality: 'high',
+  },
+  {
+    id: 'ecommerce',
+    label: 'Ecommerce',
+    detail: 'Clean product shots',
+    icon: ShoppingBasket,
+    mode: 'ecommerce',
+    promptStyle: 'minimalist_ecommerce',
+    count: 3,
+    spreadModes: false,
+    quality: 'high',
+  },
+  {
+    id: 'occasion',
+    label: 'Usage moment',
+    detail: 'Lifestyle context',
+    icon: Images,
+    mode: 'lifestyle',
+    promptStyle: 'family_friendly',
+    count: 3,
+    spreadModes: true,
+    quality: 'high',
+  },
+];
+
 export function ImageDirectionPanel({
   draft,
   onChange,
@@ -52,24 +114,65 @@ export function ImageDirectionPanel({
 }) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const style = normalizePromptStyle(draft.promptStyle);
+  const applyPreset = (preset: (typeof IMAGE_PRESETS)[number]) => {
+    onOptionsChange({
+      mode: preset.mode,
+      count: Math.min(maxCount, preset.count),
+      quality: preset.quality,
+      spreadModes: preset.spreadModes,
+    });
+    onChange({ ...draft, promptStyle: preset.promptStyle });
+  };
 
   return (
     <div className="space-y-4">
-      <div>
-        <Label htmlFor="concept-image-mode" className="font-medium">Lead marketing format</Label>
-        <p className="text-xs text-slate-500 mt-1">
-          Start with the format most useful for this decision. For retail concept work, packaging, shelf,
-          ecommerce, and buyer presentation usually give the cleanest signal.
-        </p>
+      <div className="space-y-3">
+        <div>
+          <Label className="font-medium">Image presets</Label>
+          <p className="mt-1 text-xs text-slate-500">Choose the job. AI fills in the setup; you can still adjust it.</p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {IMAGE_PRESETS.map(preset => {
+            const Icon = preset.icon;
+            const active = options.mode === preset.mode
+              && style === preset.promptStyle
+              && options.spreadModes === preset.spreadModes;
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => applyPreset(preset)}
+                aria-pressed={active}
+                className={`flex min-h-20 flex-col items-start justify-between rounded-lg border px-3 py-2 text-left transition-colors ${
+                  active
+                    ? 'border-blue-500 bg-blue-50 text-blue-950'
+                    : 'border-slate-200 bg-white text-slate-800 hover:border-blue-200 hover:bg-slate-50'
+                }`}
+              >
+                <Icon className={`size-4 ${active ? 'text-blue-700' : 'text-slate-500'}`} aria-hidden />
+                <span>
+                  <span className="block text-xs font-semibold">{preset.label}</span>
+                  <span className={`mt-0.5 block text-[11px] ${active ? 'text-blue-800' : 'text-slate-500'}`}>
+                    {preset.detail}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <Label htmlFor="concept-image-mode" className="text-xs font-medium">Lead format</Label>
         <Select value={options.mode} onValueChange={(value: ConceptImageMode) => onOptionsChange({ ...options, mode: value })}>
-          <SelectTrigger id="concept-image-mode" aria-label="Lead marketing format" className="mt-3 w-full sm:max-w-sm"><SelectValue /></SelectTrigger>
+          <SelectTrigger id="concept-image-mode" aria-label="Lead marketing format" className="mt-2 h-9 w-full bg-white text-xs sm:max-w-sm"><SelectValue /></SelectTrigger>
           <SelectContent>
             {CONCEPT_IMAGE_MODES.map(option => (
               <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <p className="mt-2 text-xs text-slate-500">
+        <p className="mt-2 text-[11px] leading-4 text-slate-500">
           {CONCEPT_IMAGE_MODES.find(option => option.id === options.mode)?.purpose}
         </p>
       </div>
