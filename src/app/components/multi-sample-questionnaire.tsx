@@ -100,6 +100,7 @@ export function MultiSampleQuestionnaire() {
 
   useEffect(() => {
     if (currentStep !== 'cleanse') return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initialising an interval-timer countdown
     setCleanseCountdown(30);
     cleanseIntervalRef.current = setInterval(() => {
       setCleanseCountdown(prev => {
@@ -302,7 +303,7 @@ export function MultiSampleQuestionnaire() {
     return (
       <div className="max-w-4xl mx-auto">
         <Card className="border border-slate-200 bg-white">
-          <CardHeader className="border-b border-slate-100 bg-white">
+          <CardHeader className="border-b border-slate-200 bg-white">
             <CardTitle className="text-2xl">Triangle Test</CardTitle>
           </CardHeader>
           <CardContent className="pt-6 space-y-4">
@@ -333,9 +334,9 @@ export function MultiSampleQuestionnaire() {
               <div className="flex items-center justify-between mb-2">
                 <h4 className="font-bold text-slate-900">Session Information:</h4>
                 {product.blinded ? (
-                  <Badge variant="outline" className="border-slate-300 text-slate-700 text-xs tracking-wider">BLINDED</Badge>
+                  <Badge variant="outline" className="border-slate-200 text-slate-700 text-xs tracking-wider">BLINDED</Badge>
                 ) : (
-                  <Badge variant="outline" className="text-xs text-slate-700 border-slate-300 bg-white">UNBLINDED</Badge>
+                  <Badge variant="outline" className="text-xs text-slate-700 border-slate-200 bg-white">UNBLINDED</Badge>
                 )}
               </div>
               <div className="text-sm space-y-1 text-slate-700">
@@ -373,7 +374,7 @@ export function MultiSampleQuestionnaire() {
             <div className="flex items-center justify-between gap-3 mb-2">
               <div>
                 <h3 className="font-bold text-slate-900">Evaluating Sample: <span className="text-slate-900">{currentSample.code}</span></h3>
-                <p className="text-sm text-slate-600">{currentSampleIndex + 1} of {samples.length} samples completed</p>
+                <p className="text-sm text-slate-700">{currentSampleIndex + 1} of {samples.length} samples completed</p>
               </div>
               <div className="flex size-14 flex-shrink-0 items-center justify-center rounded-full bg-slate-900 text-lg font-bold text-white sm:size-16 sm:text-xl">
                 {currentSample.code}
@@ -392,7 +393,7 @@ export function MultiSampleQuestionnaire() {
         <Card>
           <CardHeader>
             <CardTitle>1. Flavor & Aroma Attributes (CATA)</CardTitle>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-slate-700">
               Select ALL attributes that you perceive in Sample {currentSample.code}. Hover over any attribute for its definition.
             </p>
           </CardHeader>
@@ -424,7 +425,7 @@ export function MultiSampleQuestionnaire() {
         <Card>
           <CardHeader>
             <CardTitle>2. Intensity Ratings</CardTitle>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-slate-700">
               Rate the intensity of each attribute on a scale from 1 (not present) to 9 (extremely intense).
             </p>
           </CardHeader>
@@ -468,7 +469,7 @@ export function MultiSampleQuestionnaire() {
         <Card>
           <CardHeader>
             <CardTitle>3. Hedonic Scores (Overall Liking)</CardTitle>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-slate-700">
               Rate how much you like or dislike each aspect on a 9-point scale (1 = Dislike extremely, 9 = Like extremely).
             </p>
           </CardHeader>
@@ -510,7 +511,7 @@ export function MultiSampleQuestionnaire() {
         <Card>
           <CardHeader>
             <CardTitle>4. Emotional Response (EsSense25)</CardTitle>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-slate-700">
               Rate how strongly you feel each emotion when tasting this product. Hover for definitions.
             </p>
           </CardHeader>
@@ -597,7 +598,7 @@ export function MultiSampleQuestionnaire() {
   if (currentStep === 'cleanse') {
     const nextSampleCode = samples[currentSampleIndex + 1]?.code ?? '';
     const cleanseBadgeClass = cleanseCountdown > 0
-      ? 'border-slate-300 text-slate-700 bg-slate-50'
+      ? 'border-slate-200 text-slate-700 bg-slate-50'
       : 'border-emerald-300 text-emerald-800 bg-emerald-50';
     return (
       <div className="max-w-4xl mx-auto px-3 sm:px-0">
@@ -635,7 +636,7 @@ export function MultiSampleQuestionnaire() {
       <div className="max-w-4xl mx-auto space-y-4 px-3 pb-24 sm:px-0 sm:space-y-6">
         <Card className="border border-slate-200 bg-white">
           <CardContent className="pt-4">
-            <Badge variant="outline" className="border-slate-300 text-slate-700 text-lg px-4 py-2">
+            <Badge variant="outline" className="border-slate-200 text-slate-700 text-lg px-4 py-2">
               Step 4/4
             </Badge>
           </CardContent>
@@ -644,7 +645,7 @@ export function MultiSampleQuestionnaire() {
         <Card className="border border-slate-200">
           <CardHeader className="bg-white">
             <CardTitle className="text-2xl">Triangle Test Choice</CardTitle>
-            <p className="text-slate-600 mt-2">
+            <p className="text-slate-700 mt-2">
               You have just tasted three coded servings. Two are the same and one is different.
             </p>
           </CardHeader>
@@ -659,7 +660,7 @@ export function MultiSampleQuestionnaire() {
                     className={`rounded-lg border-2 p-5 transition-all sm:p-6 ${
                       differentSample === sample.code
                         ? 'border-slate-900 bg-slate-50'
-                        : 'border-slate-300 bg-white hover:border-slate-500'
+                        : 'border-slate-200 bg-white hover:border-slate-500'
                     }`}
                   >
                     <div className="text-3xl font-bold text-slate-900 mb-2">{sample.code}</div>
@@ -707,7 +708,7 @@ export function MultiSampleQuestionnaire() {
         <Card className="border border-slate-200 bg-white">
           <CardHeader>
             <CardTitle className="text-2xl">Review Your Responses</CardTitle>
-            <p className="text-slate-600">Please review all information before final submission. Your responses will be securely recorded and available to study administrators.</p>
+            <p className="text-slate-700">Please review all information before final submission. Your responses will be securely recorded and available to study administrators.</p>
           </CardHeader>
         </Card>
 
@@ -728,7 +729,7 @@ export function MultiSampleQuestionnaire() {
                   <h4 className="font-bold text-slate-900 mb-2">CATA Attributes Selected:</h4>
                   <div className="flex flex-wrap gap-2">
                     {response.cataAttributes.map(attr => (
-                      <Badge key={attr} variant="outline" className="border-slate-300 text-slate-700">{attr}</Badge>
+                      <Badge key={attr} variant="outline" className="border-slate-200 text-slate-700">{attr}</Badge>
                     ))}
                   </div>
                 </div>
@@ -757,7 +758,7 @@ export function MultiSampleQuestionnaire() {
             <div className="space-y-3">
               <div>
                 <span className="font-bold text-slate-900">Different coded serving: </span>
-                <Badge variant="outline" className="border-slate-300 text-lg text-slate-700">{differentSample}</Badge>
+                <Badge variant="outline" className="border-slate-200 text-lg text-slate-700">{differentSample}</Badge>
               </div>
             </div>
           </CardContent>
@@ -765,7 +766,7 @@ export function MultiSampleQuestionnaire() {
 
         {/* Submit */}
         <div className="sticky bottom-0 z-20 -mx-3 space-y-3 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:mx-0 sm:rounded-t-lg sm:border">
-            <Alert className="border-slate-300 bg-white">
+            <Alert className="border-slate-200 bg-white">
               <AlertCircle className="size-4 text-slate-500" />
               <AlertDescription className="text-slate-700">
                 <strong>Important:</strong> Once submitted, you cannot edit your responses. Please review all information carefully.
@@ -807,7 +808,7 @@ export function MultiSampleQuestionnaire() {
             <p className="text-slate-700 mb-2">
               Thank you for completing the triangle test for <strong>{displayName}</strong>.
             </p>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-slate-700">
               Redirecting to dashboard...
             </p>
           </CardContent>

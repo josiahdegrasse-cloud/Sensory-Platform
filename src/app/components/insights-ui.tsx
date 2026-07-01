@@ -31,12 +31,12 @@ export function InsightsSectionHeader({
   return (
     <div id={id} className="scroll-mt-28 flex flex-col gap-3 border-b border-slate-200 pb-3 sm:flex-row sm:items-end sm:justify-between">
       <div className="flex min-w-0 items-start gap-3">
-        <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+        <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-700">
           <Icon className="size-4.5" aria-hidden />
         </span>
         <div>
-          <h2 className="text-lg font-bold text-slate-950">{title}</h2>
-          {description && <p className="mt-0.5 max-w-3xl text-sm text-slate-600">{description}</p>}
+          <h2 className="text-lg font-bold text-slate-900">{title}</h2>
+          {description && <p className="mt-0.5 max-w-3xl text-sm text-slate-700">{description}</p>}
         </div>
       </div>
       {action}
@@ -54,7 +54,7 @@ export function InsightsSectionNav({ sections }: {
           <a
             key={section.id}
             href={`#${section.id}`}
-            className="rounded-md px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-white hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="rounded-md px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
             {section.label}
           </a>
@@ -78,8 +78,8 @@ export function EvidenceStrengthCard({ strength }: { strength: InsightsEvidenceS
         </div>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
-        <p className="text-sm font-medium leading-relaxed text-slate-800">{strength.note}</p>
-        <ul className="space-y-1.5 text-xs text-slate-600">
+        <p className="text-sm font-medium leading-relaxed text-slate-700">{strength.note}</p>
+        <ul className="space-y-1.5 text-xs text-slate-700">
           {strength.factors.map(factor => (
             <li key={factor} className="flex items-start gap-2">
               <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-slate-400" />
@@ -108,13 +108,13 @@ export function DataSourceSummary({ sources }: { sources: DataSourceItem[] }) {
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
         {sources.map(source => (
-          <div key={source.label} className="flex items-start justify-between gap-3 border-t border-slate-100 pt-3 first:border-t-0 first:pt-0">
+          <div key={source.label} className="flex items-start justify-between gap-3 border-t border-slate-200 pt-3 first:border-t-0 first:pt-0">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 {source.available
                   ? <CheckCircle2 className="size-4 shrink-0 text-emerald-600" aria-hidden />
-                  : <CircleHelp className="size-4 shrink-0 text-slate-400" aria-hidden />}
-                <span className="text-sm font-semibold text-slate-800">{source.label}</span>
+                  : <CircleHelp className="size-4 shrink-0 text-slate-500" aria-hidden />}
+                <span className="text-sm font-semibold text-slate-700">{source.label}</span>
               </div>
               <p className="mt-1 pl-6 text-xs leading-relaxed text-slate-500">{source.detail}</p>
             </div>
@@ -151,11 +151,11 @@ export function InsightsExecutiveSummary({
 }) {
   return (
     <Card id="overview" className="scroll-mt-28 overflow-hidden border border-slate-200 bg-white">
-      <CardHeader className="border-b border-slate-100">
+      <CardHeader className="border-b border-slate-200">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-semibold text-slate-500">{projectName} · {category}</p>
-            <CardTitle className="mt-1 text-xl text-slate-950">{sampleName}</CardTitle>
+            <CardTitle className="mt-1 text-xl text-slate-900">{sampleName}</CardTitle>
             <p className="mt-1 text-xs text-slate-500">
               {panelResponses} panel response{panelResponses === 1 ? '' : 's'}
               {conceptResponses > 0 ? ` · ${conceptResponses} concept response${conceptResponses === 1 ? '' : 's'}` : ''}
@@ -165,7 +165,7 @@ export function InsightsExecutiveSummary({
         </div>
       </CardHeader>
       <CardContent className="space-y-4 pt-5">
-        <h3 className="text-sm font-bold text-slate-950">What matters now</h3>
+        <h3 className="text-sm font-bold text-slate-900">What matters now</h3>
         <dl className="divide-y divide-slate-100">
           <SummaryFinding label="Strength" value={keyStrength} tone="success" />
           <SummaryFinding label="Watch" value={keyConcern} tone="warning" />
@@ -206,7 +206,7 @@ function SummaryFinding({ label, value, tone }: {
   return (
     <div className="grid gap-1 py-3 sm:grid-cols-[72px_minmax(0,1fr)]">
       <dt className={cn('text-xs font-bold uppercase tracking-wide', classes)}>{label}</dt>
-      <dd className="text-sm font-medium leading-relaxed text-slate-800">{value}</dd>
+      <dd className="text-sm font-medium leading-relaxed text-slate-700">{value}</dd>
     </div>
   );
 }
@@ -262,7 +262,7 @@ export function RawDataAppendix({ children }: { children: ReactNode }) {
         Appendix and raw data
         <span className="ml-2 text-xs font-normal text-slate-500">Method notes, provenance, and exports</span>
       </summary>
-      <div className="border-t border-slate-100 px-5 py-4">{children}</div>
+      <div className="border-t border-slate-200 px-5 py-4">{children}</div>
     </details>
   );
 }

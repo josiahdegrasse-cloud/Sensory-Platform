@@ -283,7 +283,7 @@ async function ensureSurveysForImportBatch(input: {
   const missingProducts = [...sampleMetaById.values()]
     .filter(sample => !existingSampleIds.has(sample.sampleId))
     .map(sample => ({
-      name: sample.sampleName ? `${sample.sampleName} (${sample.sampleId})` : sample.sampleId,
+      name: sample.sampleName || sample.sampleId,
       category: sample.category || fallbackCategory,
       status: productStatus,
       custom_attributes: asJson(input.customAttributes),

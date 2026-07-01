@@ -56,7 +56,7 @@ export function SignupPage({ onBack }: Props) {
     try {
       const domainRecognized = await emailDomainHasWorkspace(email);
       if (!domainRecognized) {
-        setError("This email domain isn't linked to a company workspace. Sign up with your company email address, or ask your study administrator for an invite.");
+        setError("This email domain isn't linked to a company workspace. Use your company email address, or ask an existing admin for help.");
         setLoading(false);
         return;
       }
@@ -90,10 +90,7 @@ export function SignupPage({ onBack }: Props) {
       const { error: profileError } = await supabase
         .from('profiles')
         .update({
-          email,
           name,
-          status: 'active',
-          training_level: 'screened',
           consent_accepted_at: consentAcceptedAt,
           consent_version: CURRENT_CONSENT_VERSION,
           consent_user_agent: consentUserAgent,
@@ -117,8 +114,8 @@ export function SignupPage({ onBack }: Props) {
           <Card className="shadow-2xl">
             <CardContent className="pt-8 pb-8 text-center space-y-4">
               <CheckCircle2 className="size-16 text-emerald-600 mx-auto" />
-              <h2 className="text-2xl font-bold text-slate-900">Account Created!</h2>
-              <p className="text-slate-600">Your panelist account is ready. Sign in to get started.</p>
+              <h2 className="text-2xl font-bold text-slate-900">Request sent</h2>
+              <p className="text-slate-700">Your company email is recognized. An existing admin needs to approve your access before you can enter the workspace.</p>
               <Button onClick={onBack} className="w-full bg-slate-900 hover:bg-slate-700">
                 Sign In
               </Button>
@@ -137,7 +134,7 @@ export function SignupPage({ onBack }: Props) {
             <button
               type="button"
               onClick={onBack}
-              className="mb-2 inline-flex w-fit items-center gap-1.5 rounded-md text-sm font-medium text-slate-500 transition-colors hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
+              className="mb-2 inline-flex w-fit items-center gap-1.5 rounded-md text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
             >
               <ArrowLeft className="size-4" />
               Back to sign in
@@ -148,7 +145,7 @@ export function SignupPage({ onBack }: Props) {
               </div>
               <div>
                 <CardTitle className="text-2xl">Create Account</CardTitle>
-                <p className="text-sm text-slate-600">Join as a panelist</p>
+                <p className="text-sm text-slate-700">Request workspace admin access</p>
               </div>
             </div>
           </CardHeader>
@@ -187,12 +184,12 @@ export function SignupPage({ onBack }: Props) {
                   required
                   minLength={8}
                 />
-                <p className="text-xs text-slate-400">Min 8 characters, one uppercase letter, one number.</p>
+                <p className="text-xs text-slate-500">Min 8 characters, one uppercase letter, one number.</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
-                <p className="text-xs text-slate-600 font-medium">Panelist data consent</p>
+                <p className="text-xs text-slate-700 font-medium">Workspace access terms</p>
                 <p className="text-xs text-slate-500">
-                  Your name, email, and evaluation responses will be stored for sensory research and product development by the study administrator.
+                  Your name and email will be stored so an existing admin can review your workspace access request.
                 </p>
                 <label className="flex items-start gap-2 cursor-pointer">
                   <input

@@ -1,0 +1,7 @@
+sampleId,sampleName,foodType,category,sourness,bitterness,saltiness,umami,sweetness,compound,concentration,aroma,threshold,protein,fat,moisture,pH,saltContent,calciumMg
+SAUCE-20260630-001,Roasted Tomato Basil Sauce,Sauce,Tomato sauce,6.8,2.1,5.7,7.9,3.4,Linalool,0.42,Herbal basil,0.08,1.6,3.8,82.4,4.18,1.32,28
+SAUCE-20260630-002,Smoky Red Pepper Sauce,Sauce,Pepper sauce,5.9,2.7,6.2,8.3,4.1,Guaiacol,0.31,Smoky roasted,0.05,1.2,4.5,79.8,4.35,1.48,24
+SAUCE-20260630-003,Green Herb Yogurt Sauce,Sauce,Herb sauce,7.4,1.8,4.9,5.8,2.7,Hexanal,0.18,Fresh green,0.03,3.4,2.2,84.6,4.05,1.05,92
+SAUCE-20260630-004,Garlic Tahini Sauce,Sauce,Tahini sauce,4.2,3.5,5.4,8.7,2.2,Diallyl disulfide,0.27,Garlic sulfur,0.04,5.1,12.8,68.9,5.12,1.21,64
+SAUCE-20260630-005,Spicy Mango Chili Sauce,Sauce,Fruit chili sauce,5.1,1.4,4.6,4.2,8.1,Ethyl butyrate,0.56,Tropical fruity,0.02,0.8,0.6,76.5,3.82,0.92,18
+SAUCE-20260630-006,Miso Ginger Glaze,Sauce,Fermented glaze,4.8,2.9,7.3,9.1,5.6,Geraniol,0.22,Ginger floral,0.06,2.7,1.9,71.2,5.38,1.86,36

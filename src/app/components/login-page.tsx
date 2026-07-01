@@ -207,14 +207,14 @@ export function LoginPage({ onSignup, branding }: Props) {
               <button
                 type="button"
                 onClick={() => { setResetMode(false); setResetSent(false); setResetError(''); setResetEmail(''); }}
-                className="mb-7 inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-slate-500 transition-colors hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
+                className="mb-7 inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
               >
                 <ArrowLeft className="size-3.5" />
                 Return to sign in
               </button>
               <div className="mb-8">
-                <h2 className="text-2xl font-semibold tracking-[-0.01em] text-slate-950">Reset your password</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-600">Enter your workspace email. We will send a secure link if the account exists.</p>
+                <h2 className="text-2xl font-semibold tracking-[-0.01em] text-slate-900">Reset your password</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-700">Enter your workspace email. We will send a secure link if the account exists.</p>
               </div>
               {resetSent ? (
                 <Alert className="border-emerald-200 bg-emerald-50 py-3">
@@ -226,7 +226,7 @@ export function LoginPage({ onSignup, branding }: Props) {
               ) : (
                 <form onSubmit={handleReset} className="space-y-5">
                   <div className="space-y-2">
-                    <Label htmlFor="reset-email" className="text-sm font-medium text-slate-800">
+                    <Label htmlFor="reset-email" className="text-sm font-medium text-slate-700">
                       Email address
                     </Label>
                     <Input
@@ -236,7 +236,7 @@ export function LoginPage({ onSignup, branding }: Props) {
                       placeholder="you@company.com"
                       value={resetEmail}
                       onChange={(e) => setResetEmail(e.target.value)}
-                      className="h-11 rounded-md border-slate-300 bg-white text-slate-950 placeholder:text-slate-500 focus-visible:border-slate-900 focus-visible:ring-slate-900/15"
+                      className="h-11 rounded-md border-slate-200 bg-white text-slate-900 placeholder:text-slate-500 focus-visible:border-slate-900 focus-visible:ring-slate-900/15"
                       required
                     />
                   </div>
@@ -261,8 +261,8 @@ export function LoginPage({ onSignup, branding }: Props) {
             <>
               <div className="mb-8">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace sign-in</p>
-                <h2 className="text-2xl font-semibold tracking-[-0.01em] text-slate-950">Welcome back</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-600">Open your {brandName} workspace to review studies, decisions, concepts, and reports.</p>
+                <h2 className="text-2xl font-semibold tracking-[-0.01em] text-slate-900">Welcome back</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-700">Open your {brandName} workspace to review studies, decisions, concepts, and reports.</p>
               </div>
 
               {authNotice && !error && (
@@ -274,7 +274,7 @@ export function LoginPage({ onSignup, branding }: Props) {
 
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-medium text-slate-800">
+                  <Label htmlFor="email" className="text-sm font-medium text-slate-700">
                     Email address
                   </Label>
                   <Input
@@ -284,13 +284,13 @@ export function LoginPage({ onSignup, branding }: Props) {
                     placeholder="you@company.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="h-11 rounded-md border-slate-300 bg-white text-slate-950 placeholder:text-slate-500 focus-visible:border-slate-900 focus-visible:ring-slate-900/15"
+                    className="h-11 rounded-md border-slate-200 bg-white text-slate-900 placeholder:text-slate-500 focus-visible:border-slate-900 focus-visible:ring-slate-900/15"
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="text-sm font-medium text-slate-800">
+                  <Label htmlFor="password" className="text-sm font-medium text-slate-700">
                     Password
                   </Label>
                   <Input
@@ -300,7 +300,7 @@ export function LoginPage({ onSignup, branding }: Props) {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="h-11 rounded-md border-slate-300 bg-white text-slate-950 placeholder:text-slate-500 focus-visible:border-slate-900 focus-visible:ring-slate-900/15"
+                    className="h-11 rounded-md border-slate-200 bg-white text-slate-900 placeholder:text-slate-500 focus-visible:border-slate-900 focus-visible:ring-slate-900/15"
                     required
                   />
                 </div>
@@ -309,7 +309,7 @@ export function LoginPage({ onSignup, branding }: Props) {
                   <button
                     type="button"
                     onClick={() => { setResetMode(true); setError(''); }}
-                    className="rounded-md text-sm font-medium text-slate-500 transition-colors hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
+                    className="rounded-md text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
                   >
                     Forgot password?
                   </button>
@@ -340,7 +340,7 @@ export function LoginPage({ onSignup, branding }: Props) {
                 <>
                   <div className="my-5 flex items-center gap-3">
                     <div className="h-px flex-1 bg-slate-200" />
-                    <span className="text-xs uppercase tracking-wide text-slate-400">or</span>
+                    <span className="text-xs uppercase tracking-wide text-slate-500">or</span>
                     <div className="h-px flex-1 bg-slate-200" />
                   </div>
                   <Button
@@ -348,7 +348,7 @@ export function LoginPage({ onSignup, branding }: Props) {
                     variant="outline"
                     onClick={handleGoogle}
                     disabled={googleLoading}
-                    className="h-11 w-full rounded-md border-slate-300 bg-white text-sm font-semibold text-slate-800 hover:border-slate-400 hover:bg-slate-50"
+                    className="h-11 w-full rounded-md border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
                   >
                     <span className="flex items-center gap-2.5">
                       <GoogleMark />
@@ -358,25 +358,25 @@ export function LoginPage({ onSignup, branding }: Props) {
                 </>
               )}
 
-              <div className="mt-7 border-t border-slate-300/70 pt-6 text-center">
+              <div className="mt-7 border-t border-slate-200/70 pt-6 text-center">
                 {onSignup ? (
                   <button
                     type="button"
                     onClick={onSignup}
-                    className="rounded-md text-sm text-slate-600 transition-colors hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
+                    className="rounded-md text-sm text-slate-700 transition-colors hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
                   >
                     Joining a panel?{' '}
                     <span className="font-semibold underline underline-offset-2">Create account</span>
                   </button>
                 ) : (
-                  <p className="text-sm leading-6 text-slate-600">Panelist access is managed by the workspace admin.</p>
+                  <p className="text-sm leading-6 text-slate-700">Panelist access is managed by the workspace admin.</p>
                 )}
                 <div className="mt-5 flex items-center justify-center gap-3 text-xs font-medium text-slate-500">
-                  <a href="/privacy" className="rounded-sm hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20">Privacy</a>
+                  <a href="/privacy" className="rounded-sm hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20">Privacy</a>
                   <span aria-hidden="true">/</span>
-                  <a href="/terms" className="rounded-sm hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20">Terms</a>
+                  <a href="/terms" className="rounded-sm hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20">Terms</a>
                   <span aria-hidden="true">/</span>
-                  <a href="/panelist-consent" className="rounded-sm hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20">Consent</a>
+                  <a href="/panelist-consent" className="rounded-sm hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20">Consent</a>
                 </div>
               </div>
             </>

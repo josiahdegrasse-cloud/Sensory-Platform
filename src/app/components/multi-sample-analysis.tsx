@@ -55,9 +55,9 @@ export function MultiSampleAnalysis({
     return (
       <Card className="border border-slate-200">
         <CardContent className="pt-12 pb-12 text-center">
-          <Layers className="size-16 text-slate-400 mx-auto mb-4" />
+          <Layers className="size-16 text-slate-500 mx-auto mb-4" />
           <h3 className="text-xl font-bold text-slate-700 mb-2">No Multi-Sample Data Yet</h3>
-          <p className="text-slate-600">
+          <p className="text-slate-700">
             Multi-sample evaluation responses will appear here once panelists complete them.
           </p>
         </CardContent>
@@ -103,14 +103,14 @@ export function MultiSampleAnalysis({
   return (
     <div className="space-y-6">
       <Card className="border border-slate-200">
-        <CardHeader className="border-b border-slate-100">
+        <CardHeader className="border-b border-slate-200">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Layers className="size-5 text-blue-600" />
                 Select Multi-Sample Study
               </CardTitle>
-              <p className="text-sm text-slate-600 mt-1">{completedPanelistCount} panelist{completedPanelistCount === 1 ? '' : 's'} complete</p>
+              <p className="text-sm text-slate-700 mt-1">{completedPanelistCount} panelist{completedPanelistCount === 1 ? '' : 's'} complete</p>
             </div>
             <div className="flex items-center gap-2">
               <DataProvenanceBadge provenance="live" n={completedPanelistCount} />
@@ -130,11 +130,11 @@ export function MultiSampleAnalysis({
                 className={`p-4 rounded-lg border-2 transition-all text-left ${
                   selectedMultiProduct === product.id
                     ? 'border-blue-600 bg-blue-50'
-                    : 'border-slate-200 hover:border-slate-300'
+                    : 'border-slate-200 hover:border-slate-200'
                 }`}
               >
                 <div className="font-bold text-slate-900">{product.name}</div>
-                <div className="text-xs text-slate-600 mt-1">{product.category}</div>
+                <div className="text-xs text-slate-700 mt-1">{product.category}</div>
                 <div className="text-xs text-blue-700 mt-1 font-medium">
                   {new Set(multiSampleResponses.filter(r => r.productId === product.id).map(r => r.userId)).size} complete
                 </div>
@@ -145,7 +145,7 @@ export function MultiSampleAnalysis({
       </Card>
 
       <Card className="border border-slate-200">
-        <CardHeader className="border-b border-slate-100">
+        <CardHeader className="border-b border-slate-200">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <CardTitle className="flex items-center gap-2">
@@ -158,7 +158,7 @@ export function MultiSampleAnalysis({
                 )}
                 Multi-sample decision readout
               </CardTitle>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="mt-1 text-sm text-slate-700">
                 Difference evidence is reported as consensus, not formal triangle accuracy.
               </p>
             </div>
@@ -169,7 +169,7 @@ export function MultiSampleAnalysis({
           <div className="grid gap-3 md:grid-cols-4">
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Evidence</div>
-              <div className="mt-2 text-lg font-bold text-slate-950">{analysis.summary.evidenceLabel}</div>
+              <div className="mt-2 text-lg font-bold text-slate-900">{analysis.summary.evidenceLabel}</div>
               <div className="mt-1 text-xs text-slate-500">{completedPanelistCount} unique panelist{completedPanelistCount === 1 ? '' : 's'}</div>
             </div>
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
@@ -218,12 +218,12 @@ export function MultiSampleAnalysis({
       )}
 
       <Card className="border border-slate-200">
-        <CardHeader className="border-b border-slate-100">
+        <CardHeader className="border-b border-slate-200">
           <CardTitle className="flex items-center gap-2">
             <Target className="size-5 text-amber-600" />
             Difference consensus
           </CardTitle>
-          <p className="text-sm text-slate-600">Which sample was identified as different. This is not formal accuracy without a hidden answer key.</p>
+          <p className="text-sm text-slate-700">Which sample was identified as different. This is not formal accuracy without a hidden answer key.</p>
         </CardHeader>
         <CardContent className="pt-6">
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -233,7 +233,7 @@ export function MultiSampleAnalysis({
                   {row.sampleCode}
                 </div>
                 <div className="text-3xl font-bold text-amber-900">{row.count}</div>
-                <div className="text-sm text-slate-600">({percent(row.share)})</div>
+                <div className="text-sm text-slate-700">({percent(row.share)})</div>
                 <div className="mt-1 text-xs text-slate-500">panelists selected</div>
               </div>
             ))}
@@ -253,12 +253,12 @@ export function MultiSampleAnalysis({
       </Card>
 
       <Card className="border border-slate-200">
-        <CardHeader className="border-b border-slate-100">
+        <CardHeader className="border-b border-slate-200">
           <CardTitle className="flex items-center gap-2">
             <Heart className="size-5 text-blue-600" />
             Average overall liking
           </CardTitle>
-          <p className="text-sm text-slate-600">Mean hedonic scores (1-9 scale)</p>
+          <p className="text-sm text-slate-700">Mean hedonic scores (1-9 scale)</p>
         </CardHeader>
         <CardContent className="pt-6">
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -278,9 +278,9 @@ export function MultiSampleAnalysis({
       </Card>
 
       <Card className="border border-slate-200">
-        <CardHeader className="border-b border-slate-100">
+        <CardHeader className="border-b border-slate-200">
           <CardTitle>Attribute drivers by sample</CardTitle>
-          <p className="text-sm text-slate-600">Top selected descriptors from the per-sample CATA task.</p>
+          <p className="text-sm text-slate-700">Top selected descriptors from the per-sample CATA task.</p>
         </CardHeader>
         <CardContent className="pt-6">
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -297,7 +297,7 @@ export function MultiSampleAnalysis({
                       {drivers.map(driver => (
                         <div key={`${driver.sampleCode}-${driver.attribute}`} className="flex items-center justify-between gap-3 text-sm">
                           <span className="text-slate-700">{driver.attribute}</span>
-                          <span className="font-semibold text-slate-950">{percent(driver.share)}</span>
+                          <span className="font-semibold text-slate-900">{percent(driver.share)}</span>
                         </div>
                       ))}
                     </div>

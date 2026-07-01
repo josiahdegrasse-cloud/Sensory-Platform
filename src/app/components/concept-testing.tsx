@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import {
@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { insertConceptTest } from '../lib/database';
 import { detectFoodType } from '../lib/food-intelligence';
+import { workflowStagePath } from '../lib/project-journey-routes';
+import { useAuth } from '../contexts/auth-context';
 import {
   useConceptGenerationSettings,
   useConceptLabDiagnostics,
@@ -41,6 +43,7 @@ const makeEmptyDraft = (promptStyle: string = 'balanced'): ConceptDraft => ({
   description: '',
   marketingImages: [],
   marketingImageIds: [],
+  marketingImageReviews: [],
   targetMarket: '',
   targetOccasion: '',
   productAppearance: '',
@@ -91,6 +94,11 @@ const STEP_LABELS: Record<WizardStep, string> = {
 export function ConceptTesting() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { projectId: routeProjectId } = useParams<{ projectId?: string }>();
+  const { user } = useAuth();
+  // Scope the autosaved draft per user + project so drafts never leak across
+  // projects or between users sharing a browser.
+  const draftStorageKey = `${DRAFT_STORAGE_KEY}:${user?.id ?? 'anon'}:${routeProjectId ?? 'standalone'}`;
   const [step, setStep] = useState<WizardStep>('concept');
   const [draft, setDraft] = useState<ConceptDraft>(() => makeEmptyDraft());
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -115,7 +123,14 @@ export function ConceptTesting() {
   const stepIndex = STEPS.indexOf(activeWizardStep);
 
   const detection = detectFoodType(draft.category, draft.name, draft.description);
-  const { items: readinessItems } = getConceptReadiness({ draft, questions, assignedPanelistIds, panelists });
+  const requireApprovedVisuals = Boolean(workspaceSettings?.conceptRequireApproval);
+  const { items: readinessItems } = getConceptReadiness({
+    draft,
+    questions,
+    assignedPanelistIds,
+    panelists,
+    requireApprovedVisuals,
+  });
   const launchReady = readinessItems.every(item => item.ready);
   const conceptStepReady = readinessItems.filter(item => item.fixStep === 'concept').every(item => item.ready);
   const visualsStepReady = readinessItems.filter(item => item.fixStep === 'visuals').every(item => item.ready);
@@ -147,6 +162,7 @@ export function ConceptTesting() {
         category: seed.category?.trim() || emptyDraft.category,
         description: seed.description?.trim() || emptyDraft.description,
       };
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time seed from route state on mount
       setDraft(seededDraft);
       setQuestions(buildTailoredConceptQuestions(seededDraft));
       setQuestionsReviewState('draft');
@@ -155,12 +171,12 @@ export function ConceptTesting() {
       setSourceDecision(seed.sourceDecision ?? null);
       smartDefaultsApplied.current = false;
       setDraftNotice(`Started from the confirmed GO decision for "${seed.name}". A draft survey and panel defaults are ready for review.`);
-      localStorage.removeItem(DRAFT_STORAGE_KEY);
+      localStorage.removeItem(draftStorageKey);
       return;
     }
 
     try {
-      const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+      const raw = localStorage.getItem(draftStorageKey);
       if (raw) {
         const saved = JSON.parse(raw) as StoredConceptDraft;
         if (saved?.draft) {
@@ -177,7 +193,7 @@ export function ConceptTesting() {
         }
       }
     } catch {
-      localStorage.removeItem(DRAFT_STORAGE_KEY);
+      localStorage.removeItem(draftStorageKey);
     }
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -192,6 +208,7 @@ export function ConceptTesting() {
 
   useEffect(() => {
     if (!draftHasWork && workspaceSettings?.defaultPanelSize) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- default panel size from async workspace settings
       setPanelSize(workspaceSettings.defaultPanelSize);
     }
   }, [draftHasWork, workspaceSettings?.defaultPanelSize]);
@@ -209,11 +226,11 @@ export function ConceptTesting() {
         sourceDecision,
         savedAt: new Date().toISOString(),
       };
-      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
+      localStorage.setItem(draftStorageKey, JSON.stringify(payload));
       setSaveState('saved');
     }, 400);
     return () => window.clearTimeout(timeout);
-  }, [assignedPanelistIds, draft, draftHasWork, panelSize, questions, questionsReviewState, segments, sourceDecision, step]);
+  }, [assignedPanelistIds, draft, draftHasWork, draftStorageKey, panelSize, questions, questionsReviewState, segments, sourceDecision, step]);
 
   const resetForm = () => {
     setStep('concept');
@@ -241,6 +258,15 @@ export function ConceptTesting() {
     setLaunching(true);
     setLaunchError('');
     try {
+      const visualApprovalNotes = draft.marketingImages
+        .map((url, index) => ({ url, review: draft.marketingImageReviews[index] }))
+        .filter(entry => entry.url.trim())
+        .map((entry, index) => {
+          const status = entry.review?.status ?? 'selected';
+          const note = entry.review?.notes?.trim();
+          return `Visual ${index + 1}: ${status}${note ? ` — ${note}` : ''}`;
+        })
+        .join('\n');
       await insertConceptTest({
         name: draft.name,
         category: draft.category,
@@ -255,11 +281,13 @@ export function ConceptTesting() {
         assignedPanelistIds,
         projectName: draft.projectName,
         foodTypeSlug: detection.slug,
-        approvalNotes: draft.approvalStatus === 'approved' ? 'Approved in Concept Lab before launch.' : '',
+        approvalNotes: requireApprovedVisuals
+          ? `All selected concept visuals were approved in Concept Lab before launch.${visualApprovalNotes ? `\n${visualApprovalNotes}` : ''}`
+          : draft.approvalStatus === 'approved' ? `Approved in Concept Lab before launch.${visualApprovalNotes ? `\n${visualApprovalNotes}` : ''}` : '',
         status: 'active',
         variantDimensions: draft.variantDimensions as unknown as Record<string, string | null>,
       });
-      localStorage.removeItem(DRAFT_STORAGE_KEY);
+      localStorage.removeItem(draftStorageKey);
       setStep('launched');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -289,12 +317,12 @@ export function ConceptTesting() {
           <Button variant="outline" onClick={resetForm}>
             New concept test
           </Button>
-          <Button variant="outline" onClick={() => navigate('/survey-analysis')}>
+          <Button variant="outline" onClick={() => navigate(workflowStagePath('insights', routeProjectId))}>
             View insights
           </Button>
           <Button
             className="bg-emerald-600 hover:bg-emerald-700 text-white"
-            onClick={() => navigate('/decision', { state: { openReport: true } })}
+            onClick={() => navigate(workflowStagePath('decision', routeProjectId), { state: { openReport: true } })}
           >
             Prepare commercialization report
           </Button>
@@ -305,7 +333,7 @@ export function ConceptTesting() {
 
   const saveStatus = (
     <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-500" aria-live="polite">
-      <CheckCircle2 className={`size-3.5 ${saveState === 'saved' ? 'text-emerald-600' : 'text-slate-400'}`} />
+      <CheckCircle2 className={`size-3.5 ${saveState === 'saved' ? 'text-emerald-600' : 'text-slate-500'}`} />
       {saveState === 'saved' ? 'Draft saved' : 'Autosaves'}
     </span>
   );
@@ -372,7 +400,7 @@ export function ConceptTesting() {
             </div>
           </div>
           <Button asChild size="sm" variant="outline" className="shrink-0 border-emerald-300 text-emerald-800 hover:bg-emerald-100">
-            <Link to="/decision">
+            <Link to={workflowStagePath('decision', routeProjectId)}>
               <Gauge className="size-4" />
               View source decision
             </Link>
@@ -412,7 +440,12 @@ export function ConceptTesting() {
             <ConceptStep draft={draft} onChange={setDraft} />
           )}
           {step === 'visuals' && (
-            <ImagesStep draft={draft} onChange={setDraft} settings={settings} />
+            <ImagesStep
+              draft={draft}
+              onChange={setDraft}
+              settings={settings}
+              requireApproval={requireApprovedVisuals}
+            />
           )}
           {step === 'survey' && (
             <QuestionsStep
@@ -440,6 +473,7 @@ export function ConceptTesting() {
               panelSize={panelSize}
               segments={segments}
               assignedPanelistIds={assignedPanelistIds}
+              requireApprovedVisuals={requireApprovedVisuals}
               onEditConcept={() => setStep('concept')}
               onEditVisuals={() => setStep('visuals')}
               onEditSurvey={() => setStep('survey')}

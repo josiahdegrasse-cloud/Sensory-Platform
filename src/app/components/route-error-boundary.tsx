@@ -16,10 +16,10 @@ export function RouteErrorBoundary() {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
       <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-        <div className="mx-auto flex size-11 items-center justify-center rounded-full bg-slate-100 text-slate-700">
+        <div className="mx-auto flex size-11 items-center justify-center rounded-full bg-slate-50 text-slate-700">
           <AlertTriangle className="size-5" />
         </div>
-        <h1 className="mt-4 text-xl font-bold text-slate-950">
+        <h1 className="mt-4 text-xl font-bold text-slate-900">
           {isChunkLoadError ? 'The app was updated' : 'Something went wrong'}
         </h1>
         <p className="mt-2 text-sm leading-6 text-slate-500">

@@ -39,6 +39,67 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_access_requests: {
+        Row: {
+          id: string
+          org_id: string
+          requested_at: string
+          requester_email: string
+          requester_id: string
+          requester_name: string
+          resolution_note: string
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          requested_at?: string
+          requester_email: string
+          requester_id: string
+          requester_name?: string
+          resolution_note?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          requested_at?: string
+          requester_email?: string
+          requester_id?: string
+          requester_name?: string
+          resolution_note?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_access_requests_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_access_requests_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_access_requests_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_events: {
         Row: {
           actor_id: string | null
@@ -2129,6 +2190,18 @@ export type Database = {
           p_manual_code?: string
           p_token?: string
         }
+        Returns: undefined
+      }
+      request_admin_access: {
+        Args: never
+        Returns: {
+          org_id: string
+          request_id: string
+          request_status: string
+        }[]
+      }
+      resolve_admin_access_request: {
+        Args: { decision: string; note?: string; target_request_id: string }
         Returns: undefined
       }
       set_food_type_status: {

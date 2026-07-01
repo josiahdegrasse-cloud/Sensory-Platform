@@ -13,7 +13,7 @@ import { DecisionLog } from "./decision-log";
 import { useAuth } from "../contexts/auth-context";
 import { insertDecisionRecord } from "../lib/database";
 import { formatFoodTypeLabel } from "../lib/food-intelligence";
-import { queryKeys, useDecisionRecords, useInstrumentalDataset, useProducts, useWorkspaceSettings } from "../lib/hooks";
+import { queryKeys, useDecisionRecords, useImportBatches, useInstrumentalDataset, useProducts, useWorkspaceSettings } from "../lib/hooks";
 import { useSurveyData } from "../lib/use-survey-data";
 import { calculateGoStopTweakDecision, type GoStopTweakDecision } from "../utils/go-stop-tweak-engine";
 import { assessSampleWorkflow } from "../lib/workflow-readiness";
@@ -45,6 +45,7 @@ export function Stage4Enhanced() {
   const { user } = useAuth();
   const { foodType, subCategory, extraFoodTypes } = useFoodType();
   const { data: instrumentalDataset } = useInstrumentalDataset(user?.role === 'admin');
+  const { data: importBatches = [] } = useImportBatches();
   const { data: products = [] } = useProducts();
   const { data: workspaceSettings } = useWorkspaceSettings();
   const { data: decisionRecords = [] } = useDecisionRecords();
@@ -52,7 +53,6 @@ export function Stage4Enhanced() {
   const selectedBatchId = parseBatchSelection(subCategory);
   const [selectedSample, setSelectedSample] = useState<string>("");
   const [showAuditTrail, setShowAuditTrail] = useState(false);
-  const [logRefreshKey, setLogRefreshKey] = useState(0);
   const [confirmPending, setConfirmPending] = useState(false);
   const [decisionSaving, setDecisionSaving] = useState(false);
   const [decisionError, setDecisionError] = useState("");
@@ -75,6 +75,9 @@ export function Stage4Enhanced() {
     () => new Set(projectInstrumentSamples.map(sample => sample.sampleId)),
     [projectInstrumentSamples],
   );
+  const selectedProjectId = selectedBatchId
+    ? importBatches.find(batch => batch.id === selectedBatchId)?.projectId ?? null
+    : null;
   const reportOptions = (decisions: SampleDecision[]) => ({
     foodType: formatFoodTypeLabel(foodType),
     decisions,
@@ -99,7 +102,14 @@ export function Stage4Enhanced() {
   const importedReadiness = useMemo(() => (
     projectInstrumentSamples
       .map(sample => {
-        const product = products.find(item => item.sourceSampleId === sample.sampleId);
+        const product = products.find(item =>
+          item.sourceSampleId === sample.sampleId &&
+          (
+            !selectedBatchId ||
+            item.sourceImportBatchId === selectedBatchId ||
+            (selectedProjectId ? item.projectId === selectedProjectId : false)
+          )
+        );
         const aggregation = liveAggregations.find(item => item.sourceSampleId === sample.sampleId);
         return assessSampleWorkflow({
           sample,
@@ -110,7 +120,7 @@ export function Stage4Enhanced() {
           hasComposition: Boolean(instrumentalDataset?.compositionData[sample.sampleId]),
         });
       })
-  ), [instrumentalDataset, liveAggregations, minimumResponses, products, projectInstrumentSamples]);
+  ), [instrumentalDataset, liveAggregations, minimumResponses, products, projectInstrumentSamples, selectedBatchId, selectedProjectId]);
 
   const liveSensoryData = useMemo<EnhancedSensoryProfile[]>(() => {
     const activeTypes = new Set(extraFoodTypes);
@@ -203,7 +213,7 @@ export function Stage4Enhanced() {
       ? activeProducts.length
       : activeProducts.filter(product =>
           matchFoodType(product.category) === foodType &&
-          (!selectedBatchId || product.sourceImportBatchId === selectedBatchId)
+          (!selectedBatchId || product.sourceImportBatchId === selectedBatchId || (selectedProjectId ? product.projectId === selectedProjectId : false))
         ).length;
 
     return (
@@ -222,7 +232,7 @@ export function Stage4Enhanced() {
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold text-slate-900">Create questionnaires from the imported data first</h2>
-                  <p className="mt-1 text-sm text-slate-600">
+                  <p className="mt-1 text-sm text-slate-700">
                     {activeLabel} is in the platform. The next step is turning those imported machine samples into panelist questionnaires, then ISSF can score the responses.
                   </p>
                 </div>
@@ -246,7 +256,7 @@ export function Stage4Enhanced() {
               {importedReadiness.length > 0 && (
                 <div className="mt-6 overflow-hidden rounded-lg border border-slate-200">
                   {importedReadiness.map(item => (
-                    <div key={item.sampleId} className="border-b border-slate-100 p-4 last:border-b-0">
+                    <div key={item.sampleId} className="border-b border-slate-200 p-4 last:border-b-0">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <div className="font-semibold text-slate-900">{item.sampleName}</div>
@@ -268,7 +278,7 @@ export function Stage4Enhanced() {
                                 ? 'bg-emerald-50 text-emerald-700'
                                 : stage.state === 'current'
                                   ? 'bg-blue-50 text-blue-700'
-                                  : 'bg-slate-100 text-slate-500'
+                                  : 'bg-slate-50 text-slate-500'
                             }`}
                           >
                             {stage.label}
@@ -276,7 +286,7 @@ export function Stage4Enhanced() {
                         ))}
                       </div>
                       {item.blockers.length > 0 && (
-                        <p className="mt-3 text-sm text-slate-600">{item.blockers[0]}</p>
+                        <p className="mt-3 text-sm text-slate-700">{item.blockers[0]}</p>
                       )}
                     </div>
                   ))}
@@ -432,7 +442,7 @@ export function Stage4Enhanced() {
               </span>
               <span className="text-xs font-semibold text-blue-700">Show details</span>
             </summary>
-            <div className="space-y-5 border-t border-slate-100 p-5">
+            <div className="space-y-5 border-t border-slate-200 p-5">
               <dl className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
                 <div>
                   <dt className="text-xs font-medium text-slate-500">Method version</dt>
@@ -454,7 +464,7 @@ export function Stage4Enhanced() {
               <Button type="button" variant="outline" size="sm" onClick={() => setShowAuditTrail(value => !value)}>
                 {showAuditTrail ? 'Hide decision history' : 'View decision history'}
               </Button>
-              {showAuditTrail && <DecisionLog refreshKey={logRefreshKey} />}
+              {showAuditTrail && <DecisionLog />}
             </div>
           </details>
         </>
@@ -488,7 +498,6 @@ export function Stage4Enhanced() {
               parentDecisionId: retestParentDecisionId,
             });
             await queryClient.invalidateQueries({ queryKey: queryKeys.decisionRecords });
-            setLogRefreshKey(key => key + 1);
             setConfirmedDecision({
               ...selected,
               decision: outcome,

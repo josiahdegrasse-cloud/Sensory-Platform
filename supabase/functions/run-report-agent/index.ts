@@ -6,7 +6,10 @@ type JsonSchema = Record<string, unknown>
 const ROLES = [
   'evidence_auditor',
   'calculation_auditor',
-  'scientific_skeptic',
+  'sensory_science_reviewer',
+  'instrumental_science_reviewer',
+  'consumer_insights_reviewer',
+  'claims_compliance_reviewer',
   'decision_consistency_auditor',
   'commercial_strategist',
   'action_plan_engineer',
@@ -14,6 +17,7 @@ const ROLES = [
   'editorial_reviewer',
   'client_red_team',
   'visual_qa_reviewer',
+  'conflict_resolver',
   'final_independent_judge',
 ] as const
 
@@ -48,6 +52,17 @@ const number = (minimum?: number, maximum?: number): JsonSchema => ({
 })
 const nullableString: JsonSchema = { type: ['string', 'null'] }
 const stringArray = array(string())
+const scienceReviewSchema = object({
+  criticalChallenges: array(object({
+    issue: string(),
+    severity: string(['warning', 'major', 'critical']),
+    evidenceIds: stringArray,
+    requiredCorrection: string(),
+  })),
+  alternativeInterpretations: stringArray,
+  missingMethodDisclosures: stringArray,
+  blockers: stringArray,
+})
 
 const OUTPUT_SCHEMAS: Record<ReportAgentRole, JsonSchema> = {
   evidence_auditor: object({
@@ -79,15 +94,41 @@ const OUTPUT_SCHEMAS: Record<ReportAgentRole, JsonSchema> = {
     blockers: stringArray,
     warnings: stringArray,
   }),
-  scientific_skeptic: object({
-    criticalChallenges: array(object({
+  sensory_science_reviewer: scienceReviewSchema,
+  instrumental_science_reviewer: scienceReviewSchema,
+  consumer_insights_reviewer: object({
+    insightThemes: array(object({
+      theme: string(),
+      signal: string(['strong', 'directional', 'weak', 'missing']),
+      evidenceIds: stringArray,
+      interpretation: string(),
+      limitations: stringArray,
+      requiredFollowUp: string(),
+    })),
+    overreachRisks: array(object({
       issue: string(),
-      severity: string(['warning', 'major', 'critical']),
+      severity: string(['minor', 'major', 'critical']),
       evidenceIds: stringArray,
       requiredCorrection: string(),
     })),
-    alternativeInterpretations: stringArray,
-    missingMethodDisclosures: stringArray,
+    panelLimitations: stringArray,
+    blockers: stringArray,
+    warnings: stringArray,
+  }),
+  claims_compliance_reviewer: object({
+    reviewedClaims: array(object({
+      claimId: string(),
+      category: string(['sensory', 'consumer', 'nutrition', 'health', 'comparative', 'natural_clean_label', 'sustainability', 'plant_based', 'commercial', 'other']),
+      riskLevel: string(['allowed', 'caution', 'blocked', 'legal_review']),
+      evidenceIds: stringArray,
+      permittedWording: string(),
+      prohibitedWording: stringArray,
+      requiredDisclaimer: nullableString,
+    })),
+    blockedClaims: stringArray,
+    requiredDisclaimers: stringArray,
+    legalReviewRequired: stringArray,
+    warnings: stringArray,
     blockers: stringArray,
   }),
   decision_consistency_auditor: object({
@@ -197,6 +238,19 @@ const OUTPUT_SCHEMAS: Record<ReportAgentRole, JsonSchema> = {
     blockers: stringArray,
     warnings: stringArray,
   }),
+  conflict_resolver: object({
+    resolutions: array(object({
+      conflictId: string(),
+      topic: string(),
+      selectedResolution: string(['allow', 'soften', 'remove', 'human_review']),
+      rationale: string(),
+      requiredFix: string(),
+      evidenceIds: stringArray,
+    })),
+    humanReviewRequired: stringArray,
+    warnings: stringArray,
+    blockers: stringArray,
+  }),
   final_independent_judge: object({
     categoryScores: object({
       decisionClarity: number(0, 100),
@@ -243,11 +297,29 @@ const ROLE_REGISTRY: Record<ReportAgentRole, {
     instruction: 'Reconcile displayed explanations with the deterministic calculation trace, including missing-data treatment, transformations, weights, thresholds, ISSF, confidence, and rounding. Do not recalculate or replace canonical values.',
     schema: OUTPUT_SCHEMAS.calculation_auditor,
   },
-  scientific_skeptic: {
+  sensory_science_reviewer: {
     temperature: 0.2,
     modelClass: 'premium',
-    instruction: 'Act as an adversarial food scientist, sensory scientist, statistician, and methodology reviewer. Find alternative explanations, overreach, design weaknesses, and missing disclosures. Do not improve prose.',
-    schema: OUTPUT_SCHEMAS.scientific_skeptic,
+    instruction: 'Act as an adversarial sensory scientist and panel-design reviewer. Challenge descriptor interpretation, liking claims, CATA interpretation, panel size, agreement, benchmark use, sample design, and sensory-method disclosures. Do not improve prose.',
+    schema: OUTPUT_SCHEMAS.sensory_science_reviewer,
+  },
+  instrumental_science_reviewer: {
+    temperature: 0.15,
+    modelClass: 'premium',
+    instruction: 'Act as an adversarial instrumental food-science reviewer. Challenge GC-MS, E-tongue, composition, analytical alignment, benchmark interpretation, missing instrumental controls, and unsupported mechanism claims. Do not improve prose.',
+    schema: OUTPUT_SCHEMAS.instrumental_science_reviewer,
+  },
+  consumer_insights_reviewer: {
+    temperature: 0.2,
+    modelClass: 'standard',
+    instruction: 'Review consumer and concept evidence only. Separate actual panel signals from hypotheses, identify overread purchase-intent language, summarize meaningful insight themes, and specify validation needed before market claims.',
+    schema: OUTPUT_SCHEMAS.consumer_insights_reviewer,
+  },
+  claims_compliance_reviewer: {
+    temperature: 0.05,
+    modelClass: 'standard',
+    instruction: 'Classify sensory, consumer, nutrition, health, comparative, natural, sustainability, plant-based, and commercial claims for external-use risk. Require cautious wording, disclaimers, legal review, or removal when evidence is insufficient.',
+    schema: OUTPUT_SCHEMAS.claims_compliance_reviewer,
   },
   decision_consistency_auditor: {
     temperature: 0,
@@ -290,6 +362,12 @@ const ROLE_REGISTRY: Record<ReportAgentRole, {
     modelClass: 'standard',
     instruction: 'Inspect the supplied rendered-page records as visual evidence. Detect clipping, overlap, broken glyphs, unreadable tables, density, weak hierarchy, missing warnings, misleading badges, and duplicate pages.',
     schema: OUTPUT_SCHEMAS.visual_qa_reviewer,
+  },
+  conflict_resolver: {
+    temperature: 0,
+    modelClass: 'standard',
+    instruction: 'Resolve conflicts among specialist agents conservatively. If evidence, science, claims, or decision agents disagree, choose the safer release path: soften, remove, or require human review. Do not create new claims.',
+    schema: OUTPUT_SCHEMAS.conflict_resolver,
   },
   final_independent_judge: {
     temperature: 0,

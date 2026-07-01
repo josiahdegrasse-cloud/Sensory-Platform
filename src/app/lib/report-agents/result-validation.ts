@@ -19,7 +19,10 @@ const PROTECTED_OUTPUT_KEYS = new Set([
 const REQUIRED_ARRAYS: Partial<Record<ReportAgentRole, string[]>> = {
   evidence_auditor: ['claims', 'blockers', 'warnings'],
   calculation_auditor: ['verifiedCalculations', 'unexplainedCalculations', 'numericalConflicts', 'blockers', 'warnings'],
-  scientific_skeptic: ['criticalChallenges', 'alternativeInterpretations', 'missingMethodDisclosures', 'blockers'],
+  sensory_science_reviewer: ['criticalChallenges', 'alternativeInterpretations', 'missingMethodDisclosures', 'blockers'],
+  instrumental_science_reviewer: ['criticalChallenges', 'alternativeInterpretations', 'missingMethodDisclosures', 'blockers'],
+  consumer_insights_reviewer: ['insightThemes', 'overreachRisks', 'panelLimitations', 'blockers', 'warnings'],
+  claims_compliance_reviewer: ['reviewedClaims', 'blockedClaims', 'requiredDisclaimers', 'legalReviewRequired', 'warnings', 'blockers'],
   decision_consistency_auditor: ['decisionStatements', 'blockers', 'warnings'],
   commercial_strategist: ['supportedCommercialConclusions', 'reasonsToBelieve', 'conceptTestObjectives', 'prohibitedExternalClaims'],
   action_plan_engineer: ['immediateActions', 'laterActions', 'readinessGaps'],
@@ -27,6 +30,7 @@ const REQUIRED_ARRAYS: Partial<Record<ReportAgentRole, string[]>> = {
   editorial_reviewer: ['revisedSections', 'unresolvedIssues', 'blockers'],
   client_red_team: ['trustRisks', 'likelyClientQuestions', 'ambiguousStatements'],
   visual_qa_reviewer: ['pageResults', 'blockers', 'warnings'],
+  conflict_resolver: ['resolutions', 'humanReviewRequired', 'warnings', 'blockers'],
   final_independent_judge: ['appliedCaps', 'blockers'],
 };
 
@@ -98,6 +102,16 @@ export function validateAgentResult<R extends ReportAgentRole>(input: {
     const unknownClaims = output.claims.filter(claim => !knownClaims.has(claim.claimId));
     if (unknownClaims.length > 0) {
       throw new Error(`evidence_auditor returned unknown claim id(s): ${unknownClaims.map(claim => claim.claimId).join(', ')}.`);
+    }
+  }
+
+  if (input.role === 'claims_compliance_reviewer') {
+    const packet = input.packet as ReportAgentPacketMap['claims_compliance_reviewer'];
+    const knownClaims = new Set(packet.claims.map(claim => claim.claimId));
+    const output = input.output as unknown as ReportAgentOutputMap['claims_compliance_reviewer'];
+    const unknownClaims = output.reviewedClaims.filter(claim => !knownClaims.has(claim.claimId));
+    if (unknownClaims.length > 0) {
+      throw new Error(`claims_compliance_reviewer returned unknown claim id(s): ${unknownClaims.map(claim => claim.claimId).join(', ')}.`);
     }
   }
 

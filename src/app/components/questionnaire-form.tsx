@@ -230,34 +230,34 @@ export function QuestionnaireForm() {
         <Card className="border border-slate-200 bg-white">
           <CardHeader>
             <CardTitle className="text-2xl">Before You Begin: {displayName}</CardTitle>
-            <p className="text-slate-600 mt-1">A quick guide to the scales you'll use in this evaluation</p>
+            <p className="text-slate-700 mt-1">A quick guide to the scales you'll use in this evaluation</p>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
                 <div className="font-bold text-slate-900 mb-2">Step 1 — Flavor Attributes</div>
-                <p className="text-sm text-slate-600 mb-3">Check every attribute you can perceive in the sample. There are no right or wrong answers.</p>
+                <p className="text-sm text-slate-700 mb-3">Check every attribute you can perceive in the sample. There are no right or wrong answers.</p>
                 <div className="flex gap-2 flex-wrap">
                   {['Creamy', 'Nutty', 'Salty'].map(a => (
                     <span key={a} className="px-2 py-1 bg-white border border-slate-200 text-slate-700 rounded text-xs font-medium">{a}</span>
                   ))}
-                  <span className="text-xs text-slate-400 self-center">etc.</span>
+                  <span className="text-xs text-slate-500 self-center">etc.</span>
                 </div>
               </div>
               <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
                 <div className="font-bold text-slate-900 mb-2">Steps 2 & 3 — Rating Scales</div>
-                <p className="text-sm text-slate-600 mb-3">Intensity and liking use a <strong>1–9 scale</strong>. Left end is lowest, right end is highest.</p>
+                <p className="text-sm text-slate-700 mb-3">Intensity and liking use a <strong>1–9 scale</strong>. Left end is lowest, right end is highest.</p>
                 <div className="space-y-2">
                   <div>
                     <div className="text-xs font-medium text-slate-500 mb-1">Intensity example (1–9):</div>
-                    <div className="flex justify-between text-xs text-slate-600">
+                    <div className="flex justify-between text-xs text-slate-700">
                       <span>1 = Not present</span><span>9 = Extremely intense</span>
                     </div>
                     <div className="w-full bg-slate-200 rounded-full h-2 mt-1"><div className="bg-slate-700 h-2 rounded-full w-1/2" /></div>
                   </div>
                   <div>
                     <div className="text-xs font-medium text-slate-500 mb-1">Liking example (1–9):</div>
-                    <div className="flex justify-between text-xs text-slate-600">
+                    <div className="flex justify-between text-xs text-slate-700">
                       <span>1 = Dislike</span><span>9 = Like</span>
                     </div>
                     <div className="w-full bg-slate-200 rounded-full h-2 mt-1"><div className="bg-slate-700 h-2 rounded-full w-8/9" /></div>
@@ -266,11 +266,11 @@ export function QuestionnaireForm() {
               </div>
               <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
                 <div className="font-bold text-slate-900 mb-2">Step 4 — Emotions</div>
-                <p className="text-sm text-slate-600 mb-3">Rate how strongly you feel each emotion <em>right now</em>, after tasting.</p>
-                <div className="flex justify-between text-xs text-slate-600 mb-1">
+                <p className="text-sm text-slate-700 mb-3">Rate how strongly you feel each emotion <em>right now</em>, after tasting.</p>
+                <div className="flex justify-between text-xs text-slate-700 mb-1">
                   <span>1 = Not at all</span><span>9 = Very strongly</span>
                 </div>
-                <p className="text-xs text-slate-400 mt-2">Higher = you feel it more strongly. This applies to both positive and negative emotions.</p>
+                <p className="text-xs text-slate-500 mt-2">Higher = you feel it more strongly. This applies to both positive and negative emotions.</p>
               </div>
             </div>
             <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-sm text-slate-700">
@@ -304,7 +304,7 @@ export function QuestionnaireForm() {
   if (product.status === 'completed') {
     return (
       <div className="max-w-4xl mx-auto">
-        <Card className="border-2 border-slate-300 bg-slate-50">
+        <Card className="border-2 border-slate-200 bg-slate-50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-slate-700">
               <AlertCircle className="size-6 text-slate-500" />
@@ -340,7 +340,7 @@ export function QuestionnaireForm() {
             <p className="text-slate-700 mb-2">
               Thank you for completing the evaluation for <strong>{displayName}</strong>.
             </p>
-            <p className="text-sm text-slate-600">Redirecting to dashboard...</p>
+            <p className="text-sm text-slate-700">Redirecting to dashboard...</p>
           </CardContent>
         </Card>
       </div>
@@ -357,7 +357,7 @@ export function QuestionnaireForm() {
           <div className="flex items-start justify-between gap-4 mb-4">
             <div>
               <CardTitle className="text-2xl">Product Evaluation</CardTitle>
-              <div className="space-y-1 text-sm text-slate-600 mt-2">
+              <div className="space-y-1 text-sm text-slate-700 mt-2">
                 <p><strong>{product.blinded ? 'Sample' : 'Product'}:</strong> {displayName}</p>
                 <p><strong>Your ID:</strong> {user?.panelistId}</p>
               </div>
@@ -366,12 +366,12 @@ export function QuestionnaireForm() {
                 <div className="text-2xl font-bold text-slate-900 sm:text-3xl">
                 {currentStep}/{totalSteps}
               </div>
-              <div className="text-xs text-slate-600 mt-1">Steps</div>
+              <div className="text-xs text-slate-700 mt-1">Steps</div>
             </div>
           </div>
           <div className="space-y-2">
             <Progress value={progressPercent} className="h-2" />
-            <div className="text-xs text-slate-600 text-center">
+            <div className="text-xs text-slate-700 text-center">
               {currentStep === 1 && 'CATA Attributes'}
               {currentStep === 2 && 'Intensity Ratings'}
               {currentStep === 3 && 'Hedonic Scores'}
@@ -383,7 +383,7 @@ export function QuestionnaireForm() {
       </Card>
 
       {alreadyCompleted && currentStep === 1 && (
-        <Alert className="border-slate-300 bg-slate-50">
+        <Alert className="border-slate-200 bg-slate-50">
           <Edit2 className="size-4" />
           <AlertDescription>
             You completed this evaluation on{' '}
@@ -418,7 +418,7 @@ export function QuestionnaireForm() {
         <Card>
           <CardHeader>
             <CardTitle>Step 1: Flavor & Aroma Attributes (CATA)</CardTitle>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-slate-700">
               Select ALL attributes that you perceive in this sample. Hover over any attribute for its definition.
             </p>
           </CardHeader>
@@ -441,7 +441,7 @@ export function QuestionnaireForm() {
               ))}
             </div>
             <div className="mt-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-slate-700">
                 <strong>Selected:</strong> {formData.selectedCata.length} attributes
               </p>
             </div>
@@ -454,10 +454,10 @@ export function QuestionnaireForm() {
         <Card>
           <CardHeader>
             <CardTitle>Step 2: Intensity Ratings</CardTitle>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-slate-700">
               Rate how intense each attribute is. These are the attributes you selected in Step 1.
             </p>
-            <div className="mt-2 flex justify-between text-xs text-slate-400 bg-slate-50 rounded px-3 py-1.5">
+            <div className="mt-2 flex justify-between text-xs text-slate-500 bg-slate-50 rounded px-3 py-1.5">
               <span>Scale: 1 = Not present</span><span>5 = Extremely intense</span>
             </div>
           </CardHeader>
@@ -509,10 +509,10 @@ export function QuestionnaireForm() {
         <Card>
           <CardHeader>
             <CardTitle>Step 3: Overall Liking</CardTitle>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-slate-700">
               Rate how much you like or dislike each aspect of the product.
             </p>
-            <div className="mt-2 flex justify-between text-xs text-slate-400 bg-slate-50 rounded px-3 py-1.5">
+            <div className="mt-2 flex justify-between text-xs text-slate-500 bg-slate-50 rounded px-3 py-1.5">
               <span>Scale: 1 = Dislike extremely</span><span>9 = Like extremely</span>
             </div>
           </CardHeader>
@@ -556,10 +556,10 @@ export function QuestionnaireForm() {
         <Card>
           <CardHeader>
             <CardTitle>Step 4: Emotional Response</CardTitle>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-slate-700">
               Rate how strongly you feel each emotion <strong>right now</strong>, after tasting this product.
             </p>
-            <div className="mt-2 flex justify-between text-xs text-slate-400 bg-slate-50 rounded px-3 py-1.5">
+            <div className="mt-2 flex justify-between text-xs text-slate-500 bg-slate-50 rounded px-3 py-1.5">
               <span>1 = Not at all</span><span>9 = Very strongly</span>
             </div>
             <p className="text-xs text-amber-700 bg-amber-50 rounded px-3 py-1.5 mt-1">
@@ -627,7 +627,7 @@ export function QuestionnaireForm() {
                         style={sliderFill(formData.emotions[emotion] ?? SLIDER_MIDPOINT, SLIDER_MIN, SLIDER_MAX, '#e11d48')}
                         className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-rose-600"
                       />
-                      <div className="flex justify-between text-xs text-slate-400">
+                      <div className="flex justify-between text-xs text-slate-500">
                         <span>1 — Not at all</span><span>9 — Very strongly</span>
                       </div>
                     </div>
@@ -648,7 +648,7 @@ export function QuestionnaireForm() {
                 <CheckCircle2 className="size-6 text-emerald-600" />
                 Step 5: Review Your Responses
               </CardTitle>
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-slate-700">
                 Please review your answers. Click on any section number to go back and make changes.
               </p>
             </CardHeader>
@@ -659,17 +659,17 @@ export function QuestionnaireForm() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center text-sm font-bold">1</span>
+                  <span className="w-8 h-8 rounded-full bg-slate-50 text-slate-700 flex items-center justify-center text-sm font-bold">1</span>
                   CATA Attributes
                 </CardTitle>
-                <Edit2 className="size-4 text-slate-400" />
+                <Edit2 className="size-4 text-slate-500" />
               </div>
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-2">
                 {formData.selectedCata.length > 0 ? (
                   formData.selectedCata.map(attr => (
-                    <span key={attr} className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-sm">
+                    <span key={attr} className="px-3 py-1 bg-slate-50 text-slate-700 rounded-full text-sm">
                       {attr}
                     </span>
                   ))
@@ -685,10 +685,10 @@ export function QuestionnaireForm() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center text-sm font-bold">2</span>
+                  <span className="w-8 h-8 rounded-full bg-slate-50 text-slate-700 flex items-center justify-center text-sm font-bold">2</span>
                   Intensity Ratings
                 </CardTitle>
-                <Edit2 className="size-4 text-slate-400" />
+                <Edit2 className="size-4 text-slate-500" />
               </div>
             </CardHeader>
             <CardContent>
@@ -710,10 +710,10 @@ export function QuestionnaireForm() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center text-sm font-bold">3</span>
+                  <span className="w-8 h-8 rounded-full bg-slate-50 text-slate-700 flex items-center justify-center text-sm font-bold">3</span>
                   Hedonic Scores
                 </CardTitle>
-                <Edit2 className="size-4 text-slate-400" />
+                <Edit2 className="size-4 text-slate-500" />
               </div>
             </CardHeader>
             <CardContent>
@@ -736,7 +736,7 @@ export function QuestionnaireForm() {
                   <span className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-sm font-bold">4</span>
                   Emotional Response
                 </CardTitle>
-                <Edit2 className="size-4 text-slate-400" />
+                <Edit2 className="size-4 text-slate-500" />
               </div>
             </CardHeader>
             <CardContent>
@@ -771,14 +771,14 @@ export function QuestionnaireForm() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <span className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-sm font-bold">5</span>
-                Additional Comments <span className="text-sm font-normal text-slate-400">(optional)</span>
+                <span className="w-8 h-8 rounded-full bg-slate-50 text-slate-700 flex items-center justify-center text-sm font-bold">5</span>
+                Additional Comments <span className="text-sm font-normal text-slate-500">(optional)</span>
               </CardTitle>
               <p className="text-sm text-slate-500">Anything else you'd like to share about this product? Explain your ratings or describe anything not captured above.</p>
             </CardHeader>
             <CardContent>
               <textarea
-                className="w-full border border-slate-200 rounded-lg p-3 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full border border-slate-200 rounded-lg p-3 text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
                 rows={4}
                 maxLength={2000}
                 placeholder="e.g. The texture was unusual compared to what I expected, or the coconut note was very subtle at first but grew stronger..."

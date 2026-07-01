@@ -45,7 +45,7 @@ export function QuestionnaireDescription() {
       <Card className="border border-slate-200 bg-white">
         <CardHeader>
           <CardTitle className="text-2xl">Questionnaire Information</CardTitle>
-          <div className="space-y-1 text-sm text-slate-600">
+          <div className="space-y-1 text-sm text-slate-700">
             <p><strong>{product.blinded ? 'Sample' : 'Product'}:</strong> {displayName}</p>
             <p><strong>Category:</strong> {categoryLabel}</p>
             <p><strong>Your Panelist ID:</strong> {user?.panelistId}</p>
@@ -72,7 +72,7 @@ export function QuestionnaireDescription() {
               <div className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold flex-shrink-0">1</div>
               <div>
                 <h4 className="font-bold text-slate-900">Flavor & Aroma Attributes (CATA)</h4>
-                <p className="text-sm text-slate-600 mt-1">
+                <p className="text-sm text-slate-700 mt-1">
                   Check all flavor and aroma attributes you perceive in the sample. Select as many as apply.
                 </p>
               </div>
@@ -82,7 +82,7 @@ export function QuestionnaireDescription() {
               <div className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold flex-shrink-0">2</div>
               <div>
                 <h4 className="font-bold text-slate-900">Intensity Ratings</h4>
-                <p className="text-sm text-slate-600 mt-1">
+                <p className="text-sm text-slate-700 mt-1">
                   Rate the intensity of key attributes on a scale from 1 (not present) to 5 (extremely intense).
                 </p>
               </div>
@@ -92,7 +92,7 @@ export function QuestionnaireDescription() {
               <div className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold flex-shrink-0">3</div>
               <div>
                 <h4 className="font-bold text-slate-900">Hedonic Scores</h4>
-                <p className="text-sm text-slate-600 mt-1">
+                <p className="text-sm text-slate-700 mt-1">
                   Rate how much you like or dislike the overall product and specific aspects (appearance, aroma, flavor, texture).
                 </p>
               </div>
@@ -102,7 +102,7 @@ export function QuestionnaireDescription() {
               <div className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold flex-shrink-0">4</div>
               <div>
                 <h4 className="font-bold text-slate-900">Emotional Response</h4>
-                <p className="text-sm text-slate-600 mt-1">
+                <p className="text-sm text-slate-700 mt-1">
                   Indicate which emotions you experience when tasting this product, and how strongly you feel them.
                 </p>
               </div>

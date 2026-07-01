@@ -41,7 +41,7 @@ function StudyQualityCard({ score }: { score: StudyQualityScore }) {
         <div className="flex items-start gap-4">
           <div className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 min-w-[4.5rem]">
             <span className={`text-3xl font-bold tabular-nums ${ring}`}>{pct}</span>
-            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">/100</span>
+            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">/100</span>
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-slate-900">Study readiness</p>
@@ -56,10 +56,10 @@ function StudyQualityCard({ score }: { score: StudyQualityScore }) {
                 const fill = sub >= 19 ? 'bg-emerald-500' : sub >= 12 ? 'bg-amber-500' : 'bg-rose-400';
                 return (
                   <div key={key} className="space-y-1">
-                    <div className="h-1.5 w-full rounded-full bg-slate-100">
+                    <div className="h-1.5 w-full rounded-full bg-slate-50">
                       <div className={`h-1.5 rounded-full ${fill}`} style={{ width: `${(sub / 25) * 100}%` }} />
                     </div>
-                    <p className="text-[10px] text-slate-500">{SUB_LABELS[key]} <span className="font-semibold text-slate-700">{sub}/25</span></p>
+                    <p className="text-[11px] text-slate-500">{SUB_LABELS[key]} <span className="font-semibold text-slate-700">{sub}/25</span></p>
                   </div>
                 );
               })}
@@ -115,12 +115,27 @@ const OPTION_LABELS: Record<string, string> = {
   bottle: 'Bottle', sleeve: 'Sleeve', tray: 'Tray', tube: 'Tube',
 };
 
+function visualStatusClasses(status: string | undefined) {
+  if (status === 'approved') return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+  if (status === 'rejected') return 'border-rose-200 bg-rose-50 text-rose-800';
+  if (status === 'selected') return 'border-blue-200 bg-blue-50 text-blue-800';
+  return 'border-slate-200 bg-slate-50 text-slate-700';
+}
+
+function visualStatusLabel(status: string | undefined) {
+  if (status === 'approved') return 'Approved';
+  if (status === 'rejected') return 'Rejected';
+  if (status === 'selected') return 'Selected';
+  return 'Draft';
+}
+
 export function ReviewStep({
   draft,
   questions,
   panelSize,
   segments,
   assignedPanelistIds,
+  requireApprovedVisuals,
   onEditConcept,
   onEditVisuals,
   onEditSurvey,
@@ -131,6 +146,7 @@ export function ReviewStep({
   panelSize: number;
   segments: string[];
   assignedPanelistIds: string[];
+  requireApprovedVisuals: boolean;
   onEditConcept: () => void;
   onEditVisuals: () => void;
   onEditSurvey: () => void;
@@ -141,9 +157,17 @@ export function ReviewStep({
   const { items: readiness, studyQuality } = getConceptReadiness({
     draft, questions, assignedPanelistIds, panelists,
     targetPanelSize: workspaceSettings?.defaultPanelSize,
+    requireApprovedVisuals,
   });
   const blockers = readiness.filter(item => !item.ready);
-  const selectedImages = draft.marketingImages.filter(image => image.trim());
+  const selectedImageEntries = draft.marketingImages
+    .map((image, index) => ({
+      image,
+      review: draft.marketingImageReviews[index],
+      originalIndex: index,
+    }))
+    .filter(entry => entry.image.trim());
+  const selectedImages = selectedImageEntries.map(entry => entry.image);
   const estimatedDuration = formatSurveyDuration(estimateSurveySeconds(questions));
   const assignedPanelists = assignedPanelistIds.map(id => {
     const panelist = panelists.find(candidate => candidate.id === id);
@@ -154,7 +178,9 @@ export function ReviewStep({
     <div className="space-y-5">
       <div>
         <h2 className="text-xl font-bold text-slate-900">Review & launch</h2>
-        <p className="text-slate-500 text-sm mt-1">Confirm everything looks right before sending to your panel.</p>
+        <p className="text-slate-500 text-sm mt-1">
+          Confirm the approved concept stimulus, survey, and panel before launch.
+        </p>
       </div>
 
       {blockers.length > 0 ? (
@@ -228,7 +254,7 @@ export function ReviewStep({
               <div><p className="text-xs font-semibold text-slate-500">Category</p><p className="text-sm text-slate-900">{draft.category || '(category not set)'}</p></div>
             </div>
             {draft.description && <p className="text-sm text-slate-700">{draft.description}</p>}
-            <div className="flex flex-wrap gap-3 text-xs text-slate-600">
+            <div className="flex flex-wrap gap-3 text-xs text-slate-700">
               {draft.targetMarket && <span><strong>Target:</strong> {draft.targetMarket}</span>}
               {draft.pricePoint && <span><strong>Price:</strong> {draft.pricePoint}</span>}
               {draft.keyBenefits && <span><strong>Benefits:</strong> {draft.keyBenefits}</span>}
@@ -246,9 +272,24 @@ export function ReviewStep({
           </AccordionTrigger>
           <AccordionContent>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {selectedImages.map((image, index) => (
-                <img key={`${image}-${index}`} src={image} alt={`Selected concept visual ${index + 1}`} className="aspect-square w-full rounded-lg border border-slate-200 object-cover" />
-              ))}
+              {selectedImageEntries.map(({ image, review, originalIndex }, index) => {
+                return (
+                  <div key={`${image}-${originalIndex}`} className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                    <img src={image} alt={`Selected concept visual ${index + 1}`} className="aspect-square w-full object-cover" />
+                    <div className="space-y-1.5 border-t border-slate-200 p-2">
+                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${visualStatusClasses(review?.status)}`}>
+                        {visualStatusLabel(review?.status)}
+                      </span>
+                      {requireApprovedVisuals && review?.status !== 'approved' && (
+                        <p className="text-[11px] leading-4 text-amber-700">Approval required before launch.</p>
+                      )}
+                      {review?.notes && (
+                        <p className="line-clamp-2 text-[11px] leading-4 text-slate-500">{review.notes}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </AccordionContent>
         </AccordionItem>
@@ -265,9 +306,9 @@ export function ReviewStep({
             <ol className="space-y-1.5">
               {questions.map((q, i) => (
                 <li key={q.id} className="flex items-start gap-2 text-sm">
-                  <span className="text-slate-400 font-bold w-5 flex-shrink-0">{i + 1}.</span>
-                  <span className="text-slate-700 line-clamp-1">{q.text || <em className="text-slate-400">Empty question</em>}</span>
-                  <span className={`ml-auto flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${CATEGORY_COLORS[q.category]}`}>{q.category}</span>
+                  <span className="text-slate-500 font-bold w-5 flex-shrink-0">{i + 1}.</span>
+                  <span className="text-slate-700 line-clamp-1">{q.text || <em className="text-slate-500">Empty question</em>}</span>
+                  <span className={`ml-auto flex-shrink-0 text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${CATEGORY_COLORS[q.category]}`}>{q.category}</span>
                 </li>
               ))}
             </ol>
@@ -295,7 +336,7 @@ export function ReviewStep({
             <p className="text-xs text-slate-500">Target panel size: {panelSize}. Access is limited to the named panelists above.</p>
             {segments.length > 0 && (
               <>
-                <p className="text-xs font-semibold text-slate-600">Segments noted for setup</p>
+                <p className="text-xs font-semibold text-slate-700">Segments noted for setup</p>
                 <div className="flex flex-wrap gap-2">
                   {segments.map(s => (
                     <Badge key={s} variant="outline" className="text-xs">{s}</Badge>
@@ -328,7 +369,7 @@ export function ReviewStep({
                         {OPTION_LABELS[val] ?? val}
                       </span>
                     ) : (
-                      <span className="text-xs text-slate-400 italic">Not specified</span>
+                      <span className="text-xs text-slate-500 italic">Not specified</span>
                     )}
                   </div>
                 );

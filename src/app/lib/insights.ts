@@ -102,9 +102,11 @@ export function filterProjectProducts(
   sampleIds: Set<string>,
   foodType: string,
   importBatchId: string | null,
+  projectId?: string | null,
 ) {
   return products.filter(product => {
     if (product.status === 'archived') return false;
+    if (projectId && product.projectId === projectId) return true;
     if (importBatchId) return product.sourceImportBatchId === importBatchId;
     if (product.sourceSampleId && sampleIds.has(product.sourceSampleId)) return true;
     return foodType === 'all' || matchFoodType(product.category) === foodType;

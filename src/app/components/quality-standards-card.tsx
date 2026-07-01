@@ -16,20 +16,20 @@ export function QualityStandardsCard({ compact = false }: QualityStandardsCardPr
             <div className="text-center">
               <CheckCircle2 className="size-5 text-emerald-600 mx-auto mb-1" />
               <div className="font-bold text-emerald-900">GO</div>
-              <div className="text-xs text-slate-600 mt-1">Hedonic ≥7.0</div>
-              <div className="text-xs text-slate-600">Emotion +2.0</div>
+              <div className="text-xs text-slate-700 mt-1">Hedonic ≥7.0</div>
+              <div className="text-xs text-slate-700">Emotion +2.0</div>
             </div>
             <div className="text-center">
               <AlertTriangle className="size-5 text-amber-600 mx-auto mb-1" />
               <div className="font-bold text-amber-900">TWEAK</div>
-              <div className="text-xs text-slate-600 mt-1">Hedonic 5.0-6.9</div>
-              <div className="text-xs text-slate-600">Emotion 0-1.9</div>
+              <div className="text-xs text-slate-700 mt-1">Hedonic 5.0-6.9</div>
+              <div className="text-xs text-slate-700">Emotion 0-1.9</div>
             </div>
             <div className="text-center">
               <XCircle className="size-5 text-rose-600 mx-auto mb-1" />
               <div className="font-bold text-rose-900">STOP</div>
-              <div className="text-xs text-slate-600 mt-1">Hedonic &lt;5.0</div>
-              <div className="text-xs text-slate-600">Defects detected</div>
+              <div className="text-xs text-slate-700 mt-1">Hedonic &lt;5.0</div>
+              <div className="text-xs text-slate-700">Defects detected</div>
             </div>
           </div>
         </CardContent>
@@ -44,7 +44,7 @@ export function QualityStandardsCard({ compact = false }: QualityStandardsCardPr
           <CheckCircle2 className="size-5 text-blue-600" />
           Quality Standards Reference
         </CardTitle>
-        <p className="text-xs text-slate-600">Decision criteria for GO / TWEAK / STOP outcomes</p>
+        <p className="text-xs text-slate-700">Decision criteria for GO / TWEAK / STOP outcomes</p>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">

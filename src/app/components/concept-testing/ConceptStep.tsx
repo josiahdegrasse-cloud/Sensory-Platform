@@ -31,7 +31,7 @@ function DimPicker<T extends string>({
               className={`rounded-full px-2.5 py-0.5 text-xs font-medium border transition-colors ${
                 active
                   ? 'bg-blue-600 border-blue-600 text-white'
-                  : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400 hover:text-blue-700'
+                  : 'bg-white border-slate-200 text-slate-700 hover:border-blue-400 hover:text-blue-700'
               }`}
             >
               {opt.label}
@@ -62,7 +62,7 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
 
       <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
         <div>
-          <h3 className="text-sm font-semibold text-slate-950">Product basics</h3>
+          <h3 className="text-sm font-semibold text-slate-900">Product basics</h3>
           <p className="mt-1 text-xs text-slate-500">These fields become the plain-language concept that consumers evaluate.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -91,7 +91,7 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
 
       <section className="space-y-4 rounded-lg border border-slate-200 bg-slate-50/50 p-4">
         <div>
-          <h3 className="text-sm font-semibold text-slate-950">Visual brief</h3>
+          <h3 className="text-sm font-semibold text-slate-900">Visual brief</h3>
           <p className="mt-1 text-xs leading-relaxed text-slate-500">
             Give AI enough concrete product and package detail to create usable options.
           </p>
@@ -298,7 +298,7 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
               className="resize-none"
             />
             <div className="flex items-start justify-between gap-3 rounded-md bg-slate-50 px-3 py-2">
-              <p className="text-xs text-slate-600">
+              <p className="text-xs text-slate-700">
                 Suggested {detection.label.toLowerCase()} cues: {profile.successMarkers.slice(0, 4).join(', ')}
               </p>
               <button
@@ -324,7 +324,7 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
               rows={2}
               className="resize-none"
             />
-            <p className="text-xs text-slate-400">Internal only.</p>
+            <p className="text-xs text-slate-500">Internal only.</p>
           </div>
         </CollapsibleContent>
       </Collapsible>

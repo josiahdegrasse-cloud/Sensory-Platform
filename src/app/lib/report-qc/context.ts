@@ -1,7 +1,7 @@
 import type { CommercializationReportSnapshot } from '../commercialization-report';
 import { formatDecisionDimension } from '../commercialization-report';
 import type { GoStopTweakDecision } from '../../utils/go-stop-tweak-engine';
-import { buildDecisionSemantics, determineReportStage, stageDecisionCode } from './stage';
+import { buildDecisionSemantics, determineReportStage } from './stage';
 import { buildMethodology, buildTextureBreakdown } from './methodology';
 import type {
   ApprovalStatus,
@@ -82,7 +82,6 @@ export function buildReportContext(input: BuildContextInput): ReportContext {
     approvalStatus: input.approvalStatus,
   };
   const stage = determineReportStage(stageInputs);
-  const code = stageDecisionCode(stageInputs);
 
   const dimensions = buildDimensions(snapshot, augmentation, readiness);
   const weakestDim = dimensions.find(d => d.score === weakest);

@@ -23,7 +23,7 @@ export function ConsentGate() {
   return (
     <div className="max-w-3xl mx-auto">
       <Card className="border-slate-200 shadow-sm">
-        <CardHeader className="border-b border-slate-100">
+        <CardHeader className="border-b border-slate-200">
           <div className="flex items-start gap-3">
             <div className="rounded-xl bg-slate-900 p-2.5 text-white">
               <ShieldCheck className="size-5" />
@@ -46,7 +46,7 @@ export function ConsentGate() {
             ].map(([title, body]) => (
               <div key={title} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                 <div className="text-sm font-semibold text-slate-900">{title}</div>
-                <p className="mt-1 text-xs leading-5 text-slate-600">{body}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-700">{body}</p>
               </div>
             ))}
           </div>

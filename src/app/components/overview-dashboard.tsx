@@ -29,7 +29,7 @@ function AttentionRail({ entries, onOpen }: {
     <div className="space-y-3">
       <h2 className="text-sm font-bold text-slate-900">
         Waiting on you
-        <span className="ml-2 text-xs font-normal text-slate-400">
+        <span className="ml-2 text-xs font-normal text-slate-500">
           {entries.length} project{entries.length === 1 ? '' : 's'} need{entries.length === 1 ? 's' : ''} a decision
         </span>
       </h2>
@@ -56,7 +56,7 @@ function ProjectTable({ entries, onOpen }: {
     <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
       <table className="w-full text-left text-xs">
         <thead>
-          <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wide text-slate-400">
+          <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wide text-slate-500">
             <th className="px-3 py-2 font-semibold">Project</th>
             <th className="px-3 py-2 font-semibold">Category</th>
             <th className="px-3 py-2 font-semibold">Workflow</th>
@@ -73,7 +73,7 @@ function ProjectTable({ entries, onOpen }: {
             return (
               <tr key={batch.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-3 py-2.5 font-bold text-slate-900">
-                  <Link to={projectRoutePath(batch)} onClick={() => onOpen(entry)} className="transition-colors hover:text-slate-950">
+                  <Link to={projectRoutePath(batch)} onClick={() => onOpen(entry)} className="transition-colors hover:text-slate-900">
                     {status.projectName}
                   </Link>
                 </td>
@@ -103,7 +103,7 @@ function ProjectTable({ entries, onOpen }: {
                 <td className="px-3 py-2.5 text-slate-500 capitalize">
                   {status.reportStatus === 'not-ready' ? '—' : status.reportStatus}
                 </td>
-                <td className="px-3 py-2.5 text-slate-400">{new Date(batch.createdAt).toLocaleDateString()}</td>
+                <td className="px-3 py-2.5 text-slate-500">{new Date(batch.createdAt).toLocaleDateString()}</td>
                 <td className="px-3 py-2.5">
                   <Link
                     to={status.nextAction.path}
@@ -175,7 +175,7 @@ function ProjectSectionHeader({ count }: { count: number }) {
   return (
     <div className="mb-4 flex items-center justify-between gap-4">
       <h2 className="text-lg font-bold text-slate-900">Live projects</h2>
-      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700">
         <span className={`size-2 rounded-full ${count > 0 ? 'bg-emerald-500' : 'bg-slate-300'}`} aria-hidden />
         {count} live
       </span>
@@ -198,7 +198,7 @@ export function OverviewDashboard() {
   const { data: workspaceSettings } = useWorkspaceSettings();
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
+    <div className="max-w-6xl mx-auto space-y-8">
       {/* Header — tenant identity, never a hardcoded client name */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
@@ -211,7 +211,7 @@ export function OverviewDashboard() {
         </div>
         <Link
           to="/stage1?new=project"
-          className="inline-flex items-center gap-1.5 rounded-md bg-[var(--brand)] px-3 py-2 text-xs font-bold text-white transition-colors hover:brightness-95"
+          className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-slate-800"
         >
           <Plus className="size-3.5" aria-hidden /> New project
         </Link>

@@ -59,7 +59,7 @@ export function AssignProjectControl({ batchId, foodTypeId, defaultName }: Assig
       <button
         type="button"
         onClick={() => { setOpen(true); setNewName(defaultName); }}
-        className="inline-flex items-center gap-1 rounded border border-slate-200 px-1.5 py-0.5 text-[11px] font-medium text-slate-600 hover:border-blue-300 hover:text-blue-700"
+        className="inline-flex items-center gap-1 rounded border border-slate-200 px-1.5 py-0.5 text-[11px] font-medium text-slate-700 hover:border-blue-300 hover:text-blue-700"
       >
         <FolderPlus className="size-3" aria-hidden /> Assign project
       </button>
@@ -69,8 +69,8 @@ export function AssignProjectControl({ batchId, foodTypeId, defaultName }: Assig
   return (
     <div className="mt-1 w-full max-w-md rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
       <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Assign to a project</span>
-        <button type="button" onClick={() => { setOpen(false); setError(''); }} className="text-slate-400 hover:text-slate-700" aria-label="Cancel">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Assign to a project</span>
+        <button type="button" onClick={() => { setOpen(false); setError(''); }} className="text-slate-500 hover:text-slate-700" aria-label="Cancel">
           <X className="size-3.5" />
         </button>
       </div>
@@ -104,7 +104,7 @@ export function AssignProjectControl({ batchId, foodTypeId, defaultName }: Assig
           <Check className="size-3.5" />
         </Button>
       </div>
-      <p className="mt-1 text-[10px] text-slate-400">Pick an existing project above, or type a name to create a new one.</p>
+      <p className="mt-1 text-[11px] text-slate-500">Pick an existing project above, or type a name to create a new one.</p>
       {error && <p className="mt-1 text-[11px] font-semibold text-rose-600">{error}</p>}
     </div>
   );

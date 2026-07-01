@@ -46,12 +46,33 @@ export const REPORT_AGENT_DEFINITIONS: Record<ReportAgentRole, ReportAgentDefini
     false,
     'Review the explanation of deterministic calculations. Reconcile every displayed value against the supplied calculation trace, including missing-data treatment, normalization, weights, thresholds, ISSF, confidence, and rounding.',
   ),
-  scientific_skeptic: definition(
-    'scientific_skeptic',
-    'Scientific Skeptic',
+  sensory_science_reviewer: definition(
+    'sensory_science_reviewer',
+    'Sensory Science Reviewer',
     0.2,
     true,
-    'Act as an adversarial food scientist, sensory scientist, statistician, and methods reviewer. Find alternative explanations, overreach, sample-design weaknesses, unjustified thresholds, and missing disclosures. Do not improve prose.',
+    'Act as an adversarial sensory scientist and panel-design reviewer. Challenge descriptor interpretation, liking claims, CATA interpretation, panel size, agreement, benchmark use, sample design, and sensory-method disclosures. Do not improve prose.',
+  ),
+  instrumental_science_reviewer: definition(
+    'instrumental_science_reviewer',
+    'Instrumental Science Reviewer',
+    0.15,
+    true,
+    'Act as an adversarial instrumental food-science reviewer. Challenge GC-MS, E-tongue, composition, analytical alignment, benchmark interpretation, missing instrumental controls, and unsupported mechanism claims. Do not improve prose.',
+  ),
+  consumer_insights_reviewer: definition(
+    'consumer_insights_reviewer',
+    'Consumer Insights Reviewer',
+    0.2,
+    true,
+    'Review consumer and concept evidence only. Separate actual panel signals from hypotheses, identify overread purchase-intent language, summarize meaningful insight themes, and specify validation needed before market claims.',
+  ),
+  claims_compliance_reviewer: definition(
+    'claims_compliance_reviewer',
+    'Claims Compliance Reviewer',
+    0.05,
+    true,
+    'Classify sensory, consumer, nutrition, health, comparative, natural, sustainability, plant-based, and commercial claims for external-use risk. Require cautious wording, disclaimers, legal review, or removal when evidence is insufficient.',
   ),
   decision_consistency_auditor: definition(
     'decision_consistency_auditor',
@@ -102,6 +123,13 @@ export const REPORT_AGENT_DEFINITIONS: Record<ReportAgentRole, ReportAgentDefini
     true,
     'Inspect every supplied rendered page image as a visual document. Detect clipping, overlap, broken glyphs, unreadable tables, density, weak hierarchy, missing warnings, misleading badges, duplicate pages, and database-export appearance.',
   ),
+  conflict_resolver: definition(
+    'conflict_resolver',
+    'Conflict Resolver',
+    0,
+    true,
+    'Resolve conflicts among specialist agents conservatively. If evidence, science, claims, or decision agents disagree, choose the safer release path: soften, remove, or require human review. Do not create new claims.',
+  ),
   final_independent_judge: definition(
     'final_independent_judge',
     'Final Independent Judge',
@@ -114,7 +142,10 @@ export const REPORT_AGENT_DEFINITIONS: Record<ReportAgentRole, ReportAgentDefini
 export const INITIAL_AUDIT_ROLES: ReportAgentRole[] = [
   'evidence_auditor',
   'calculation_auditor',
-  'scientific_skeptic',
+  'sensory_science_reviewer',
+  'instrumental_science_reviewer',
+  'consumer_insights_reviewer',
+  'claims_compliance_reviewer',
   'decision_consistency_auditor',
 ];
 
@@ -128,5 +159,6 @@ export const FINAL_SEQUENCE_ROLES: ReportAgentRole[] = [
   'editorial_reviewer',
   'visual_qa_reviewer',
   'client_red_team',
+  'conflict_resolver',
   'final_independent_judge',
 ];

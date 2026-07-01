@@ -173,7 +173,7 @@ function ImportQueueItem({
           )}
 
           {preview && (
-            <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-600">
+            <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-700">
               <span>{preview.rowCount} rows</span>
               <span className="text-slate-300">·</span>
               <span className="text-emerald-700">{preview.recognized.length} recognised</span>
@@ -199,7 +199,7 @@ function ImportQueueItem({
           {preview && (
             <button
               onClick={() => setExpanded(prev => !prev)}
-              className="p-1 text-slate-400 hover:text-slate-600"
+              className="p-1 text-slate-500 hover:text-slate-700"
               title={expanded ? 'Collapse' : 'Show columns'}
             >
               {expanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
@@ -232,7 +232,7 @@ function ImportQueueItem({
 
           <button
             onClick={() => { setRejecting(true); setConfirmError(null); }}
-            className="p-1 text-slate-400 hover:text-rose-600"
+            className="p-1 text-slate-500 hover:text-rose-600"
             title="Dismiss"
           >
             <X className="size-4" />
@@ -274,7 +274,7 @@ function ImportQueueItem({
             value={rejectReason}
             onChange={e => setRejectReason(e.target.value)}
             placeholder="Reason for dismissing (optional)"
-            className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-slate-400 bg-white"
+            className="w-full rounded border border-slate-200 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-slate-400 bg-white"
           />
           <div className="flex gap-2">
             <Button
@@ -388,7 +388,7 @@ export function PendingImportsQueue() {
                 size="sm"
                 variant="outline"
                 onClick={() => setDriveOpen(true)}
-                title="Pull CSVs from the connected Google Drive folder"
+                title="Pull CSV files and Google Sheets from the connected Google Drive folder"
               >
                 <HardDrive className="size-3.5 mr-1.5" />
                 Sync from Drive
@@ -413,7 +413,7 @@ export function PendingImportsQueue() {
             onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
-            className={`rounded-lg border-2 border-dashed py-2 text-center text-xs text-slate-400 transition-colors ${
+            className={`rounded-lg border-2 border-dashed py-2 text-center text-xs text-slate-500 transition-colors ${
               isDragging ? 'border-blue-400 bg-blue-50 text-blue-600' : 'border-slate-200'
             }`}
           >

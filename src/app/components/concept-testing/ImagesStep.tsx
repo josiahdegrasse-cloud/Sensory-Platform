@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { Textarea } from '../ui/textarea';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { StageEmptyState } from '../stage-empty-state';
 import { DataProvenanceBadge } from '../data-provenance-badge';
@@ -19,8 +20,10 @@ import {
   Plus, RefreshCw, ShieldCheck, Sparkles, Trash2,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { updateConceptImageReviewStatus } from '../../lib/database';
 import { detectFoodType, getFoodTypeProfile } from '../../lib/food-intelligence';
 import type { ConceptGenerationSettings } from '../../lib/db/concepts';
+import { useAuth } from '../../contexts/auth-context';
 import {
   getConceptImageMode,
   getPromptStyle,
@@ -30,7 +33,12 @@ import {
   buildConceptImageBrief,
   buildConceptImagePrompt,
 } from '../../../../supabase/functions/_shared/concept-image-prompt.ts';
-import type { ConceptDraft } from './types';
+import type {
+  ConceptDraft,
+  ConceptVisualQaKey,
+  ConceptVisualReview,
+  ConceptVisualReviewStatus,
+} from './types';
 import { ImageDirectionPanel, type ImageGenerationOptions } from './ImageDirectionPanel';
 
 interface CandidateImage {
@@ -41,6 +49,48 @@ interface CandidateImage {
   promptStyle?: string;
   summary?: string;
   revisedPrompt?: string;
+  reviewStatus: ConceptVisualReviewStatus;
+  qa: Partial<Record<ConceptVisualQaKey, boolean>>;
+  reviewNotes: string;
+  reviewError?: string;
+  reviewing?: boolean;
+}
+
+const QA_ITEMS: Array<{ key: ConceptVisualQaKey; label: string }> = [
+  { key: 'packBelievability', label: 'Product and pack form are physically believable.' },
+  { key: 'foodRealism', label: 'Food texture looks appetizing and realistic.' },
+  { key: 'claimSafety', label: 'No fake claims, badges, QR codes, certifications, or dense AI text.' },
+  { key: 'audienceFit', label: 'Visual fits the target customer and occasion.' },
+  { key: 'panelistReady', label: 'Safe and clear enough for panelist stimulus use.' },
+  { key: 'buyerDeckReady', label: 'Strong enough for a buyer or internal review deck.' },
+];
+
+function emptyReview(imageId = '', source: ConceptVisualReview['source'] = 'external'): ConceptVisualReview {
+  return {
+    imageId,
+    source,
+    status: 'selected',
+    qa: {},
+    notes: '',
+  };
+}
+
+function statusLabel(status: ConceptVisualReviewStatus) {
+  if (status === 'approved') return 'Approved';
+  if (status === 'rejected') return 'Rejected';
+  if (status === 'selected') return 'Selected';
+  return 'Draft';
+}
+
+function statusClasses(status: ConceptVisualReviewStatus) {
+  if (status === 'approved') return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+  if (status === 'rejected') return 'border-rose-200 bg-rose-50 text-rose-800';
+  if (status === 'selected') return 'border-blue-200 bg-blue-50 text-blue-800';
+  return 'border-slate-200 bg-slate-50 text-slate-700';
+}
+
+function qaComplete(qa: Partial<Record<ConceptVisualQaKey, boolean>>) {
+  return QA_ITEMS.every(item => qa[item.key]);
 }
 
 const isValidImageUrl = (u: string) =>
@@ -88,13 +138,13 @@ function AIGovernancePanel({
     <div className="rounded-lg border border-slate-200 bg-white p-3">
       <div className="flex items-center gap-2">
         <ShieldCheck className="size-4 text-slate-500" />
-        <p className="text-xs font-semibold text-slate-800">AI governance</p>
+        <p className="text-xs font-semibold text-slate-700">AI governance</p>
       </div>
-      <div className="mt-3 grid gap-2 text-[11px] leading-4 text-slate-600 sm:grid-cols-2 lg:grid-cols-4">
-        <span><strong className="text-slate-800">Model:</strong> {model ?? 'gpt-image-1.5'}</span>
-        <span><strong className="text-slate-800">Quality:</strong> {quality}</span>
-        <span><strong className="text-slate-800">Approval:</strong> AI draft, admin review required</span>
-        <span><strong className="text-slate-800">Prompt trace:</strong> {promptTraceCount}/{candidates.length} saved</span>
+      <div className="mt-3 grid gap-2 text-[11px] leading-4 text-slate-700 sm:grid-cols-2 lg:grid-cols-4">
+        <span><strong className="text-slate-700">Model:</strong> {model ?? 'gpt-image-1.5'}</span>
+        <span><strong className="text-slate-700">Quality:</strong> {quality}</span>
+        <span><strong className="text-slate-700">Approval:</strong> AI draft, admin review required</span>
+        <span><strong className="text-slate-700">Prompt trace:</strong> {promptTraceCount}/{candidates.length} saved</span>
       </div>
       <p className="mt-2 text-[11px] text-slate-500">
         {selectedCount > 0
@@ -109,11 +159,14 @@ export function ImagesStep({
   draft,
   onChange,
   settings,
+  requireApproval,
 }: {
   draft: ConceptDraft;
   onChange: (d: ConceptDraft) => void;
   settings?: ConceptGenerationSettings;
+  requireApproval: boolean;
 }) {
+  const { user } = useAuth();
   const maxImages = Math.max(1, settings?.maxImagesPerConcept ?? 4);
   const estimatedCostPerImage = settings?.estimatedCostPerImage ?? 0.034;
   const [options, setOptions] = useState<ImageGenerationOptions>(() => ({
@@ -134,7 +187,16 @@ export function ImagesStep({
     [draft.category, draft.description, draft.name],
   );
   const profile = getFoodTypeProfile(detection.slug);
-  const validImages = draft.marketingImages.filter(u => u.trim() && isValidImageUrl(u));
+  const validImageEntries = draft.marketingImages
+    .map((url, index) => ({
+      url,
+      index,
+      id: draft.marketingImageIds[index] ?? '',
+      review: draft.marketingImageReviews[index] ?? emptyReview(draft.marketingImageIds[index] ?? ''),
+    }))
+    .filter(entry => entry.url.trim() && isValidImageUrl(entry.url));
+  const validImages = validImageEntries.map(entry => entry.url);
+  const approvedImageCount = validImageEntries.filter(entry => entry.review.status === 'approved').length;
   const canGenerate = !!(
     draft.name.trim()
     && draft.category.trim()
@@ -261,7 +323,13 @@ export function ImagesStep({
     const images = (data?.images ?? []) as Array<{
       id?: string; url: string; mode?: string; promptStyle?: string; summary?: string; revisedPrompt?: string;
     }>;
-    setAiCandidates(images.map((image) => ({ ...image, selected: true })));
+    setAiCandidates(images.map((image) => ({
+      ...image,
+      selected: true,
+      reviewStatus: 'draft',
+      qa: {},
+      reviewNotes: '',
+    })));
     if (images.length === 0) {
       setGenerationError('OpenAI returned no images. Try a more specific concept description.');
     }
@@ -270,16 +338,33 @@ export function ImagesStep({
 
   const addSelected = () => {
     const remainingSlots = Math.max(0, maxImages - validImages.length);
-    const selectedCandidates = aiCandidates.filter(c => c.selected && c.url).slice(0, remainingSlots);
+    const selectedCandidates = aiCandidates
+      .filter(c => c.selected && c.url && c.reviewStatus !== 'rejected')
+      .filter(c => !requireApproval || c.reviewStatus === 'approved')
+      .slice(0, remainingSlots);
     const toAdd = selectedCandidates.map(c => c.url);
     const imageIds = selectedCandidates.map(c => c.id ?? '');
     const existingPairs = draft.marketingImages
-      .map((url, index) => ({ url, id: draft.marketingImageIds[index] ?? '' }))
+      .map((url, index) => ({
+        url,
+        id: draft.marketingImageIds[index] ?? '',
+        review: draft.marketingImageReviews[index] ?? emptyReview(draft.marketingImageIds[index] ?? ''),
+      }))
       .filter(pair => pair.url.trim());
+    const newReviews: ConceptVisualReview[] = selectedCandidates.map(candidate => ({
+      imageId: candidate.id ?? '',
+      source: candidate.id ? 'ai' : 'external',
+      status: candidate.reviewStatus === 'approved' ? 'approved' : 'selected',
+      qa: candidate.qa,
+      notes: candidate.reviewNotes,
+      reviewedAt: candidate.reviewStatus === 'approved' ? new Date().toISOString() : undefined,
+      reviewedBy: candidate.reviewStatus === 'approved' ? user?.id : undefined,
+    }));
     onChange({
       ...draft,
       marketingImages: [...existingPairs.map(pair => pair.url), ...toAdd],
       marketingImageIds: [...existingPairs.map(pair => pair.id), ...imageIds],
+      marketingImageReviews: [...existingPairs.map(pair => pair.review), ...newReviews],
     });
     setAiCandidates([]);
   };
@@ -289,21 +374,91 @@ export function ImagesStep({
       ...draft,
       marketingImages: draft.marketingImages.filter((_, j) => j !== i),
       marketingImageIds: draft.marketingImageIds.filter((_, j) => j !== i),
+      marketingImageReviews: draft.marketingImageReviews.filter((_, j) => j !== i),
     });
+
+  const updateDraftImageReview = (imageIndex: number, patch: Partial<ConceptVisualReview>) => {
+    const nextReviews = draft.marketingImages.map((_, index) => ({
+      ...(draft.marketingImageReviews[index] ?? emptyReview(draft.marketingImageIds[index] ?? '')),
+      imageId: draft.marketingImageIds[index] ?? '',
+      source: draft.marketingImageIds[index] ? 'ai' as const : 'external' as const,
+    }));
+    nextReviews[imageIndex] = { ...nextReviews[imageIndex], ...patch };
+    onChange({ ...draft, marketingImageReviews: nextReviews });
+  };
+
+  const persistReview = async (
+    imageId: string,
+    status: ConceptVisualReviewStatus,
+    qa: Partial<Record<ConceptVisualQaKey, boolean>>,
+    notes: string,
+  ) => {
+    if (!imageId) return;
+    await updateConceptImageReviewStatus([imageId], status, {
+      qaSummary: qa,
+      notes,
+      reviewedBy: user?.id ?? null,
+      reviewedAt: new Date().toISOString(),
+    });
+  };
+
+  const reviewCandidate = async (candidateIndex: number, status: ConceptVisualReviewStatus) => {
+    const candidate = aiCandidates[candidateIndex];
+    if (!candidate) return;
+    setAiCandidates(prev => prev.map((item, index) => index === candidateIndex
+      ? { ...item, reviewing: true, reviewError: '' }
+      : item));
+    try {
+      await persistReview(candidate.id ?? '', status, candidate.qa, candidate.reviewNotes);
+      setAiCandidates(prev => prev.map((item, index) => index === candidateIndex
+        ? {
+          ...item,
+          reviewStatus: status,
+          selected: status === 'rejected' ? false : item.selected,
+          reviewing: false,
+        }
+        : item));
+    } catch (err) {
+      setAiCandidates(prev => prev.map((item, index) => index === candidateIndex
+        ? {
+          ...item,
+          reviewing: false,
+          reviewError: err instanceof Error ? err.message : 'Could not save image review.',
+        }
+        : item));
+    }
+  };
+
+  const reviewSelectedImage = async (imageIndex: number, status: ConceptVisualReviewStatus) => {
+    const review = draft.marketingImageReviews[imageIndex] ?? emptyReview(draft.marketingImageIds[imageIndex] ?? '');
+    updateDraftImageReview(imageIndex, {
+      status,
+      reviewedAt: new Date().toISOString(),
+      reviewedBy: user?.id,
+    });
+    try {
+      await persistReview(draft.marketingImageIds[imageIndex] ?? '', status, review.qa, review.notes);
+    } catch (err) {
+      updateDraftImageReview(imageIndex, {
+        status: review.status,
+        notes: `${review.notes}${review.notes ? '\n' : ''}Review save failed: ${err instanceof Error ? err.message : 'Could not save image review.'}`,
+      });
+    }
+  };
 
   const selectedVisualsSection = (
     <section className="rounded-lg border border-slate-200 bg-white">
-      <div className="flex flex-col gap-2 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-950">
+          <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
             <ImageIcon className="size-4 text-slate-500" /> Panelist visuals
           </h3>
           <p className="mt-0.5 text-xs text-slate-500">
-            These are the images consumers will actually see in the concept test.
+            These are the concept stimulus images panelists will actually see.
           </p>
         </div>
         {validImages.length > 0 ? (
-          <DataProvenanceBadge provenance="approved" n={validImages.length} />
+          <DataProvenanceBadge provenance={requireApproval && approvedImageCount < validImages.length ? 'ai-draft' : 'approved'} n={validImages.length} />
         ) : (
           <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">
             Required
@@ -314,8 +469,11 @@ export function ImagesStep({
       <div className="p-4">
         {validImages.length > 0 ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {validImages.map((url, i) => (
-              <div key={`${url}-${i}`} className="group relative overflow-hidden rounded-lg border border-slate-200 bg-white">
+            {validImageEntries.map(({ url, index, id, review }, i) => {
+              const complete = qaComplete(review.qa);
+              return (
+              <div key={`${url}-${index}`} className="group overflow-hidden rounded-lg border border-slate-200 bg-white">
+                <div className="relative">
                 <img
                   src={url}
                   alt={`Approved concept visual for ${draft.name || 'this concept'}, option ${i + 1}`}
@@ -323,17 +481,76 @@ export function ImagesStep({
                 />
                 <button
                   type="button"
-                  onClick={() => removeImage(draft.marketingImages.indexOf(url))}
+                  onClick={() => removeImage(index)}
                   className="absolute right-2 top-2 rounded-full bg-white/95 p-1 text-slate-500 opacity-0 shadow-sm transition-all hover:bg-rose-500 hover:text-white group-hover:opacity-100 focus:opacity-100"
                   aria-label={`Remove image ${i + 1}`}
                 >
                   <Trash2 className="size-3" />
                 </button>
-                <div className="border-t border-slate-100 bg-white px-2 py-2 text-center text-[11px] font-medium text-slate-500">
-                  Visual {i + 1} · selected for panelists
+                </div>
+                <div className="space-y-3 border-t border-slate-200 bg-white p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-medium text-slate-500">Visual {i + 1}</span>
+                    <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusClasses(review.status)}`}>
+                      {statusLabel(review.status)}
+                    </span>
+                  </div>
+                  {requireApproval && review.status !== 'approved' && (
+                    <p className="text-[11px] leading-4 text-amber-700">
+                      Approval required before this can launch.
+                    </p>
+                  )}
+                  <div className="space-y-1.5">
+                    {QA_ITEMS.map(item => (
+                      <label key={item.key} className="flex items-start gap-2 text-[11px] leading-4 text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(review.qa[item.key])}
+                          onChange={(event) => updateDraftImageReview(index, {
+                            qa: { ...review.qa, [item.key]: event.target.checked },
+                          })}
+                          className="mt-0.5"
+                        />
+                        <span>{item.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <Textarea
+                    value={review.notes}
+                    onChange={(event) => updateDraftImageReview(index, { notes: event.target.value })}
+                    placeholder="Reviewer note"
+                    className="min-h-16 text-xs"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={!complete}
+                      onClick={() => reviewSelectedImage(index, 'approved')}
+                      className="h-8 text-xs"
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => reviewSelectedImage(index, 'rejected')}
+                      className="h-8 border-rose-200 text-rose-700 hover:bg-rose-50"
+                    >
+                      Reject
+                    </Button>
+                    {id ? (
+                      <span className="self-center text-[11px] text-slate-500">AI provenance saved</span>
+                    ) : (
+                      <span className="self-center text-[11px] text-slate-500">External image</span>
+                    )}
+                  </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <StageEmptyState
@@ -345,7 +562,7 @@ export function ImagesStep({
 
         <Collapsible open={manualOpen} onOpenChange={setManualOpen} className="mt-4 rounded-lg border border-slate-200">
           <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left">
-            <span className="text-xs font-semibold text-slate-700">Add approved image URL</span>
+            <span className="text-xs font-semibold text-slate-700">Add external image URL</span>
             <ChevronDown className={`size-3.5 text-slate-500 transition-transform ${manualOpen ? 'rotate-180' : ''}`} />
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-3 border-t border-slate-200 p-3">
@@ -387,8 +604,9 @@ export function ImagesStep({
                 ...draft,
                 marketingImages: [...draft.marketingImages, ''],
                 marketingImageIds: [...draft.marketingImageIds, ''],
+                marketingImageReviews: [...draft.marketingImageReviews, emptyReview('', 'external')],
               })}
-              className="h-8 w-fit text-xs text-slate-600"
+              className="h-8 w-fit text-xs text-slate-700"
             >
               <Plus className="mr-1 size-3" /> Add URL
             </Button>
@@ -412,8 +630,8 @@ export function ImagesStep({
       {selectedVisualsSection}
 
       <section className="rounded-lg border border-slate-200 bg-white">
-        <div className="border-b border-slate-100 px-4 py-3">
-          <h3 className="text-sm font-semibold text-slate-950">Create visual options</h3>
+        <div className="border-b border-slate-200 px-4 py-3">
+          <h3 className="text-sm font-semibold text-slate-900">Create visual options</h3>
           <p className="mt-0.5 text-xs text-slate-500">
             Generate AI drafts from the approved brief, then add only credible options to the panelist set above.
           </p>
@@ -433,7 +651,7 @@ export function ImagesStep({
                 <p className="font-semibold text-slate-900">AI image generation</p>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {options.spreadModes
-                    ? `Generates ${options.count} distinct retail-ready formats, led by ${leadModeLabel.toLowerCase()}`
+                    ? `Generates ${options.count} distinct concept-visual formats, led by ${leadModeLabel.toLowerCase()}`
                     : `Generates ${options.count} ${leadModeLabel.toLowerCase()} variation${options.count > 1 ? 's' : ''}`}
                   {' '}into the {draft.projectName || 'Project 1'} folder.
                 </p>
@@ -477,11 +695,11 @@ export function ImagesStep({
 
           {(generating || aiCandidates.length > 0) && (
             <section className="rounded-lg border border-slate-200 bg-white">
-              <div className="flex flex-col gap-2 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-950">Generated drafts</h3>
+                  <h3 className="text-sm font-semibold text-slate-900">Generated drafts</h3>
                   <p className="mt-0.5 text-xs text-slate-500">
-                    Select the options that are believable enough to move into the panelist set.
+                    Review AI drafts before moving credible, approved options into the panelist stimulus set.
                   </p>
                 </div>
                 {!generating && aiCandidates.length > 0 && (
@@ -499,31 +717,99 @@ export function ImagesStep({
                     ))
                   : aiCandidates.map((candidate, i) => {
                       const modeLabel = getConceptImageMode(candidate.mode ?? options.mode).label;
+                      const complete = qaComplete(candidate.qa);
                       return (
-                        <button
+                        <div
                           key={`${candidate.url}-${i}`}
-                          type="button"
-                          onClick={() => setAiCandidates(prev => prev.map((x, j) => j === i ? { ...x, selected: !x.selected } : x))}
-                          aria-label={`${candidate.selected ? 'Deselect' : 'Select'} generated ${modeLabel} concept option ${i + 1} for ${draft.name}`}
-                          aria-pressed={candidate.selected}
-                          className={`relative aspect-square overflow-hidden rounded-lg border-2 transition-all ${
+                          className={`overflow-hidden rounded-lg border-2 bg-white transition-all ${
                             candidate.selected ? 'border-blue-500' : 'border-slate-200 opacity-65 hover:opacity-100'
                           }`}
                         >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (candidate.reviewStatus === 'rejected') return;
+                              setAiCandidates(prev => prev.map((x, j) => j === i ? { ...x, selected: !x.selected } : x));
+                            }}
+                            aria-label={`${candidate.selected ? 'Deselect' : 'Select'} generated ${modeLabel} concept option ${i + 1} for ${draft.name}`}
+                            aria-pressed={candidate.selected}
+                            className="relative block aspect-square w-full overflow-hidden"
+                          >
                           <img
                             src={candidate.url}
                             alt={`Generated ${modeLabel} concept for ${draft.name}, option ${i + 1}`}
                             className="h-full w-full object-cover"
                           />
                           <span className={`absolute top-2 right-2 flex size-6 items-center justify-center rounded-full border-2 shadow-sm ${
-                            candidate.selected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white/90 border-slate-300 text-transparent'
+                            candidate.selected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white/90 border-slate-200 text-transparent'
                           }`}>
                             <CheckCircle2 className="size-3.5" />
                           </span>
                           <span className="absolute bottom-2 left-2 rounded-md bg-slate-950/75 px-2 py-1 text-xs font-semibold text-white">
                             {modeLabel}
                           </span>
-                        </button>
+                          </button>
+                          <div className="space-y-3 border-t border-slate-200 p-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusClasses(candidate.reviewStatus)}`}>
+                                {statusLabel(candidate.reviewStatus)}
+                              </span>
+                              {candidate.revisedPrompt || candidate.summary ? (
+                                <span className="text-[11px] text-slate-500">Prompt trace saved</span>
+                              ) : null}
+                            </div>
+                            <div className="space-y-1.5">
+                              {QA_ITEMS.map(item => (
+                                <label key={item.key} className="flex items-start gap-2 text-[11px] leading-4 text-slate-700">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(candidate.qa[item.key])}
+                                    onChange={(event) => setAiCandidates(prev => prev.map((itemCandidate, index) => index === i
+                                      ? { ...itemCandidate, qa: { ...itemCandidate.qa, [item.key]: event.target.checked } }
+                                      : itemCandidate))}
+                                    className="mt-0.5"
+                                  />
+                                  <span>{item.label}</span>
+                                </label>
+                              ))}
+                            </div>
+                            <Textarea
+                              value={candidate.reviewNotes}
+                              onChange={(event) => setAiCandidates(prev => prev.map((itemCandidate, index) => index === i
+                                ? { ...itemCandidate, reviewNotes: event.target.value }
+                                : itemCandidate))}
+                              placeholder="Reviewer note"
+                              className="min-h-16 text-xs"
+                            />
+                            {candidate.reviewError && (
+                              <p className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1.5 text-[11px] text-rose-700">
+                                {candidate.reviewError}
+                              </p>
+                            )}
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={!complete || candidate.reviewing}
+                                onClick={() => reviewCandidate(i, 'approved')}
+                                className="h-8 text-xs"
+                              >
+                                {candidate.reviewing ? 'Saving...' : 'Approve'}
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={candidate.reviewing}
+                                onClick={() => reviewCandidate(i, 'rejected')}
+                                className="h-8 border-rose-200 text-rose-700 hover:bg-rose-50"
+                              >
+                                Reject
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
                       );
                     })}
                 </div>
@@ -544,18 +830,24 @@ export function ImagesStep({
                       type="button"
                       size="sm"
                       onClick={addSelected}
-                      disabled={!aiCandidates.some(c => c.selected && c.url) || validImages.length >= maxImages}
+                      disabled={
+                        !aiCandidates.some(c => c.selected && c.url && c.reviewStatus !== 'rejected' && (!requireApproval || c.reviewStatus === 'approved'))
+                        || validImages.length >= maxImages
+                      }
                       className="bg-blue-600 hover:bg-blue-700 text-white"
                     >
-                      Add {Math.min(aiCandidates.filter(c => c.selected && c.url).length, Math.max(0, maxImages - validImages.length))} to concept
+                      Add {Math.min(
+                        aiCandidates.filter(c => c.selected && c.url && c.reviewStatus !== 'rejected' && (!requireApproval || c.reviewStatus === 'approved')).length,
+                        Math.max(0, maxImages - validImages.length)
+                      )} to concept
                     </Button>
                   </div>
                 </div>
               )}
               {!generating && aiCandidates.length > 0 && (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-semibold text-slate-800">Marketing review checklist</p>
-                  <div className="mt-2 grid gap-2 text-[11px] leading-4 text-slate-600 sm:grid-cols-2 lg:grid-cols-4">
+                  <p className="text-xs font-semibold text-slate-700">Stimulus review checklist</p>
+                  <div className="mt-2 grid gap-2 text-[11px] leading-4 text-slate-700 sm:grid-cols-2 lg:grid-cols-4">
                     <span>Product and pack form are physically believable.</span>
                     <span>Food texture looks appetizing, not plastic or over-glossed.</span>
                     <span>No fake claims, badges, dense label copy, or warped text.</span>
@@ -602,7 +894,7 @@ export function ImagesStep({
                 {promptExpanded ? 'Hide full prompt' : 'View full prompt (advanced)'}
               </button>
               {promptExpanded && (
-                <p className="text-[11px] text-slate-600 leading-relaxed max-h-40 overflow-y-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2">
+                <p className="text-[11px] text-slate-700 leading-relaxed max-h-40 overflow-y-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2">
                   {preview.prompt}
                 </p>
               )}
@@ -610,26 +902,26 @@ export function ImagesStep({
           )}
           <dl className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
             <div className="flex items-center justify-between gap-4">
-              <dt className="text-slate-600">Images</dt>
+              <dt className="text-slate-700">Images</dt>
               <dd className="font-semibold text-slate-900">{options.count}</dd>
             </div>
             <div className="flex items-center justify-between gap-4">
-              <dt className="text-slate-600">Model / quality</dt>
+              <dt className="text-slate-700">Model / quality</dt>
               <dd className="font-semibold text-slate-900">{settings?.defaultModel ?? 'gpt-image-1.5'} · {options.quality}</dd>
             </div>
             <div className="flex items-center justify-between gap-4">
-              <dt className="text-slate-600">Estimated cost per image</dt>
+              <dt className="text-slate-700">Estimated cost per image</dt>
               <dd className="font-semibold text-slate-900">${estimatedCostPerImage.toFixed(3)}</dd>
             </div>
             <div className="flex items-center justify-between gap-4 border-t border-slate-200 pt-2">
-              <dt className="font-semibold text-slate-800">Estimated total</dt>
-              <dd className="font-bold text-slate-950">${estimatedCost.toFixed(2)}</dd>
+              <dt className="font-semibold text-slate-700">Estimated total</dt>
+              <dd className="font-bold text-slate-900">${estimatedCost.toFixed(2)}</dd>
             </div>
           </dl>
           <p className="text-xs text-slate-500">This is an estimate based on the workspace setting. Actual OpenAI billing may vary.</p>
           <AlertDialogFooter>
             <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
-            <AlertDialogAction type="button" onClick={handleGenerate} className="bg-blue-600 hover:bg-blue-700">
+            <AlertDialogAction type="button" onClick={handleGenerate} className="bg-slate-900 hover:bg-slate-800">
               Generate visuals
             </AlertDialogAction>
           </AlertDialogFooter>

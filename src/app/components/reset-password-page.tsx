@@ -31,13 +31,13 @@ export function ResetPasswordPage() {
   return (
     <div className="min-h-screen flex bg-white">
       <div className="hidden lg:flex lg:w-[46%] flex-col justify-between border-r border-slate-200 bg-slate-50 p-12">
-        <NfiBrandLockup markSize={44} textClassName="text-slate-800" />
+        <NfiBrandLockup markSize={44} textClassName="text-slate-700" />
         <div>
           <p className="mb-5 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Sensory Analysis Platform</p>
-          <h1 className="mb-6 max-w-[24rem] text-[2.65rem] font-bold leading-[1.08] tracking-[-0.02em] text-slate-950">
+          <h1 className="mb-6 max-w-[24rem] text-[2.65rem] font-bold leading-[1.08] tracking-[-0.02em] text-slate-900">
             Set a new password.
           </h1>
-          <p className="max-w-[23rem] text-base leading-7 text-slate-600">
+          <p className="max-w-[23rem] text-base leading-7 text-slate-700">
             Keep access to your sensory evidence, decisions, and commercialization reports protected.
           </p>
         </div>

@@ -37,6 +37,26 @@ export interface Question {
   category: 'appeal' | 'purchase' | 'price' | 'attributes' | 'demographics' | 'usage';
 }
 
+export type ConceptVisualReviewStatus = 'draft' | 'selected' | 'approved' | 'rejected';
+
+export type ConceptVisualQaKey =
+  | 'packBelievability'
+  | 'foodRealism'
+  | 'claimSafety'
+  | 'audienceFit'
+  | 'panelistReady'
+  | 'buyerDeckReady';
+
+export interface ConceptVisualReview {
+  imageId: string;
+  status: ConceptVisualReviewStatus;
+  qa: Partial<Record<ConceptVisualQaKey, boolean>>;
+  notes: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  source: 'ai' | 'external';
+}
+
 export interface ConceptDraft {
   name: string;
   category: string;
@@ -44,6 +64,7 @@ export interface ConceptDraft {
   description: string;
   marketingImages: string[];
   marketingImageIds: string[];
+  marketingImageReviews: ConceptVisualReview[];
   targetMarket: string;
   targetOccasion: string;
   productAppearance: string;

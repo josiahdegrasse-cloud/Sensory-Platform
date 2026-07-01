@@ -91,7 +91,7 @@ export function SurveyConfigurationSheet({
                   <Lock className="size-4 text-slate-700" aria-hidden />
                   Blind study codes
                 </h3>
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-slate-700">
                   Panelists see coded sample identities only. The internal product name, category, and labels remain visible to administrators.
                 </p>
                 {product.isMultiSample && product.samples?.length ? (
@@ -99,13 +99,13 @@ export function SurveyConfigurationSheet({
                     {product.samples.map(sample => (
                       <div key={sample.id} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
                         <span className="font-bold tracking-wider text-slate-900">{sample.code}</span>
-                        <span className="ml-2 text-slate-600">{sample.label}</span>
+                        <span className="ml-2 text-slate-700">{sample.label}</span>
                       </div>
                     ))}
                   </div>
                 ) : product.blindCode ? (
-                  <div className="inline-flex rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
-                    <span className="text-slate-600">Panelist sample code:</span>
+                  <div className="inline-flex rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <span className="text-slate-700">Panelist sample code:</span>
                     <span className="ml-2 font-bold tracking-wider text-slate-900">{product.blindCode}</span>
                   </div>
                 ) : null}
@@ -119,7 +119,7 @@ export function SurveyConfigurationSheet({
                     <Users className="size-4 text-blue-600" aria-hidden />
                     Panel assignment
                   </h3>
-                  <p className="mt-1 text-sm text-slate-600">{assignment.label}</p>
+                  <p className="mt-1 text-sm text-slate-700">{assignment.label}</p>
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" onClick={onAssignAll} disabled={panelists.length === 0 || saving}>
@@ -141,7 +141,7 @@ export function SurveyConfigurationSheet({
               )}
 
               {panelists.length === 0 ? (
-                <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-600">
+                <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-700">
                   No active panelists are available.
                 </p>
               ) : (
@@ -169,7 +169,7 @@ export function SurveyConfigurationSheet({
             <section className="space-y-4 border-t border-slate-200 pt-5" aria-labelledby="survey-attributes-heading">
               <div>
                 <h3 id="survey-attributes-heading" className="text-sm font-semibold text-slate-900">Survey attributes</h3>
-                <p className="mt-1 text-sm text-slate-600">Select the sensory cues included in this questionnaire.</p>
+                <p className="mt-1 text-sm text-slate-700">Select the sensory cues included in this questionnaire.</p>
               </div>
 
               <div className="space-y-1.5">
@@ -232,7 +232,7 @@ export function SurveyConfigurationSheet({
         )}
 
         <div className="border-t border-slate-200 bg-white px-6 py-4">
-          <Button onClick={onSaveAttributes} disabled={!product || saving} className="w-full bg-blue-600 hover:bg-blue-700">
+          <Button onClick={onSaveAttributes} disabled={!product || saving} className="w-full">
             <Save className="mr-2 size-4" aria-hidden />
             {saving ? 'Saving...' : 'Save survey attributes'}
           </Button>

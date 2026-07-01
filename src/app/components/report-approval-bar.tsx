@@ -57,14 +57,14 @@ export function ReportApprovalBar({ report, blockedReason }: {
         </div>
         <div className="flex items-center gap-2">
           {report.status === 'draft' && (
-            <Button size="sm" disabled={busy} onClick={() => setReportStatus('review')} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Button size="sm" disabled={busy} onClick={() => setReportStatus('review')}>
               <Eye className="size-3.5 mr-1.5" aria-hidden />
               Submit for review
             </Button>
           )}
           {report.status === 'review' && (
             <>
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => setReportStatus('draft')} className="text-slate-600">
+              <Button size="sm" variant="ghost" disabled={busy} onClick={() => setReportStatus('draft')} className="text-slate-700">
                 <Undo2 className="size-3.5 mr-1.5" aria-hidden />
                 Return to draft
               </Button>
@@ -81,7 +81,7 @@ export function ReportApprovalBar({ report, blockedReason }: {
             </>
           )}
           {report.status === 'approved' && (
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => setReportStatus('draft')} className="text-slate-600">
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => setReportStatus('draft')} className="text-slate-700">
               <Undo2 className="size-3.5 mr-1.5" aria-hidden />
               Reopen as draft
             </Button>

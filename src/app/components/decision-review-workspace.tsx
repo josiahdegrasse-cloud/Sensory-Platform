@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { AlertTriangle, Check, CheckCircle2, ClipboardCheck, ShieldAlert, Upload, X } from 'lucide-react';
 import { Link } from 'react-router';
 import { buildDecisionSummary } from '../lib/decision-summary';
@@ -29,6 +30,10 @@ const OUTCOME_STYLE = {
     text: 'text-rose-950',
   },
 };
+
+// Prototype list order: strongest launch candidates first (GO → TWEAK → STOP),
+// matching the STOP < TWEAK < GO decision scale; ties break on ISSF score.
+const DECISION_RANK: Record<GoStopTweakDecision['decision'], number> = { GO: 0, TWEAK: 1, STOP: 2 };
 
 const STATUS_STYLE: Record<GateStatus, string> = {
   pass: 'bg-emerald-50 text-emerald-700',
@@ -120,7 +125,7 @@ function ThresholdTrack({ score, stopThreshold, goThreshold }: {
           <p className="text-sm font-semibold text-slate-900">Decision threshold</p>
           <p className="mt-0.5 text-xs text-slate-500">{distance}</p>
         </div>
-        <p className="text-2xl font-bold tabular-nums text-slate-950">{score.toFixed(1)}</p>
+        <p className="text-2xl font-bold tabular-nums text-slate-900">{score.toFixed(1)}</p>
       </div>
       <div className="relative pt-3">
         <div className="flex h-2 overflow-hidden rounded-full">
@@ -159,6 +164,12 @@ export function DecisionReviewWorkspace({
   onSelect: (sampleId: string) => void;
   onConfirm: () => void;
 }) {
+  const orderedDecisions = useMemo(
+    () => [...decisions].sort(
+      (a, b) => DECISION_RANK[a.decision] - DECISION_RANK[b.decision] || b.issfScore - a.issfScore,
+    ),
+    [decisions],
+  );
   const summary = buildDecisionSummary(selected);
   const outcomeStyle = OUTCOME_STYLE[selected.decision];
   const criteria = decisionCriteria(selected);
@@ -182,9 +193,9 @@ export function DecisionReviewWorkspace({
           id="decision-prototype"
           value={selected.sampleId}
           onChange={event => onSelect(event.target.value)}
-          className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 lg:hidden"
+          className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 lg:hidden"
         >
-          {decisions.map(decision => (
+          {orderedDecisions.map(decision => (
             <option key={decision.sampleId} value={decision.sampleId}>
               {decision.sampleName} · {decision.decision} · {decision.issfScore.toFixed(0)}
             </option>
@@ -197,7 +208,7 @@ export function DecisionReviewWorkspace({
           className="hidden lg:block"
           listLabel="Decision prototypes"
         >
-            {decisions.map(decision => {
+            {orderedDecisions.map(decision => {
               const active = decision.sampleId === selected.sampleId;
               const badgeClass = OUTCOME_STYLE[decision.decision].badge;
               return (
@@ -208,7 +219,7 @@ export function DecisionReviewWorkspace({
                   title={decision.sampleName}
                   meta={`ISSF ${decision.issfScore.toFixed(0)} · ${decision.confidenceScore.toFixed(0)}% confidence`}
                   badge={(
-                    <Badge className={`${badgeClass} shrink-0 border-0 text-[10px] shadow-none`}>
+                    <Badge className={`${badgeClass} shrink-0 border-0 text-[11px] shadow-none`}>
                       {decision.decision}
                     </Badge>
                   )}
@@ -226,7 +237,7 @@ export function DecisionReviewWorkspace({
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge className={outcomeStyle.badge}>{selected.decision}</Badge>
-                <span className="text-xs font-semibold text-slate-600">{summary.confidence} confidence</span>
+                <span className="text-xs font-semibold text-slate-700">{summary.confidence} confidence</span>
                 {confirmedDecision && (
                   <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
                     <CheckCircle2 className="size-3.5" aria-hidden />
@@ -239,7 +250,7 @@ export function DecisionReviewWorkspace({
             </div>
             <div className="shrink-0 text-left sm:text-right">
               <p className="text-xs font-medium text-slate-500">ISSF score</p>
-              <p className="mt-1 text-3xl font-bold tabular-nums text-slate-950">{selected.issfScore.toFixed(1)}</p>
+              <p className="mt-1 text-3xl font-bold tabular-nums text-slate-900">{selected.issfScore.toFixed(1)}</p>
             </div>
           </div>
         </header>
@@ -250,7 +261,7 @@ export function DecisionReviewWorkspace({
           <section aria-labelledby="decisive-evidence-heading">
             <div className="mb-4">
               <h3 id="decisive-evidence-heading" className="text-base font-semibold text-slate-900">Decisive evidence</h3>
-              <p className="mt-1 text-sm text-slate-600">The four questions that determine whether this prototype advances.</p>
+              <p className="mt-1 text-sm text-slate-700">The four questions that determine whether this prototype advances.</p>
             </div>
             <div className="divide-y divide-slate-100 border-y border-slate-200">
               {criteria.map(criterion => {
@@ -276,7 +287,7 @@ export function DecisionReviewWorkspace({
 
           <section aria-labelledby="decision-change-heading" className="rounded-lg border border-slate-200 bg-slate-50 p-5">
             <div className="flex items-start gap-3">
-              <ShieldAlert className="mt-0.5 size-5 shrink-0 text-slate-600" aria-hidden />
+              <ShieldAlert className="mt-0.5 size-5 shrink-0 text-slate-700" aria-hidden />
               <div className="min-w-0">
                 <h3 id="decision-change-heading" className="text-base font-semibold text-slate-900">
                   {selected.decision === 'GO' ? 'What protects this decision?' : 'What changes this decision?'}
@@ -292,7 +303,7 @@ export function DecisionReviewWorkspace({
                   <>
                     <p className="mt-2 text-sm font-semibold text-slate-900">{primaryPrescription.target}</p>
                     <p className="mt-1 text-sm leading-6 text-slate-700">{primaryPrescription.action}</p>
-                    <p className="mt-3 text-xs font-semibold text-slate-600">
+                    <p className="mt-3 text-xs font-semibold text-slate-700">
                       Estimated improvement: up to {primaryPrescription.expectedLift.toFixed(0)} ISSF points. Retest before advancing.
                     </p>
                   </>
@@ -309,7 +320,7 @@ export function DecisionReviewWorkspace({
                     <p className="mt-1 text-sm leading-6 text-slate-700">
                       Use a follow-up import for this exact item so the next decision compares the adjusted batch against the issue that blocked advancement.
                     </p>
-                    <ol className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-3">
+                    <ol className="mt-3 grid gap-2 text-xs text-slate-700 sm:grid-cols-3">
                       <li className="rounded-md border border-slate-200 bg-white px-3 py-2">
                         <span className="block font-semibold text-slate-900">1. Make the change</span>
                         {primaryPrescription?.action ?? 'Document the reformulation before retesting.'}

@@ -16,6 +16,7 @@ const cheeseSample = {
 
 const product = (overrides: Partial<Product> = {}): Product => ({
   id: 'product-1',
+  projectId: 'project-1',
   name: 'Cheddar V1',
   category: 'Cheese',
   status: 'active',
@@ -79,5 +80,32 @@ describe('computeProjectStatus metric coherence', () => {
 
     expect(status.decisionStatus).toBe('GO');
     expect(status.responseCompleted).toBe(0);
+  });
+
+  it('counts project-linked surveys even without batch or sample links', () => {
+    const status = computeProjectStatus({
+      ...baseInput,
+      importBatchId: 'batch-1',
+      importBatches: [{
+        id: 'batch-1',
+        projectId: 'project-1',
+        foodTypeSlug: 'cheese',
+        foodTypeLabel: 'Cheese',
+        fileName: 'Cheese.csv',
+        rowCount: 1,
+        recognizedColumns: [],
+        ignoredColumns: [],
+        detectionConfidence: 1,
+        status: 'active',
+        importedBy: null,
+        importedByName: null,
+        createdAt: '2026-06-06',
+        sampleCount: 1,
+      }],
+      products: [product({ sourceImportBatchId: null, sourceSampleId: null })],
+    });
+
+    expect(status.stages.find(stage => stage.id === 'testing')?.detail).toMatch(/0\/12 responses collected/i);
+    expect(status.statusLabel).toBe('Survey running');
   });
 });

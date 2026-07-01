@@ -16,7 +16,7 @@ describe('allowedEvidenceIds', () => {
     const ctx = coconutCheddarContext();
     const allowed = new Set(allowedEvidenceIds(ctx));
 
-    // Regression: the scientific_skeptic is shown gates + limitations and cites
+    // Regression: science reviewers are shown gates + limitations and cite
     // them (e.g. "sensory.qc", "weak-dimension"); those must be citeable, not
     // rejected as "unauthorized evidence id(s)".
     expect(ctx.gates.length).toBeGreaterThan(0);
@@ -48,10 +48,31 @@ function outputFor(role: ReportAgentRole): ReportAgentOutputMap[ReportAgentRole]
       blockers: [],
       warnings: [],
     },
-    scientific_skeptic: {
+    sensory_science_reviewer: {
       criticalChallenges: [],
       alternativeInterpretations: [],
       missingMethodDisclosures: [],
+      blockers: [],
+    },
+    instrumental_science_reviewer: {
+      criticalChallenges: [],
+      alternativeInterpretations: [],
+      missingMethodDisclosures: [],
+      blockers: [],
+    },
+    consumer_insights_reviewer: {
+      insightThemes: [],
+      overreachRisks: [],
+      panelLimitations: [],
+      blockers: [],
+      warnings: [],
+    },
+    claims_compliance_reviewer: {
+      reviewedClaims: [],
+      blockedClaims: [],
+      requiredDisclaimers: [],
+      legalReviewRequired: [],
+      warnings: [],
       blockers: [],
     },
     decision_consistency_auditor: {
@@ -89,6 +110,12 @@ function outputFor(role: ReportAgentRole): ReportAgentOutputMap[ReportAgentRole]
     },
     editorial_reviewer: { revisedSections: [], unresolvedIssues: [], blockers: [] },
     visual_qa_reviewer: { pageResults: [{ page: 1, issues: [] }], blockers: [], warnings: [] },
+    conflict_resolver: {
+      resolutions: [],
+      humanReviewRequired: [],
+      warnings: [],
+      blockers: [],
+    },
     client_red_team: {
       trustRisks: [],
       likelyClientQuestions: [],
@@ -162,10 +189,14 @@ describe('report agent orchestration', () => {
 
     expect(calls.slice(0, 4).sort()).toEqual([
       'calculation_auditor',
-      'decision_consistency_auditor',
       'evidence_auditor',
-      'scientific_skeptic',
+      'instrumental_science_reviewer',
+      'sensory_science_reviewer',
     ]);
+    expect(calls).toContain('consumer_insights_reviewer');
+    expect(calls).toContain('claims_compliance_reviewer');
+    expect(calls).toContain('decision_consistency_auditor');
+    expect(calls).toContain('conflict_resolver');
     expect(calls[calls.length - 1]).toBe('final_independent_judge');
     expect(result.state.qualityScore).toBeGreaterThanOrEqual(97);
     expect(result.state.exportStatus).toBe('demonstration_only');
@@ -190,7 +221,7 @@ describe('report agent orchestration', () => {
     })).toThrow(/protected field/i);
   });
 
-  it('uses only four AI passes for the standard drafting review', async () => {
+  it('uses only five AI passes for the standard drafting review', async () => {
     const calls: ReportAgentRole[] = [];
     const runner: ReportAgentRunner = {
       async run<R extends ReportAgentRole>(task: ReportAgentTask<R>): Promise<ReportAgentOutputMap[R]> {
@@ -215,13 +246,14 @@ describe('report agent orchestration', () => {
 
     expect(calls).toEqual([
       'evidence_auditor',
-      'scientific_skeptic',
+      'consumer_insights_reviewer',
+      'claims_compliance_reviewer',
       'professional_report_writer',
       'editorial_reviewer',
     ]);
     expect(result.finalDraft).toEqual(writerDraft);
     expect(result.state.exportStatus).toBe('demonstration_only');
-    expect(result.state.completedAgents).toHaveLength(4);
+    expect(result.state.completedAgents).toHaveLength(5);
   });
 
   it('runs the standard review when action owners are readiness gaps', async () => {
@@ -249,8 +281,8 @@ describe('report agent orchestration', () => {
       }),
     });
 
-    expect(calls).toHaveLength(4);
-    expect(result.state.completedAgents).toHaveLength(4);
+    expect(calls).toHaveLength(5);
+    expect(result.state.completedAgents).toHaveLength(5);
     expect(result.state.defects.filter(defect => defect.category === 'action-without-owner')).toHaveLength(5);
     expect(result.state.exportStatus).toBe('demonstration_only');
   });

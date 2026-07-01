@@ -37,7 +37,7 @@ export function ProjectHeader() {
     <Card className="border border-slate-200 bg-white">
       <CardContent className="flex flex-col gap-3 py-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0 shrink-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Current project</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Current project</p>
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-lg font-bold text-slate-900 truncate">
               <Link to={commandCenterPath} className="hover:text-blue-700 transition-colors" title="Open this project's command center">
@@ -65,7 +65,7 @@ export function ProjectHeader() {
           <ProjectJourneyNav stages={workflow.stages} projectId={currentBatch?.projectId ?? currentBatch?.id ?? null} />
           <Link
             to={workflow.nextAction.route}
-            className="hidden h-9 w-44 shrink-0 items-center justify-between gap-1.5 rounded-md bg-blue-700 px-3 text-xs font-bold text-white hover:bg-blue-800 xl:flex"
+            className="hidden h-9 w-44 shrink-0 items-center justify-between gap-1.5 rounded-md bg-blue-700 px-3 text-xs font-bold text-white transition-[background-color,box-shadow,transform] duration-150 ease-out hover:bg-blue-800 hover:shadow-sm motion-safe:hover:-translate-y-px active:translate-y-0 active:shadow-none motion-reduce:transition-none xl:flex"
             title={workflow.nextAction.description}
           >
             <span className="truncate">{workflow.nextAction.label}</span>

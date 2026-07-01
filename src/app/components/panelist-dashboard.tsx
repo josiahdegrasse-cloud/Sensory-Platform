@@ -36,8 +36,8 @@ export function PanelistDashboard() {
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="bg-white p-6 rounded-lg border border-slate-200">
         <h1 className="text-2xl font-semibold text-slate-900">Welcome, {user?.name}!</h1>
-        <p className="text-slate-600 mt-2">Panelist ID: <span className="font-bold text-slate-900">{user?.panelistId}</span></p>
-        <p className="text-sm text-slate-600 mt-1">Start with the samples in your tasting box. Match the sample cue on each task before opening or tasting anything.</p>
+        <p className="text-slate-700 mt-2">Panelist ID: <span className="font-bold text-slate-900">{user?.panelistId}</span></p>
+        <p className="text-sm text-slate-700 mt-1">Start with the samples in your tasting box. Match the sample cue on each task before opening or tasting anything.</p>
       </div>
 
       {fetchError && (
@@ -58,15 +58,15 @@ export function PanelistDashboard() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-3xl font-bold text-slate-900">{availableProducts.length}</div>
-            <div className="text-sm text-slate-600 mt-1">Food Evaluations Pending</div>
-            <div className="text-xs text-slate-400 mt-0.5">of {assignedProducts.length} assigned</div>
+            <div className="text-sm text-slate-700 mt-1">Food Evaluations Pending</div>
+            <div className="text-xs text-slate-500 mt-0.5">of {assignedProducts.length} assigned</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-3xl font-bold text-slate-900">{availableConceptTests.length}</div>
-            <div className="text-sm text-slate-600 mt-1">Marketing Tests Pending</div>
-            <div className="text-xs text-slate-400 mt-0.5">of {conceptTests.length} assigned</div>
+            <div className="text-sm text-slate-700 mt-1">Marketing Tests Pending</div>
+            <div className="text-xs text-slate-500 mt-0.5">of {conceptTests.length} assigned</div>
           </CardContent>
         </Card>
         <Card>
@@ -74,8 +74,8 @@ export function PanelistDashboard() {
             <div className="text-3xl font-bold text-slate-900">
               {completedProductIds.length + completedConceptIds.length}
             </div>
-            <div className="text-sm text-slate-600 mt-1">Completed</div>
-            <div className="text-xs text-slate-400 mt-0.5">of {assignedProducts.length + conceptTests.length} total</div>
+            <div className="text-sm text-slate-700 mt-1">Completed</div>
+            <div className="text-xs text-slate-500 mt-0.5">of {assignedProducts.length + conceptTests.length} total</div>
           </CardContent>
         </Card>
       </div>
@@ -110,26 +110,26 @@ export function PanelistDashboard() {
                         <div>
                           <div className="flex items-center gap-2">
                             <CardTitle className="text-lg">{summary.label}</CardTitle>
-                            {product.blinded && <Badge variant="outline" className="border-slate-300 text-slate-700 text-xs">Blinded</Badge>}
+                            {product.blinded && <Badge variant="outline" className="border-slate-200 text-slate-700 text-xs">Blinded</Badge>}
                           </div>
-                          <p className="text-xs text-slate-600">{summary.category}</p>
+                          <p className="text-xs text-slate-700">{summary.category}</p>
                         </div>
                       </div>
 
                       <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
                         <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="outline" className="border-slate-300 text-slate-700">
+                          <Badge variant="outline" className="border-slate-200 text-slate-700">
                             {product.isMultiSample ? <Layers className="size-3 mr-1" /> : <ClipboardList className="size-3 mr-1" />}
                             {summary.taskType}
                           </Badge>
-                          <Badge variant="outline" className="border-slate-300 text-slate-700">{summary.estimate}</Badge>
+                          <Badge variant="outline" className="border-slate-200 text-slate-700">{summary.estimate}</Badge>
                         </div>
                         <p className="mt-2 text-sm font-medium text-slate-900">{summary.sampleCue}</p>
-                        <p className="mt-1 text-xs text-slate-600">Use the matching sample from your box. Complete this task before moving to the next sample.</p>
+                        <p className="mt-1 text-xs text-slate-700">Use the matching sample from your box. Complete this task before moving to the next sample.</p>
                       </div>
 
                       {product.isMultiSample && product.samples?.length ? (
-                        <p className="mt-2 text-xs text-slate-600">
+                        <p className="mt-2 text-xs text-slate-700">
                           Includes three coded servings: two are the same and one is different.
                         </p>
                       ) : null}
@@ -170,12 +170,12 @@ export function PanelistDashboard() {
                       <div className="flex items-center gap-2 mb-1">
                         <CardTitle className="text-lg">{test.name}</CardTitle>
                       </div>
-                      <p className="text-xs text-slate-600">{test.category}</p>
+                      <p className="text-xs text-slate-700">{test.category}</p>
                       <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
                         <div className="flex items-center gap-2 mb-1">
-                          <Badge variant="outline" className="border-slate-300 text-slate-700 text-xs">Marketing Concept Test</Badge>
+                          <Badge variant="outline" className="border-slate-200 text-slate-700 text-xs">Marketing Concept Test</Badge>
                           {test.imageUrls.filter(u => u.trim()).length > 0 && (
-                            <Badge variant="outline" className="text-xs border-slate-300 text-slate-700">
+                            <Badge variant="outline" className="text-xs border-slate-200 text-slate-700">
                               <ImageIcon className="size-3 mr-1" />
                               {test.imageUrls.filter(u => u.trim()).length} image{test.imageUrls.filter(u => u.trim()).length !== 1 ? 's' : ''}
                             </Badge>
@@ -188,7 +188,7 @@ export function PanelistDashboard() {
                           {test.questions.length} question{test.questions.length !== 1 ? 's' : ''} · Est. {Math.ceil(test.questions.length * 0.6)} min
                         </p>
                       </div>
-                      <p className="text-xs text-slate-400 mt-2">
+                      <p className="text-xs text-slate-500 mt-2">
                         Added {new Date(test.createdAt).toLocaleDateString()}
                       </p>
                     </div>
@@ -236,9 +236,9 @@ export function PanelistDashboard() {
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <CardTitle className="text-lg">{displayName}</CardTitle>
-                              {product.blinded && <Badge variant="outline" className="border-slate-300 text-slate-700 text-xs">Blinded</Badge>}
+                              {product.blinded && <Badge variant="outline" className="border-slate-200 text-slate-700 text-xs">Blinded</Badge>}
                             </div>
-                            <p className="text-xs text-slate-600">{categoryLabel}</p>
+                            <p className="text-xs text-slate-700">{categoryLabel}</p>
                           </div>
                           <Badge variant="outline" className="border-emerald-300 text-emerald-700">
                             <CheckCircle2 className="size-4 mr-1" />
@@ -248,7 +248,7 @@ export function PanelistDashboard() {
 
                         {product.isMultiSample && (
                           <div className="flex items-center gap-2 mb-2">
-                            <Badge variant="outline" className="border-slate-300 text-slate-700">
+                            <Badge variant="outline" className="border-slate-200 text-slate-700">
                               <Layers className="size-3 mr-1" />
                               Multi-Sample Comparison
                             </Badge>
@@ -267,10 +267,10 @@ export function PanelistDashboard() {
                     {!product.isMultiSample ? (
                       <div className="space-y-3">
                         <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                          <p className="text-xs text-slate-600">Editing will update your submitted response. Changes are logged with a new timestamp.</p>
+                          <p className="text-xs text-slate-700">Editing will update your submitted response. Changes are logged with a new timestamp.</p>
                         </div>
                         <Link to={`/questionnaire/${product.id}`}>
-                          <Button variant="outline" className="w-full border-slate-300 text-slate-700 hover:bg-slate-50">
+                          <Button variant="outline" className="w-full border-slate-200 text-slate-700 hover:bg-slate-50">
                             <Edit2 className="size-4 mr-2" />
                             Edit Response
                           </Button>
@@ -281,7 +281,7 @@ export function PanelistDashboard() {
                         <p className="text-sm text-slate-900 font-medium">
                           <CheckCircle2 className="size-4 inline mr-1" />Multi-sample evaluation completed
                         </p>
-                        <p className="text-xs text-slate-600 mt-1">
+                        <p className="text-xs text-slate-700 mt-1">
                           Multi-sample evaluations cannot be edited after submission to preserve data integrity
                         </p>
                       </div>
@@ -316,14 +316,14 @@ export function PanelistDashboard() {
                           <CheckCircle2 className="size-3 mr-1" /> Complete
                         </Badge>
                       </div>
-                      <p className="text-xs text-slate-600">{test.category}</p>
+                      <p className="text-xs text-slate-700">{test.category}</p>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
                     <p className="text-sm text-slate-900 font-medium flex items-center gap-1.5"><CheckCircle2 className="size-4" />Marketing evaluation completed</p>
-                    <p className="text-xs text-slate-600 mt-1">Thank you for your feedback on this concept.</p>
+                    <p className="text-xs text-slate-700 mt-1">Thank you for your feedback on this concept.</p>
                   </div>
                 </CardContent>
               </Card>
@@ -336,9 +336,9 @@ export function PanelistDashboard() {
       {!loading && !fetchError && availableProducts.length === 0 && completedProductsList.length === 0 && availableConceptTests.length === 0 && completedConceptTests.length === 0 && (
         <Card className="bg-slate-50">
           <CardContent className="pt-12 pb-12 text-center">
-            <ClipboardList className="size-16 text-slate-400 mx-auto mb-4" />
+            <ClipboardList className="size-16 text-slate-500 mx-auto mb-4" />
             <h3 className="text-xl font-bold text-slate-700 mb-2">No active tasting tasks</h3>
-            <p className="text-slate-600">If you just scanned a box QR code, refresh once. If tasks still do not appear, use the issue option on the box pass page or contact the study administrator with your box code.</p>
+            <p className="text-slate-700">If you just scanned a box QR code, refresh once. If tasks still do not appear, use the issue option on the box pass page or contact the study administrator with your box code.</p>
           </CardContent>
         </Card>
       )}

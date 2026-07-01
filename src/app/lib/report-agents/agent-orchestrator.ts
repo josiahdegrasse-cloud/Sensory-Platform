@@ -2,7 +2,6 @@ import { buildGeneratedReportSections, type CommercializationReportPdfInput } fr
 import { orchestrateReportAgents } from './orchestrator';
 import { buildPageText, renderAgentReviewedReport } from './runtime';
 import { hashReportContext } from './hash';
-import { buildAgentBriefs } from './agent-brief-builder';
 import { normalizeOrchestrationResult } from './agent-output-normalizer';
 import type {
   ReportAgentMode,
@@ -19,14 +18,20 @@ function legacyMode(mode: ReportAgentMode): ReportReviewMode {
 
 export const REPORT_AGENT_WORKFLOW_STEPS = [
   ['evidence_auditor', 'Evidence audit'],
-  ['sensory_science', 'Sensory interpretation'],
-  ['instrumental_science', 'Instrumental interpretation'],
-  ['concept_packaging', 'Concept/packaging interpretation'],
-  ['commercial_strategy', 'Commercial strategy'],
-  ['claims_compliance', 'Claims check'],
-  ['section_writer', 'Section writing'],
-  ['editor', 'Editing'],
-  ['qc_critic', 'QC critic'],
+  ['calculation_auditor', 'Calculation audit'],
+  ['sensory_science_reviewer', 'Sensory science review'],
+  ['instrumental_science_reviewer', 'Instrumental science review'],
+  ['consumer_insights_reviewer', 'Consumer insights review'],
+  ['claims_compliance_reviewer', 'Claims compliance review'],
+  ['decision_consistency_auditor', 'Decision consistency audit'],
+  ['commercial_strategist', 'Commercial strategy'],
+  ['action_plan_engineer', 'Action plan'],
+  ['professional_report_writer', 'Professional writing'],
+  ['editorial_reviewer', 'Editorial review'],
+  ['visual_qa_reviewer', 'Visual PDF QA'],
+  ['client_red_team', 'Client red-team'],
+  ['conflict_resolver', 'Conflict resolution'],
+  ['final_independent_judge', 'Final release judge'],
   ['deterministic_qc', 'Deterministic QC'],
 ] as const;
 
@@ -41,12 +46,6 @@ export async function runCommercializationReportOrchestrator(input: {
   const context = input.reportInput.reportContext;
   const reportContextHash = await hashReportContext(context);
   const generatedSections = buildGeneratedReportSections(input.reportInput);
-  const briefs = buildAgentBriefs({
-    ctx: context,
-    mode: input.mode,
-    reportContextHash,
-  });
-
   if (!context || !input.reportInput.snapshot) {
     throw new Error('Report orchestration requires a validated ReportContext and report snapshot.');
   }
@@ -82,7 +81,7 @@ export async function runCommercializationReportOrchestrator(input: {
     ...result,
     metadata: {
       ...result.metadata,
-      agentsRun: briefs.map(brief => brief.agentName).filter(agent => agent !== 'orchestrator'),
+      agentsRun: result.agentOutputs.map(output => output.agentName),
     },
   };
 }

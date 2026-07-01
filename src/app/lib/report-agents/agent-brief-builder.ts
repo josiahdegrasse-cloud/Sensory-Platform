@@ -9,27 +9,39 @@ import {
 const TASKS: Record<ReportAgentName, string[]> = {
   orchestrator: ['Coordinate specialists, merge outputs, and defer truth decisions to deterministic context/QC.'],
   evidence_auditor: ['Classify evidence sources.', 'Classify supported, directional, unsupported, and missing claims.'],
-  sensory_science: ['Explain panel sensory findings.', 'State response counts and panel limitations.'],
-  instrumental_science: ['Explain measured instrumental findings.', 'Separate measured data from inferred meaning.'],
-  commercial_strategy: ['Translate evidence and decision into next-stage recommendation.', 'Respect allowed recommendation strength.'],
-  concept_packaging: ['Explain concept, target, price, selected visual, and concept evidence limits.'],
-  claims_compliance: ['Rewrite risky claims safely.', 'Block unsupported marketing, health, superiority, and launch claims.'],
-  section_writer: ['Draft the nine-page report structure from approved claims only.'],
-  editor: ['Improve coherence and tone without adding claims.'],
-  qc_critic: ['Challenge contradictions, missing limitations, unsupported claims, and export blockers.'],
+  calculation_auditor: ['Verify displayed numbers against deterministic calculation traces.', 'Flag unexplained ISSF, confidence, threshold, or rounding differences.'],
+  sensory_science_reviewer: ['Challenge sensory panel interpretation.', 'Flag descriptor, CATA, agreement, benchmark, sample-size, and method-disclosure risks.'],
+  instrumental_science_reviewer: ['Challenge GC-MS, E-tongue, and composition interpretation.', 'Separate measured analytical evidence from inferred product meaning.'],
+  consumer_insights_reviewer: ['Summarize actual consumer/concept signals.', 'Flag overread purchase intent and small-sample interpretation risks.'],
+  claims_compliance_reviewer: ['Classify risky claims safely.', 'Block unsupported marketing, health, superiority, clean-label, plant-based, and launch claims.'],
+  decision_consistency_auditor: ['Compare all decision language to the canonical GO/TWEAK/STOP outcome.', 'Flag launch, approval, confidence, and next-gate conflicts.'],
+  commercial_strategist: ['Translate approved evidence into commercial hypotheses.', 'Respect allowed recommendation strength and validation needs.'],
+  action_plan_engineer: ['Convert defects and evidence gaps into next actions.', 'Preserve unknown owners and dates as null.'],
+  professional_report_writer: ['Draft the report from approved claims only.', 'Distinguish facts, calculations, hypotheses, limitations, and actions.'],
+  editorial_reviewer: ['Improve coherence and tone without adding claims.'],
+  client_red_team: ['Challenge the report like a skeptical paying client.', 'Surface trust risks and likely client questions.'],
+  visual_qa_reviewer: ['Inspect rendered pages for visual defects, clipping, warnings, and readability.'],
+  conflict_resolver: ['Resolve specialist disagreements conservatively.', 'Softens, removes, or escalates conflicted claims.'],
+  final_independent_judge: ['Apply the final release rubric.', 'Confirm blockers, hard caps, and release status.'],
 };
 
 const SCHEMA: Record<ReportAgentName, string> = {
   orchestrator: 'ReportOrchestratorResult',
   evidence_auditor: 'Evidence audit with claim classifications, missing evidence, disclaimers, and framing.',
-  sensory_science: 'sensorySummary, likedDrivers, sensoryRisks, panelLimitations, suggestedReportText, claims',
-  instrumental_science: 'instrumentalSummary, evidenceAlignment, instrumentalRisks, missingInstrumentalEvidence, suggestedReportText, claims',
-  commercial_strategy: 'launchRecommendation, commercializationPlan, nextSteps, riskPriorities, claims',
-  concept_packaging: 'conceptSummary, packagingRationale, purchaseIntentSummary, conceptLimitations, suggestedReportText, claims',
-  claims_compliance: 'approvedClaims, rewrittenClaims, blockedClaims, requiredClaimCautions, claimsCautionNarrative',
-  section_writer: 'sectionDrafts and finalNarrative fields',
-  editor: 'editedSectionDrafts, editedNarrative, polishNotes',
-  qc_critic: 'criticalBlockers, warnings, polishSuggestions, qualityScore, passFailStatus',
+  calculation_auditor: 'verifiedCalculations, unexplainedCalculations, numericalConflicts, blockers, warnings',
+  sensory_science_reviewer: 'criticalChallenges, alternativeInterpretations, missingMethodDisclosures, blockers',
+  instrumental_science_reviewer: 'criticalChallenges, alternativeInterpretations, missingMethodDisclosures, blockers',
+  consumer_insights_reviewer: 'insightThemes, overreachRisks, panelLimitations, blockers, warnings',
+  claims_compliance_reviewer: 'reviewedClaims, blockedClaims, requiredDisclaimers, legalReviewRequired, blockers, warnings',
+  decision_consistency_auditor: 'canonicalDecisionSummary, decisionStatements, blockers, warnings',
+  commercial_strategist: 'commercial conclusions, positioning hypotheses, reasons to believe, prohibited claims',
+  action_plan_engineer: 'immediateActions, laterActions, readinessGaps',
+  professional_report_writer: 'structured written report pages with section, claim, evidence, and limitation ids',
+  editorial_reviewer: 'revisedSections, unresolvedIssues, blockers',
+  client_red_team: 'trustRisks, likelyClientQuestions, ambiguousStatements, releaseRecommendation',
+  visual_qa_reviewer: 'pageResults, blockers, warnings',
+  conflict_resolver: 'resolutions, humanReviewRequired, warnings, blockers',
+  final_independent_judge: 'categoryScores, appliedCaps, blockers, releaseStatus, rationale',
 };
 
 function outcome(ctx: ReportContext): 'GO' | 'TWEAK' | 'STOP' {
@@ -47,8 +59,25 @@ export function buildAgentBriefs(input: {
   const missingEvidence = missingEvidenceFromContext(input.ctx);
   const prohibitedClaims = prohibitedClaimsFromContext(input.ctx);
   const names: ReportAgentName[] = input.mode === 'quick_draft'
-    ? ['orchestrator', 'evidence_auditor', 'sensory_science', 'concept_packaging', 'claims_compliance', 'section_writer', 'editor', 'qc_critic']
-    : ['orchestrator', 'evidence_auditor', 'sensory_science', 'instrumental_science', 'commercial_strategy', 'concept_packaging', 'claims_compliance', 'section_writer', 'editor', 'qc_critic'];
+    ? ['orchestrator', 'evidence_auditor', 'consumer_insights_reviewer', 'claims_compliance_reviewer', 'professional_report_writer', 'editorial_reviewer']
+    : [
+        'orchestrator',
+        'evidence_auditor',
+        'calculation_auditor',
+        'sensory_science_reviewer',
+        'instrumental_science_reviewer',
+        'consumer_insights_reviewer',
+        'claims_compliance_reviewer',
+        'decision_consistency_auditor',
+        'commercial_strategist',
+        'action_plan_engineer',
+        'professional_report_writer',
+        'editorial_reviewer',
+        'visual_qa_reviewer',
+        'client_red_team',
+        'conflict_resolver',
+        'final_independent_judge',
+      ];
 
   return names.map(agentName => ({
     agentName,

@@ -108,6 +108,7 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!foodTypesQuery.data) return;
     if (foodTypeRecords.some(record => record.type === foodType && record.status === 'active')) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- correct selection once server food types load
     setFoodType(foodTypeRecords.find(record => record.status === 'active')?.type ?? '');
     setSubCategory(null);
   }, [foodType, foodTypeRecords, foodTypesQuery.data]);
@@ -117,6 +118,7 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
     const databaseRecords = foodTypesQuery.data
       .map(record => ({ type: record.slug, status: record.status }));
     const databaseTypes = new Set(databaseRecords.map(record => record.type));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- merge server food types into local records
     setLocalFoodTypeRecords(previous => mergeFoodTypeRecords(
       databaseRecords,
       previous.filter(record => !databaseTypes.has(record.type)),
@@ -222,9 +224,9 @@ export function matchFoodType(category: string): string {
 }
 
 export function sampleMatchesFoodType(sampleId: string, sampleName: string): FoodType {
-  if (sampleId.startsWith('B')) return 'bread';
-  if (sampleId.startsWith('Y')) return 'yogurt';
-  if (sampleId.startsWith('M')) return 'meat';
-  if (sampleId.startsWith('S') || sampleId.startsWith('D')) return 'cheese';
+  if (/^B\d+/i.test(sampleId)) return 'bread';
+  if (/^Y\d+/i.test(sampleId)) return 'yogurt';
+  if (/^M\d+/i.test(sampleId)) return 'meat';
+  if (/^[SD]\d+/i.test(sampleId)) return 'cheese';
   return matchFoodType(sampleName);
 }

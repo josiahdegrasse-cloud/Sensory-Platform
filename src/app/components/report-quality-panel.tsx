@@ -50,7 +50,7 @@ export function ReportQualityPanel({
         </p>
       )}
       {bundle.qualityWarnings.length > 0 && (
-        <ul className="mt-2 space-y-0.5 text-xs text-slate-600">
+        <ul className="mt-2 space-y-0.5 text-xs text-slate-700">
           {bundle.qualityWarnings.slice(0, 3).map(warning => <li key={warning.id}>• {warning.title}</li>)}
         </ul>
       )}

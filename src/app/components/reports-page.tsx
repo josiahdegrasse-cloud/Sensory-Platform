@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useParams } from 'react-router';
+import { workflowStagePath } from '../lib/project-journey-routes';
 import {
   AlertTriangle, Archive, ChevronDown, Download, FileText, FolderOpen, Search,
   ShieldCheck, Sparkles, Undo2,
@@ -56,7 +57,7 @@ type VaultStatus = ReportReleaseStatus | 'checking';
 const releaseCopy: Record<VaultStatus, { label: string; className: string; detail: string }> = {
   checking: {
     label: 'Checking',
-    className: 'border-slate-200 bg-slate-50 text-slate-600',
+    className: 'border-slate-200 bg-slate-50 text-slate-700',
     detail: 'Readiness context is being rebuilt.',
   },
   client_ready: {
@@ -117,7 +118,7 @@ function ReadinessBadges({
           ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
           : entry.latest.status === 'review'
             ? 'border-amber-200 bg-amber-50 text-amber-700'
-            : 'border-slate-200 bg-slate-50 text-slate-600'}
+            : 'border-slate-200 bg-slate-50 text-slate-700'}
       >
         {statusLabel[entry.latest.status]}
       </Badge>
@@ -129,10 +130,10 @@ function VersionStack({ entry }: { entry: ReportLibraryEntry }) {
   if (entry.versions.length <= 1) return null;
   return (
     <details className="mt-4 rounded-lg border border-slate-200 bg-slate-50">
-      <summary className="cursor-pointer list-none px-3 py-2 text-xs font-semibold text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+      <summary className="cursor-pointer list-none px-3 py-2 text-xs font-semibold text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
         {entry.versions.length} saved versions
       </summary>
-      <div className="divide-y divide-slate-200 border-t border-slate-200">
+      <div className="divide-y divide-slate-100 border-t border-slate-200">
         {entry.versions.map(version => (
           <div key={version.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs">
             <span className="font-medium text-slate-700">Version {version.version} · {statusLabel[version.status]}</span>
@@ -165,7 +166,7 @@ function EvidenceLedger({ entry }: { entry: ReportLibraryEntry }) {
       <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs font-semibold text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
         <span className="flex items-center gap-1.5">
           Evidence ledger
-          <ChevronDown className="size-3.5 text-slate-400" aria-hidden />
+          <ChevronDown className="size-3.5 text-slate-500" aria-hidden />
         </span>
         <span className="font-normal text-slate-500">
           {liveCount} live · {referenceCount} reference · {releaseCopy[entry.releaseStatus].label}
@@ -190,6 +191,7 @@ function EvidenceLedger({ entry }: { entry: ReportLibraryEntry }) {
 
 export function ReportsPage() {
   const { user } = useAuth();
+  const { projectId: routeProjectId } = useParams<{ projectId?: string }>();
   const { setSelection } = useFoodType();
   const { data: reports = [], isLoading } = useCommercializationReports();
   const { data: decisions = [] } = useDecisionRecords();
@@ -297,12 +299,12 @@ export function ReportsPage() {
       <WorkflowPageHeader
         title="Report Vault"
         description="One row per client deliverable, with versions, approval state, evidence provenance, and export readiness kept together."
-        actions={<Button asChild><Link to="/decision"><Sparkles className="size-4" />Build report</Link></Button>}
+        actions={<Button asChild><Link to={workflowStagePath('decision', routeProjectId)}><Sparkles className="size-4" />Build report</Link></Button>}
       />
 
       <div className="flex flex-col gap-3 lg:flex-row">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-slate-400" />
+          <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-slate-500" />
           <Input
             value={search}
             onChange={event => setSearch(event.target.value)}
@@ -339,8 +341,8 @@ export function ReportsPage() {
           {[0, 1, 2].map(item => <div key={item} className="h-32 animate-pulse rounded-xl border border-slate-200 bg-white" />)}
         </div>
       ) : visibleEntries.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
-          <FolderOpen className="mx-auto size-9 text-slate-400" />
+        <div className="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-14 text-center">
+          <FolderOpen className="mx-auto size-9 text-slate-500" />
           <h2 className="mt-3 text-lg font-semibold text-slate-900">No reports match this view</h2>
           <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
             Saved versions appear here after a confirmed GO decision is paired with a concept and packaging direction.
@@ -353,18 +355,18 @@ export function ReportsPage() {
               <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <FileText className="size-4 text-slate-400" />
-                    <h2 className="min-w-0 max-w-full break-words font-semibold text-slate-950 sm:truncate">{entry.displayTitle}</h2>
+                    <FileText className="size-4 text-slate-500" />
+                    <h2 className="min-w-0 max-w-full break-words font-semibold text-slate-900 sm:truncate">{entry.displayTitle}</h2>
                     <ProjectStatusBadge
                       label={entry.latest.status === 'review' ? 'Ready for review' : entry.latest.status}
                       tone={statusTone[entry.latest.status]}
                       showIcon={false}
                     />
                   </div>
-                  <p className="mt-1 text-sm text-slate-600">
+                  <p className="mt-1 text-sm text-slate-700">
                     {entry.productName} · {entry.foodType} · {entry.conceptName}
                   </p>
-                  <p className="mt-2 text-xs text-slate-400">
+                  <p className="mt-2 text-xs text-slate-500">
                     Version {entry.latest.version} of {entry.versions.length} · Updated {new Date(entry.latest.updatedAt).toLocaleDateString()} · {entry.decision} decision
                     {entry.templateTitle ? ` · Template: ${entry.templateTitle}` : ''}
                   </p>

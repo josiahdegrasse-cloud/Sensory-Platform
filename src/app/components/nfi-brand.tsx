@@ -46,7 +46,7 @@ export function NfiBrandLockup({
       <div
         className={cn(
           'leading-[1.05] tracking-tight',
-          muted ? 'text-slate-600' : 'text-slate-900',
+          muted ? 'text-slate-700' : 'text-slate-900',
           textClassName,
         )}
       >

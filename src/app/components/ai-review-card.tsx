@@ -61,7 +61,7 @@ export function AIReviewCard({
               {confidence && (
                 <span
                   title={confidenceBasis}
-                  className="text-[10px] font-semibold uppercase tracking-wide text-slate-400"
+                  className="text-[11px] font-semibold uppercase tracking-wide text-slate-500"
                 >
                   {confidence} confidence
                 </span>
@@ -83,10 +83,10 @@ export function AIReviewCard({
         {children}
 
         {!approved && (
-          <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
+          <div className="flex items-center justify-between gap-2 border-t border-slate-200 pt-3">
             <div className="flex items-center gap-2">
               {onRegenerate && (
-                <Button variant="ghost" size="sm" onClick={onRegenerate} disabled={regenerating} className="text-slate-600">
+                <Button variant="ghost" size="sm" onClick={onRegenerate} disabled={regenerating} className="text-slate-700">
                   <RefreshCw className={`size-3.5 mr-1.5 ${regenerating ? 'animate-spin' : ''}`} aria-hidden />
                   {regenerating ? 'Rebuilding…' : regenerateLabel}
                 </Button>
@@ -99,7 +99,7 @@ export function AIReviewCard({
               )}
             </div>
             {onApprove && (
-              <Button size="sm" onClick={onApprove} className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Button size="sm" onClick={onApprove}>
                 <Check className="size-3.5 mr-1.5" aria-hidden />
                 {approveLabel}
               </Button>

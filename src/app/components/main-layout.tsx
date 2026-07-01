@@ -99,7 +99,7 @@ function AdminCleanupReview({ batches }: { batches: ImportBatchRecord[] }) {
             <input
               value={confirmationText}
               onChange={event => setConfirmationText(event.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20"
+              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20"
               autoComplete="off"
             />
           </label>
@@ -191,8 +191,8 @@ function CategorySidebar() {
         </div>
       )}
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-        <div className="flex items-center gap-1.5 px-3 py-2.5 border-b border-slate-100">
-          <FolderKanban className="size-3.5 text-slate-400" />
+        <div className="flex items-center gap-1.5 px-3 py-2.5 border-b border-slate-200">
+          <FolderKanban className="size-3.5 text-slate-500" />
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Project Ledger</span>
         </div>
         <div className="p-1.5 flex flex-col gap-0.5">
@@ -213,7 +213,7 @@ function CategorySidebar() {
                       type="button"
                       title={`${expanded ? 'Collapse' : 'Expand'} ${label(ft)} projects`}
                       onClick={() => setExpandedTypes(prev => ({ ...prev, [ft]: !expanded }))}
-                      className="ml-1 p-1 text-slate-400 hover:text-slate-700 rounded"
+                      className="ml-1 p-1 text-slate-500 hover:text-slate-700 rounded"
                     >
                       {expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
                     </button>
@@ -230,7 +230,7 @@ function CategorySidebar() {
                       type="button"
                       title={`Archive ${label(ft)}`}
                       onClick={() => setPendingAction({ type: ft, action: 'archive' })}
-                      className="p-1 text-slate-400 hover:text-slate-700 rounded"
+                      className="p-1 text-slate-500 hover:text-slate-700 rounded"
                     >
                       <Archive className="size-3.5" />
                     </button>
@@ -238,7 +238,7 @@ function CategorySidebar() {
                       type="button"
                       title={`Delete ${label(ft)}`}
                       onClick={() => setPendingAction({ type: ft, action: 'delete' })}
-                      className="p-1 text-slate-400 hover:text-rose-700 rounded"
+                      className="p-1 text-slate-500 hover:text-rose-700 rounded"
                     >
                       <Trash2 className="size-3.5" />
                     </button>
@@ -256,13 +256,13 @@ function CategorySidebar() {
                     return (
                       <div
                         key={project.id}
-                        className={`group/project flex items-center gap-1 rounded-md ${selectedBatchId === project.id ? 'bg-slate-100' : 'hover:bg-slate-50'}`}
+                        className={`group/project flex items-center gap-1 rounded-md ${selectedBatchId === project.id ? 'bg-slate-50' : 'hover:bg-slate-50'}`}
                       >
                         <button
                           type="button"
                           onClick={() => selectType(ft, project)}
                           title={project.projectName ?? project.fileName}
-                          className={`min-w-0 flex-1 truncate px-2 py-1 text-left text-xs ${selectedBatchId === project.id ? 'font-semibold text-slate-800' : `${project.projectId ? 'text-slate-500' : 'text-slate-400 italic'} group-hover/project:text-slate-800`}`}
+                          className={`min-w-0 flex-1 truncate px-2 py-1 text-left text-xs ${selectedBatchId === project.id ? 'font-semibold text-slate-700' : `${project.projectId ? 'text-slate-500' : 'text-slate-500 italic'} group-hover/project:text-slate-700`}`}
                         >
                           {displayName}
                         </button>
@@ -292,10 +292,10 @@ function CategorySidebar() {
                     );
                   };
                   return (
-                    <div className="ml-5 mt-0.5 space-y-0.5 border-l border-slate-100 pl-2">
+                    <div className="ml-5 mt-0.5 space-y-0.5 border-l border-slate-200 pl-2">
                       {assigned.map(renderRow)}
                       {assigned.length > 0 && unassigned.length > 0 && (
-                        <div className="mt-1 border-t border-slate-100 px-2 pt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                        <div className="mt-1 border-t border-slate-200 px-2 pt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                           Unassigned batches
                         </div>
                       )}
@@ -307,10 +307,10 @@ function CategorySidebar() {
             );
           })}
           {archivedFoodTypes.length > 0 && (
-            <div className="mt-2 border-t border-slate-100 pt-2">
-              <div className="px-2.5 pb-1 text-[11px] font-semibold text-slate-400">Archived</div>
+            <div className="mt-2 border-t border-slate-200 pt-2">
+              <div className="px-2.5 pb-1 text-[11px] font-semibold text-slate-500">Archived</div>
               {archivedFoodTypes.map(ft => (
-                <div key={ft} className="group flex items-center rounded-lg text-slate-400 hover:bg-slate-50">
+                <div key={ft} className="group flex items-center rounded-lg text-slate-500 hover:bg-slate-50">
                   <button
                     onClick={() => restoreFoodType(ft)}
                     className="min-w-0 flex-1 text-left px-2.5 py-1.5 text-sm"
@@ -322,7 +322,7 @@ function CategorySidebar() {
                       type="button"
                       title={`Restore ${label(ft)}`}
                       onClick={() => restoreFoodType(ft)}
-                      className="p-1 text-slate-400 hover:text-slate-700 rounded"
+                      className="p-1 text-slate-500 hover:text-slate-700 rounded"
                     >
                       <Undo2 className="size-3.5" />
                     </button>
@@ -330,7 +330,7 @@ function CategorySidebar() {
                       type="button"
                       title={`Delete ${label(ft)}`}
                       onClick={() => setPendingAction({ type: ft, action: 'delete' })}
-                      className="p-1 text-slate-400 hover:text-rose-700 rounded"
+                      className="p-1 text-slate-500 hover:text-rose-700 rounded"
                     >
                       <Trash2 className="size-3.5" />
                     </button>
@@ -340,7 +340,7 @@ function CategorySidebar() {
             </div>
           )}
           {allTypes.length === 0 && archivedFoodTypes.length === 0 && (
-            <div className="px-2.5 py-2 text-xs text-slate-400">
+            <div className="px-2.5 py-2 text-xs text-slate-500">
               Import CSV data to create the first project.
             </div>
           )}
@@ -544,7 +544,7 @@ export function MainLayout() {
         <div className="mx-auto max-w-[1600px] px-4 sm:px-6">
 
           {/* Top bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 py-3">
             <Link to={user?.role === 'panelist' ? '/panelist' : '/'} className="flex items-center gap-2.5 hover:opacity-75 transition-opacity">
               <TenantOrNfiLogo
                 logoUrl={brandLogo}
@@ -559,7 +559,7 @@ export function MainLayout() {
               {user?.role === 'admin' && <FoodTypeBadge />}
               <div className="hidden text-right sm:block">
                 <div className="text-sm font-semibold text-slate-900">{user?.name}</div>
-                <div className="text-xs text-slate-400">
+                <div className="text-xs text-slate-500">
                   {user?.role === 'panelist' ? `Panelist ${user?.panelistId ?? ''}` : 'Administrator'}
                 </div>
               </div>
@@ -599,7 +599,7 @@ export function MainLayout() {
                   <Menu className="size-4 shrink-0" />
                   {ActiveNavIcon && <ActiveNavIcon className="size-4 shrink-0 text-slate-500" />}
                   <span className="truncate">{activeNavItem?.label ?? 'Menu'}</span>
-                  <ChevronDown className="size-4 shrink-0 text-slate-400" />
+                  <ChevronDown className="size-4 shrink-0 text-slate-500" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-[min(20rem,calc(100vw-2rem))]">
@@ -608,7 +608,7 @@ export function MainLayout() {
                   const Icon = item.icon;
                   const active = isActive(item.path);
                   return (
-                    <DropdownMenuItem key={item.path} asChild className={active ? 'bg-slate-100 text-slate-950' : undefined}>
+                    <DropdownMenuItem key={item.path} asChild className={active ? 'bg-slate-50 text-slate-900' : undefined}>
                       <Link
                         to={user?.role === 'admin' ? adminNavTarget(item.path) : item.path}
                         className="flex w-full items-center gap-2"
@@ -616,7 +616,7 @@ export function MainLayout() {
                         {Icon && <Icon className="size-4" />}
                         <span className="flex-1">{item.label}</span>
                         {item.path === '/stage1' && pendingImports.length > 0 && (
-                          <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-bold leading-none text-white">
+                          <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[11px] font-bold leading-none text-white">
                             {pendingImports.length > 9 ? '9+' : pendingImports.length}
                           </span>
                         )}
@@ -636,19 +636,14 @@ export function MainLayout() {
                 <Link
                   key={item.path}
                   to={user?.role === 'admin' ? adminNavTarget(item.path) : item.path}
-                  className="flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-3 text-sm transition-colors sm:px-4"
-                  style={{
-                    borderBottomColor: active ? 'var(--brand)' : 'transparent',
-                    color: active ? 'var(--brand)' : '#64748b',
-                    fontWeight: active ? 600 : 400,
-                  }}
-                  onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = '#1e293b'; }}
-                  onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = '#64748b'; }}
+                  aria-current={active ? 'page' : undefined}
+                  className={`flex shrink-0 items-center gap-1.5 border-b-2 border-transparent px-3 py-3 text-sm transition-colors sm:px-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/15 ${active ? 'font-semibold' : 'font-normal text-slate-500 hover:text-slate-700'}`}
+                  style={active ? { color: 'var(--brand)', borderBottomColor: 'var(--brand)' } : undefined}
                 >
                   {Icon && <Icon className="size-3.5" />}
                   {item.label}
                   {item.path === '/stage1' && pendingImports.length > 0 && (
-                    <span className="ml-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-bold leading-none text-white">
+                    <span className="ml-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[11px] font-bold leading-none text-white">
                       {pendingImports.length > 9 ? '9+' : pendingImports.length}
                     </span>
                   )}

@@ -146,7 +146,7 @@ export function ImageDirectionPanel({
                 className={`flex min-h-20 flex-col items-start justify-between rounded-lg border px-3 py-2 text-left transition-colors ${
                   active
                     ? 'border-blue-500 bg-blue-50 text-blue-950'
-                    : 'border-slate-200 bg-white text-slate-800 hover:border-blue-200 hover:bg-slate-50'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-slate-50'
                 }`}
               >
                 <Icon className={`size-4 ${active ? 'text-blue-700' : 'text-slate-500'}`} aria-hidden />
@@ -181,7 +181,7 @@ export function ImageDirectionPanel({
         type="button"
         onClick={() => setAdvancedOpen(open => !open)}
         aria-expanded={advancedOpen}
-        className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900"
+        className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900"
       >
         <ChevronDown className={`size-3.5 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
         Advanced image settings {advancedOpen ? '' : '- creative territory, count, quality, and claim limits'}
@@ -271,7 +271,7 @@ export function ImageDirectionPanel({
               rows={2}
               className="resize-none text-xs"
             />
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-slate-500">
               Fake certifications, nutrition panels, retailer logos, and unsupported health claims are always blocked.
             </p>
           </div>

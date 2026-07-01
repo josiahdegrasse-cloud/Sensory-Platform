@@ -17,19 +17,19 @@ function LegalShell({ title, subtitle, icon: Icon, children }: {
           Back to sign in
         </a>
         <div className="mt-8 rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 p-7">
+          <div className="border-b border-slate-200 p-7">
             <div className="flex items-start gap-3">
               <div className="rounded-xl bg-slate-900 p-2.5 text-white">
                 <Icon className="size-5" />
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Effective {effectiveDate}</p>
-                <h1 className="mt-1 text-3xl font-bold text-slate-950">{title}</h1>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Effective {effectiveDate}</p>
+                <h1 className="mt-1 text-3xl font-bold text-slate-900">{title}</h1>
                 <p className="mt-2 text-sm leading-6 text-slate-500">{subtitle}</p>
               </div>
             </div>
           </div>
-          <div className="space-y-7 p-7 text-sm leading-6 text-slate-600">
+          <div className="space-y-7 p-7 text-sm leading-6 text-slate-700">
             {children}
           </div>
         </div>
@@ -41,7 +41,7 @@ function LegalShell({ title, subtitle, icon: Icon, children }: {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section>
-      <h2 className="text-base font-semibold text-slate-950">{title}</h2>
+      <h2 className="text-base font-semibold text-slate-900">{title}</h2>
       <div className="mt-2 space-y-2">{children}</div>
     </section>
   );

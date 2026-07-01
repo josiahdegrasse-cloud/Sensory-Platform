@@ -70,11 +70,11 @@ export function ConceptTestAnalysis({ projectTests, minimumResponses = 12 }: {
   return (
     <div className="grid gap-5 lg:grid-cols-[16rem_minmax(0,1fr)]">
       <aside className="self-start overflow-hidden rounded-xl border border-slate-200 bg-white lg:sticky lg:top-24">
-        <div className="border-b border-slate-100 p-4">
-          <h3 className="text-sm font-bold text-slate-950">Concept tests</h3>
+        <div className="border-b border-slate-200 p-4">
+          <h3 className="text-sm font-bold text-slate-900">Concept tests</h3>
           <p className="mt-1 text-xs text-slate-500">Filter the study list, then inspect one concept at a time.</p>
           <div className="relative mt-3">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-500" aria-hidden />
             <input
               value={testQuery}
               onChange={event => setTestQuery(event.target.value)}
@@ -184,7 +184,7 @@ function ConceptResultsPanel({ test, responses, minimumResponses }: {
   return (
     <div className="space-y-4">
       <Card className="overflow-hidden border border-slate-200">
-        <div className="border-b border-slate-100 bg-slate-50 p-5">
+        <div className="border-b border-slate-200 bg-slate-50 p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-3xl">
               <div className="flex flex-wrap items-center gap-2">
@@ -194,10 +194,10 @@ function ConceptResultsPanel({ test, responses, minimumResponses }: {
                   <Badge className="border border-amber-200 bg-amber-50 text-amber-800">Temporary demo responses</Badge>
                 )}
               </div>
-              <h3 className="mt-3 text-xl font-bold text-slate-950">{test.name}</h3>
-              <p className="mt-1 text-sm leading-6 text-slate-600">{test.description}</p>
+              <h3 className="mt-3 text-xl font-bold text-slate-900">{test.name}</h3>
+              <p className="mt-1 text-sm leading-6 text-slate-700">{test.description}</p>
               {conceptContext.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
+                <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-700">
                   {conceptContext.map(item => (
                     <span key={item} className="rounded-full border border-slate-200 bg-white px-3 py-1">{item}</span>
                   ))}
@@ -206,14 +206,14 @@ function ConceptResultsPanel({ test, responses, minimumResponses }: {
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-4 lg:min-w-[14rem]">
               <DataProvenanceBadge provenance="live" n={responses.length} />
-              <div className="mt-3 text-3xl font-bold text-slate-950">{responses.length}</div>
-              <p className="text-sm text-slate-600">of {test.panelSize} invited panelists responded</p>
+              <div className="mt-3 text-3xl font-bold text-slate-900">{responses.length}</div>
+              <p className="text-sm text-slate-700">of {test.panelSize} invited panelists responded</p>
             </div>
           </div>
         </div>
 
         <CardContent className="space-y-5 pt-5">
-          <div className="grid overflow-hidden rounded-xl border border-slate-200 bg-white sm:grid-cols-3 sm:divide-x sm:divide-slate-200">
+          <div className="grid overflow-hidden rounded-xl border border-slate-200 bg-white sm:grid-cols-3 sm:divide-x sm:divide-slate-100">
             <ConceptMetric
               label="Evidence coverage"
               value={`${responses.length}/${minimumResponses}`}
@@ -235,8 +235,8 @@ function ConceptResultsPanel({ test, responses, minimumResponses }: {
           </div>
 
           <div className="rounded-xl border border-slate-200">
-            <div className="border-b border-slate-100 px-4 py-3">
-              <h4 className="text-sm font-bold text-slate-950">Food developer read</h4>
+            <div className="border-b border-slate-200 px-4 py-3">
+              <h4 className="text-sm font-bold text-slate-900">Food developer read</h4>
               <p className="mt-0.5 text-xs text-slate-500">Translate concept feedback into what to keep, change, and validate next.</p>
             </div>
             <dl className="divide-y divide-slate-100 px-4">
@@ -295,9 +295,9 @@ function ConceptResultsPanel({ test, responses, minimumResponses }: {
       )}
 
       <Card className="border border-slate-200">
-        <CardHeader className="border-b border-slate-100">
+        <CardHeader className="border-b border-slate-200">
           <CardTitle className="text-base">Detailed evidence</CardTitle>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-700">
             Open only the evidence area you need. Each group keeps its response coverage attached.
           </p>
         </CardHeader>
@@ -306,14 +306,14 @@ function ConceptResultsPanel({ test, responses, minimumResponses }: {
             <details key={group.id} open={index === 0} className="group rounded-xl border border-slate-200 bg-white">
               <summary className="flex cursor-pointer list-none items-start justify-between gap-3 rounded-xl px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
                 <span>
-                  <span className="block text-sm font-bold text-slate-950">{group.title}</span>
+                  <span className="block text-sm font-bold text-slate-900">{group.title}</span>
                   <span className="mt-0.5 block text-xs leading-5 text-slate-500">
                     {group.description} · {group.questions.length} question{group.questions.length === 1 ? '' : 's'}
                   </span>
                 </span>
                 <ChevronDown className="mt-1 size-4 shrink-0 text-slate-500 transition-transform group-open:rotate-180" aria-hidden />
               </summary>
-              <div className="grid gap-3 border-t border-slate-100 bg-slate-50 p-3">
+              <div className="grid gap-3 border-t border-slate-200 bg-slate-50 p-3">
                 {group.questions.map(question => (
                     <QuestionResultCard
                       key={question.id}
@@ -353,8 +353,8 @@ function ConceptMetric({
         <Icon className="size-4" aria-hidden />
       </div>
       <div>
-        <p className="text-xs font-semibold text-slate-600">{label}</p>
-        <p className="mt-0.5 text-xl font-bold tabular-nums text-slate-950">{value}</p>
+        <p className="text-xs font-semibold text-slate-700">{label}</p>
+        <p className="mt-0.5 text-xl font-bold tabular-nums text-slate-900">{value}</p>
         <p className="mt-0.5 text-xs text-slate-500">{detail}</p>
       </div>
     </div>
@@ -371,13 +371,13 @@ function DeveloperReadRow({
 }) {
   return (
     <div className="grid gap-2 py-4 sm:grid-cols-[10rem_minmax(0,1fr)]">
-      <dt className="flex items-center gap-2 text-xs font-bold text-slate-600">
+      <dt className="flex items-center gap-2 text-xs font-bold text-slate-700">
         <Icon className="size-4 text-blue-600" aria-hidden />
         {label}
       </dt>
       <dd>
-        <p className="text-sm font-bold text-slate-950">{title}</p>
-        <p className="mt-1 text-sm leading-5 text-slate-600">{body}</p>
+        <p className="text-sm font-bold text-slate-900">{title}</p>
+        <p className="mt-1 text-sm leading-5 text-slate-700">{body}</p>
       </dd>
     </div>
   );
@@ -387,7 +387,7 @@ function DefinitionItem({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <dt className="text-xs font-semibold text-slate-500">{label}</dt>
-      <dd className="mt-1 font-medium leading-5 text-slate-800">{value}</dd>
+      <dd className="mt-1 font-medium leading-5 text-slate-700">{value}</dd>
     </div>
   );
 }
@@ -424,17 +424,17 @@ function PositioningAnalysisCard({
   if (set.length === 0) return null;
   return (
     <Card className="border border-slate-200">
-      <CardHeader className="border-b border-slate-100">
+      <CardHeader className="border-b border-slate-200">
         <CardTitle className="flex items-center gap-2 text-base">
           <Layers className="size-4 text-slate-500" aria-hidden />
           Positioning profile
         </CardTitle>
-        <p className="text-sm text-slate-600">Dimensions set for this concept variant.</p>
+        <p className="text-sm text-slate-700">Dimensions set for this concept variant.</p>
       </CardHeader>
       <CardContent className="pt-4">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-100">
+            <tr className="border-b border-slate-200">
               <th className="pb-2 text-left text-xs font-semibold text-slate-500">Dimension</th>
               <th className="pb-2 text-left text-xs font-semibold text-slate-500">Value</th>
               <th className="pb-2 text-right text-xs font-semibold text-slate-500">Purchase intent</th>
@@ -443,7 +443,7 @@ function PositioningAnalysisCard({
           <tbody className="divide-y divide-slate-50">
             {set.map(([key, label]) => (
               <tr key={key}>
-                <td className="py-2 text-slate-600">{label}</td>
+                <td className="py-2 text-slate-700">{label}</td>
                 <td className="py-2">
                   <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
                     {OPTION_LABELS[dims[key]!] ?? dims[key]}
@@ -457,7 +457,7 @@ function PositioningAnalysisCard({
           </tbody>
         </table>
         {purchaseIntent == null && (
-          <p className="mt-3 text-xs text-slate-400 italic">Add a purchase intent question to see the outcome score here.</p>
+          <p className="mt-3 text-xs text-slate-500 italic">Add a purchase intent question to see the outcome score here.</p>
         )}
       </CardContent>
     </Card>
@@ -532,13 +532,13 @@ function QuestionResultCard({
       <CardContent className="pt-4 pb-4">
         <div className="flex items-start justify-between gap-2 mb-3">
           <p className="text-sm font-semibold text-slate-900 leading-snug">{question.text}</p>
-          <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full flex-shrink-0">
+          <span className="text-[11px] font-medium text-slate-500 bg-slate-50 px-2 py-0.5 rounded-full flex-shrink-0">
             {n} response{n !== 1 ? 's' : ''}
           </span>
         </div>
 
         {n === 0 ? (
-          <p className="text-xs text-slate-400 italic">No answers yet.</p>
+          <p className="text-xs text-slate-500 italic">No answers yet.</p>
         ) : question.type === 'scale' ? (
           <ScaleResults values={answered.map(r => Number(r.answers[question.id]))} />
         ) : question.type === 'multiple_choice' ? (
@@ -597,7 +597,7 @@ function ScaleResults({ values }: { values: number[] }) {
               render: d => (
                 <>
                   <p className="font-semibold text-slate-900">Rating {String(d.rating)}</p>
-                  <p className="text-slate-600">{String(d.count)} response{Number(d.count) !== 1 ? 's' : ''}</p>
+                  <p className="text-slate-700">{String(d.count)} response{Number(d.count) !== 1 ? 's' : ''}</p>
                 </>
               ),
             })}
@@ -636,7 +636,7 @@ function ChoiceResults({ answers }: { answers: (string | string[])[] }) {
               render: d => (
                 <>
                   <p className="font-semibold text-slate-900">{String(d.opt)}</p>
-                  <p className="text-slate-600">{String(d.count)} pick{Number(d.count) !== 1 ? 's' : ''} ({String(d.pct)}%)</p>
+                  <p className="text-slate-700">{String(d.count)} pick{Number(d.count) !== 1 ? 's' : ''} ({String(d.pct)}%)</p>
                 </>
               ),
             })}
@@ -687,7 +687,7 @@ function RankingResults({ answers, options }: { answers: string[][]; options: st
               render: d => (
                 <>
                   <p className="font-semibold text-slate-900">{String(d.opt)}</p>
-                  <p className="text-slate-600">
+                  <p className="text-slate-700">
                     {String(d.firstPlace)} first-place pick{Number(d.firstPlace) !== 1 ? 's' : ''} · avg rank {d.avgRank != null ? String(d.avgRank) : '—'}
                   </p>
                 </>
@@ -714,7 +714,7 @@ function ImageChoiceResults({ answers, images, evidenceIsLimited }: {
   evidenceIsLimited: boolean;
 }) {
   if (images.length === 0) {
-    return <p className="text-xs text-slate-400 italic">No concept visuals were attached to this test.</p>;
+    return <p className="text-xs text-slate-500 italic">No concept visuals were attached to this test.</p>;
   }
   const tally = new Map<string, number>();
   answers.forEach(url => tally.set(url, (tally.get(url) ?? 0) + 1));
@@ -745,7 +745,7 @@ function ImageChoiceResults({ answers, images, evidenceIsLimited }: {
                 </span>
               )}
               <div className="absolute inset-x-0 bottom-0 bg-slate-950/75 px-1.5 py-1">
-                <div className="flex items-center justify-between text-[10px] font-semibold text-white">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-white">
                   <span>Option {index + 1}</span>
                   <span>{count} vote{count !== 1 ? 's' : ''} ({pct}%)</span>
                 </div>
@@ -765,8 +765,8 @@ function OpenTextResults({ answers }: { answers: string[] }) {
   return (
     <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
       {answers.map((text, i) => (
-        <div key={i} className="flex items-start gap-2 text-xs text-slate-600 bg-slate-50 rounded-md px-2.5 py-1.5">
-          <MessageSquare className="size-3 text-slate-400 mt-0.5 flex-shrink-0" />
+        <div key={i} className="flex items-start gap-2 text-xs text-slate-700 bg-slate-50 rounded-md px-2.5 py-1.5">
+          <MessageSquare className="size-3 text-slate-500 mt-0.5 flex-shrink-0" />
           <span>{text}</span>
         </div>
       ))}

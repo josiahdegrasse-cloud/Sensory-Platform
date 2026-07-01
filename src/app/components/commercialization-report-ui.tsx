@@ -12,7 +12,7 @@ export function ReportSection({ title, icon: Icon, tone = 'neutral', children }:
   children: React.ReactNode;
 }) {
   const iconToneClass: Record<SemanticTone, string> = {
-    neutral: 'bg-slate-100 text-slate-600',
+    neutral: 'bg-slate-50 text-slate-700',
     info: 'bg-blue-50 text-blue-600',
     success: 'bg-emerald-50 text-emerald-600',
     warning: 'bg-amber-50 text-amber-600',
@@ -21,7 +21,7 @@ export function ReportSection({ title, icon: Icon, tone = 'neutral', children }:
   };
   return (
     <Card className="break-inside-avoid border border-slate-200 bg-white">
-      <CardHeader className="border-b border-slate-100 pb-3">
+      <CardHeader className="border-b border-slate-200 pb-3">
         <CardTitle className="flex items-center gap-2.5 text-base">
           <span className={`flex size-8 items-center justify-center rounded-lg ${iconToneClass[tone]}`}>
             <Icon className="size-4" />
@@ -51,7 +51,7 @@ export function ReportBrandStrip({ settings }: { settings?: WorkspaceSettings | 
       {settings?.logoUrl ? (
         <img src={settings.logoUrl} alt={`${orgName} logo`} className="h-7 w-auto object-contain" />
       ) : orgName === DEFAULT_REPORT_ORGANIZATION_NAME ? (
-        <NfiBrandLockup markSize={28} textClassName="text-slate-700 [&_div]:text-[10px]" />
+        <NfiBrandLockup markSize={28} textClassName="text-slate-700 [&_div]:text-[11px]" />
       ) : (
         <span className="text-sm font-semibold text-slate-700">{orgName}</span>
       )}
@@ -66,8 +66,8 @@ export function MetricTile({ label, value, sub }: { label: string; value: string
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
       <div className="text-lg font-bold text-slate-900">{value}</div>
-      <div className="text-xs font-semibold text-slate-600">{label}</div>
-      {sub && <div className="text-[11px] text-slate-400">{sub}</div>}
+      <div className="text-xs font-semibold text-slate-700">{label}</div>
+      {sub && <div className="text-[11px] text-slate-500">{sub}</div>}
     </div>
   );
 }
@@ -77,8 +77,8 @@ export function ScoreBars({ entries }: { entries: Array<{ label: string; value: 
     <div className="space-y-1.5">
       {entries.map(({ label, value, max = 10 }) => (
         <div key={label} className="flex items-center gap-3">
-          <span className="w-32 shrink-0 text-xs capitalize text-slate-600">{label}</span>
-          <div className="h-2 flex-1 rounded-full bg-slate-100">
+          <span className="w-32 shrink-0 text-xs capitalize text-slate-700">{label}</span>
+          <div className="h-2 flex-1 rounded-full bg-slate-50">
             <div className="h-2 rounded-full bg-blue-600" style={{ width: `${Math.min(100, (value / max) * 100)}%` }} />
           </div>
           <span className="w-10 shrink-0 text-right text-xs font-semibold text-slate-700">{value.toFixed(1)}</span>
@@ -127,7 +127,7 @@ export function ReportCoverHeader({ settings, sampleName, foodTypeLabel, decisio
         {settings?.logoUrl ? (
           <img src={settings.logoUrl} alt={`${orgName} logo`} className="h-7 w-auto object-contain" />
         ) : orgName === DEFAULT_REPORT_ORGANIZATION_NAME ? (
-          <NfiBrandLockup markSize={28} textClassName="text-slate-700 [&_div]:text-[10px]" />
+          <NfiBrandLockup markSize={28} textClassName="text-slate-700 [&_div]:text-[11px]" />
         ) : null}
         {(settings?.logoUrl || orgName !== DEFAULT_REPORT_ORGANIZATION_NAME) && (
           <span className="text-sm font-semibold text-slate-500">{orgName}</span>
@@ -139,7 +139,7 @@ export function ReportCoverHeader({ settings, sampleName, foodTypeLabel, decisio
         <ProjectStatusBadge label={`${decision} · ISSF ${issfScore.toFixed(0)}`} tone={decisionTone} />
         <ConfidenceBadge confidence={confidence} />
         {draftLabel && <ProjectStatusBadge label={draftLabel} tone="info" />}
-        <span className="text-xs text-slate-400">{new Date(timestamp).toLocaleDateString()}</span>
+        <span className="text-xs text-slate-500">{new Date(timestamp).toLocaleDateString()}</span>
       </div>
     </div>
   );

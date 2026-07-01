@@ -29,6 +29,8 @@ export interface PendingImportRecord {
 export interface DriveFile {
   id: string;
   name: string;
+  mimeType: string | null;
+  importKind: 'csv' | 'google_sheet';
   size: number | null;
   modifiedTime: string | null;
   alreadyImported: boolean;
@@ -127,7 +129,7 @@ export async function uploadAndQueueImport(
   return toPendingImport(data as Tables['pending_imports']['Row']);
 }
 
-// Lists CSVs in the org's connected Google Drive folder via the drive-sync
+// Lists supported instrument files in the org's connected Google Drive folder via the drive-sync
 // Edge Function (which authenticates as the service account, not the user).
 export async function listDriveFiles(): Promise<{ files: DriveFile[]; serviceAccountEmail: string }> {
   const { data, error } = await supabase.functions.invoke('drive-sync', {

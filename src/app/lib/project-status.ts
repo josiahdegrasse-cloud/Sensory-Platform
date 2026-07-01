@@ -1,7 +1,7 @@
 import type { ImportBatchRecord, InstrumentalDataset, DecisionRecord, ConceptTest, CommercializationReportRecord } from './database';
 import type { Product } from '../data/survey-domain';
 import { formatFoodTypeLabel } from './food-intelligence';
-import { projectPath, projectStatusStagePath } from './project-journey-routes';
+import { projectStatusStagePath } from './project-journey-routes';
 import { sampleMatchesFoodType } from '../contexts/food-type-context';
 
 export type WorkflowStageId = 'data' | 'studies' | 'responses' | 'testing' | 'insights' | 'decision' | 'concept' | 'report';
@@ -156,7 +156,11 @@ export function computeProjectStatus(input: ComputeProjectStatusInput): ProjectS
 
   const projectProducts = products.filter(product =>
     product.status !== 'archived' &&
-    (product.sourceSampleId ? populationSampleIds.has(product.sourceSampleId) : false)
+    (
+      (batch?.projectId ? product.projectId === batch.projectId : false) ||
+      (importBatchId ? product.sourceImportBatchId === importBatchId : false) ||
+      (product.sourceSampleId ? populationSampleIds.has(product.sourceSampleId) : false)
+    )
   );
 
   // ---- Data stage: required datasets present for at least one sample ----

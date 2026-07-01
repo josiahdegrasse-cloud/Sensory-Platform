@@ -17,7 +17,7 @@ export function JargonTooltip({ term, children }: JargonTooltipProps) {
               {children}
             </span>
           ) : (
-            <Info className="size-4 text-slate-400 inline-block cursor-help" />
+            <Info className="size-4 text-slate-500 inline-block cursor-help" />
           )}
         </TooltipTrigger>
         <TooltipContent className="max-w-sm">

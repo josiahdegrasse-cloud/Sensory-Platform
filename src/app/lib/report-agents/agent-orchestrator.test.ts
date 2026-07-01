@@ -10,18 +10,24 @@ describe('commercialization report agent orchestration contract', () => {
     const quick = buildAgentBriefs({ ctx, mode: 'quick_draft', reportContextHash: 'hash-1' });
     const full = buildAgentBriefs({ ctx, mode: 'full_release_review', reportContextHash: 'hash-1' });
 
-    expect(quick.map(brief => brief.agentName)).toContain('claims_compliance');
-    expect(quick.map(brief => brief.agentName)).not.toContain('instrumental_science');
+    expect(quick.map(brief => brief.agentName)).toContain('claims_compliance_reviewer');
+    expect(quick.map(brief => brief.agentName)).not.toContain('instrumental_science_reviewer');
     expect(full.map(brief => brief.agentName)).toEqual(expect.arrayContaining([
       'evidence_auditor',
-      'sensory_science',
-      'instrumental_science',
-      'commercial_strategy',
-      'concept_packaging',
-      'claims_compliance',
-      'section_writer',
-      'editor',
-      'qc_critic',
+      'calculation_auditor',
+      'sensory_science_reviewer',
+      'instrumental_science_reviewer',
+      'consumer_insights_reviewer',
+      'claims_compliance_reviewer',
+      'decision_consistency_auditor',
+      'commercial_strategist',
+      'action_plan_engineer',
+      'professional_report_writer',
+      'editorial_reviewer',
+      'visual_qa_reviewer',
+      'client_red_team',
+      'conflict_resolver',
+      'final_independent_judge',
     ]));
     expect(full[0].evidenceScope.allowedEvidenceKeys).toEqual(ctx.sourceEvidenceIds);
     expect(full[0].decision.issfScore).toBe(ctx.issfScore);
@@ -48,14 +54,20 @@ describe('commercialization report agent orchestration contract', () => {
   it('exposes the requested workflow progress steps', () => {
     expect(REPORT_AGENT_WORKFLOW_STEPS.map(([, label]) => label)).toEqual([
       'Evidence audit',
-      'Sensory interpretation',
-      'Instrumental interpretation',
-      'Concept/packaging interpretation',
+      'Calculation audit',
+      'Sensory science review',
+      'Instrumental science review',
+      'Consumer insights review',
+      'Claims compliance review',
+      'Decision consistency audit',
       'Commercial strategy',
-      'Claims check',
-      'Section writing',
-      'Editing',
-      'QC critic',
+      'Action plan',
+      'Professional writing',
+      'Editorial review',
+      'Visual PDF QA',
+      'Client red-team',
+      'Conflict resolution',
+      'Final release judge',
       'Deterministic QC',
     ]);
   });
@@ -63,13 +75,15 @@ describe('commercialization report agent orchestration contract', () => {
   it('orders staged workflow gates before and after narrative writing', () => {
     const steps = REPORT_AGENT_WORKFLOW_STEPS.map(([key]) => key);
     const evidenceAudit = steps.indexOf('evidence_auditor');
-    const claimsCompliance = steps.indexOf('claims_compliance');
-    const sectionWriting = steps.indexOf('section_writer');
-    const qcCritic = steps.indexOf('qc_critic');
+    const claimsCompliance = steps.indexOf('claims_compliance_reviewer');
+    const sectionWriting = steps.indexOf('professional_report_writer');
+    const conflictResolver = steps.indexOf('conflict_resolver');
+    const finalJudge = steps.indexOf('final_independent_judge');
 
     expect(evidenceAudit).toBeGreaterThanOrEqual(0);
     expect(evidenceAudit).toBeLessThan(sectionWriting);
     expect(claimsCompliance).toBeLessThan(sectionWriting);
-    expect(qcCritic).toBeGreaterThan(sectionWriting);
+    expect(conflictResolver).toBeGreaterThan(sectionWriting);
+    expect(finalJudge).toBeGreaterThan(conflictResolver);
   });
 });

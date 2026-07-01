@@ -32,6 +32,7 @@ function toProduct(row: ProductRow): Product {
     blinded: row.blinded ?? false,
     blindCode: row.blind_code ?? null,
     assignedPanelistIds: row.assigned_panelist_ids ?? [],
+    projectId: row.project_id ?? null,
     sourceImportBatchId: row.source_import_batch_id ?? null,
     sourceSampleId: row.source_sample_id ?? null,
   };
@@ -50,6 +51,7 @@ function fromProduct(p: Omit<Product, 'id' | 'createdDate'>): ProductInsert {
     blinded: p.blinded ?? false,
     blind_code: p.blindCode ?? null,
     assigned_panelist_ids: p.assignedPanelistIds ?? [],
+    project_id: p.projectId ?? null,
     source_import_batch_id: p.sourceImportBatchId ?? null,
     source_sample_id: p.sourceSampleId ?? null,
   };
@@ -110,6 +112,7 @@ export async function updateProduct(
   if (updates.blinded !== undefined) patch.blinded = updates.blinded;
   if (updates.blindCode !== undefined) patch.blind_code = updates.blindCode;
   if (updates.assignedPanelistIds !== undefined) patch.assigned_panelist_ids = updates.assignedPanelistIds;
+  if (updates.projectId !== undefined) patch.project_id = updates.projectId;
   if (updates.sourceImportBatchId !== undefined) patch.source_import_batch_id = updates.sourceImportBatchId;
   if (updates.sourceSampleId !== undefined) patch.source_sample_id = updates.sourceSampleId;
 

@@ -138,6 +138,7 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
 
   const projectProducts = input.products.filter(product => {
     if (product.status === 'archived') return false;
+    if (batch?.projectId && product.projectId === batch.projectId) return true;
     if (input.importBatchId) return product.sourceImportBatchId === input.importBatchId;
     return product.sourceSampleId ? sampleIds.has(product.sourceSampleId) : false;
   });

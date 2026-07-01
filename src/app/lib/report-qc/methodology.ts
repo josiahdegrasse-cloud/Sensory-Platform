@@ -1,4 +1,3 @@
-import type { GoStopTweakDecision } from '../../utils/go-stop-tweak-engine';
 import type { IssfContribution, MethodologyEvidence, RawMetric } from './types';
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -121,7 +120,6 @@ export function buildTextureBreakdown(intensity: Record<string, number>, foodTyp
     .filter(present)
     .map(key => ({ label: `${key} (negative cue)`, value: Number(intensity[key]), scale: '0–10', direction: 'lower_better' }));
 
-  const captured = positiveKeys.filter(present);
   const missing = positiveKeys.filter(k => !present(k));
   const posAvg = positiveKeys.reduce((s, k) => s + (present(k) ? Number(intensity[k]) : 0), 0) / positiveKeys.length;
   const negAvg = TEXTURE_NEGATIVE_KEYS.reduce((s, k) => s + (present(k) ? Number(intensity[k]) : 0), 0) / TEXTURE_NEGATIVE_KEYS.length;

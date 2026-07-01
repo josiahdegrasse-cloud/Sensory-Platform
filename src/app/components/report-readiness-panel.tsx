@@ -20,8 +20,8 @@ export function ReportReadinessPanel({ readiness }: { readiness: ReportReadiness
     <section className="rounded-xl border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="flex items-center gap-2 font-semibold text-slate-950">
-            <ShieldCheck className="size-4 text-slate-600" />
+          <h2 className="flex items-center gap-2 font-semibold text-slate-900">
+            <ShieldCheck className="size-4 text-slate-700" />
             Report readiness
           </h2>
           <p className="mt-1 text-sm text-slate-500">

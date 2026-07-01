@@ -28,7 +28,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <h1 className="text-xl font-semibold text-white bg-slate-900 rounded-lg px-4 py-2 mb-4">
             Something went wrong
           </h1>
-          <pre className="text-xs text-slate-500 bg-slate-100 rounded-lg p-3 overflow-auto mb-6 whitespace-pre-wrap break-words">
+          <pre className="text-xs text-slate-500 bg-slate-50 rounded-lg p-3 overflow-auto mb-6 whitespace-pre-wrap break-words">
             {this.state.error?.message ?? "Unknown error"}
           </pre>
           <button

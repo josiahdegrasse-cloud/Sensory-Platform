@@ -49,8 +49,9 @@ export function ProjectJourneyNav({ stages, projectId }: { stages: WorkflowStage
           const active = isActiveItem(item, location.pathname, projectId);
           const blocked = isBlocked(item, stage?.status);
           const className = cn(
-            'flex h-9 w-[92px] items-center justify-center gap-1.5 rounded-md px-2 text-xs font-semibold transition-colors',
-            active ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950',
+            'flex h-9 w-[92px] items-center justify-center gap-1.5 rounded-md px-2 text-xs font-semibold transition-[background-color,color,box-shadow,transform] duration-150 ease-out motion-reduce:transition-none',
+            active ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900',
+            !active && !blocked && 'hover:shadow-sm motion-safe:hover:-translate-y-px active:translate-y-0 active:shadow-none',
             blocked && 'cursor-not-allowed text-slate-300 hover:bg-transparent hover:text-slate-300',
           );
           const content = (

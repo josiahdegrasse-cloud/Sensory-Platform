@@ -54,7 +54,7 @@ function statusClass(status: PanelistKitRecord['calculatedStatus']) {
   if (status === 'started' || status === 'claimed') return 'border-blue-300 text-blue-700';
   if (status === 'printed' || status === 'packed' || status === 'shipped') return 'border-amber-300 text-amber-700';
   if (status === 'expired' || status === 'void') return 'border-rose-300 text-rose-700';
-  return 'border-slate-300 text-slate-700';
+  return 'border-slate-200 text-slate-700';
 }
 
 function issueClass(status: PanelistKitRecord['issueStatus']) {
@@ -138,18 +138,18 @@ function KitInsertCard({ kit, product, instructions, assignedTasks }: {
   const recipientLabel = kit.recipientName ?? 'Panelist';
 
   return (
-    <article className="kit-insert-page rounded-lg border border-slate-300 bg-white p-6 text-slate-950">
+    <article className="kit-insert-page rounded-lg border border-slate-200 bg-white p-6 text-slate-900">
       <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">New Food Innovation</p>
-          <h2 className="mt-1 text-2xl font-bold text-slate-950">Panelist box pass</h2>
-          <p className="mt-1 text-sm text-slate-600">{displayName}</p>
+          <h2 className="mt-1 text-2xl font-bold text-slate-900">Panelist box pass</h2>
+          <p className="mt-1 text-sm text-slate-700">{displayName}</p>
           <p className="mt-3 text-sm text-slate-700">
-            For: <span className="font-bold text-slate-950">{recipientLabel}</span>
+            For: <span className="font-bold text-slate-900">{recipientLabel}</span>
             {kit.recipientEmail && <span className="ml-2 text-xs text-slate-500">{kit.recipientEmail}</span>}
           </p>
         </div>
-        <div className="rounded-md border border-slate-300 px-3 py-2 text-right">
+        <div className="rounded-md border border-slate-200 px-3 py-2 text-right">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Box code</p>
           <p className="font-mono text-lg font-bold tracking-wider">{kit.kitCode}</p>
         </div>
@@ -157,14 +157,14 @@ function KitInsertCard({ kit, product, instructions, assignedTasks }: {
 
       <div className="mt-5 grid gap-5 sm:grid-cols-[180px_1fr]">
         <div className="space-y-2">
-          <div className="rounded-lg border border-slate-300 bg-white p-3">
+          <div className="rounded-lg border border-slate-200 bg-white p-3">
             <QRCode value={url} size={150} level="M" />
           </div>
           <p className="break-all text-[11px] leading-4 text-slate-500">{url}</p>
         </div>
         <div className="space-y-4">
           <div>
-            <h3 className="text-sm font-bold text-slate-950">What to do</h3>
+            <h3 className="text-sm font-bold text-slate-900">What to do</h3>
             <ol className="mt-2 space-y-2 text-sm leading-5 text-slate-700">
               <li>1. Keep the food sealed until you are ready to taste.</li>
               <li>2. Scan this QR code once with your phone camera.</li>
@@ -174,7 +174,7 @@ function KitInsertCard({ kit, product, instructions, assignedTasks }: {
             </ol>
           </div>
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-            <h3 className="text-sm font-bold text-slate-950">Tasks assigned from this box</h3>
+            <h3 className="text-sm font-bold text-slate-900">Tasks assigned from this box</h3>
             <ul className="mt-2 space-y-1 text-sm leading-5 text-slate-700">
               {assignedTasks.map((task, index) => (
                 <li key={task.id}>
@@ -184,24 +184,24 @@ function KitInsertCard({ kit, product, instructions, assignedTasks }: {
             </ul>
           </div>
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-            <h3 className="text-sm font-bold text-slate-950">Handling notes</h3>
+            <h3 className="text-sm font-bold text-slate-900">Handling notes</h3>
             <p className="mt-1 whitespace-pre-line text-sm leading-5 text-slate-700">{instructions}</p>
           </div>
-          <div className="grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
+          <div className="grid gap-2 text-xs text-slate-700 sm:grid-cols-2">
             <div className="rounded-md border border-slate-200 px-3 py-2">
               <span className="block font-semibold text-slate-500">Assigned tasks</span>
-              <span className="text-sm font-bold text-slate-950">{kit.assignedProductIds.length}</span>
+              <span className="text-sm font-bold text-slate-900">{kit.assignedProductIds.length}</span>
             </div>
             {kit.responseDeadline && (
               <div className="rounded-md border border-slate-200 px-3 py-2">
                 <span className="block font-semibold text-slate-500">Complete by</span>
-                <span className="text-sm font-bold text-slate-950">{new Date(kit.responseDeadline).toLocaleDateString()}</span>
+                <span className="text-sm font-bold text-slate-900">{new Date(kit.responseDeadline).toLocaleDateString()}</span>
               </div>
             )}
             {kit.manualCode && (
               <div className="rounded-md border border-slate-200 px-3 py-2 sm:col-span-2">
                 <span className="block font-semibold text-slate-500">Manual fallback code</span>
-                <span className="font-mono text-sm font-bold text-slate-950">{kit.manualCode}</span>
+                <span className="font-mono text-sm font-bold text-slate-900">{kit.manualCode}</span>
                 <span className="mt-1 block text-[12px] leading-5 text-slate-700">If the QR will not scan, go to {manualJoinUrl(kit.manualCode)} or enter this code on the join screen.</span>
               </div>
             )}
@@ -386,7 +386,7 @@ export function PanelistKitInserts({ product }: { product: Product }) {
             <QrCode className="size-4 text-slate-700" aria-hidden />
             Box QR codes and package inserts
           </h3>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-slate-700">
             Generate one QR-coded box pass per panelist. The QR takes them through sign-up, claims the box, and opens their account with the selected tasting tasks waiting.
           </p>
         </div>
@@ -489,10 +489,10 @@ export function PanelistKitInserts({ product }: { product: Product }) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h4 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-              <FileCheck2 className="size-4 text-slate-600" aria-hidden />
+              <FileCheck2 className="size-4 text-slate-700" aria-hidden />
               Review before generating
             </h4>
-            <p className="mt-1 text-xs leading-5 text-slate-600">
+            <p className="mt-1 text-xs leading-5 text-slate-700">
               Use this as the packing checkpoint. The QR passes should only be generated once these details match the physical boxes.
             </p>
           </div>
@@ -503,19 +503,19 @@ export function PanelistKitInserts({ product }: { product: Product }) {
         <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-md border border-slate-200 bg-white p-3">
             <span className="block text-xs font-semibold text-slate-500">Boxes in next batch</span>
-            <span className="mt-1 block text-lg font-bold text-slate-950">{effectiveKitCount}</span>
+            <span className="mt-1 block text-lg font-bold text-slate-900">{effectiveKitCount}</span>
           </div>
           <div className="rounded-md border border-slate-200 bg-white p-3">
             <span className="block text-xs font-semibold text-slate-500">Named recipients</span>
-            <span className="mt-1 block text-lg font-bold text-slate-950">{recipients.length || 'None'}</span>
+            <span className="mt-1 block text-lg font-bold text-slate-900">{recipients.length || 'None'}</span>
           </div>
           <div className="rounded-md border border-slate-200 bg-white p-3">
             <span className="block text-xs font-semibold text-slate-500">Tasks per box</span>
-            <span className="mt-1 block text-lg font-bold text-slate-950">{selectedTaskSummaries.length}</span>
+            <span className="mt-1 block text-lg font-bold text-slate-900">{selectedTaskSummaries.length}</span>
           </div>
           <div className="rounded-md border border-slate-200 bg-white p-3">
             <span className="block text-xs font-semibold text-slate-500">Deadline</span>
-            <span className="mt-1 block text-sm font-bold text-slate-950">{responseDeadline ? new Date(responseDeadline).toLocaleDateString() : 'Not set'}</span>
+            <span className="mt-1 block text-sm font-bold text-slate-900">{responseDeadline ? new Date(responseDeadline).toLocaleDateString() : 'Not set'}</span>
           </div>
         </div>
         <div className="mt-3 rounded-md border border-slate-200 bg-white p-3">

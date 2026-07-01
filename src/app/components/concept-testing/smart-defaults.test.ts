@@ -14,6 +14,10 @@ const draft: ConceptDraft = {
   description: 'A familiar cheddar alternative for everyday meals.',
   marketingImages: ['https://example.com/front.png', 'https://example.com/use.png'],
   marketingImageIds: ['image-1', 'image-2'],
+  marketingImageReviews: [
+    { imageId: 'image-1', status: 'approved', qa: {}, notes: '', source: 'ai' },
+    { imageId: 'image-2', status: 'selected', qa: {}, notes: '', source: 'ai' },
+  ],
   targetMarket: 'Flexitarian households',
   targetOccasion: 'Weeknight meals',
   productAppearance: 'Pale cheddar-orange slices with a realistic melt.',

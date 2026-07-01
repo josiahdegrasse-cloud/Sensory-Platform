@@ -50,7 +50,8 @@ export function CommercializationReportBuilder({
 }) {
   const [open, setOpen] = useState(false);
   const [conceptId, setConceptId] = useState('');
-  const [imageIndex, setImageIndex] = useState(0);
+  // Explicit image choice; falls back to the concept's preferred image below.
+  const [imageIndexOverride, setImageIndex] = useState<number | null>(null);
   const [snapshot, setSnapshot] = useState<CommercializationReportSnapshot | null>(null);
   const [savedReportId, setSavedReportId] = useState('');
   const [savedVersion, setSavedVersion] = useState(1);
@@ -58,7 +59,12 @@ export function CommercializationReportBuilder({
   const [error, setError] = useState('');
   const { data: decisions = [] } = useDecisionRecords();
   const { data: concepts = [] } = useAdminConceptTests();
-  const responsesQuery = useConceptTestResponses(conceptId);
+  const matchingConcepts = useMemo(() => concepts.filter(concept =>
+    concept.foodTypeSlug === foodType || concept.category.toLowerCase().includes(foodType.toLowerCase())
+  ), [concepts, foodType]);
+  // Auto-select the first matching concept until the user picks one explicitly.
+  const effectiveConceptId = conceptId || matchingConcepts[0]?.id || '';
+  const responsesQuery = useConceptTestResponses(effectiveConceptId);
   const responses = useMemo(() => responsesQuery.data ?? [], [responsesQuery.data]);
   const { data: reports = [] } = useCommercializationReports();
   const createReport = useCreateCommercializationReport();
@@ -130,13 +136,12 @@ export function CommercializationReportBuilder({
     && record.decision === 'GO'
     && record.decisionFingerprint === decision.decisionFingerprint
   );
-  const matchingConcepts = useMemo(() => concepts.filter(concept =>
-    concept.foodTypeSlug === foodType || concept.category.toLowerCase().includes(foodType.toLowerCase())
-  ), [concepts, foodType]);
-  const selectedConcept = matchingConcepts.find(concept => concept.id === conceptId);
+  const selectedConcept = matchingConcepts.find(concept => concept.id === effectiveConceptId);
+  const imageIndex = imageIndexOverride
+    ?? (selectedConcept ? preferredConceptImageIndex(selectedConcept.imageMeta, selectedConcept.imageUrls.length) : 0);
   const selectedReport = reports.find(report => report.id === savedReportId);
   const reportVersions = reports.filter(report =>
-    report.decisionRecordId === confirmedGo?.id && report.conceptTestId === conceptId
+    report.decisionRecordId === confirmedGo?.id && report.conceptTestId === effectiveConceptId
   );
   const canOpen = decision.decision === 'GO' && !!confirmedGo;
   // Staleness: the bundle linked to the saved report vs the current data fingerprint.
@@ -150,16 +155,12 @@ export function CommercializationReportBuilder({
     evaluation: aiEval,
   });
 
+  // Auto-open once the report becomes eligible when the caller requested it.
+  // Legitimate sync to async readiness — `canOpen` flips true only when the
+  // decision records load, which a render-time derivation can't observe without
+  // reshuffling several data hooks for no behavioural gain.
   useEffect(() => {
-    if (conceptId || matchingConcepts.length === 0) return;
-    setConceptId(matchingConcepts[0].id);
-    setImageIndex(preferredConceptImageIndex(
-      matchingConcepts[0].imageMeta,
-      matchingConcepts[0].imageUrls.length,
-    ));
-  }, [conceptId, matchingConcepts]);
-
-  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot auto-open on async eligibility
     if (initiallyOpen && canOpen) setOpen(true);
   }, [canOpen, initiallyOpen]);
 
@@ -189,9 +190,14 @@ export function CommercializationReportBuilder({
     setError('');
   };
 
+  // Build the first editable draft once the dialog is open and responses have
+  // loaded. The snapshot is user-editable afterwards (narrative edits, AI merge),
+  // so it must live in state — this is initialization on async readiness, not a
+  // pure derivation.
   useEffect(() => {
     if (!open || snapshot || !responsesQuery.isSuccess || !selectedConcept || selectedConcept.imageUrls.length === 0) return;
     const draft = buildDraft();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initialize editable draft on async readiness
     if (draft) setSnapshot(draft);
   }, [buildDraft, open, responsesQuery.isSuccess, selectedConcept, snapshot]);
 
@@ -350,7 +356,7 @@ export function CommercializationReportBuilder({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="h-[min(94vh,920px)] !w-[calc(100vw-2rem)] !max-w-[1440px] sm:!max-w-[1440px] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0">
           <DialogHeader className="border-b border-slate-200 px-6 py-5 pr-14">
-            <DialogTitle className="text-xl text-slate-950">Commercialization report</DialogTitle>
+            <DialogTitle className="text-xl text-slate-900">Commercialization report</DialogTitle>
             <DialogDescription className="max-w-3xl">
               Select the concept and packaging, review the evidence narrative, then save and export the client-ready report.
             </DialogDescription>
@@ -360,7 +366,7 @@ export function CommercializationReportBuilder({
             <aside className="space-y-5 border-b border-slate-200 bg-slate-50/70 p-6 lg:overflow-y-auto lg:border-r lg:border-b-0">
               <div>
                 <Label>Concept study</Label>
-                <Select value={conceptId} onValueChange={value => { setConceptId(value); setImageIndex(0); setSnapshot(null); }}>
+                <Select value={effectiveConceptId} onValueChange={value => { setConceptId(value); setImageIndex(0); setSnapshot(null); }}>
                   <SelectTrigger className="mt-1"><SelectValue placeholder="Select concept" /></SelectTrigger>
                   <SelectContent>
                     {matchingConcepts.map(concept => <SelectItem key={concept.id} value={concept.id}>{concept.name}</SelectItem>)}
@@ -395,7 +401,7 @@ export function CommercializationReportBuilder({
                               )}
                             </div>
                             {meta && (
-                              <div className="truncate bg-white px-1.5 py-1 text-[10px] font-medium text-slate-500">
+                              <div className="truncate bg-white px-1.5 py-1 text-[11px] font-medium text-slate-500">
                                 {getConceptImageMode(meta.mode).label} · AI draft
                               </div>
                             )}
@@ -404,7 +410,7 @@ export function CommercializationReportBuilder({
                       })}
                     </div>
                   </div>
-                  <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                  <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
                     <strong className="text-slate-900">{responses.length}</strong> concept response{responses.length === 1 ? '' : 's'} will be included.
                   </div>
                   {reportVersions.length > 0 && (
@@ -433,7 +439,7 @@ export function CommercializationReportBuilder({
                             }}
                             className="flex w-full items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-left text-xs hover:bg-slate-50"
                           >
-                            <span className="font-semibold text-slate-800">Version {report.version}</span>
+                            <span className="font-semibold text-slate-700">Version {report.version}</span>
                             <span className="capitalize text-slate-500">{report.status}</span>
                           </button>
                         ))}
@@ -449,9 +455,9 @@ export function CommercializationReportBuilder({
 
             <section className="min-h-0 space-y-5 p-6 lg:overflow-y-auto">
               {!snapshot ? (
-                <div className="flex h-full min-h-[420px] items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-6 text-center">
+                <div className="flex h-full min-h-[420px] items-center justify-center rounded-lg border border-dashed border-slate-200 bg-white px-6 text-center">
                   <div className="max-w-sm">
-                    <FileText className="mx-auto size-8 text-slate-400" />
+                    <FileText className="mx-auto size-8 text-slate-500" />
                     <p className="mt-3 font-semibold text-slate-900">Select the approved packaging</p>
                     <p className="mt-1 text-sm text-slate-500">The report will combine the confirmed GO evidence with the linked concept panel results.</p>
                   </div>

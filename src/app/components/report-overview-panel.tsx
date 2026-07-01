@@ -1,4 +1,5 @@
-import { Link } from 'react-router';
+import { Link, useParams } from 'react-router';
+import { workflowStagePath } from '../lib/project-journey-routes';
 import {
   FileText, FileSpreadsheet, Presentation, Sparkles, GitMerge, FlaskConical,
   Users, AlertTriangle, ListChecks, Target, Lightbulb, Download,
@@ -76,6 +77,7 @@ export function ReportOverviewPanel({
   exporting,
   exportError,
 }: ReportOverviewPanelProps) {
+  const { projectId: routeProjectId } = useParams<{ projectId?: string }>();
   const appendixIntensity = matchingLiveSensory && Object.keys(matchingLiveSensory.intensity).length > 0
     ? { scale: 5, entries: Object.entries(matchingLiveSensory.intensity).slice(0, 5).map(([label, value]) => ({ label, value: value as number, max: 5 })) }
     : !matchingLiveSensory && sensoryProfile
@@ -109,7 +111,7 @@ export function ReportOverviewPanel({
           <p>
             This is a live view assembled from the project's current decision, instrumental data, and concept evidence.
             {focusDecision.decision === 'GO' && (
-              <> Open <Link to="/decision" className="font-semibold underline underline-offset-2">Decision review</Link> to generate and save a formal branded draft.</>
+              <> Open <Link to={workflowStagePath('decision', routeProjectId)} className="font-semibold underline underline-offset-2">Decision review</Link> to generate and save a formal branded draft.</>
             )}
           </p>
         </div>
@@ -117,23 +119,23 @@ export function ReportOverviewPanel({
 
       {/* Data sources */}
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Data sources</p>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Data sources</p>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-            <div className="mb-1.5 text-xs font-semibold text-slate-600">Sensory profile</div>
+            <div className="mb-1.5 text-xs font-semibold text-slate-700">Sensory profile</div>
             {sensoryProvenance === 'live' && <DataProvenanceBadge provenance="live" n={matchingLiveSensory?.n} />}
             {sensoryProvenance === 'reference' && <DataProvenanceBadge provenance="reference" />}
-            {sensoryProvenance === 'none' && <span className="text-xs text-slate-400">Not available</span>}
+            {sensoryProvenance === 'none' && <span className="text-xs text-slate-500">Not available</span>}
           </div>
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-            <div className="mb-1.5 text-xs font-semibold text-slate-600">Instrumental data</div>
-            {sample ? <DataProvenanceBadge provenance="imported" /> : <span className="text-xs text-slate-400">Not linked</span>}
+            <div className="mb-1.5 text-xs font-semibold text-slate-700">Instrumental data</div>
+            {sample ? <DataProvenanceBadge provenance="imported" /> : <span className="text-xs text-slate-500">Not linked</span>}
           </div>
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-            <div className="mb-1.5 text-xs font-semibold text-slate-600">Concept evidence</div>
+            <div className="mb-1.5 text-xs font-semibold text-slate-700">Concept evidence</div>
             {evidence && evidence.responseCount > 0
               ? <DataProvenanceBadge provenance="live" n={evidence.responseCount} />
-              : <span className="text-xs text-slate-400">{projectConcept ? 'No responses yet' : 'No concept linked'}</span>}
+              : <span className="text-xs text-slate-500">{projectConcept ? 'No responses yet' : 'No concept linked'}</span>}
           </div>
           <MetricTile label="Purchase intent" value={evidence?.purchaseIntent ? evidence.purchaseIntent.toFixed(1) : 'N/A'} sub="1–9 scale" />
         </div>
@@ -142,7 +144,7 @@ export function ReportOverviewPanel({
       {/* Executive Summary */}
       <ReportSection title="Executive Summary" icon={Target} tone={decisionTone}>
         <p>{executiveSummary}</p>
-        <ul className="space-y-1.5 border-t border-slate-100 pt-3 text-xs">
+        <ul className="space-y-1.5 border-t border-slate-200 pt-3 text-xs">
           {executiveHighlights.map((item, i) => (
             <li key={i} className="flex items-start gap-2">
               <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-slate-400" />
@@ -153,9 +155,9 @@ export function ReportOverviewPanel({
       </ReportSection>
 
       <Card className="border border-slate-200 bg-white">
-        <CardHeader className="border-b border-slate-100 pb-3">
+        <CardHeader className="border-b border-slate-200 pb-3">
           <CardTitle className="text-base">Final summary</CardTitle>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-700">
             The short version of the report: what matters, what supports it, and what has to happen next.
           </p>
         </CardHeader>
@@ -174,7 +176,7 @@ export function ReportOverviewPanel({
                   <tr key={row.label}>
                     <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold text-slate-500">{row.label}</th>
                     <td className="px-4 py-3 font-semibold text-slate-900">{row.value}</td>
-                    <td className="px-4 py-3 text-slate-600">{row.detail}</td>
+                    <td className="px-4 py-3 text-slate-700">{row.detail}</td>
                   </tr>
                 ))}
               </tbody>
@@ -194,7 +196,7 @@ export function ReportOverviewPanel({
             <div><dt className="font-semibold text-slate-500">Price point</dt><dd className="text-slate-900">{projectConcept?.pricePoint || '—'}</dd></div>
             <div><dt className="font-semibold text-slate-500">Method</dt><dd className="font-mono text-slate-900">{focusDecision.methodVersion}</dd></div>
           </dl>
-          {projectConcept?.description && <p className="text-xs text-slate-600 border-t border-slate-100 pt-3">{projectConcept.description}</p>}
+          {projectConcept?.description && <p className="text-xs text-slate-700 border-t border-slate-200 pt-3">{projectConcept.description}</p>}
         </ReportSection>
 
         {/* Decision Rationale */}
@@ -206,7 +208,7 @@ export function ReportOverviewPanel({
           <p>{focusDecision.note || 'No additional rationale note was recorded with this decision.'}</p>
           {snapshot ? (
             <>
-              <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 border-t border-slate-200 pt-3 sm:grid-cols-4">
                 {Object.entries(snapshot.decision.dimensions).map(([dimension, score]) => (
                   <div key={dimension} className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2">
                     <div className="text-sm font-bold text-slate-900">{(score as number).toFixed(0)}</div>
@@ -215,12 +217,12 @@ export function ReportOverviewPanel({
                 ))}
               </div>
               {snapshot.decision.prescriptions.length > 0 && (
-                <div className="border-t border-slate-100 pt-3">
+                <div className="border-t border-slate-200 pt-3">
                   <p className="mb-1.5 text-xs font-semibold text-slate-500">Formulation watch points</p>
                   <ul className="space-y-1">
                     {snapshot.decision.prescriptions.slice(0, 3).map((prescription, i) => (
-                      <li key={i} className="text-xs text-slate-600">
-                        <span className="font-semibold text-slate-800">{prescription.target}: </span>
+                      <li key={i} className="text-xs text-slate-700">
+                        <span className="font-semibold text-slate-700">{prescription.target}: </span>
                         {prescription.action}
                       </li>
                     ))}
@@ -229,7 +231,7 @@ export function ReportOverviewPanel({
               )}
             </>
           ) : (
-            <p className="border-t border-slate-100 pt-3 text-xs text-slate-500">
+            <p className="border-t border-slate-200 pt-3 text-xs text-slate-500">
               A breakdown of sensory acceptance, texture, descriptor, and emotional-response scores, plus formulation watch points, will appear here once a branded report draft is saved from the Decision page.
             </p>
           )}
@@ -256,7 +258,7 @@ export function ReportOverviewPanel({
               <DataProvenanceBadge provenance="reference" className="mb-1" />
               <p className="text-xs text-slate-500">Hedonic averages (1–9 scale)</p>
               <ScoreBars entries={Object.entries(sensoryProfile.hedonic).map(([label, value]) => ({ label, value: value as number, max: 9 }))} />
-              <p className="border-t border-slate-100 pt-2 text-xs text-amber-700">
+              <p className="border-t border-slate-200 pt-2 text-xs text-amber-700">
                 This section uses reference/demo data and should not be presented as client evidence. Collect live panelist responses for this sample to replace it.
               </p>
             </>
@@ -308,9 +310,9 @@ export function ReportOverviewPanel({
               <MetricTile label="Top selection" value={evidence.topSelections[0]?.option ?? '—'} sub={evidence.topSelections[0] ? `${evidence.topSelections[0].percentage.toFixed(0)}% of panel` : undefined} />
             </div>
             {evidence.comments.length > 0 && (
-              <ul className="space-y-1.5 border-t border-slate-100 pt-3">
+              <ul className="space-y-1.5 border-t border-slate-200 pt-3">
                 {evidence.comments.slice(0, 3).map((comment, i) => (
-                  <li key={i} className="text-xs italic text-slate-600">"{comment}"</li>
+                  <li key={i} className="text-xs italic text-slate-700">"{comment}"</li>
                 ))}
               </ul>
             )}
@@ -346,7 +348,7 @@ export function ReportOverviewPanel({
         ) : (
           <p className="text-emerald-700">No outstanding risks were detected for this project.</p>
         )}
-        <p className="border-t border-slate-100 pt-3 text-xs text-slate-500">{claimCaution}</p>
+        <p className="border-t border-slate-200 pt-3 text-xs text-slate-500">{claimCaution}</p>
       </ReportSection>
 
       {/* Recommended Next Steps */}
@@ -366,7 +368,7 @@ export function ReportOverviewPanel({
           <AccordionItem value="appendix" className="border-b-0">
             <AccordionTrigger className="px-6 py-4 hover:no-underline">
               <span className="flex items-center gap-2.5 text-base font-semibold text-slate-900">
-                <span className="flex size-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                <span className="flex size-8 items-center justify-center rounded-lg bg-slate-50 text-slate-700">
                   <ListChecks className="size-4" />
                 </span>
                 Appendix: Detailed Data
@@ -380,7 +382,7 @@ export function ReportOverviewPanel({
                 </div>
               )}
               {composition && (
-                <div className="border-t border-slate-100 pt-3">
+                <div className="border-t border-slate-200 pt-3">
                   <p className="mb-1.5 text-xs font-semibold text-slate-500">Additional composition</p>
                   <div className="grid grid-cols-3 gap-2 text-xs">
                     <MetricTile label="Moisture" value={`${composition.moisture.toFixed(1)}%`} />
@@ -390,19 +392,19 @@ export function ReportOverviewPanel({
                 </div>
               )}
               {topCompounds.length > 0 && (
-                <div className="border-t border-slate-100 pt-3">
+                <div className="border-t border-slate-200 pt-3">
                   <p className="mb-1.5 text-xs font-semibold text-slate-500">Top GC-MS compounds by concentration</p>
                   <ul className="space-y-1 text-xs">
                     {topCompounds.map(compound => (
                       <li key={compound.name} className="flex items-center justify-between gap-2">
-                        <span className="text-slate-700">{compound.name} <span className="text-slate-400">({compound.aroma})</span></span>
+                        <span className="text-slate-700">{compound.name} <span className="text-slate-500">({compound.aroma})</span></span>
                         <span className="font-mono text-slate-500">{compound.concentration.toFixed(1)} ppm</span>
                       </li>
                     ))}
                   </ul>
                 </div>
               )}
-              <div className="border-t border-slate-100 pt-3">
+              <div className="border-t border-slate-200 pt-3">
                 <p className="mb-1.5 text-xs font-semibold text-slate-500">Report metadata</p>
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
                   <div><dt className="text-slate-500">Decision record</dt><dd className="font-mono text-slate-700">{snapshot?.decision.recordId ?? focusDecision.id}</dd></div>
@@ -421,9 +423,9 @@ export function ReportOverviewPanel({
 
       {/* Export */}
       <Card className="break-inside-avoid border border-slate-200 bg-white print:hidden">
-        <CardHeader className="border-b border-slate-100 pb-3">
+        <CardHeader className="border-b border-slate-200 pb-3">
           <CardTitle className="flex items-center gap-2.5 text-base">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Download className="size-4" /></span>
+            <span className="flex size-8 items-center justify-center rounded-lg bg-slate-50 text-slate-700"><Download className="size-4" /></span>
             Export
           </CardTitle>
         </CardHeader>

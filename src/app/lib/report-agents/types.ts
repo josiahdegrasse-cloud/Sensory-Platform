@@ -17,7 +17,10 @@ export type ReportReviewMode = 'standard' | 'full';
 export type ReportAgentRole =
   | 'evidence_auditor'
   | 'calculation_auditor'
-  | 'scientific_skeptic'
+  | 'sensory_science_reviewer'
+  | 'instrumental_science_reviewer'
+  | 'consumer_insights_reviewer'
+  | 'claims_compliance_reviewer'
   | 'decision_consistency_auditor'
   | 'commercial_strategist'
   | 'action_plan_engineer'
@@ -25,17 +28,22 @@ export type ReportAgentRole =
   | 'editorial_reviewer'
   | 'client_red_team'
   | 'visual_qa_reviewer'
+  | 'conflict_resolver'
   | 'final_independent_judge';
 
 export type ReportDefectSource =
   | 'deterministic_validator'
   | 'evidence_agent'
   | 'calculation_agent'
-  | 'scientific_agent'
+  | 'sensory_science_agent'
+  | 'instrumental_science_agent'
+  | 'consumer_insights_agent'
+  | 'claims_compliance_agent'
   | 'decision_agent'
   | 'editorial_agent'
   | 'visual_agent'
   | 'client_red_team'
+  | 'conflict_resolver'
   | 'final_judge';
 
 export interface ReportDefect {
@@ -158,6 +166,53 @@ export interface ScientificReviewResult {
   blockers: string[];
 }
 
+export interface ConsumerInsightsResult {
+  insightThemes: Array<{
+    theme: string;
+    signal: 'strong' | 'directional' | 'weak' | 'missing';
+    evidenceIds: string[];
+    interpretation: string;
+    limitations: string[];
+    requiredFollowUp: string;
+  }>;
+  overreachRisks: Array<{
+    issue: string;
+    severity: 'minor' | 'major' | 'critical';
+    evidenceIds: string[];
+    requiredCorrection: string;
+  }>;
+  panelLimitations: string[];
+  blockers: string[];
+  warnings: string[];
+}
+
+export interface ClaimsComplianceResult {
+  reviewedClaims: Array<{
+    claimId: string;
+    category:
+      | 'sensory'
+      | 'consumer'
+      | 'nutrition'
+      | 'health'
+      | 'comparative'
+      | 'natural_clean_label'
+      | 'sustainability'
+      | 'plant_based'
+      | 'commercial'
+      | 'other';
+    riskLevel: 'allowed' | 'caution' | 'blocked' | 'legal_review';
+    evidenceIds: string[];
+    permittedWording: string;
+    prohibitedWording: string[];
+    requiredDisclaimer: string | null;
+  }>;
+  blockedClaims: string[];
+  requiredDisclaimers: string[];
+  legalReviewRequired: string[];
+  warnings: string[];
+  blockers: string[];
+}
+
 export interface DecisionConsistencyResult {
   canonicalDecisionSummary: string;
   decisionStatements: Array<{
@@ -264,6 +319,20 @@ export interface VisualQAResult {
   warnings: string[];
 }
 
+export interface ConflictResolverResult {
+  resolutions: Array<{
+    conflictId: string;
+    topic: string;
+    selectedResolution: 'allow' | 'soften' | 'remove' | 'human_review';
+    rationale: string;
+    requiredFix: string;
+    evidenceIds: string[];
+  }>;
+  humanReviewRequired: string[];
+  warnings: string[];
+  blockers: string[];
+}
+
 export interface FinalJudgeResult {
   categoryScores: {
     decisionClarity: number;
@@ -286,7 +355,10 @@ export interface FinalJudgeResult {
 export interface ReportAgentOutputs {
   evidence_auditor?: EvidenceAuditResult;
   calculation_auditor?: CalculationAuditResult;
-  scientific_skeptic?: ScientificReviewResult;
+  sensory_science_reviewer?: ScientificReviewResult;
+  instrumental_science_reviewer?: ScientificReviewResult;
+  consumer_insights_reviewer?: ConsumerInsightsResult;
+  claims_compliance_reviewer?: ClaimsComplianceResult;
   decision_consistency_auditor?: DecisionConsistencyResult;
   commercial_strategist?: CommercialStrategyResult;
   action_plan_engineer?: ActionPlanResult;
@@ -294,6 +366,7 @@ export interface ReportAgentOutputs {
   editorial_reviewer?: EditorialReviewResult;
   client_red_team?: ClientRedTeamResult;
   visual_qa_reviewer?: VisualQAResult;
+  conflict_resolver?: ConflictResolverResult;
   final_independent_judge?: FinalJudgeResult;
 }
 
@@ -326,9 +399,25 @@ export interface ReportAgentPacketMap {
     calculationTrace: CalculationTracePacket;
     renderedMethodologyText: string;
   };
-  scientific_skeptic: {
+  sensory_science_reviewer: {
     contextSummary: Pick<ReportContext, 'dimensions' | 'instrumental' | 'concept' | 'methodology' | 'limitations' | 'gates'>;
     proposedInterpretations: string[];
+  };
+  instrumental_science_reviewer: {
+    contextSummary: Pick<ReportContext, 'instrumental' | 'dimensions' | 'methodology' | 'limitations' | 'gates'>;
+    proposedInterpretations: string[];
+  };
+  consumer_insights_reviewer: {
+    concept: ReportContext['concept'];
+    claims: ClaimRecord[];
+    limitations: ReportContext['limitations'];
+    evidenceProvenance: ReportContext['evidenceProvenance'];
+  };
+  claims_compliance_reviewer: {
+    claims: EvidenceAuditResult['claims'];
+    prohibitedExternalClaims: string[];
+    limitations: ReportContext['limitations'];
+    evidenceProvenance: ReportContext['evidenceProvenance'];
   };
   decision_consistency_auditor: {
     canonicalDecision: ReportContext['decision'];
@@ -378,12 +467,29 @@ export interface ReportAgentPacketMap {
     deterministicValidation: ValidationResult;
     specialistResults: Omit<ReportAgentOutputs, 'final_independent_judge'>;
   };
+  conflict_resolver: {
+    defects: ReportDefect[];
+    conflicts: AgentConflict[];
+    auditResults: Pick<
+      ReportAgentOutputs,
+      | 'evidence_auditor'
+      | 'sensory_science_reviewer'
+      | 'instrumental_science_reviewer'
+      | 'consumer_insights_reviewer'
+      | 'claims_compliance_reviewer'
+      | 'decision_consistency_auditor'
+    >;
+    canonicalDecision: ReportContext['decision'];
+  };
 }
 
 export type ReportAgentOutputMap = {
   evidence_auditor: EvidenceAuditResult;
   calculation_auditor: CalculationAuditResult;
-  scientific_skeptic: ScientificReviewResult;
+  sensory_science_reviewer: ScientificReviewResult;
+  instrumental_science_reviewer: ScientificReviewResult;
+  consumer_insights_reviewer: ConsumerInsightsResult;
+  claims_compliance_reviewer: ClaimsComplianceResult;
   decision_consistency_auditor: DecisionConsistencyResult;
   commercial_strategist: CommercialStrategyResult;
   action_plan_engineer: ActionPlanResult;
@@ -391,6 +497,7 @@ export type ReportAgentOutputMap = {
   editorial_reviewer: EditorialReviewResult;
   client_red_team: ClientRedTeamResult;
   visual_qa_reviewer: VisualQAResult;
+  conflict_resolver: ConflictResolverResult;
   final_independent_judge: FinalJudgeResult;
 };
 

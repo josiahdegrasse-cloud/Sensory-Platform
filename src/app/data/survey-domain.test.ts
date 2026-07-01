@@ -36,6 +36,9 @@ describe('survey-domain defaults', () => {
     expect(getDefaultCataAttributes('Beverage')).toContain('Carbonated');
     expect(getDefaultCataAttributes('Snack')).toContain('Crunchy');
     expect(getDefaultCataAttributes('Sauce')).toContain('Garlic');
+    expect(getDefaultCataAttributes('Seafood')).toContain('Marine');
+    expect(getDefaultCataAttributes('Frozen Dessert')).toContain('Icy');
+    expect(getDefaultCataAttributes('Lentil hummus')).toContain('Beany');
   });
 
   it('keeps compatibility constants generic instead of dairy-backed', () => {

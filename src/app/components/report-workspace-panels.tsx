@@ -66,9 +66,9 @@ export function ReportNarrativePanel({
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4">
         <div>
-          <h2 className="font-semibold text-slate-950">Narrative editor</h2>
+          <h2 className="font-semibold text-slate-900">Narrative editor</h2>
           <p className="mt-1 text-sm text-slate-500">
             Changes create a new draft version. Approved versions remain unchanged for traceability.
           </p>
@@ -98,7 +98,7 @@ export function ReportNarrativePanel({
           <CheckCircle2 className="size-4" />New draft version saved.
         </p>
       )}
-      <div className="mt-5 flex justify-end border-t border-slate-100 pt-4">
+      <div className="mt-5 flex justify-end border-t border-slate-200 pt-4">
         <Button disabled={!canMutate || !changed || createReport.isPending} onClick={saveVersion}>
           <FilePlus2 className="size-4" />{!canMutate ? 'Approved version locked' : createReport.isPending ? 'Saving version…' : 'Save new version'}
         </Button>
@@ -137,7 +137,7 @@ export function ReportPdfPreviewPanel({ input }: { input: CommercializationRepor
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
         <div>
-          <h2 className="font-semibold text-slate-950">PDF preview</h2>
+          <h2 className="font-semibold text-slate-900">PDF preview</h2>
           <p className="text-sm text-slate-500">Generated from this saved version and the current workspace branding.</p>
         </div>
         <Button variant="outline" onClick={() => downloadCommercializationReportPdf(input)}>
@@ -149,7 +149,7 @@ export function ReportPdfPreviewPanel({ input }: { input: CommercializationRepor
       ) : error ? (
         <div className="flex min-h-80 items-center justify-center p-6 text-sm text-rose-700">{error}</div>
       ) : (
-        <iframe title="Commercialization report PDF preview" src={previewUrl} className="h-[760px] w-full bg-slate-100" />
+        <iframe title="Commercialization report PDF preview" src={previewUrl} className="h-[760px] w-full bg-slate-50" />
       )}
     </div>
   );
@@ -165,17 +165,17 @@ export function ReportVersionsPanel({
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-5 py-4">
-        <h2 className="font-semibold text-slate-950">Version history</h2>
+        <h2 className="font-semibold text-slate-900">Version history</h2>
         <p className="text-sm text-slate-500">Each saved narrative revision remains available as an immutable snapshot.</p>
       </div>
       {reports.map(report => (
         <a
           key={report.id}
           href={`/report?report=${report.id}`}
-          className={`flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4 last:border-b-0 hover:bg-slate-50 ${selectedId === report.id ? 'bg-slate-50' : ''}`}
+          className={`flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4 last:border-b-0 hover:bg-slate-50 ${selectedId === report.id ? 'bg-slate-50' : ''}`}
         >
           <div className="flex min-w-0 items-center gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-500">
               <FileText className="size-4" />
             </span>
             <div className="min-w-0">

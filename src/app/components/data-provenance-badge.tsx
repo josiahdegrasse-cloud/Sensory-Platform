@@ -43,7 +43,7 @@ const PROVENANCE_CONFIG: Record<DataProvenance, {
     label: 'Admin approved',
     title: 'Reviewed and approved by an admin.',
     icon: ShieldCheck,
-    className: 'bg-slate-100 text-slate-700 border-slate-300',
+    className: 'bg-slate-50 text-slate-700 border-slate-200',
   },
 };
 

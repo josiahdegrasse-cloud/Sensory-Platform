@@ -6,7 +6,6 @@ import { DataProvenanceBadge } from './data-provenance-badge';
 import { ProductListItem, ProductListPanel } from './product-list';
 import type { InsightsEvidenceStrength } from '../lib/insights';
 import type { SemanticTone } from '../lib/project-status';
-import { cn } from './ui/utils';
 
 const STRENGTH_TONE: Record<InsightsEvidenceStrength['level'], SemanticTone> = {
   Insufficient: 'critical',
@@ -121,7 +120,7 @@ export function InsightsPrototypeWorkspace({
         controls={(
           <>
           <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-500" aria-hidden />
             <input
               value={prototypeQuery}
               onChange={event => setPrototypeQuery(event.target.value)}
@@ -199,17 +198,17 @@ export function InsightsPrototypeWorkspace({
         </div>
 
         <Card className="border border-slate-200">
-          <CardHeader className="border-b border-slate-100 pb-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <CardTitle className="text-base">Product development brief</CardTitle>
-                <p className="mt-1 text-xs text-slate-500">A decision-first read before the detailed sensory evidence.</p>
+          <CardHeader className="border-b border-slate-200 pb-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex min-w-0 items-baseline gap-2">
+                <CardTitle className="text-sm">Product development brief</CardTitle>
+                <p className="truncate text-xs text-slate-500">A decision-first read before the sensory evidence.</p>
               </div>
               <ProjectStatusBadge label={`${strength.level} evidence`} tone={STRENGTH_TONE[strength.level]} />
             </div>
           </CardHeader>
-          <CardContent className="pt-4">
-            <dl className="grid gap-4 md:grid-cols-3">
+          <CardContent className="pt-3">
+            <dl className="grid gap-x-4 gap-y-2.5 md:grid-cols-3">
               <BriefItem label="Protect" value={keyStrength} tone="success" />
               <BriefItem label="Improve or validate" value={keyConcern} tone="warning" />
               <BriefItem label="Next decision" value={`${claimReadiness}. ${nextStep}`} tone="info" />
@@ -218,7 +217,7 @@ export function InsightsPrototypeWorkspace({
         </Card>
 
         <div className="flex items-center gap-3 pt-1">
-          <h3 className="text-sm font-bold text-slate-950">Liking and sensory identity</h3>
+          <h3 className="text-sm font-bold text-slate-900">Liking and sensory identity</h3>
           <span className="h-px flex-1 bg-slate-200" />
         </div>
         <div className="grid gap-4 2xl:grid-cols-2">
@@ -227,7 +226,7 @@ export function InsightsPrototypeWorkspace({
         </div>
 
         <div className="flex items-center gap-3 pt-1">
-          <h3 className="text-sm font-bold text-slate-950">Intensity and panelist language</h3>
+          <h3 className="text-sm font-bold text-slate-900">Intensity and panelist language</h3>
           <span className="h-px flex-1 bg-slate-200" />
         </div>
         <div className="grid gap-4 2xl:grid-cols-[1.1fr_0.9fr]">
@@ -243,12 +242,12 @@ export function InsightsPrototypeWorkspace({
             <CardContent>
               <div className="grid gap-2 sm:grid-cols-2">
                 {overviewEvidence.map(item => (
-                  <div key={item.label} className="grid grid-cols-[1rem_minmax(0,1fr)_auto] gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3">
+                  <div key={item.label} className="grid grid-cols-[1rem_minmax(0,1fr)_auto] gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
                     {item.warning
                       ? <AlertTriangle className="mt-0.5 size-4 text-amber-600" aria-hidden />
                       : item.complete
                         ? <CheckCircle2 className="mt-0.5 size-4 text-emerald-600" aria-hidden />
-                        : <CircleHelp className="mt-0.5 size-4 text-slate-400" aria-hidden />}
+                        : <CircleHelp className="mt-0.5 size-4 text-slate-500" aria-hidden />}
                     <div>
                       <p className="text-xs font-bold text-slate-900">{item.label}</p>
                       <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{item.detail}</p>
@@ -280,13 +279,13 @@ function BriefItem({
   }[tone];
   const Icon = tone === 'success' ? CheckCircle2 : tone === 'warning' ? AlertTriangle : CircleHelp;
   return (
-    <div className="grid grid-cols-[2rem_minmax(0,1fr)] gap-3">
-      <span className={`flex size-8 items-center justify-center rounded-lg ring-1 ${iconClasses}`}>
-        <Icon className="size-4" aria-hidden />
+    <div className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-2.5">
+      <span className={`flex size-6 items-center justify-center rounded-md ring-1 ${iconClasses}`}>
+        <Icon className="size-3.5" aria-hidden />
       </span>
       <div>
         <dt className="text-xs font-bold text-slate-700">{label}</dt>
-        <dd className="mt-1 text-sm leading-6 text-slate-700">{value}</dd>
+        <dd className="mt-0.5 text-[13px] leading-5 text-slate-700">{value}</dd>
       </div>
     </div>
   );
@@ -294,8 +293,8 @@ function BriefItem({
 
 function OverviewMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
-      <p className="text-sm font-bold text-slate-950">{value}</p>
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <p className="text-sm font-bold text-slate-900">{value}</p>
       <p className="mt-0.5 text-xs text-slate-500">{label}</p>
     </div>
   );

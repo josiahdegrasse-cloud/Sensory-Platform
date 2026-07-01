@@ -57,7 +57,7 @@ export function PanelStep({
           Assign at least one registered panelist. Only assigned panelists can access this concept test.
         </p>
         {registeredPanelists.length === 0 ? (
-          <p className="text-sm text-slate-400 italic">No registered panelists found.</p>
+          <p className="text-sm text-slate-500 italic">No registered panelists found.</p>
         ) : (
           <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-56 overflow-y-auto">
             {registeredPanelists.map(p => (
@@ -73,7 +73,7 @@ export function PanelStep({
                 />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-slate-900">{p.name}</div>
-                  <div className="text-xs text-slate-400">
+                  <div className="text-xs text-slate-500">
                     {p.panelistId ?? 'No ID assigned'} · {p.completedCount} evaluation{p.completedCount !== 1 ? 's' : ''} completed
                   </div>
                 </div>
@@ -121,7 +121,7 @@ export function PanelStep({
                 onChange={e => setPanelSize(Number(e.target.value))}
                 className="w-full accent-blue-600"
               />
-              <div className="mt-1 flex justify-between text-xs text-slate-400">
+              <div className="mt-1 flex justify-between text-xs text-slate-500">
                 <span>10</span>
                 <span>100</span>
               </div>
@@ -141,7 +141,7 @@ export function PanelStep({
                   className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
                     targetSegments.includes(seg)
                       ? 'border-blue-600 bg-blue-600 text-white'
-                      : 'border-slate-300 text-slate-600 hover:border-blue-400 hover:text-blue-700'
+                      : 'border-slate-200 text-slate-700 hover:border-blue-400 hover:text-blue-700'
                   }`}
                 >
                   {seg}
@@ -152,7 +152,7 @@ export function PanelStep({
 
           <div className="flex gap-2 rounded-md bg-slate-50 p-3">
             <Users className="mt-0.5 size-4 shrink-0 text-slate-500" />
-            <p className="text-xs text-slate-600">
+            <p className="text-xs text-slate-700">
               Assigned panelists receive the test in their dashboard. Segment choices guide setup but are not saved after launch.
             </p>
           </div>

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Bot, CheckCircle2, CircleDollarSign, ShieldAlert } from 'lucide-react';
 import type { CommercializationReportRecord } from '../lib/database';
 import type { CommercializationReportSnapshot } from '../lib/commercialization-report';
@@ -28,24 +29,17 @@ export function ReportAgentReviewPanel({
   const [result, setResult] = useState<ReportOrchestratorResult | null>(null);
   const [cost, setCost] = useState<number | null>(null);
   const [savedVersion, setSavedVersion] = useState<number | null>(null);
-  const [contextChanged, setContextChanged] = useState(false);
 
-  useEffect(() => {
-    let active = true;
-    const previousHash = input.snapshot.agentReview?.reportContextHash;
-    if (!previousHash) {
-      setContextChanged(false);
-      return;
-    }
-    hashReportContext(input.reportContext)
-      .then(currentHash => {
-        if (active) setContextChanged(previousHash !== currentHash);
-      })
-      .catch(() => {
-        if (active) setContextChanged(false);
-      });
-    return () => { active = false; };
-  }, [input.reportContext, input.snapshot.agentReview?.reportContextHash]);
+  // Whether the saved agent review is stale relative to the current report
+  // context. Derived from an async hash of the context (react-query owns the
+  // async work) rather than mirrored into state via an effect.
+  const previousHash = input.snapshot.agentReview?.reportContextHash;
+  const { data: currentHash } = useQuery({
+    queryKey: ['report-context-hash', input.reportContext],
+    queryFn: () => hashReportContext(input.reportContext),
+    enabled: Boolean(previousHash),
+  });
+  const contextChanged = Boolean(previousHash) && currentHash !== undefined && previousHash !== currentHash;
 
   const runReview = async (mode: ReportAgentMode) => {
     setRunningMode(mode);
@@ -58,7 +52,6 @@ export function ReportAgentReviewPanel({
       const currentHash = await hashReportContext(input.reportContext);
       const previousHash = input.snapshot.agentReview?.reportContextHash ?? null;
       const changed = Boolean(previousHash && previousHash !== currentHash);
-      setContextChanged(changed);
 
       const orchestrated = await runCommercializationReportOrchestrator({
         mode,
@@ -134,25 +127,25 @@ export function ReportAgentReviewPanel({
         <div className="max-w-2xl">
           <div className="flex items-center gap-2">
             <Bot className="size-5 text-slate-700" aria-hidden />
-            <h2 className="font-semibold text-slate-950">Report Orchestrator</h2>
+            <h2 className="font-semibold text-slate-900">Report Release Review</h2>
           </div>
-          <p className="mt-1 text-sm text-slate-600">
-            A central orchestrator coordinates specialist agents, then deterministic QC decides what is safe to save, approve, and export.
+          <p className="mt-1 text-sm text-slate-700">
+            Specialist reviewers audit evidence, science, consumer insight, claims, writing, layout, and release risk before deterministic QC decides what is safe to save, approve, and export.
           </p>
           <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
             <CircleDollarSign className="size-3.5" aria-hidden />
-            Quick Draft: approximately $0.08-$0.30. Full Agent Draft: approximately $0.40-$1.25.
+            Internal Draft: approximately $0.08-$0.30. Release Review: approximately $0.40-$1.25.
             Deterministic evidence remains the source of truth.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => runReview('full_release_review')} disabled={Boolean(runningMode) || createReport.isPending}>
             <ShieldAlert className="size-4" aria-hidden />
-            {runningMode === 'full_release_review' ? 'Running full workflow…' : 'Full Agent Draft'}
+            {runningMode === 'full_release_review' ? 'Running release review…' : 'Run Release Review'}
           </Button>
           <Button variant="outline" onClick={() => runReview('quick_draft')} disabled={Boolean(runningMode) || createReport.isPending}>
             <Bot className="size-4" aria-hidden />
-            {runningMode === 'quick_draft' ? 'Drafting…' : 'Quick Draft'}
+            {runningMode === 'quick_draft' ? 'Drafting…' : 'Create Internal Draft'}
           </Button>
         </div>
       </div>
@@ -187,8 +180,8 @@ export function ReportAgentReviewPanel({
       {runningMode && (
         <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
           {runningMode === 'quick_draft'
-            ? 'The orchestrator is running a lower-cost internal draft workflow. Keep this page open.'
-            : 'The orchestrator is running the full release-review workflow with specialist agents, claims review, critic review, and deterministic QC. Keep this page open.'}
+            ? 'The release system is running a lower-cost internal draft with evidence, consumer, claims, writing, and editorial checks. Keep this page open.'
+            : 'The release system is running the full specialist review across evidence, calculations, sensory science, instrumental science, consumer insight, claims, writing, layout, red-team, conflicts, final judgment, and deterministic QC. Keep this page open.'}
         </div>
       )}
       {error && (
@@ -203,7 +196,7 @@ export function ReportAgentReviewPanel({
             <div className="flex items-center gap-2">
               <CheckCircle2 className="size-4" aria-hidden />
               <span className="text-sm font-semibold">
-                Orchestrator result: {result.status.replace(/_/g, ' ')}
+                Release review result: {result.status.replace(/_/g, ' ')}
               </span>
             </div>
             <span className="text-xs font-semibold">

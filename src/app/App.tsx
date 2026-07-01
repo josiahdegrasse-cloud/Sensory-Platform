@@ -6,10 +6,11 @@ import { FoodTypeProvider } from "./contexts/food-type-context.tsx";
 import { LoginPage } from "./components/login-page.tsx";
 import { SignupPage } from "./components/signup-page.tsx";
 import { ResetPasswordPage } from "./components/reset-password-page.tsx";
+import { PendingAdminAccessPage } from "./components/pending-admin-access-page.tsx";
 import { usePublicWorkspaceConfig } from "./lib/hooks.ts";
 
 function AppContent() {
-  const { isAuthenticated, isPasswordRecovery, loading } = useAuth();
+  const { isAuthenticated, isPasswordRecovery, loading, user } = useAuth();
   const { data: workspaceConfig } = usePublicWorkspaceConfig();
   const [showSignup, setShowSignup] = useState(false);
   const isPublicLegalRoute = ['/privacy', '/terms', '/panelist-consent'].includes(window.location.pathname);
@@ -43,6 +44,8 @@ function AppContent() {
       />
     );
   }
+
+  if (user?.role === 'pending_admin') return <PendingAdminAccessPage />;
 
   return <RouterProvider router={router} />;
 }

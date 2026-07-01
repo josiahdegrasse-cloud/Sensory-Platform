@@ -17,16 +17,20 @@ import type { GeneratedSections } from '../report-qc';
 
 const ROLE_TO_AGENT: Partial<Record<ReportAgentRole, AgentOutput['agentName']>> = {
   evidence_auditor: 'evidence_auditor',
-  calculation_auditor: 'instrumental_science',
-  scientific_skeptic: 'sensory_science',
-  decision_consistency_auditor: 'claims_compliance',
-  commercial_strategist: 'commercial_strategy',
-  action_plan_engineer: 'commercial_strategy',
-  professional_report_writer: 'section_writer',
-  editorial_reviewer: 'editor',
-  client_red_team: 'qc_critic',
-  visual_qa_reviewer: 'qc_critic',
-  final_independent_judge: 'qc_critic',
+  calculation_auditor: 'calculation_auditor',
+  sensory_science_reviewer: 'sensory_science_reviewer',
+  instrumental_science_reviewer: 'instrumental_science_reviewer',
+  consumer_insights_reviewer: 'consumer_insights_reviewer',
+  claims_compliance_reviewer: 'claims_compliance_reviewer',
+  decision_consistency_auditor: 'decision_consistency_auditor',
+  commercial_strategist: 'commercial_strategist',
+  action_plan_engineer: 'action_plan_engineer',
+  professional_report_writer: 'professional_report_writer',
+  editorial_reviewer: 'editorial_reviewer',
+  client_red_team: 'client_red_team',
+  visual_qa_reviewer: 'visual_qa_reviewer',
+  conflict_resolver: 'conflict_resolver',
+  final_independent_judge: 'final_independent_judge',
 };
 
 function outputStatus(blockers: string[], warnings: string[]): AgentOutput['status'] {

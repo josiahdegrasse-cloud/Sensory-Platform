@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router';
 import { ArrowRight, AlertTriangle, Check, Pencil, X } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
@@ -31,9 +31,12 @@ export function ProjectCard({ projectId, realProjectId, status, projectPath, onO
   const [draftName, setDraftName] = useState(status.projectName);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (!editing) setDraftName(status.projectName);
-  }, [editing, status.projectName]);
+  // Seed the draft with the current name each time editing begins, so there's
+  // no effect mirroring projectName into draftName.
+  const startEditing = () => {
+    setDraftName(status.projectName);
+    setEditing(true);
+  };
 
   const cancelRename = () => {
     setEditing(false);
@@ -77,7 +80,7 @@ export function ProjectCard({ projectId, realProjectId, status, projectPath, onO
     : null;
 
   return (
-    <Card className="border-slate-200 bg-white transition-colors hover:border-slate-300">
+    <Card className="border-slate-200 bg-white transition-colors hover:border-slate-200">
       <CardContent className="space-y-5 p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-1">
@@ -105,16 +108,16 @@ export function ProjectCard({ projectId, realProjectId, status, projectPath, onO
               <div className="group flex min-w-0 items-center gap-2">
                 <button
                   type="button"
-                  onDoubleClick={() => setEditing(true)}
-                  className="min-w-0 truncate text-left text-xl font-semibold text-slate-950 decoration-slate-300 underline-offset-4 hover:underline"
+                  onDoubleClick={startEditing}
+                  className="min-w-0 truncate text-left text-xl font-semibold text-slate-900 decoration-slate-300 underline-offset-4 hover:underline"
                   title="Double-click to rename"
                 >
                   {status.projectName}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setEditing(true)}
-                  className="rounded-md p-1 text-slate-300 opacity-0 transition-opacity hover:bg-slate-100 hover:text-slate-600 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-[var(--brand)] group-hover:opacity-100"
+                  onClick={startEditing}
+                  className="rounded-md p-1 text-slate-300 opacity-0 transition-opacity hover:bg-slate-50 hover:text-slate-700 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-[var(--brand)] group-hover:opacity-100"
                   aria-label={`Rename ${status.projectName}`}
                 >
                   <Pencil className="size-3.5" />
@@ -130,7 +133,7 @@ export function ProjectCard({ projectId, realProjectId, status, projectPath, onO
               <Link
                 to={projectPath}
                 onClick={onOpen}
-                className="inline-flex min-h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-950"
+                className="inline-flex min-h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-200 hover:text-slate-900"
               >
                 Open project
               </Link>
@@ -148,9 +151,9 @@ export function ProjectCard({ projectId, realProjectId, status, projectPath, onO
           <section className="space-y-2 md:col-span-2">
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs font-semibold text-slate-500">Progress</p>
-              <p className="text-xs font-semibold text-slate-400">{progressText}</p>
+              <p className="text-xs font-semibold text-slate-500">{progressText}</p>
             </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+            <div className="h-1.5 overflow-hidden rounded-full bg-slate-50">
               <div
                 className="h-full rounded-full bg-slate-900 transition-all"
                 style={{ width: `${(completeStages / status.stages.length) * 100}%` }}
@@ -194,8 +197,8 @@ export function ProjectCard({ projectId, realProjectId, status, projectPath, onO
         <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-semibold text-slate-500">Next step</p>
-            <p className="mt-0.5 text-sm font-semibold text-slate-950">{status.nextAction.label}</p>
-            <p className="mt-0.5 text-xs leading-5 text-slate-600">{status.nextAction.description}</p>
+            <p className="mt-0.5 text-sm font-semibold text-slate-900">{status.nextAction.label}</p>
+            <p className="mt-0.5 text-xs leading-5 text-slate-700">{status.nextAction.description}</p>
           </div>
           <Link
             to={status.nextAction.path}

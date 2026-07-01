@@ -27,12 +27,12 @@ export function StageEmptyState({ icon: Icon, headline, body, cta, secondaryCta,
   className?: string;
 }) {
   return (
-    <Card className={`border border-dashed border-slate-300 bg-slate-50 ${className ?? ''}`}>
+    <Card className={`border border-dashed border-slate-200 bg-slate-50 ${className ?? ''}`}>
       <CardContent className="py-10 text-center">
         <span className="mx-auto mb-3 flex size-12 items-center justify-center rounded-lg bg-white border border-slate-200">
           {locked
             ? <Lock className="size-5 text-slate-300" aria-hidden />
-            : <Icon className="size-5 text-slate-400" aria-hidden />}
+            : <Icon className="size-5 text-slate-500" aria-hidden />}
         </span>
         <p className="text-sm font-semibold text-slate-700">{headline}</p>
         <p className="mx-auto mt-1 max-w-md text-xs text-slate-500">{body}</p>
@@ -48,7 +48,7 @@ export function StageEmptyState({ icon: Icon, headline, body, cta, secondaryCta,
             {secondaryCta && (
               <Link
                 to={secondaryCta.to}
-                className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 hover:text-slate-950"
+                className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 hover:text-slate-900"
               >
                 {secondaryCta.label} <ChevronRight className="size-3.5" aria-hidden />
               </Link>

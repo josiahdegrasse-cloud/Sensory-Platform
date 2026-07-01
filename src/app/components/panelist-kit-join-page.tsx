@@ -70,14 +70,16 @@ export function PanelistKitJoinPage() {
     if (invite.calculatedStatus === 'claimed' && !invite.claimedByCurrentUser) return;
     if (!claimKey || claimAttemptRef.current === claimKey || claimKit.isPending) return;
     claimAttemptRef.current = claimKey;
-    claimKit.mutate({ token: token || null, manualCode: token ? null : activeManualCode });
+    claimKit.mutate(
+      { token: token || null, manualCode: token ? null : activeManualCode },
+      {
+        onError: (err) => {
+          setMessageType('error');
+          setMessage(err instanceof Error ? err.message : 'Unable to claim this box pass.');
+        },
+      },
+    );
   }, [activeManualCode, claimKey, claimKit, invite, token, user?.id]);
-
-  useEffect(() => {
-    if (!claimKit.error) return;
-    setMessageType('error');
-    setMessage(claimKit.error instanceof Error ? claimKit.error.message : 'Unable to claim this box pass.');
-  }, [claimKit.error]);
 
   const handleManualLookup = (event: React.FormEvent) => {
     event.preventDefault();
@@ -253,7 +255,7 @@ export function PanelistKitJoinPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm leading-6 text-slate-600">
+            <p className="text-sm leading-6 text-slate-700">
               Use this if your QR code will not scan. The manual box code is printed on your package insert.
             </p>
             <form onSubmit={handleManualLookup} className="space-y-3">
@@ -288,8 +290,8 @@ export function PanelistKitJoinPage() {
         <Card className="max-w-md border-rose-200">
           <CardContent className="space-y-3 pt-6">
             <AlertCircle className="size-8 text-rose-600" />
-            <h1 className="text-xl font-bold text-slate-950">Box pass not found</h1>
-            <p className="text-sm text-slate-600">This QR code is invalid or no longer available. Contact the study administrator.</p>
+            <h1 className="text-xl font-bold text-slate-900">Box pass not found</h1>
+            <p className="text-sm text-slate-700">This QR code is invalid or no longer available. Contact the study administrator.</p>
           </CardContent>
         </Card>
       </div>
@@ -317,17 +319,17 @@ export function PanelistKitJoinPage() {
           </p>
           <div className="mt-8 space-y-3 rounded-lg border border-white/10 bg-white/5 p-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Box pass</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Box pass</p>
               <p className="mt-1 font-semibold">At-home tasting box</p>
-              <p className="mt-1 text-xs text-slate-400">Includes {invite.productName} and any other assigned tasks from this shipment.</p>
+              <p className="mt-1 text-xs text-slate-500">Includes {invite.productName} and any other assigned tasks from this shipment.</p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Box code</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Box code</p>
                 <p className="mt-1 font-mono text-lg font-bold">{invite.kitCode}</p>
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Assigned tasks</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Assigned tasks</p>
                 <p className="mt-1 font-mono text-lg font-bold">{assignedTaskCount}</p>
               </div>
             </div>

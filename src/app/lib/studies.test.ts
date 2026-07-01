@@ -7,6 +7,7 @@ import {
   buildStudySummaries,
   validateConceptStudy,
   validateMultiSampleStudy,
+  validateProductStudy,
 } from './studies';
 
 const baseProduct: Product = {
@@ -129,6 +130,21 @@ describe('study summary adapters', () => {
     });
 
     expect(blockers.some(blocker => blocker.severity === 'blocker')).toBe(false);
+  });
+
+  it('does not require a single linked source sample for triangle tests', () => {
+    const blockers = validateProductStudy({
+      ...baseProduct,
+      isMultiSample: true,
+      sourceSampleId: null,
+      samples: [
+        { id: 'S-101', code: '101', label: 'Control' },
+        { id: 'S-204', code: '204', label: 'Variant' },
+        { id: 'S-101-replicate', code: '339', label: 'Control' },
+      ],
+    });
+
+    expect(blockers.map(blocker => blocker.id)).not.toContain('sample-linked');
   });
 
   it('does not surface compatibility defaults as study warnings', () => {

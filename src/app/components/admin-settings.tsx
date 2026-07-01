@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Activity, AlertCircle, Brain, CheckCircle2, ClipboardCheck, Database,
-  HardDrive, Lock, Palette, Save, UserCheck, UserX, Users,
+  HardDrive, Lock, Palette, Save, ShieldCheck, UserCheck, UserX, Users,
 } from 'lucide-react';
 import { BrandingSettings } from './branding-settings';
 import { OrgEmailDomainsCard } from './org-email-domains-card';
@@ -17,13 +17,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Alert, AlertDescription } from './ui/alert';
 import {
   useAuditEvents,
+  useAdminAccessRequests,
   useConceptGenerationSettings,
   usePanelists,
+  useResolveAdminAccessRequest,
   useUpdatePanelistStatus,
   useUpdateWorkspaceSettings,
   useWorkspaceSettings,
 } from '../lib/hooks';
-import type { WorkspaceSettings, PanelistInfo } from '../lib/database';
+import type { WorkspaceSettings, PanelistInfo, AdminAccessRequestRecord } from '../lib/database';
 import { parseDriveFolderId } from '../lib/database';
 import { useAuth } from '../contexts/auth-context';
 
@@ -72,7 +74,7 @@ function StatusBadge({ status }: { status: PanelistInfo['status'] }) {
     ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
     : status === 'inactive'
       ? 'border-amber-200 bg-amber-50 text-amber-700'
-      : 'border-slate-200 bg-slate-100 text-slate-600';
+      : 'border-slate-200 bg-slate-50 text-slate-700';
   return <Badge variant="outline" className={className}>{status}</Badge>;
 }
 
@@ -138,10 +140,12 @@ export function AdminSettings() {
   const { user } = useAuth();
   const { data: settings = fallbackSettings, isLoading: settingsLoading } = useWorkspaceSettings();
   const { data: panelists = [] } = usePanelists();
+  const { data: adminAccessRequests = [] } = useAdminAccessRequests(user?.role === 'admin');
   const { data: auditEvents = [] } = useAuditEvents();
   const { data: conceptSettings } = useConceptGenerationSettings();
   const updateSettings = useUpdateWorkspaceSettings();
   const updatePanelistStatus = useUpdatePanelistStatus();
+  const resolveAdminAccess = useResolveAdminAccessRequest();
   const [draft, setDraft] = useState<WorkspaceSettings>(settings);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
@@ -149,10 +153,14 @@ export function AdminSettings() {
   // by parse-on-keystroke; the parsed id is committed to the draft on blur.
   const [driveFolderInput, setDriveFolderInput] = useState(settings.driveFolderId ?? '');
 
-  useEffect(() => {
+  // Re-seed the editable draft when the saved settings change (render-phase
+  // "adjust state on change" pattern — no effect needed).
+  const [syncedSettings, setSyncedSettings] = useState(settings);
+  if (settings !== syncedSettings) {
+    setSyncedSettings(settings);
     setDraft(settings);
     setDriveFolderInput(settings.driveFolderId ?? '');
-  }, [settings]);
+  }
 
   const commitDriveFolder = () => {
     const folderId = parseDriveFolderId(driveFolderInput);
@@ -171,6 +179,7 @@ export function AdminSettings() {
     const consented = panelists.filter(panelist => !!panelist.consentAcceptedAt).length;
     return { active, consented };
   }, [panelists]);
+  const pendingAdminRequests = adminAccessRequests.filter(request => request.status === 'pending');
 
   const updateDraft = <K extends keyof WorkspaceSettings>(key: K, value: WorkspaceSettings[K]) => {
     setDraft(prev => ({ ...prev, [key]: value }));
@@ -201,11 +210,15 @@ export function AdminSettings() {
     await updatePanelistStatus.mutateAsync({ userId: panelist.id, status: nextStatus, actorId: user?.id });
   };
 
+  const resolveAdminRequest = async (requestId: string, decision: 'approved' | 'rejected') => {
+    await resolveAdminAccess.mutateAsync({ requestId, decision });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-950">Settings</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
             Set the rules that shape imports, studies, panelist access, concept generation, and reports.
           </p>
@@ -213,6 +226,8 @@ export function AdminSettings() {
             <span>{panelistStats.active} active panelists</span>
             <span className="text-slate-300">/</span>
             <span>{panelistStats.consented} consent records</span>
+            <span className="text-slate-300">/</span>
+            <span>{pendingAdminRequests.length} admin requests</span>
             <span className="text-slate-300">/</span>
             <span>{auditEvents.length} recent audit events</span>
           </div>
@@ -289,7 +304,7 @@ export function AdminSettings() {
               <Card className="border-slate-200 shadow-sm">
                 <CardHeader><CardTitle className="text-lg">Panelist access rules</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
-                  <ToggleRow title="Allow self signup" detail="Show the create-account option on the sign-in page." checked={draft.allowSelfSignup} onChange={checked => updateDraft('allowSelfSignup', checked)} />
+                  <ToggleRow title="Allow admin access requests" detail="Show the create-account option for recognized company email domains." checked={draft.allowSelfSignup} onChange={checked => updateDraft('allowSelfSignup', checked)} />
                   <ToggleRow title="Require panelist consent" detail="Gate questionnaires until consent is accepted." checked={draft.requirePanelistConsent} onChange={checked => updateDraft('requirePanelistConsent', checked)} />
                   <ToggleRow title="Require panelist IDs" detail="Use internal panelist IDs as required roster metadata." checked={draft.requirePanelistId} onChange={checked => updateDraft('requirePanelistId', checked)} />
                   <ToggleRow title="Show panelist history" detail="Allow panelists to see their previously completed questionnaires." checked={draft.allowPanelistsViewHistory} onChange={checked => updateDraft('allowPanelistsViewHistory', checked)} />
@@ -298,7 +313,14 @@ export function AdminSettings() {
               </Card>
               <OrgEmailDomainsCard />
             </div>
-            <PanelistTable panelists={panelists} updating={updatePanelistStatus.isPending} onToggleStatus={togglePanelistStatus} />
+            <div className="space-y-4">
+              <AdminAccessRequestsPanel
+                requests={adminAccessRequests}
+                resolving={resolveAdminAccess.isPending}
+                onResolve={resolveAdminRequest}
+              />
+              <PanelistTable panelists={panelists} updating={updatePanelistStatus.isPending} onToggleStatus={togglePanelistStatus} />
+            </div>
           </div>
         </TabsContent>
 
@@ -321,7 +343,7 @@ export function AdminSettings() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2 border-t border-slate-100 pt-4">
+                <div className="space-y-2 border-t border-slate-200 pt-4">
                   <Label htmlFor="drive-folder" className="flex items-center gap-1.5">
                     <HardDrive className="size-4 text-slate-500" />
                     Google Drive folder
@@ -340,7 +362,7 @@ export function AdminSettings() {
                     email shown in the sync dialog (Viewer access).
                     {draft.driveFolderId
                       ? <span className="mt-1 block text-emerald-700">Connected · folder {draft.driveFolderId}</span>
-                      : <span className="mt-1 block text-slate-400">No folder connected yet.</span>}
+                      : <span className="mt-1 block text-slate-500">No folder connected yet.</span>}
                   </p>
                 </div>
               </CardContent>
@@ -351,7 +373,7 @@ export function AdminSettings() {
                 <NumberField id="concept-generations" label="Max generations per concept" value={draft.conceptMaxGenerationsPerConcept} min={1} max={100} onChange={value => updateDraft('conceptMaxGenerationsPerConcept', value)} />
                 <NumberField id="concept-budget" label="Monthly image budget" value={Math.round(draft.conceptMonthlyBudgetCents / 100)} min={0} max={10000} suffix="USD" onChange={value => updateDraft('conceptMonthlyBudgetCents', value * 100)} />
                 <ToggleRow title="Require image approval" detail="Generated images need admin approval before being used in a concept survey." checked={draft.conceptRequireApproval} onChange={checked => updateDraft('conceptRequireApproval', checked)} />
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-700">
                   Current image default: {conceptSettings?.defaultImageCount ?? 4} images at {conceptSettings?.defaultQuality ?? 'medium'} quality. Secret API keys stay in Supabase.
                 </div>
               </CardContent>
@@ -391,6 +413,88 @@ export function AdminSettings() {
 
 function KeyRoundIcon() {
   return <Lock className="size-5 text-slate-500" />;
+}
+
+function AdminAccessRequestsPanel({ requests, resolving, onResolve }: {
+  requests: AdminAccessRequestRecord[];
+  resolving: boolean;
+  onResolve: (requestId: string, decision: 'approved' | 'rejected') => void;
+}) {
+  const pending = requests.filter(request => request.status === 'pending');
+  const recentResolved = requests.filter(request => request.status !== 'pending').slice(0, 3);
+
+  return (
+    <Card className="border-slate-200 shadow-sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <ShieldCheck className="size-5 text-slate-500" />
+          Admin access requests
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {pending.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">
+            No admin requests waiting for review.
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+            {pending.map(request => (
+              <div key={request.id} className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate text-sm font-medium text-slate-900">{request.requesterName || request.requesterEmail}</p>
+                    <Badge variant="secondary" className="bg-amber-50 text-amber-700">Pending</Badge>
+                  </div>
+                  <p className="mt-1 truncate text-xs text-slate-500">{request.requesterEmail}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Requested {new Date(request.requestedAt).toLocaleDateString()}
+                  </p>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={resolving}
+                    onClick={() => onResolve(request.id, 'rejected')}
+                  >
+                    <UserX className="size-4" />
+                    Reject
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={resolving}
+                    onClick={() => onResolve(request.id, 'approved')}
+                    className="bg-slate-900 hover:bg-slate-700"
+                  >
+                    <UserCheck className="size-4" />
+                    Approve
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {recentResolved.length > 0 && (
+          <div className="space-y-2 border-t border-slate-200 pt-3">
+            <p className="text-xs font-medium text-slate-500">Recent decisions</p>
+            <div className="space-y-2">
+              {recentResolved.map(request => (
+                <div key={request.id} className="flex items-center justify-between gap-3 text-xs">
+                  <span className="truncate text-slate-700">{request.requesterEmail}</span>
+                  <Badge variant="outline" className={request.status === 'approved' ? 'border-emerald-200 text-emerald-700' : 'border-slate-200 text-slate-500'}>
+                    {request.status}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function PanelistTable({ panelists, updating, onToggleStatus }: {
@@ -467,13 +571,13 @@ function AuditLog({ auditEvents }: { auditEvents: ReturnType<typeof useAuditEven
                   <Badge variant="outline">{event.entityType}</Badge>
                 </div>
                 <p className="mt-1 truncate text-sm text-slate-500">{formatMetadata(event.metadata)}</p>
-                <p className="mt-2 text-xs text-slate-400">{event.actorName ? `By ${event.actorName}` : 'System or unknown actor'}</p>
+                <p className="mt-2 text-xs text-slate-500">{event.actorName ? `By ${event.actorName}` : 'System or unknown actor'}</p>
               </div>
               <div className="shrink-0 text-right text-xs text-slate-500">{new Date(event.createdAt).toLocaleString()}</div>
             </div>
           ))}
           {events.length === 0 && (
-            <div className="rounded-lg border border-dashed border-slate-300 py-12 text-center text-sm text-slate-500">
+            <div className="rounded-lg border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500">
               Audit events will appear after imports, settings updates, and account changes.
             </div>
           )}

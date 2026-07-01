@@ -44,6 +44,7 @@ const dataset: InstrumentalDataset = {
 
 const product: Product = {
   id: 'product-1',
+  projectId: 'project-1',
   name: 'Cashew Cream Cheese Sensory',
   category: 'Cheese',
   createdDate: '2026-06-20',
@@ -244,6 +245,22 @@ describe('project workflow evaluator', () => {
     expect(stage('responses', summary).status).toBe('not_started');
     expect(stage('responses', summary).detail).toMatch(/0\/12/);
     expect(summary.nextAction.label).toMatch(/collect responses/i);
+  });
+
+  it('counts surveys linked by project id when batch links are missing', () => {
+    const summary = workflow({
+      importBatches: [{ ...batch, projectId: 'project-1' }],
+      instrumentalDataset: dataset,
+      products: [{
+        ...product,
+        sourceImportBatchId: null,
+        sourceSampleId: null,
+      }],
+    });
+
+    expect(stage('studies', summary).status).toBe('complete');
+    expect(summary.counts.activeStudies).toBe(1);
+    expect(stage('studies', summary).relatedEntityIds.productIds).toEqual(['product-1']);
   });
 
   it('marks launched survey with low responses as in progress', () => {

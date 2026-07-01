@@ -23,6 +23,7 @@ export interface ConceptImageMeta {
   model: string;
   quality: string;
   reviewStatus: ConceptImageReviewStatus;
+  review?: ConceptImageReviewRecord;
   createdAt: string;
 }
 
@@ -133,7 +134,16 @@ export interface ConceptGeneratedImage {
   model: string;
   quality: string;
   performanceSummary: Record<string, unknown>;
+  review?: ConceptImageReviewRecord;
   createdAt: string;
+}
+
+export interface ConceptImageReviewRecord {
+  status?: ConceptImageReviewStatus;
+  notes?: string;
+  qaSummary?: Record<string, unknown>;
+  reviewedBy?: string | null;
+  reviewedAt?: string;
 }
 
 export interface ConceptProjectSummary {
@@ -212,6 +222,12 @@ async function hydrateConceptTestImages(test: ConceptTest, includeMeta = false):
     model: row.model ?? '',
     quality: row.quality ?? '',
     reviewStatus: toReviewStatus(row),
+    review: (() => {
+      const performanceSummary = fromJson<Record<string, unknown>>(row.performance_summary) ?? {};
+      return typeof performanceSummary.review === 'object' && performanceSummary.review !== null
+        ? performanceSummary.review as ConceptImageReviewRecord
+        : undefined;
+    })(),
     createdAt: row.created_at ?? '',
   }));
   return { ...test, imageUrls, imageMeta };
@@ -571,6 +587,10 @@ function toReviewStatus(row: Tables['concept_images']['Row']): ConceptImageRevie
 }
 
 function toConceptGeneratedImage(row: Tables['concept_images']['Row']): ConceptGeneratedImage {
+  const performanceSummary = fromJson<Record<string, unknown>>(row.performance_summary) ?? {};
+  const review = typeof performanceSummary.review === 'object' && performanceSummary.review !== null
+    ? performanceSummary.review as ConceptImageReviewRecord
+    : undefined;
   return {
     id: row.id,
     generationId: row.generation_id as string,
@@ -584,7 +604,8 @@ function toConceptGeneratedImage(row: Tables['concept_images']['Row']): ConceptG
     reviewStatus: toReviewStatus(row),
     model: row.model ?? 'gpt-image-1.5',
     quality: row.quality ?? 'medium',
-    performanceSummary: fromJson<Record<string, unknown>>(row.performance_summary) ?? {},
+    performanceSummary,
+    review,
     createdAt: row.created_at as string,
   };
 }
@@ -775,12 +796,51 @@ export async function fetchConceptProjectSummaries(): Promise<ConceptProjectSumm
 export async function updateConceptImageReviewStatus(
   imageIds: string[],
   status: ConceptImageReviewStatus,
+  review?: Omit<ConceptImageReviewRecord, 'status'>,
 ): Promise<void> {
   if (!imageIds.length) return;
   const legacyPatch = {
     selected_for_panelists: status === 'selected' || status === 'approved',
     archived_at: status === 'rejected' ? new Date().toISOString() : null,
   };
+  if (review) {
+    const { data: rows, error: fetchError } = await supabase
+      .from('concept_images')
+      .select('id, performance_summary')
+      .in('id', imageIds);
+    if (fetchError) throw dbError(fetchError);
+
+    await Promise.all((rows ?? []).map(async row => {
+      const current = fromJson<Record<string, unknown>>(row.performance_summary) ?? {};
+      const currentReview = typeof current.review === 'object' && current.review !== null
+        ? current.review as Record<string, unknown>
+        : {};
+      const performanceSummary = asJson({
+        ...current,
+        review: {
+          ...currentReview,
+          ...review,
+          status,
+          reviewedAt: review.reviewedAt ?? new Date().toISOString(),
+        },
+      });
+      const { error } = await supabase
+        .from('concept_images')
+        .update({ ...legacyPatch, review_status: status, performance_summary: performanceSummary })
+        .eq('id', row.id);
+      if (!error) return;
+      if (error.message?.includes('review_status')) {
+        const { error: fallbackError } = await supabase
+          .from('concept_images')
+          .update({ ...legacyPatch, performance_summary: performanceSummary })
+          .eq('id', row.id);
+        if (fallbackError) throw dbError(fallbackError);
+        return;
+      }
+      throw dbError(error);
+    }));
+    return;
+  }
   const { error } = await supabase
     .from('concept_images')
     .update({ ...legacyPatch, review_status: status })

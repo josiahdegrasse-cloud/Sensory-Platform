@@ -28,8 +28,8 @@ const PanelistKitJoinPage = lazy(() => import("./components/panelist-kit-join-pa
 const NotFound = lazy(() => import("./components/not-found").then(m => ({ default: m.NotFound })));
 
 const fallback = (
-  <div className="min-h-screen flex items-center justify-center bg-slate-950">
-    <div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+  <div className="min-h-screen flex items-center justify-center bg-slate-50">
+    <div className="w-6 h-6 rounded-full border-2 border-slate-200 border-t-slate-700 animate-spin" />
   </div>
 );
 

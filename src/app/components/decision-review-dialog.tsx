@@ -103,7 +103,7 @@ export function DecisionReviewDialog({
               Planned adjustment
               <Textarea id="decision-adjustment" className="mt-1 bg-white" rows={2} value={adjustment} onChange={event => setAdjustment(event.target.value)} />
             </label>
-            <label htmlFor="decision-retest" className="flex items-center gap-2 text-sm font-medium text-slate-800">
+            <label htmlFor="decision-retest" className="flex items-center gap-2 text-sm font-medium text-slate-700">
               <input id="decision-retest" type="checkbox" checked={retest} onChange={event => setRetest(event.target.checked)} />
               Retest after the adjustment
             </label>

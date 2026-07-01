@@ -17,9 +17,9 @@ function ManifestRow({ state, label, note }: { state: ManifestState; label: stri
   return (
     <li className="flex items-start gap-2 text-xs">
       <Icon className={`size-3.5 shrink-0 mt-0.5 ${className}`} aria-hidden />
-      <span className={state === 'missing' ? 'text-slate-400' : 'text-slate-700'}>
+      <span className={state === 'missing' ? 'text-slate-500' : 'text-slate-700'}>
         {label}
-        {note && <span className="text-slate-400"> · {note}</span>}
+        {note && <span className="text-slate-500"> · {note}</span>}
       </span>
     </li>
   );
@@ -48,25 +48,25 @@ export function ReportPreviewCard({ status, className }: { status: ProjectStatus
       <CardContent className="py-4 space-y-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 border border-slate-200">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-50 border border-slate-200">
               <FileText className="size-4 text-slate-500" aria-hidden />
             </span>
             <div className="min-w-0">
               <h3 className="text-sm font-bold text-slate-900">Commercialization report</h3>
-              <p className="text-[11px] text-slate-400">The final deliverable of this project</p>
+              <p className="text-[11px] text-slate-500">The final deliverable of this project</p>
             </div>
           </div>
           <ProjectStatusBadge label={config.label} tone={config.tone} showIcon={false} />
         </div>
 
         {status.reportStatus === 'not-ready' && reportStage && (
-          <p className="text-xs text-slate-500 rounded-lg bg-slate-50 border border-slate-100 px-3 py-2">
+          <p className="text-xs text-slate-500 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
             {reportStage.detail}
           </p>
         )}
 
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">What it will include</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">What it will include</p>
           <ul className="space-y-1.5">
             <ManifestRow
               state={status.responseCompleted > 0 ? 'present' : 'missing'}
@@ -105,7 +105,7 @@ export function ReportPreviewCard({ status, className }: { status: ProjectStatus
         ) : (
           <div
             aria-disabled
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-400"
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500"
           >
             {config.cta}
           </div>

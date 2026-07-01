@@ -23,7 +23,7 @@ import type { QuestionnaireResponse } from '../data/survey-domain';
 // ── Tier config ───────────────────────────────────────────────────────────────
 
 const TIER_COLOR: Record<TrainingLevel, string> = {
-  screened: 'bg-slate-100 text-slate-700 border-slate-300',
+  screened: 'bg-slate-50 text-slate-700 border-slate-200',
   trained: 'bg-blue-100 text-blue-800 border-blue-300',
   certified: 'bg-emerald-100 text-emerald-800 border-emerald-300',
   expert: 'bg-amber-100 text-amber-800 border-amber-300',
@@ -48,7 +48,7 @@ function TierBadge({ level }: { level: TrainingLevel }) {
 // ── Metric colour helpers ─────────────────────────────────────────────────────
 
 function repColor(r: number | null) {
-  if (r === null) return 'text-slate-400';
+  if (r === null) return 'text-slate-500';
   if (r >= 0.85) return 'text-emerald-700';
   if (r >= 0.75) return 'text-blue-700';
   if (r >= 0.60) return 'text-amber-700';
@@ -56,7 +56,7 @@ function repColor(r: number | null) {
 }
 
 function fColor(f: number | null) {
-  if (f === null) return 'text-slate-400';
+  if (f === null) return 'text-slate-500';
   if (f >= 4.0) return 'text-emerald-700';
   if (f >= 2.5) return 'text-blue-700';
   if (f >= 1.5) return 'text-amber-700';
@@ -64,7 +64,7 @@ function fColor(f: number | null) {
 }
 
 function devColor(d: number | null) {
-  if (d === null) return 'text-slate-400';
+  if (d === null) return 'text-slate-500';
   if (d < 1.0) return 'text-emerald-700';
   if (d < 1.5) return 'text-blue-700';
   if (d < 2.5) return 'text-amber-700';
@@ -101,14 +101,14 @@ function AttributeDevBars({ deviations }: { deviations: PanelistMetrics['attribu
         const pct = Math.min(100, (val / 4) * 100);
         return (
           <div key={key} className="flex items-center gap-2">
-            <span className="text-[10px] text-slate-500 w-20 capitalize">{key}</span>
-            <div className="flex-1 bg-slate-100 rounded-full h-1.5">
+            <span className="text-[11px] text-slate-500 w-20 capitalize">{key}</span>
+            <div className="flex-1 bg-slate-50 rounded-full h-1.5">
               <div
                 className={`h-1.5 rounded-full ${val < 1.0 ? 'bg-emerald-500' : val < 1.5 ? 'bg-blue-500' : val < 2.5 ? 'bg-amber-500' : 'bg-rose-500'}`}
                 style={{ width: `${pct}%` }}
               />
             </div>
-            <span className="text-[10px] font-mono text-slate-600 w-8 text-right">{val.toFixed(2)}</span>
+            <span className="text-[11px] font-mono text-slate-700 w-8 text-right">{val.toFixed(2)}</span>
           </div>
         );
       })}
@@ -130,19 +130,19 @@ function PanelistDetail({
   onUpdateTier: (level: TrainingLevel) => void;
 }) {
   return (
-    <div className="mt-3 pt-3 border-t border-slate-100 space-y-4">
+    <div className="mt-3 pt-3 border-t border-slate-200 space-y-4">
 
       {/* Attribute deviations */}
       <div>
-        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Deviation per Dimension</p>
+        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2">Deviation per Dimension</p>
         <AttributeDevBars deviations={metrics.attributeDeviations} />
       </div>
 
       {/* Scale usage */}
       <div>
         <div className="flex items-center justify-between mb-1">
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Scale Usage (1–9)</p>
-          <span className="text-[10px] text-slate-500">
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Scale Usage (1–9)</p>
+          <span className="text-[11px] text-slate-500">
             Range: {metrics.scaleUsageRange?.toFixed(0) ?? '—'} · SD: {metrics.scaleUsageSD?.toFixed(1) ?? '—'}
           </span>
         </div>
@@ -161,14 +161,14 @@ function PanelistDetail({
           })}
         </div>
         <div className="flex justify-between mt-0.5 px-1">
-          {[1,2,3,4,5,6,7,8,9].map(n => <span key={n} className="text-[9px] text-slate-400 flex-1 text-center">{n}</span>)}
+          {[1,2,3,4,5,6,7,8,9].map(n => <span key={n} className="text-[9px] text-slate-500 flex-1 text-center">{n}</span>)}
         </div>
       </div>
 
       {/* Session drift */}
       {metrics.driftData.length >= 2 && (
         <div>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Score Drift vs. Panel</p>
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1">Score Drift vs. Panel</p>
           <ResponsiveContainer width="100%" height={70}>
             <LineChart data={metrics.driftData} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
               <XAxis dataKey="session" tick={{ fontSize: 9 }} />
@@ -184,8 +184,8 @@ function PanelistDetail({
             </LineChart>
           </ResponsiveContainer>
           <div className="flex items-center gap-4 mt-0.5">
-            <span className="flex items-center gap-1 text-[10px] text-blue-600"><span className="w-3 h-0.5 bg-blue-500 inline-block" />Panelist</span>
-            <span className="flex items-center gap-1 text-[10px] text-slate-400"><span className="w-3 h-0.5 bg-slate-400 inline-block" />Panel avg</span>
+            <span className="flex items-center gap-1 text-[11px] text-blue-600"><span className="w-3 h-0.5 bg-blue-500 inline-block" />Panelist</span>
+            <span className="flex items-center gap-1 text-[11px] text-slate-500"><span className="w-3 h-0.5 bg-slate-400 inline-block" />Panel avg</span>
           </div>
         </div>
       )}
@@ -204,9 +204,9 @@ function PanelistDetail({
       )}
 
       {/* Training tier selector */}
-      <div className="flex items-center gap-3 pt-1 border-t border-slate-100">
+      <div className="flex items-center gap-3 pt-1 border-t border-slate-200">
         <div className="flex-1">
-          <p className="text-[10px] text-slate-500 mb-1">Training tier</p>
+          <p className="text-[11px] text-slate-500 mb-1">Training tier</p>
           <Select value={panelist.trainingLevel} onValueChange={v => onUpdateTier(v as TrainingLevel)}>
             <SelectTrigger className="h-7 text-xs w-36">
               <SelectValue />
@@ -225,7 +225,7 @@ function PanelistDetail({
         </div>
         {suggested !== panelist.trainingLevel && (
           <div className="text-right">
-            <p className="text-[10px] text-slate-500 mb-1">AI suggests</p>
+            <p className="text-[11px] text-slate-500 mb-1">AI suggests</p>
             <button
               onClick={() => onUpdateTier(suggested)}
               className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:text-blue-900 underline underline-offset-2"
@@ -265,13 +265,13 @@ function PanelistCard({
           </div>
           <div className="min-w-0">
             <div className="font-bold text-slate-900 text-sm truncate">{panelist.name}</div>
-            <div className="text-[11px] text-slate-400 font-mono">{panelist.panelistId ?? 'no ID set'}</div>
+            <div className="text-[11px] text-slate-500 font-mono">{panelist.panelistId ?? 'no ID set'}</div>
           </div>
         </div>
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
           <TierBadge level={panelist.trainingLevel} />
           {metrics.rogueFlag && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded-full border border-rose-300">
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded-full border border-rose-300">
               <AlertTriangle className="size-2.5" />
               Review Required
             </span>
@@ -304,7 +304,7 @@ function PanelistCard({
         ].map(({ label, value, colorClass, sub }) => (
           <div key={label} className="bg-slate-50 rounded-lg p-1.5 text-center">
             <div className={`text-sm font-bold ${colorClass}`}>{value}</div>
-            <div className="text-[9px] text-slate-400 leading-tight">{label}</div>
+            <div className="text-[9px] text-slate-500 leading-tight">{label}</div>
             {sub && <div className="text-[9px] font-medium text-slate-500">{sub}</div>}
           </div>
         ))}
@@ -313,7 +313,7 @@ function PanelistCard({
       {/* Scale usage mini */}
       <div className="mb-2">
         <div className="flex items-center justify-between mb-0.5">
-          <span className="text-[9px] text-slate-400 uppercase font-semibold tracking-wide">Scale 1–9</span>
+          <span className="text-[9px] text-slate-500 uppercase font-semibold tracking-wide">Scale 1–9</span>
           {metrics.scaleUsageRange !== null && metrics.scaleUsageRange < 4 && (
             <span className="text-[9px] text-amber-600 font-semibold">Narrow range</span>
           )}
@@ -324,7 +324,7 @@ function PanelistCard({
       {/* Expand toggle */}
       <button
         onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center justify-center gap-1 text-[11px] text-slate-500 hover:text-slate-700 mt-1 pt-1 border-t border-slate-100"
+        className="w-full flex items-center justify-center gap-1 text-[11px] text-slate-500 hover:text-slate-700 mt-1 pt-1 border-t border-slate-200"
       >
         {expanded ? <><ChevronUp className="size-3" />Less</> : <><ChevronDown className="size-3" />Details & Training</>}
       </button>
@@ -396,7 +396,7 @@ export function PanelistPerformancePanel() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Users className="size-5 text-slate-600" />
+          <Users className="size-5 text-slate-700" />
           Panel Intelligence ({panelists.length})
         </CardTitle>
         <p className="text-sm text-slate-500">Performance metrics, training tiers, and calibration scores for all panelists</p>
@@ -415,7 +415,7 @@ export function PanelistPerformancePanel() {
               <div>
                 <div className="text-lg font-bold text-slate-900 leading-none">{value}</div>
                 <div className="text-xs text-slate-500 mt-0.5">{label}</div>
-                <div className="text-[10px] text-slate-400">{sub}</div>
+                <div className="text-[11px] text-slate-500">{sub}</div>
               </div>
             </div>
           ))}
@@ -437,7 +437,7 @@ export function PanelistPerformancePanel() {
               className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors border ${
                 tierFilter === f
                   ? f === 'flagged' ? 'bg-rose-600 text-white border-rose-600' : 'bg-slate-900 text-white border-slate-900'
-                  : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-400'
               }`}
             >
               {label}
@@ -451,7 +451,7 @@ export function PanelistPerformancePanel() {
 
         {/* Panelist cards */}
         {filteredPanelists.length === 0 ? (
-          <div className="text-center py-12 text-slate-400">
+          <div className="text-center py-12 text-slate-500">
             <Users className="size-10 mx-auto mb-2 opacity-30" />
             <p className="text-sm">{panelists.length === 0 ? 'No panelists yet' : 'No panelists match filter'}</p>
           </div>
@@ -473,13 +473,13 @@ export function PanelistPerformancePanel() {
         )}
 
         {/* Legend */}
-        <div className="pt-2 border-t border-slate-100 flex items-center gap-4 flex-wrap">
-          <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">Legend</span>
-          <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /><span className="text-[10px] text-emerald-800">Excellent</span></div>
-          <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" /><span className="text-[10px] text-blue-800">Good</span></div>
-          <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" /><span className="text-[10px] text-amber-800">Acceptable</span></div>
-          <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500 inline-block" /><span className="text-[10px] text-rose-800">Poor / Review</span></div>
-          <div className="ml-auto text-[10px] text-slate-400">Repeatability: Pearson r (run1 vs run2) · F-Ratio: ANOVA across products · Deviation: mean |score − panel mean|</div>
+        <div className="pt-2 border-t border-slate-200 flex items-center gap-4 flex-wrap">
+          <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wide">Legend</span>
+          <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /><span className="text-[11px] text-emerald-800">Excellent</span></div>
+          <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" /><span className="text-[11px] text-blue-800">Good</span></div>
+          <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" /><span className="text-[11px] text-amber-800">Acceptable</span></div>
+          <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500 inline-block" /><span className="text-[11px] text-rose-800">Poor / Review</span></div>
+          <div className="ml-auto text-[11px] text-slate-500">Repeatability: Pearson r (run1 vs run2) · F-Ratio: ANOVA across products · Deviation: mean |score − panel mean|</div>
         </div>
       </CardContent>
     </Card>

@@ -1,12 +1,12 @@
 import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { acceptPanelistConsent, CURRENT_CONSENT_VERSION } from '../lib/database';
+import { acceptPanelistConsent, CURRENT_CONSENT_VERSION, requestAdminAccess } from '../lib/database';
 
 export interface User {
   id: string;
   email: string;
-  role: 'admin' | 'panelist';
+  role: 'admin' | 'panelist' | 'pending_admin';
   name: string;
   panelistId?: string;
   status?: 'active' | 'inactive' | 'archived';
@@ -48,11 +48,25 @@ interface ProfileResult {
 }
 
 async function loadProfile(supabaseUser: SupabaseUser): Promise<ProfileResult> {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('profiles')
     .select('*')
     .eq('id', supabaseUser.id)
     .single();
+  if (error || !data) {
+    try {
+      await requestAdminAccess();
+      const retry = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', supabaseUser.id)
+        .single();
+      data = retry.data;
+      error = retry.error;
+    } catch {
+      // Keep the original blocked path for users whose domain is not linked.
+    }
+  }
   if (error || !data) return { profile: null, blockedMessage: null };
   if (data.status && data.status !== 'active') {
     return { profile: null, blockedMessage: 'This account has been deactivated. Contact your study administrator.' };
@@ -69,7 +83,7 @@ async function loadProfile(supabaseUser: SupabaseUser): Promise<ProfileResult> {
     profile: {
       id: supabaseUser.id,
       email: supabaseUser.email ?? '',
-      role: data.role as 'admin' | 'panelist',
+      role: data.role as 'admin' | 'panelist' | 'pending_admin',
       name: data.name ?? supabaseUser.email ?? '',
       panelistId: data.panelist_id ?? undefined,
       status: (data.status ?? 'active') as 'active' | 'archived' | 'inactive',
@@ -117,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (sessionUser === undefined) return; // still waiting for getSession
     if (!sessionUser) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing loading flag to async Supabase session
       setLoading(false);
       return;
     }

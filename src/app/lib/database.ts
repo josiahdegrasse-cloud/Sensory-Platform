@@ -10,6 +10,7 @@ export * from './db/responses';
 export * from './db/templates';
 export * from './db/panelists';
 export * from './db/panelist-kits';
+export * from './db/admin-access';
 export * from './db/workspace';
 export * from './db/concepts';
 export * from './db/notifications';

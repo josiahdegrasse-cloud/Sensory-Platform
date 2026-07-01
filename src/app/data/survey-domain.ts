@@ -1,5 +1,6 @@
 import {
   detectFoodType,
+  FOOD_TYPE_PROFILES,
   getDefaultCataAttributesForFoodType,
   getDefaultIntensityAttributesForFoodType,
 } from '../lib/food-intelligence';
@@ -26,6 +27,7 @@ export interface Product {
   blinded?: boolean;
   blindCode?: string | null;
   assignedPanelistIds?: string[];
+  projectId?: string | null;
   sourceImportBatchId?: string | null;
   sourceSampleId?: string | null;
 }
@@ -55,26 +57,14 @@ export interface QuestionnaireResponse {
 }
 
 export const CATEGORY_CATA_ATTRIBUTES: Record<string, string[]> = {
+  ...Object.fromEntries(FOOD_TYPE_PROFILES.map(profile => [profile.slug, getDefaultCataAttributesForFoodType(profile.slug)])),
   dairy: getDefaultCataAttributesForFoodType('cheese'),
-  cheese: getDefaultCataAttributesForFoodType('cheese'),
-  bread: getDefaultCataAttributesForFoodType('bread'),
-  meat: getDefaultCataAttributesForFoodType('meat'),
-  yogurt: getDefaultCataAttributesForFoodType('yogurt'),
-  beverage: getDefaultCataAttributesForFoodType('beverage'),
-  snack: getDefaultCataAttributesForFoodType('snack'),
-  sauce: getDefaultCataAttributesForFoodType('sauce'),
   generic: getDefaultCataAttributesForFoodType('generic'),
 };
 
 const CATEGORY_INTENSITY_ATTRIBUTES: Record<string, string[]> = {
+  ...Object.fromEntries(FOOD_TYPE_PROFILES.map(profile => [profile.slug, getDefaultIntensityAttributesForFoodType(profile.slug)])),
   dairy: getDefaultIntensityAttributesForFoodType('cheese'),
-  cheese: getDefaultIntensityAttributesForFoodType('cheese'),
-  bread: getDefaultIntensityAttributesForFoodType('bread'),
-  meat: getDefaultIntensityAttributesForFoodType('meat'),
-  yogurt: getDefaultIntensityAttributesForFoodType('yogurt'),
-  beverage: getDefaultIntensityAttributesForFoodType('beverage'),
-  snack: getDefaultIntensityAttributesForFoodType('snack'),
-  sauce: getDefaultIntensityAttributesForFoodType('sauce'),
   generic: getDefaultIntensityAttributesForFoodType('generic'),
 };
 

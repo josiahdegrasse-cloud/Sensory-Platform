@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle2, FileText, HardDrive, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { AlertCircle, CheckCircle2, FileText, HardDrive, Loader2, Table2 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from './ui/dialog';
@@ -15,6 +15,10 @@ function formatSize(bytes: number | null): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function kindLabel(kind: 'csv' | 'google_sheet'): string {
+  return kind === 'google_sheet' ? 'Google Sheet' : 'CSV';
+}
+
 export function DriveSyncDialog({
   open,
   onOpenChange,
@@ -27,13 +31,16 @@ export function DriveSyncDialog({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [result, setResult] = useState<DriveImportResult | null>(null);
 
-  // Reset transient state each time the dialog opens.
-  useEffect(() => {
+  // Reset transient state when the dialog transitions to open (render-phase
+  // "adjust state on change" — no effect needed).
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) {
       setSelected(new Set());
       setResult(null);
     }
-  }, [open]);
+  }
 
   const files = filesQuery.data?.files ?? [];
   const serviceAccountEmail = filesQuery.data?.serviceAccountEmail ?? '';
@@ -70,8 +77,8 @@ export function DriveSyncDialog({
           </DialogTitle>
           <DialogDescription>
             {serviceAccountEmail
-              ? <>Files in your connected folder. Share the folder with <span className="font-mono text-slate-700">{serviceAccountEmail}</span> if any are missing.</>
-              : 'Files in your connected Drive folder.'}
+              ? <>CSV files and Google Sheets in your connected folder. Share the folder with <span className="font-mono text-slate-700">{serviceAccountEmail}</span> if any are missing.</>
+              : 'CSV files and Google Sheets in your connected Drive folder.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -113,7 +120,7 @@ export function DriveSyncDialog({
         {!filesQuery.isLoading && !filesQuery.isError && !result && (
           files.length === 0 ? (
             <div className="py-10 text-center text-sm text-slate-500">
-              No CSV files found in the connected folder.
+              No supported import files found in the connected folder.
             </div>
           ) : (
             <div className="space-y-1">
@@ -121,7 +128,7 @@ export function DriveSyncDialog({
                 <button
                   type="button"
                   onClick={toggleAll}
-                  className="px-1 pb-1 text-xs font-medium text-slate-500 hover:text-slate-800"
+                  className="px-1 pb-1 text-xs font-medium text-slate-500 hover:text-slate-700"
                 >
                   {selected.size === selectable.length ? 'Clear selection' : `Select all (${selectable.length})`}
                 </button>
@@ -132,7 +139,7 @@ export function DriveSyncDialog({
                     key={file.id}
                     className={`flex items-center gap-3 rounded-lg border p-2.5 text-sm ${
                       file.alreadyImported
-                        ? 'border-slate-100 bg-slate-50 text-slate-400'
+                        ? 'border-slate-200 bg-slate-50 text-slate-500'
                         : 'cursor-pointer border-slate-200 hover:bg-slate-50'
                     }`}
                   >
@@ -141,11 +148,19 @@ export function DriveSyncDialog({
                       disabled={file.alreadyImported}
                       onCheckedChange={() => toggle(file.id)}
                     />
-                    <FileText className="size-4 shrink-0 text-slate-400" />
-                    <span className="min-w-0 flex-1 truncate">{file.name}</span>
-                    {file.size != null && <span className="text-xs text-slate-400">{formatSize(file.size)}</span>}
+                    {file.importKind === 'google_sheet'
+                      ? <Table2 className="size-4 shrink-0 text-emerald-600" />
+                      : <FileText className="size-4 shrink-0 text-slate-500" />}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{file.name}</span>
+                      <span className="text-xs text-slate-500">
+                        {kindLabel(file.importKind)}
+                        {file.importKind === 'google_sheet' ? ' · exported as CSV for the import queue' : ''}
+                      </span>
+                    </span>
+                    {file.size != null && <span className="text-xs text-slate-500">{formatSize(file.size)}</span>}
                     {file.alreadyImported && (
-                      <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
+                      <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[11px] font-semibold text-slate-500">
                         Imported
                       </span>
                     )}

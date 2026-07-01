@@ -2,14 +2,14 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
 // ════════════════════════════════════════════════════════════════════════════
-// drive-sync — pull instrument CSVs from a connected Google Drive folder.
+// drive-sync — pull instrument CSVs / Google Sheets from a connected Drive folder.
 //
 // Auth flips from per-user OAuth to an app-level service account: the function
 // authenticates to Google server-side using GOOGLE_SERVICE_ACCOUNT_JSON, so
 // there is no user login / "unverified app" wall. The service account can only
 // see files shared with its client_email, so each org shares its folder once.
 //
-//   mode:'list'   → list CSVs in the org's connected folder (+ alreadyImported)
+//   mode:'list'   → list supported files in the org's connected folder (+ alreadyImported)
 //   mode:'import' → download selected files, upload to the instrument-imports
 //                   bucket, then hand off to process-import (parse/match/email).
 // ════════════════════════════════════════════════════════════════════════════
@@ -18,6 +18,12 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_IMPORT_BATCH = 20;
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
+const GOOGLE_SHEETS_MIME = 'application/vnd.google-apps.spreadsheet';
+const CSV_MIME_TYPES = new Set([
+  'text/csv',
+  'application/csv',
+  'application/vnd.ms-excel',
+]);
 
 interface ServiceAccount {
   client_email: string;
@@ -27,6 +33,8 @@ interface ServiceAccount {
 interface DriveFile {
   id: string;
   name: string;
+  mimeType: string | null;
+  importKind: 'csv' | 'google_sheet';
   size: number | null;
   modifiedTime: string | null;
   alreadyImported: boolean;
@@ -104,15 +112,35 @@ async function getAccessToken(sa: ServiceAccount): Promise<string> {
   return data.access_token;
 }
 
-async function listFolderCsvs(folderId: string, token: string): Promise<{ id: string; name: string; size: number | null; modifiedTime: string | null }[]> {
+function importKind(file: { name: string; mimeType?: string | null }): 'csv' | 'google_sheet' | null {
+  if (file.mimeType === GOOGLE_SHEETS_MIME) return 'google_sheet';
+  if (file.mimeType && CSV_MIME_TYPES.has(file.mimeType)) return 'csv';
+  if (/\.csv$/i.test(file.name)) return 'csv';
+  return null;
+}
+
+async function listFolderImportFiles(folderId: string, token: string): Promise<Array<{
+  id: string;
+  name: string;
+  mimeType: string | null;
+  importKind: 'csv' | 'google_sheet';
+  size: number | null;
+  modifiedTime: string | null;
+}>> {
   const q = [
     `'${folderId}' in parents`,
     'trashed = false',
-    "(mimeType = 'text/csv' or mimeType = 'application/vnd.ms-excel' or name contains '.csv')",
+    `(` + [
+      "mimeType = 'text/csv'",
+      "mimeType = 'application/csv'",
+      "mimeType = 'application/vnd.ms-excel'",
+      `mimeType = '${GOOGLE_SHEETS_MIME}'`,
+      "name contains '.csv'",
+    ].join(' or ') + `)`,
   ].join(' and ');
   const url = new URL('https://www.googleapis.com/drive/v3/files');
   url.searchParams.set('q', q);
-  url.searchParams.set('fields', 'files(id,name,modifiedTime,size)');
+  url.searchParams.set('fields', 'files(id,name,mimeType,modifiedTime,size)');
   url.searchParams.set('supportsAllDrives', 'true');
   url.searchParams.set('includeItemsFromAllDrives', 'true');
   url.searchParams.set('pageSize', '100');
@@ -122,13 +150,43 @@ async function listFolderCsvs(folderId: string, token: string): Promise<{ id: st
   if (!res.ok) {
     throw new Error(`Drive list failed (${res.status}). Make sure the folder is shared with the service account.`);
   }
-  const data = await res.json() as { files?: { id: string; name: string; modifiedTime?: string; size?: string }[] };
-  return (data.files ?? []).map(f => ({
-    id: f.id,
-    name: f.name,
-    size: f.size ? Number(f.size) : null,
-    modifiedTime: f.modifiedTime ?? null,
-  }));
+  const data = await res.json() as {
+    files?: { id: string; name: string; mimeType?: string; modifiedTime?: string; size?: string }[];
+  };
+  return (data.files ?? [])
+    .map(f => {
+      const kind = importKind(f);
+      return kind ? {
+        id: f.id,
+        name: f.name,
+        mimeType: f.mimeType ?? null,
+        importKind: kind,
+        size: f.size ? Number(f.size) : null,
+        modifiedTime: f.modifiedTime ?? null,
+      } : null;
+    })
+    .filter((f): f is NonNullable<typeof f> => Boolean(f));
+}
+
+async function fetchImportBlob(
+  file: { id: string; name: string; importKind: 'csv' | 'google_sheet' },
+  token: string,
+): Promise<Blob> {
+  const url = file.importKind === 'google_sheet'
+    ? new URL(`https://www.googleapis.com/drive/v3/files/${file.id}/export`)
+    : new URL(`https://www.googleapis.com/drive/v3/files/${file.id}`);
+  if (file.importKind === 'google_sheet') {
+    url.searchParams.set('mimeType', 'text/csv');
+  } else {
+    url.searchParams.set('alt', 'media');
+    url.searchParams.set('supportsAllDrives', 'true');
+  }
+  const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) {
+    const action = file.importKind === 'google_sheet' ? 'export' : 'download';
+    throw new Error(`Drive ${action} failed (${res.status}).`);
+  }
+  return res.blob();
 }
 
 Deno.serve(async (req: Request) => {
@@ -221,7 +279,7 @@ Deno.serve(async (req: Request) => {
   if (mode === 'list') {
     let files;
     try {
-      files = await listFolderCsvs(folderId, token);
+      files = await listFolderImportFiles(folderId, token);
     } catch (err) {
       return json({ error: String(err instanceof Error ? err.message : err) }, 502, headers);
     }
@@ -244,7 +302,7 @@ Deno.serve(async (req: Request) => {
   // Resolve names/sizes once so we can dedup, size-check, and label uploads.
   let folderFiles;
   try {
-    folderFiles = await listFolderCsvs(folderId, token);
+    folderFiles = await listFolderImportFiles(folderId, token);
   } catch (err) {
     return json({ error: String(err instanceof Error ? err.message : err) }, 502, headers);
   }
@@ -259,19 +317,13 @@ Deno.serve(async (req: Request) => {
     const label = meta?.name ?? fileId;
     if (!meta) { errors.push({ name: label, message: 'File not found in the connected folder.' }); continue; }
     if (importedIds.has(fileId)) { skipped++; continue; }
-    if (meta.size != null && meta.size > MAX_FILE_SIZE) {
+    if (meta.importKind === 'csv' && meta.size != null && meta.size > MAX_FILE_SIZE) {
       errors.push({ name: label, message: 'File exceeds the 5 MB limit.' });
       continue;
     }
 
     try {
-      // Download bytes via the service account token
-      const dl = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      if (!dl.ok) throw new Error(`Drive download failed (${dl.status}).`);
-      const blob = await dl.blob();
+      const blob = await fetchImportBlob(meta, token);
       if (blob.size > MAX_FILE_SIZE) throw new Error('File exceeds the 5 MB limit.');
 
       // Upload into the same bucket/path convention manual uploads use

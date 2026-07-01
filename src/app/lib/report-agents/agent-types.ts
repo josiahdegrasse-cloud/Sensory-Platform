@@ -5,14 +5,20 @@ export type ReportAgentMode = 'quick_draft' | 'full_release_review';
 export type ReportAgentName =
   | 'orchestrator'
   | 'evidence_auditor'
-  | 'sensory_science'
-  | 'instrumental_science'
-  | 'commercial_strategy'
-  | 'concept_packaging'
-  | 'claims_compliance'
-  | 'section_writer'
-  | 'editor'
-  | 'qc_critic';
+  | 'calculation_auditor'
+  | 'sensory_science_reviewer'
+  | 'instrumental_science_reviewer'
+  | 'consumer_insights_reviewer'
+  | 'claims_compliance_reviewer'
+  | 'decision_consistency_auditor'
+  | 'commercial_strategist'
+  | 'action_plan_engineer'
+  | 'professional_report_writer'
+  | 'editorial_reviewer'
+  | 'client_red_team'
+  | 'visual_qa_reviewer'
+  | 'conflict_resolver'
+  | 'final_independent_judge';
 
 export type EvidenceStrength = 'strong' | 'directional' | 'unsupported' | 'missing';
 

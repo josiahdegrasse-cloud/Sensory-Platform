@@ -70,7 +70,7 @@ export function normalizeConceptStatus(status: ConceptTest['status']): StudyLife
 
 export function validateProductStudy(product: Product): StudyBlocker[] {
   return compact([
-    !product.sourceSampleId && {
+    !product.isMultiSample && !product.sourceSampleId && {
       id: 'sample-linked',
       label: 'No linked source sample',
       severity: 'warning' as const,
@@ -225,7 +225,7 @@ export function adaptProductToStudySummary(
     status: normalizeProductStatus(product.status),
     linkedLabel: product.isMultiSample
       ? `${product.samples?.length ?? 0} samples`
-      : product.sourceSampleId ?? product.category,
+      : product.category,
     sourceImportBatchId: product.sourceImportBatchId,
     sourceImportBatchName: sourceBatch?.fileName ?? null,
     assignmentLabel: assignedCount > 0 ? `${assignedCount} assigned` : 'Open to all panelists',

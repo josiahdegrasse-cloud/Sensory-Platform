@@ -87,7 +87,7 @@ export function MultiSampleDescription() {
             <Layers className="size-6 text-slate-500" />
             <CardTitle className="text-2xl">Triangle Test</CardTitle>
           </div>
-          <div className="space-y-1 text-sm text-slate-600">
+          <div className="space-y-1 text-sm text-slate-700">
             <p><strong>Study:</strong> {displayName}</p>
             <p><strong>Category:</strong> {categoryLabel}</p>
             <p><strong>Your Panelist ID:</strong> {user?.panelistId}</p>
@@ -126,7 +126,7 @@ export function MultiSampleDescription() {
                 <div className="w-14 h-14 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xl flex-shrink-0">
                   {sample.code}
                 </div>
-                <div className="text-xs text-slate-600 font-medium">Sample {idx + 1}</div>
+                <div className="text-xs text-slate-700 font-medium">Sample {idx + 1}</div>
               </div>
             ))}
           </div>
@@ -148,10 +148,10 @@ export function MultiSampleDescription() {
               <div className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold flex-shrink-0">1-{sampleCount}</div>
               <div>
                 <h4 className="font-bold text-slate-900">Sequential Sample Evaluation</h4>
-                <p className="text-sm text-slate-600 mt-1">
+                <p className="text-sm text-slate-700 mt-1">
                   Evaluate each sample individually using the same questionnaire:
                 </p>
-                <ul className="text-sm text-slate-600 mt-2 ml-4 list-disc space-y-1">
+                <ul className="text-sm text-slate-700 mt-2 ml-4 list-disc space-y-1">
                   <li>Flavor & Aroma Attributes (CATA)</li>
                   <li>Intensity Ratings</li>
                   <li>Hedonic Scores (Overall Liking)</li>
@@ -167,7 +167,7 @@ export function MultiSampleDescription() {
                   Triangle Test Choice
                   <Target className="size-4 text-slate-500" />
                 </h4>
-                <p className="text-sm text-slate-600 mt-1">
+                <p className="text-sm text-slate-700 mt-1">
                   Identify the odd sample that is different from the other two based on taste, texture, aroma, and appearance.
                 </p>
               </div>

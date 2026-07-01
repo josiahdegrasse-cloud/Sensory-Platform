@@ -17,6 +17,9 @@ import type {
   CalculationAuditResult,
   ClientRedTeamResult,
   CommercialStrategyResult,
+  ClaimsComplianceResult,
+  ConflictResolverResult,
+  ConsumerInsightsResult,
   DecisionConsistencyResult,
   EditorialReviewResult,
   EvidenceAuditResult,
@@ -162,7 +165,7 @@ function deterministicRepairOwner(code: string): string {
 export function allowedEvidenceIds(ctx: ReportContext): string[] {
   // An agent may cite any id present in the context it was shown — the source
   // evidence records PLUS the deterministic gates, limitations, claims, and
-  // dimensions surfaced in its packet (e.g. the scientific_skeptic grounding a
+  // dimensions surfaced in its packet (e.g. a science reviewer grounding a
   // challenge in a failing gate like "sensory.qc" or a stated limitation like
   // "weak-dimension"). Only ids outside this whole set are fabricated citations.
   return [
@@ -204,7 +207,10 @@ async function invoke<R extends ReportAgentRole>(
 function auditDefects(input: {
   evidence: EvidenceAuditResult;
   calculation: CalculationAuditResult;
-  scientific: ScientificReviewResult;
+  sensoryScience: ScientificReviewResult;
+  instrumentalScience: ScientificReviewResult;
+  consumerInsights: ConsumerInsightsResult;
+  claimsCompliance: ClaimsComplianceResult;
   decision: DecisionConsistencyResult;
 }): ReportDefect[] {
   const defects: ReportDefect[] = [];
@@ -226,7 +232,10 @@ function auditDefects(input: {
   }));
   addBlockers(input.evidence.blockers, 'evidence_agent', 'evidence', 'claim_planning');
   addBlockers(input.calculation.blockers, 'calculation_agent', 'calculation', 'deterministic_calculation');
-  addBlockers(input.scientific.blockers, 'scientific_agent', 'scientific_logic', 'human_scientific_review');
+  addBlockers(input.sensoryScience.blockers, 'sensory_science_agent', 'sensory_science', 'human_scientific_review');
+  addBlockers(input.instrumentalScience.blockers, 'instrumental_science_agent', 'instrumental_science', 'human_scientific_review');
+  addBlockers(input.consumerInsights.blockers, 'consumer_insights_agent', 'consumer_insights', 'claim_planning');
+  addBlockers(input.claimsCompliance.blockers, 'claims_compliance_agent', 'claims_compliance', 'claim_planning');
   addBlockers(input.decision.blockers, 'decision_agent', 'decision_conflict', 'decision_language');
   input.evidence.claims
     .filter(claim => claim.status === 'unsupported')
@@ -263,17 +272,48 @@ function auditDefects(input: {
     requiredFix: 'Reconcile the displayed value to the deterministic calculation trace.',
     status: 'open',
   }));
-  input.scientific.criticalChallenges.forEach((item, index) => defects.push({
-    id: `scientific-${index + 1}`,
-    category: 'scientific_logic',
+  const addScienceChallenges = (
+    challenges: ScientificReviewResult['criticalChallenges'],
+    source: Extract<ReportDefect['source'], 'sensory_science_agent' | 'instrumental_science_agent'>,
+    prefix: string,
+    category: string,
+  ) => challenges.forEach((item, index) => defects.push({
+    id: `${prefix}-${index + 1}`,
+    category,
     severity: item.severity === 'critical' ? 'critical' : item.severity === 'major' ? 'major' : 'minor',
-    source: 'scientific_agent',
+    source,
     description: item.issue,
     evidenceIds: item.evidenceIds,
     owningPass: item.severity === 'critical' ? 'human_scientific_review' : 'professional_report_writer',
     requiredFix: item.requiredCorrection,
     status: item.severity === 'critical' ? 'human_review' : 'open',
   }));
+  addScienceChallenges(input.sensoryScience.criticalChallenges, 'sensory_science_agent', 'sensory-science', 'sensory_science');
+  addScienceChallenges(input.instrumentalScience.criticalChallenges, 'instrumental_science_agent', 'instrumental-science', 'instrumental_science');
+  input.consumerInsights.overreachRisks.forEach((risk, index) => defects.push({
+    id: `consumer-insights-${index + 1}`,
+    category: 'consumer_overreach',
+    severity: risk.severity,
+    source: 'consumer_insights_agent',
+    description: risk.issue,
+    evidenceIds: risk.evidenceIds,
+    owningPass: risk.severity === 'critical' ? 'claim_planning' : 'professional_report_writer',
+    requiredFix: risk.requiredCorrection,
+    status: 'open',
+  }));
+  input.claimsCompliance.reviewedClaims
+    .filter(claim => claim.riskLevel === 'blocked' || claim.riskLevel === 'legal_review')
+    .forEach(claim => defects.push({
+      id: `claims-compliance-${claim.claimId}`,
+      category: claim.riskLevel === 'legal_review' ? 'claim_legal_review' : 'claim_blocked',
+      severity: claim.riskLevel === 'legal_review' ? 'major' : 'critical',
+      source: 'claims_compliance_agent',
+      description: `Claim ${claim.claimId} requires ${claim.riskLevel === 'legal_review' ? 'legal review' : 'removal'}.`,
+      evidenceIds: claim.evidenceIds,
+      owningPass: claim.riskLevel === 'legal_review' ? 'human_legal_review' : 'claim_planning',
+      requiredFix: claim.permittedWording || 'Remove or rewrite the claim.',
+      status: claim.riskLevel === 'legal_review' ? 'human_review' : 'open',
+    }));
   input.decision.decisionStatements
     .filter(statement => statement.status !== 'consistent')
     .forEach((statement, index) => defects.push({
@@ -351,6 +391,35 @@ function judgeDefects(result: FinalJudgeResult): ReportDefect[] {
   }));
 }
 
+function conflictResolverDefects(result: ConflictResolverResult): ReportDefect[] {
+  return [
+    ...result.resolutions
+      .filter(resolution => resolution.selectedResolution === 'human_review' || resolution.selectedResolution === 'remove')
+      .map((resolution, index) => ({
+        id: `conflict-resolution-${index + 1}`,
+        category: resolution.selectedResolution === 'human_review' ? 'agent_conflict_human_review' : 'agent_conflict_remove',
+        severity: resolution.selectedResolution === 'human_review' ? 'major' as const : 'critical' as const,
+        source: 'conflict_resolver' as const,
+        description: `${resolution.topic}: ${resolution.rationale}`,
+        evidenceIds: resolution.evidenceIds,
+        owningPass: resolution.selectedResolution === 'human_review' ? 'human_review' : 'professional_report_writer',
+        requiredFix: resolution.requiredFix,
+        status: resolution.selectedResolution === 'human_review' ? 'human_review' as const : 'open' as const,
+      })),
+    ...result.blockers.map((blocker, index) => ({
+      id: `conflict-resolver-blocker-${index + 1}`,
+      category: 'agent_conflict',
+      severity: 'critical' as const,
+      source: 'conflict_resolver' as const,
+      description: blocker,
+      evidenceIds: [],
+      owningPass: 'human_review',
+      requiredFix: blocker,
+      status: 'human_review' as const,
+    })),
+  ];
+}
+
 function addCompleted(state: ReportAgentState, roles: ReportAgentRole[]): void {
   state.completedAgents.push(...roles.filter(role => !state.completedAgents.includes(role)));
   state.pendingAgents = state.pendingAgents.filter(role => !roles.includes(role as ReportAgentRole));
@@ -389,7 +458,7 @@ export async function orchestrateReportAgents(
     maxIterations,
     completedAgents: [],
     pendingAgents: mode === 'standard'
-      ? ['evidence_auditor', 'scientific_skeptic', 'professional_report_writer', 'editorial_reviewer']
+      ? ['evidence_auditor', 'consumer_insights_reviewer', 'claims_compliance_reviewer', 'professional_report_writer', 'editorial_reviewer']
       : Object.keys(REPORT_AGENT_DEFINITIONS),
     defects: initialFindings.map(findingDefect),
     unresolvedConflicts: [],
@@ -443,7 +512,7 @@ export async function orchestrateReportAgents(
       },
       renderedMethodologyText: methodologyText,
     }, evidenceIds, mode)] : []),
-    invoke(input.runner, 'scientific_skeptic', hash, 0, {
+    ...(mode === 'full' ? [invoke(input.runner, 'sensory_science_reviewer', hash, 0, {
       contextSummary: {
         dimensions: input.context.dimensions,
         instrumental: input.context.instrumental,
@@ -453,6 +522,22 @@ export async function orchestrateReportAgents(
         gates: input.context.gates,
       },
       proposedInterpretations,
+    }, evidenceIds, mode)] : []),
+    ...(mode === 'full' ? [invoke(input.runner, 'instrumental_science_reviewer', hash, 0, {
+      contextSummary: {
+        dimensions: input.context.dimensions,
+        instrumental: input.context.instrumental,
+        methodology: input.context.methodology,
+        limitations: input.context.limitations,
+        gates: input.context.gates,
+      },
+      proposedInterpretations,
+    }, evidenceIds, mode)] : []),
+    invoke(input.runner, 'consumer_insights_reviewer', hash, 0, {
+      concept: input.context.concept,
+      claims: input.context.claims,
+      limitations: input.context.limitations,
+      evidenceProvenance: input.context.evidenceProvenance,
     }, evidenceIds, mode),
     ...(mode === 'full' ? [invoke(input.runner, 'decision_consistency_auditor', hash, 0, {
       canonicalDecision: input.context.decision,
@@ -461,29 +546,70 @@ export async function orchestrateReportAgents(
     }, evidenceIds, mode)] : []),
   ]);
   const evidence = coreAudits[0] as EvidenceAuditResult;
-  const scientific = coreAudits[mode === 'full' ? 2 : 1] as ScientificReviewResult;
   const calculation = mode === 'full'
     ? coreAudits[1] as CalculationAuditResult
     : EMPTY_CALCULATION_AUDIT;
+  const sensoryScience = mode === 'full'
+    ? coreAudits[2] as ScientificReviewResult
+    : { criticalChallenges: [], alternativeInterpretations: [], missingMethodDisclosures: [], blockers: [] };
+  const instrumentalScience = mode === 'full'
+    ? coreAudits[3] as ScientificReviewResult
+    : { criticalChallenges: [], alternativeInterpretations: [], missingMethodDisclosures: [], blockers: [] };
+  const consumerInsights = coreAudits[mode === 'full' ? 4 : 1] as ConsumerInsightsResult;
   const decision = mode === 'full'
-    ? coreAudits[3] as DecisionConsistencyResult
+    ? coreAudits[5] as DecisionConsistencyResult
     : EMPTY_DECISION_AUDIT;
+  const claimsCompliance = await invoke(input.runner, 'claims_compliance_reviewer', hash, 0, {
+    claims: evidence.claims,
+    prohibitedExternalClaims: input.context.conceptStrategy.prohibitedClaims,
+    limitations: input.context.limitations,
+    evidenceProvenance: input.context.evidenceProvenance,
+  }, evidenceIds, mode);
   Object.assign(outputs, {
     evidence_auditor: evidence,
-    calculation_auditor: calculation,
-    scientific_skeptic: scientific,
-    decision_consistency_auditor: decision,
+    consumer_insights_reviewer: consumerInsights,
+    claims_compliance_reviewer: claimsCompliance,
   });
+  if (mode === 'full') {
+    Object.assign(outputs, {
+      calculation_auditor: calculation,
+      sensory_science_reviewer: sensoryScience,
+      instrumental_science_reviewer: instrumentalScience,
+      decision_consistency_auditor: decision,
+    });
+  }
   addCompleted(state, mode === 'full'
-    ? ['evidence_auditor', 'calculation_auditor', 'scientific_skeptic', 'decision_consistency_auditor']
-    : ['evidence_auditor', 'scientific_skeptic']);
-  state.defects.push(...auditDefects({ evidence, calculation, scientific, decision }));
-  state.agentWarnings.push(...evidence.warnings, ...calculation.warnings, ...decision.warnings);
-  scientific.criticalChallenges
+    ? [
+        'evidence_auditor',
+        'calculation_auditor',
+        'sensory_science_reviewer',
+        'instrumental_science_reviewer',
+        'consumer_insights_reviewer',
+        'claims_compliance_reviewer',
+        'decision_consistency_auditor',
+      ]
+    : ['evidence_auditor', 'consumer_insights_reviewer', 'claims_compliance_reviewer']);
+  state.defects.push(...auditDefects({
+    evidence,
+    calculation,
+    sensoryScience,
+    instrumentalScience,
+    consumerInsights,
+    claimsCompliance,
+    decision,
+  }));
+  state.agentWarnings.push(
+    ...evidence.warnings,
+    ...calculation.warnings,
+    ...consumerInsights.warnings,
+    ...claimsCompliance.warnings,
+    ...decision.warnings,
+  );
+  [...sensoryScience.criticalChallenges, ...instrumentalScience.criticalChallenges]
     .filter(challenge => challenge.severity === 'critical')
     .forEach((challenge, index) => conflicts.push({
       id: `scientific-conflict-${index + 1}`,
-      agents: ['scientific_skeptic', 'evidence_auditor'],
+      agents: ['sensory_science_reviewer', 'instrumental_science_reviewer', 'evidence_auditor'],
       topic: challenge.issue,
       positions: [
         'The scoped claim/evidence audit did not independently resolve this scientific challenge.',
@@ -511,12 +637,29 @@ export async function orchestrateReportAgents(
     };
   }
 
+  const complianceApprovedClaimIds = new Set(
+    claimsCompliance.reviewedClaims
+      .filter(claim => claim.riskLevel === 'allowed' || claim.riskLevel === 'caution')
+      .map(claim => claim.claimId),
+  );
+  const approvedClaims = evidence.claims.filter(claim =>
+    claim.status !== 'unsupported'
+    && (claimsCompliance.reviewedClaims.length === 0 || complianceApprovedClaimIds.has(claim.claimId)),
+  );
+
   const commercialStrategy = mode === 'full'
     ? await invoke(input.runner, 'commercial_strategist', hash, 0, {
         canonicalDecision: input.context.decision,
-        approvedClaims: evidence.claims.filter(claim => claim.status !== 'unsupported'),
+        approvedClaims,
         conceptInputs: input.context.conceptStrategy,
-        limitations: input.context.limitations,
+        limitations: [
+          ...input.context.limitations,
+          ...claimsCompliance.requiredDisclaimers.map((disclaimer, index) => ({
+            id: `claims-disclaimer-${index + 1}`,
+            limitation: disclaimer,
+            cause: 'Claims compliance review.',
+          })),
+        ],
       }, evidenceIds, mode)
     : deterministicCommercialStrategy(input.context);
   if (mode === 'full') {
@@ -529,7 +672,35 @@ export async function orchestrateReportAgents(
         nextGate: input.context.decision.nextGate,
         gates: input.context.gates,
         defects: state.defects,
-        scientificReview: scientific,
+        scientificReview: {
+          criticalChallenges: [
+            ...sensoryScience.criticalChallenges,
+            ...instrumentalScience.criticalChallenges,
+            ...consumerInsights.overreachRisks.map(risk => ({
+              issue: risk.issue,
+              severity: risk.severity === 'minor' ? 'warning' as const : risk.severity,
+              evidenceIds: risk.evidenceIds,
+              requiredCorrection: risk.requiredCorrection,
+            })),
+          ],
+          alternativeInterpretations: [
+            ...sensoryScience.alternativeInterpretations,
+            ...instrumentalScience.alternativeInterpretations,
+            ...consumerInsights.insightThemes.map(theme => theme.interpretation),
+          ],
+          missingMethodDisclosures: [
+            ...sensoryScience.missingMethodDisclosures,
+            ...instrumentalScience.missingMethodDisclosures,
+            ...consumerInsights.panelLimitations,
+            ...claimsCompliance.requiredDisclaimers,
+          ],
+          blockers: [
+            ...sensoryScience.blockers,
+            ...instrumentalScience.blockers,
+            ...consumerInsights.blockers,
+            ...claimsCompliance.blockers,
+          ],
+        },
         commercialStrategy,
         storedActions: input.context.actions,
       }, evidenceIds, mode)
@@ -541,10 +712,17 @@ export async function orchestrateReportAgents(
 
   const draft = await invoke(input.runner, 'professional_report_writer', hash, 0, {
     context: input.context,
-    approvedClaims: evidence.claims.filter(claim => claim.status !== 'unsupported'),
+    approvedClaims,
     commercialStrategy,
     actionPlan,
-    requiredLimitations: input.context.limitations,
+    requiredLimitations: [
+      ...input.context.limitations,
+      ...claimsCompliance.requiredDisclaimers.map((disclaimer, index) => ({
+        id: `claims-disclaimer-${index + 1}`,
+        limitation: disclaimer,
+        cause: 'Claims compliance review.',
+      })),
+    ],
   }, evidenceIds, mode);
   outputs.professional_report_writer = draft;
   addCompleted(state, ['professional_report_writer']);
@@ -670,6 +848,24 @@ export async function orchestrateReportAgents(
     outputs.client_red_team = redTeam;
     state.defects.push(...visualDefects(visualQa), ...redTeamDefects(redTeam));
   }
+
+  const conflictResolver = await invoke(input.runner, 'conflict_resolver', hash, 0, {
+    defects: state.defects,
+    conflicts,
+    auditResults: {
+      evidence_auditor: evidence,
+      sensory_science_reviewer: sensoryScience,
+      instrumental_science_reviewer: instrumentalScience,
+      consumer_insights_reviewer: consumerInsights,
+      claims_compliance_reviewer: claimsCompliance,
+      decision_consistency_auditor: decision,
+    },
+    canonicalDecision: input.context.decision,
+  }, evidenceIds, mode);
+  outputs.conflict_resolver = conflictResolver;
+  state.defects.push(...conflictResolverDefects(conflictResolver));
+  state.agentWarnings.push(...conflictResolver.warnings);
+  addCompleted(state, ['conflict_resolver']);
 
   const finalValidation = validateGeneratedReport(input.context, rendered.generatedSections);
   const finalJudge = await invoke(input.runner, 'final_independent_judge', hash, 0, {

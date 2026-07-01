@@ -10,6 +10,7 @@ import {
   useAdminConceptTests,
   useConceptTestResponses,
   useDecisionRecords,
+  useImportBatches,
   useInstrumentalDataset,
   useProducts,
   useWorkspaceSettings,
@@ -86,6 +87,7 @@ export function SurveyAnalysis() {
   const { foodType, subCategory } = useFoodType();
   const importBatchId = parseBatchSelection(subCategory);
   const status = useProjectStatus(foodType, importBatchId);
+  const { data: importBatches = [] } = useImportBatches();
   const { data: products = [] } = useProducts();
   const { data: instrumentalDataset } = useInstrumentalDataset(user?.role === 'admin');
   const { data: settings } = useWorkspaceSettings();
@@ -103,9 +105,12 @@ export function SurveyAnalysis() {
     [instrumentalDataset?.eTongueData, foodType, importBatchId],
   );
   const projectSampleIds = useMemo(() => new Set(projectInstrumentSamples.map(sample => sample.sampleId)), [projectInstrumentSamples]);
+  const selectedProjectId = importBatchId
+    ? importBatches.find(batch => batch.id === importBatchId)?.projectId ?? null
+    : null;
   const projectProducts = useMemo(
-    () => filterProjectProducts(products, projectSampleIds, foodType, importBatchId),
-    [products, projectSampleIds, foodType, importBatchId],
+    () => filterProjectProducts(products, projectSampleIds, foodType, importBatchId, selectedProjectId),
+    [products, projectSampleIds, foodType, importBatchId, selectedProjectId],
   );
   const importedProfiles = useMemo(() => buildImportedProfiles(instrumentalDataset), [instrumentalDataset]);
   const mergedProfiles = useMemo(() => mergeAnalysisProfiles(ENHANCED_SENSORY_DATA, importedProfiles), [importedProfiles]);
@@ -424,7 +429,7 @@ export function SurveyAnalysis() {
           </span>
           <ChevronDown className="size-4 shrink-0 text-slate-500" aria-hidden />
         </summary>
-        <div className="space-y-8 border-t border-slate-100 p-5">
+        <div className="space-y-8 border-t border-slate-200 p-5">
       {showComparison && (
         <section className="space-y-4">
           <InsightsSectionHeader id="sample-comparison" icon={Layers} title="Sample comparison" description="Compare only samples and multi-sample studies belonging to the active project." />
@@ -458,7 +463,7 @@ export function SurveyAnalysis() {
         <div className="grid gap-5 lg:grid-cols-2">
           <div>
             <h3 className="text-sm font-bold text-slate-900">Method and provenance</h3>
-            <ul className="mt-2 space-y-2 text-sm text-slate-600">
+            <ul className="mt-2 space-y-2 text-sm text-slate-700">
               <li>Sensory source: {usingLiveData ? `${liveResponseCount} live panel responses` : 'reference/demo profile'}.</li>
               <li>Instrument sources: {datasetsPresent} of 3 available.</li>
               <li>Concept responses: {primaryConceptResponses.length}.</li>
@@ -468,7 +473,7 @@ export function SurveyAnalysis() {
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-900">Exports</h3>
-            <p className="mt-1 text-sm text-slate-600">CSV exports contain raw and aggregated values. Provenance and evidence limitations should accompany any client-facing interpretation.</p>
+            <p className="mt-1 text-sm text-slate-700">CSV exports contain raw and aggregated values. Provenance and evidence limitations should accompany any client-facing interpretation.</p>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="mt-3"><Download className="size-4" />Export data</Button>
@@ -508,13 +513,13 @@ function EvidencePathCard({
         </div>
         <div className="min-w-0">
           <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
-          <h2 className="mt-1 truncate text-lg font-semibold text-slate-950">{title}</h2>
-          <p className="mt-1 text-sm leading-6 text-slate-600">{detail}</p>
+          <h2 className="mt-1 truncate text-lg font-semibold text-slate-900">{title}</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-700">{detail}</p>
         </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         {metrics.map(metric => (
-          <span key={metric} className="max-w-full truncate rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600">
+          <span key={metric} className="max-w-full truncate rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
             {metric}
           </span>
         ))}

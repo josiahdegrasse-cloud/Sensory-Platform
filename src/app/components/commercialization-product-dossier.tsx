@@ -20,7 +20,7 @@ function DetailList({ items }: { items: string[] }) {
 
 function Fact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border-b border-slate-100 py-3 last:border-b-0">
+    <div className="border-b border-slate-200 py-3 last:border-b-0">
       <dt className="text-xs font-semibold text-slate-500">{label}</dt>
       <dd className="mt-1 text-sm leading-5 text-slate-900">{value}</dd>
     </div>
@@ -30,16 +30,16 @@ function Fact({ label, value }: { label: string; value: string }) {
 export function CommercializationProductDossier({ profile }: { profile: CommercializationProjectProfile }) {
   return (
     <Card className="break-inside-avoid border border-slate-200 bg-white">
-      <CardHeader className="border-b border-slate-100 pb-4">
+      <CardHeader className="border-b border-slate-200 pb-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <CardTitle className="flex items-center gap-2.5 text-base">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+              <span className="flex size-8 items-center justify-center rounded-lg bg-slate-50 text-slate-700">
                 <PackageSearch className="size-4" />
               </span>
               Product development dossier
             </CardTitle>
-            <p className="mt-2 max-w-3xl text-sm leading-5 text-slate-600">
+            <p className="mt-2 max-w-3xl text-sm leading-5 text-slate-700">
               The product, study, technical, market-hypothesis, claims, and execution context available to the report.
             </p>
           </div>
@@ -71,19 +71,19 @@ export function CommercializationProductDossier({ profile }: { profile: Commerci
               <p className="mb-4 max-w-4xl text-sm leading-6 text-slate-700">{profile.development.objective}</p>
               <div className="grid gap-6 lg:grid-cols-2">
                 <div>
-                  <h4 className="mb-2 text-sm font-semibold text-slate-950">Documented strengths</h4>
+                  <h4 className="mb-2 text-sm font-semibold text-slate-900">Documented strengths</h4>
                   <DetailList items={profile.development.strengths} />
                 </div>
                 <div>
-                  <h4 className="mb-2 text-sm font-semibold text-slate-950">Technical risks</h4>
+                  <h4 className="mb-2 text-sm font-semibold text-slate-900">Technical risks</h4>
                   <DetailList items={profile.development.technicalRisks} />
                 </div>
                 <div>
-                  <h4 className="mb-2 text-sm font-semibold text-slate-950">Known formulation context</h4>
+                  <h4 className="mb-2 text-sm font-semibold text-slate-900">Known formulation context</h4>
                   <DetailList items={profile.development.formulationKnown} />
                 </div>
                 <div>
-                  <h4 className="mb-2 text-sm font-semibold text-slate-950">Information still required</h4>
+                  <h4 className="mb-2 text-sm font-semibold text-slate-900">Information still required</h4>
                   <DetailList items={profile.development.formulationUnknown} />
                 </div>
               </div>
@@ -103,7 +103,7 @@ export function CommercializationProductDossier({ profile }: { profile: Commerci
               </dl>
               <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200">
                 <table className="w-full min-w-[720px] text-left text-sm">
-                  <thead className="bg-slate-50 text-xs font-semibold text-slate-600">
+                  <thead className="bg-slate-50 text-xs font-semibold text-slate-700">
                     <tr>
                       <th className="px-4 py-3">Source</th>
                       <th className="px-4 py-3">Finding</th>
@@ -142,11 +142,11 @@ export function CommercializationProductDossier({ profile }: { profile: Commerci
               </dl>
               <div className="mt-5 grid gap-6 lg:grid-cols-2">
                 <div>
-                  <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-950"><ClipboardCheck className="size-4" />Reasons to believe</h4>
+                  <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900"><ClipboardCheck className="size-4" />Reasons to believe</h4>
                   <DetailList items={profile.conceptHypothesis.reasonsToBelieve} />
                 </div>
                 <div>
-                  <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-950"><Users className="size-4" />Validation questions</h4>
+                  <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900"><Users className="size-4" />Validation questions</h4>
                   <DetailList items={profile.conceptHypothesis.validationQuestions} />
                 </div>
               </div>
@@ -160,15 +160,15 @@ export function CommercializationProductDossier({ profile }: { profile: Commerci
             <AccordionContent>
               <div className="grid gap-6 lg:grid-cols-3">
                 <div>
-                  <h4 className="mb-2 text-sm font-semibold text-slate-950">Supported internal language</h4>
+                  <h4 className="mb-2 text-sm font-semibold text-slate-900">Supported internal language</h4>
                   <DetailList items={profile.claimsBoundary.supportedInternalLanguage} />
                 </div>
                 <div>
-                  <h4 className="mb-2 text-sm font-semibold text-slate-950">Prohibited until validated</h4>
+                  <h4 className="mb-2 text-sm font-semibold text-slate-900">Prohibited until validated</h4>
                   <DetailList items={profile.claimsBoundary.prohibitedUntilValidated} />
                 </div>
                 <div>
-                  <h4 className="mb-2 text-sm font-semibold text-slate-950">Required reviews</h4>
+                  <h4 className="mb-2 text-sm font-semibold text-slate-900">Required reviews</h4>
                   <DetailList items={profile.claimsBoundary.requiredReviews} />
                 </div>
               </div>
@@ -182,7 +182,7 @@ export function CommercializationProductDossier({ profile }: { profile: Commerci
             <AccordionContent>
               <div className="overflow-x-auto rounded-lg border border-slate-200">
                 <table className="w-full min-w-[980px] text-left text-xs">
-                  <thead className="bg-slate-50 font-semibold text-slate-600">
+                  <thead className="bg-slate-50 font-semibold text-slate-700">
                     <tr>
                       <th className="px-3 py-3">Workstream</th>
                       <th className="px-3 py-3">Owner / due</th>

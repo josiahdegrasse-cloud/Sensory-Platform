@@ -10,6 +10,13 @@ const draft: ConceptDraft = {
   description: 'A clear consumer concept.',
   marketingImages: ['https://example.com/concept.png'],
   marketingImageIds: ['image-1'],
+  marketingImageReviews: [{
+    imageId: 'image-1',
+    status: 'approved',
+    qa: {},
+    notes: '',
+    source: 'ai',
+  }],
   targetMarket: 'Everyday snack buyers',
   targetOccasion: '',
   productAppearance: 'Golden baked squares with visible seasoning.',
@@ -79,6 +86,23 @@ describe('getConceptReadiness', () => {
     expect(items.find(item => item.id === 'brief')?.detail).toContain('product appearance');
     expect(items.find(item => item.id === 'brief')?.detail).toContain('package format');
     expect(items.find(item => item.id === 'brief')?.detail).toContain('target customer');
+  });
+
+  it('blocks launch when selected visuals are not approved and approval is required', () => {
+    const { items } = getConceptReadiness({
+      draft: {
+        ...draft,
+        marketingImageReviews: [{ ...draft.marketingImageReviews[0], status: 'selected' }],
+      },
+      questions,
+      assignedPanelistIds: ['panelist-1'],
+      requireApprovedVisuals: true,
+    });
+
+    expect(items.find(item => item.id === 'visuals')).toMatchObject({
+      ready: false,
+      fixStep: 'visuals',
+    });
   });
 
   it('returns a study quality score', () => {

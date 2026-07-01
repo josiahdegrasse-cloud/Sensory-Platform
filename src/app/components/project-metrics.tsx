@@ -24,10 +24,10 @@ function Metric({
 }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+      <span className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
         <Icon className="size-3" /> {stage}
       </span>
-      <span className={cn('text-sm font-bold', muted ? 'text-slate-400' : 'text-slate-900', valueClassName)}>
+      <span className={cn('text-sm font-bold', muted ? 'text-slate-500' : 'text-slate-900', valueClassName)}>
         {value}
       </span>
     </div>

@@ -42,7 +42,7 @@ export function AllSamplesComparisonView({
           <CardTitle>Project sample comparison</CardTitle>
           <DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={responseCount} />
         </div>
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-slate-700">
           Comparative view of the {enhancedSensoryData.length} samples in the active project across liking dimensions.
         </p>
       </CardHeader>
@@ -63,7 +63,7 @@ export function AllSamplesComparisonView({
 
         <div className="mt-4 flex flex-wrap gap-3 px-1">
           {SAMPLE_TYPE_LEGEND.map(({ label, color }) => (
-            <div key={label} className="flex items-center gap-1.5 text-xs text-slate-600">
+            <div key={label} className="flex items-center gap-1.5 text-xs text-slate-700">
               <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
               {label}
             </div>

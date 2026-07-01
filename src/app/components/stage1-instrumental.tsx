@@ -102,22 +102,6 @@ export function Stage1Instrumental() {
     onDeleteSuccess: setImportSuccess,
   });
 
-  // Auto-load file from the import queue when navigated here via "Review"
-  useEffect(() => {
-    if (!pendingStoragePath) return;
-    setIsLoadingFromQueue(true);
-    downloadPendingImportFile(pendingStoragePath)
-      .then(({ text, fileName }) => {
-        parseCSV(text, fileName, pendingMatchedBatchName);
-      })
-      .catch((err) => {
-        setImportError(err instanceof Error ? err.message : 'Failed to load file from import queue.');
-      })
-      .finally(() => setIsLoadingFromQueue(false));
-    // run once on mount — pendingStoragePath comes from router state, never changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const importSummary = useMemo(() => {
     if (!showPreview || previewData.length === 0) return null;
     const parsed = buildImportedDataset(previewData, uploadedFile);
@@ -149,10 +133,15 @@ export function Stage1Instrumental() {
       }, new Set<string>()).size;
   }, [importSummary, instrumentalDatasetQuery.data]);
 
-  useEffect(() => {
-    if (!showPreview || !importSummary || projectNameEdited || retestImport) return;
-    setBatchName(importSummary.detection.label);
-  }, [importSummary, projectNameEdited, retestImport, showPreview]);
+  // Seed the batch name from the detected label on a fresh import, unless the
+  // user has edited it or this is a retest (render-phase "adjust on change").
+  const [batchNameSeed, setBatchNameSeed] = useState(importSummary);
+  if (importSummary !== batchNameSeed) {
+    setBatchNameSeed(importSummary);
+    if (showPreview && importSummary && !projectNameEdited && !retestImport) {
+      setBatchName(importSummary.detection.label);
+    }
+  }
 
   const validationReport = useMemo(() => {
     if (!showPreview || !importSummary) return null;
@@ -189,7 +178,9 @@ export function Stage1Instrumental() {
     reader.readAsText(file, "UTF-8");
   };
 
-  const parseCSV = (text: string, fileName: string, overrideBatchName?: string) => {
+  // Function declaration (hoisted) so the queued-import effect above can call it
+  // without a use-before-declaration warning from the compiler.
+  function parseCSV(text: string, fileName: string, overrideBatchName?: string) {
     // handle \r\n (Windows), \r-only (old Mac), \n (Unix)
     const lines = text.split(/\r\n|\r|\n/).filter((l) => l.trim().length > 0);
 
@@ -227,7 +218,26 @@ export function Stage1Instrumental() {
     setShowPreview(true);
     setImportStep(2);
     setImportError(null);
-  };
+  }
+
+  // Auto-load file from the import queue when navigated here via "Review".
+  // Declared after parseCSV so the effect can call it without a
+  // use-before-declaration warning. Legitimate one-time async load on mount.
+  useEffect(() => {
+    if (!pendingStoragePath) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time queued-import load on mount
+    setIsLoadingFromQueue(true);
+    downloadPendingImportFile(pendingStoragePath)
+      .then(({ text, fileName }) => {
+        parseCSV(text, fileName, pendingMatchedBatchName);
+      })
+      .catch((err) => {
+        setImportError(err instanceof Error ? err.message : 'Failed to load file from import queue.');
+      })
+      .finally(() => setIsLoadingFromQueue(false));
+    // run once on mount — pendingStoragePath comes from router state, never changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const importCSVData = async () => {
     const parsed = importSummary ?? buildImportedDataset(previewData, uploadedFile);
@@ -427,11 +437,11 @@ export function Stage1Instrumental() {
       {newProjectIntent && !showPreview && !lastImportSummary && (
         <Card className="border-2 border-blue-200 bg-blue-50/60 shadow-sm">
           <CardContent className="p-5">
-            <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
+            <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Create new project</p>
-                <h2 className="mt-1 text-lg font-semibold text-slate-950">Upload the CSV, then review the detected project.</h2>
-                <p className="mt-1 text-sm text-slate-600">
+                <h2 className="mt-1 text-lg font-semibold text-slate-900">Upload the CSV, then review the detected project.</h2>
+                <p className="mt-1 text-sm text-slate-700">
                   The platform will detect the food type, create the matching project folder, and turn each imported sample into a questionnaire-ready item.
                 </p>
               </div>
@@ -440,17 +450,15 @@ export function Stage1Instrumental() {
                 <p className="mt-1 text-xs leading-5 text-slate-500">
                   After upload, review the detected project name such as Yogurt, Cheese, or Bread before saving.
                 </p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="bg-blue-600 hover:bg-blue-700"
-                  >
-                    <Upload className="size-4" />
-                    Choose CSV
-                  </Button>
-                </div>
               </div>
             </div>
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              className="mt-5 h-10 w-full justify-center bg-blue-600 text-sm font-bold hover:bg-blue-700"
+            >
+              <Upload className="size-4" />
+              Choose CSV
+            </Button>
           </CardContent>
         </Card>
       )}
@@ -463,16 +471,16 @@ export function Stage1Instrumental() {
         }`}>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">
                 {retestImport.decision === 'STOP' ? 'Reformulation import' : 'Retest import'}
               </p>
-              <h2 className="mt-1 text-base font-semibold text-slate-950">{retestImport.sampleName}</h2>
+              <h2 className="mt-1 text-base font-semibold text-slate-900">{retestImport.sampleName}</h2>
               <p className="mt-1 text-sm text-slate-700">
                 New data will be labeled as <span className="font-semibold">{buildRetestBatchName(retestImport)}</span>
                 {' '}for sample {retestImport.sampleId}.
               </p>
               {retestImport.target && (
-                <p className="mt-2 text-xs text-slate-600">
+                <p className="mt-2 text-xs text-slate-700">
                   <span className="font-semibold">Change to verify:</span> {retestImport.target}
                   {retestImport.action ? ` — ${retestImport.action}` : ''}
                 </p>
@@ -537,9 +545,9 @@ export function Stage1Instrumental() {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wide text-blue-600">Recommended next step</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wide text-blue-600">Recommended next step</span>
                     <div className="flex flex-wrap justify-end gap-2">
-                      <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => openImportedWorkflow(lastImportSummary, '/admin')}>
+                      <Button size="sm" onClick={() => openImportedWorkflow(lastImportSummary, '/admin')}>
                         <ClipboardList className="size-4 mr-1.5" />Send surveys to your panel
                       </Button>
                       <Button variant="outline" size="sm" onClick={() => viewImportedCharts(lastImportSummary)}>
@@ -595,19 +603,19 @@ export function Stage1Instrumental() {
               <div className="grid grid-cols-1 gap-3 text-xs lg:grid-cols-4">
                 {importSummary && (
                   <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                    <p className="font-semibold text-slate-800 mb-1.5">Detected food type</p>
+                    <p className="font-semibold text-slate-700 mb-1.5">Detected food type</p>
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-sm font-bold text-slate-900">{importSummary.detection.label}</span>
-                      <span className="rounded-full bg-white border border-slate-200 px-2 py-0.5 font-semibold text-slate-600">
+                      <span className="rounded-full bg-white border border-slate-200 px-2 py-0.5 font-semibold text-slate-700">
                         {Math.round(importSummary.detection.confidence * 100)}%
                       </span>
                     </div>
-                    <div className="mt-3 grid grid-cols-3 gap-1.5 text-[11px] text-slate-600">
+                    <div className="mt-3 grid grid-cols-3 gap-1.5 text-[11px] text-slate-700">
                       <span className="rounded bg-white border border-slate-200 px-1.5 py-1">{importSummary.sampleCount} samples</span>
                       <span className="rounded bg-white border border-slate-200 px-1.5 py-1">{importSummary.gcmsCount} GC-MS</span>
                       <span className="rounded bg-white border border-slate-200 px-1.5 py-1">{importSummary.compositionCount} comp</span>
                     </div>
-                    <label className="mt-3 block text-[11px] font-semibold text-slate-600" htmlFor="food-type-override">
+                    <label className="mt-3 block text-[11px] font-semibold text-slate-700" htmlFor="food-type-override">
                       Correct classification
                     </label>
                     <Input
@@ -691,7 +699,7 @@ export function Stage1Instrumental() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-100 border-b">
+                  <tr className="bg-slate-50 border-b">
                     {previewData.length > 0 && Object.keys(previewData[0]).map((key) => (
                       <th key={key} className="px-4 py-2 text-left font-semibold whitespace-nowrap">{key}</th>
                     ))}
@@ -708,7 +716,7 @@ export function Stage1Instrumental() {
                 </tbody>
               </table>
               {previewData.length > 10 && (
-                <p className="text-xs text-slate-400 mt-2 text-center">
+                <p className="text-xs text-slate-500 mt-2 text-center">
                   Showing 10 of {previewData.length} rows
                 </p>
               )}
@@ -724,7 +732,7 @@ export function Stage1Instrumental() {
                 onChange={e => { setBatchName(e.target.value); setProjectNameEdited(true); setImportStep(3); }}
                 onFocus={() => setImportStep(3)}
                 placeholder={importSummary?.detection.label ?? 'e.g., Yogurt'}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
               />
             </div>
             <div className="flex gap-3">
@@ -812,7 +820,7 @@ export function Stage1Instrumental() {
                   <FlaskConical className="size-5 text-slate-700" />
                   Electronic Tongue Analysis
                 </CardTitle>
-                <p className="text-xs text-slate-600 mt-1">
+                <p className="text-xs text-slate-700 mt-1">
                   Quantitative measurement of five fundamental taste attributes
                 </p>
               </CardHeader>
@@ -910,7 +918,7 @@ export function Stage1Instrumental() {
                   <FlaskConical className="size-5 text-rose-600" />
                   Aroma Compound Detection
                 </CardTitle>
-                <p className="text-xs text-slate-600 mt-1">Volatile off-notes detected by GC-O</p>
+                <p className="text-xs text-slate-700 mt-1">Volatile off-notes detected by GC-O</p>
               </CardHeader>
               <CardContent className="pt-4">
                 <div className="space-y-2 max-h-[380px] overflow-y-auto pr-2">
@@ -922,7 +930,7 @@ export function Stage1Instrumental() {
                           className="p-2 rounded-lg border border-slate-200 bg-white text-xs"
                         >
                           <div className="font-semibold text-slate-900 mb-0.5">{compound.name}</div>
-                          <div className="text-slate-600 mb-0.5">{compound.aroma}</div>
+                          <div className="text-slate-700 mb-0.5">{compound.aroma}</div>
                           <div className="flex items-center justify-between">
                             <span className="text-slate-700">
                               {compound.concentration.toFixed(1)} ppm
@@ -951,7 +959,7 @@ export function Stage1Instrumental() {
                 <FlaskConical className="size-5 text-slate-700" />
                 Chemical Composition Analysis
               </CardTitle>
-              <p className="text-xs text-slate-600 mt-1">Proximate analysis and key chemical properties</p>
+              <p className="text-xs text-slate-700 mt-1">Proximate analysis and key chemical properties</p>
             </CardHeader>
             <CardContent className="pt-4">
               {selectedCompositionData && Object.keys(selectedCompositionData).length > 0 ? (
@@ -965,10 +973,10 @@ export function Stage1Instrumental() {
                     { label: "Calcium",  value: selectedCompositionData.calciumMg?.toFixed(0), unit: "mg" },
                   ].map(({ label, value, unit }) => (
                     <div key={label} className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                      <div className="text-xs text-slate-600 mb-1">{label}</div>
+                      <div className="text-xs text-slate-700 mb-1">{label}</div>
                       <div className="text-2xl font-bold text-slate-900">
                         {value || "—"}
-                        {unit && value && <span className="text-sm text-slate-600 ml-1">{unit}</span>}
+                        {unit && value && <span className="text-sm text-slate-700 ml-1">{unit}</span>}
                       </div>
                     </div>
                   ))}
@@ -989,7 +997,7 @@ export function Stage1Instrumental() {
           <CardTitle className="text-lg flex items-center gap-2">
             Taste Similarity Analysis (PCA)
           </CardTitle>
-          <p className="text-xs text-slate-600 mt-1">
+          <p className="text-xs text-slate-700 mt-1">
             {foodType === 'all'
               ? 'Principal component analysis across all sample types'
               : foodType === 'bread'
@@ -1034,7 +1042,7 @@ export function Stage1Instrumental() {
                             <div className="bg-white p-3 shadow-lg rounded-lg border border-slate-200">
                               <p className="font-semibold text-slate-900">{data.name}</p>
                               <p className="text-xs text-slate-500 mt-1">PC1: {data.pc1} | PC2: {data.pc2}</p>
-                              <p className="text-xs text-slate-600 mt-1">{data.category}</p>
+                              <p className="text-xs text-slate-700 mt-1">{data.category}</p>
                             </div>
                           );
                         }

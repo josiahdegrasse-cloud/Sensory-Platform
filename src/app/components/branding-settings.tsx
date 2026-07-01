@@ -99,7 +99,7 @@ export function BrandingSettings({ draft, updateDraft, disabled }: {
             </div>
           )}
           <ColorField id="accent-color" label="Accent color" value={draft.accentColor} onChange={value => updateDraft('accentColor', value)} disabled={disabled} />
-          <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">
+          <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-700">
             Brand color applies to primary actions, selection, and the report cover.
             GO/TWEAK/STOP, workflow-stage, and data-provenance colors are platform-fixed
             so status reads identically for every client.
@@ -155,13 +155,13 @@ export function BrandingSettings({ draft, updateDraft, disabled }: {
           </div>
 
           {/* Live preview: topbar chip + report cover thumbnail */}
-          <div className="space-y-2 border-t border-slate-100 pt-4">
+          <div className="space-y-2 border-t border-slate-200 pt-4">
             <Label>Preview</Label>
             <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
               {draft.logoUrl ? (
                 <img src={draft.logoUrl} alt="" className="size-6 rounded object-contain" />
               ) : (
-                <span className="flex size-6 items-center justify-center rounded bg-slate-100 text-[10px] font-bold text-slate-400">
+                <span className="flex size-6 items-center justify-center rounded bg-slate-50 text-[11px] font-bold text-slate-500">
                   {(draft.organizationName || 'SP').slice(0, 2).toUpperCase()}
                 </span>
               )}
@@ -177,7 +177,7 @@ export function BrandingSettings({ draft, updateDraft, disabled }: {
               <div className="h-1.5 w-full rounded-full" style={{ backgroundColor: primary }} />
               <p className="mt-2 text-sm font-bold text-slate-900">{reportTitle}</p>
               <p className="text-[11px] text-slate-500">{draft.organizationName || 'Sensory Platform'} · {draft.reportTone} tone</p>
-              {draft.reportFooter && <p className="mt-2 border-t border-slate-100 pt-1.5 text-[10px] text-slate-400">{draft.reportFooter}</p>}
+              {draft.reportFooter && <p className="mt-2 border-t border-slate-200 pt-1.5 text-[11px] text-slate-500">{draft.reportFooter}</p>}
             </div>
           </div>
         </CardContent>

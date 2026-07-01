@@ -40,10 +40,3 @@ export const CHART_SERIES = [
   '#9333ea', // purple-600
   '#64748b', // slate-500
 ] as const;
-
-/** Analysis-type accents (single / multi / concept) used on type cards. */
-export const ANALYSIS_ACCENT = {
-  single: '#2563eb',  // blue-600
-  multi: '#7c3aed',   // violet-600
-  concept: '#ea580c', // orange-600
-} as const;

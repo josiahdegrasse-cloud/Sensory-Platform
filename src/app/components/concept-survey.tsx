@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
@@ -27,10 +27,10 @@ export function ConceptSurvey() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (isError) setError('Could not load this concept test.');
-  }, [isError]);
+  // Load failure surfaces inline alongside submit/validation errors — derived
+  // from the query state rather than mirrored into `error` via an effect.
+  const loadError = isError ? 'Could not load this concept test.' : '';
+  const shownError = error || loadError;
 
   const setAnswer = (questionId: string, value: string | number | string[]) =>
     setAnswers(prev => ({ ...prev, [questionId]: value }));
@@ -76,11 +76,11 @@ export function ConceptSurvey() {
   if (test.status !== 'active') {
     return (
       <div className="max-w-2xl mx-auto py-16 text-center space-y-4">
-        <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto">
+        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto">
           <AlertCircle className="size-8 text-slate-500" />
         </div>
         <h2 className="text-2xl font-bold text-slate-900">This concept test is closed.</h2>
-        <p className="text-slate-600">No further responses are being accepted for this study.</p>
+        <p className="text-slate-700">No further responses are being accepted for this study.</p>
         <Button variant="outline" onClick={() => navigate('/panelist')}>
           Back to Dashboard
         </Button>
@@ -95,7 +95,7 @@ export function ConceptSurvey() {
           <CheckCircle2 className="size-10 text-emerald-600" />
         </div>
         <h2 className="text-3xl font-bold text-slate-900">Thank you!</h2>
-        <p className="text-slate-600 text-lg">
+        <p className="text-slate-700 text-lg">
           Your feedback on <strong>{test.name}</strong> has been recorded and will help shape the product.
         </p>
         <Button onClick={() => navigate('/panelist')} className="bg-emerald-600 hover:bg-emerald-700 text-white mt-4">
@@ -129,10 +129,10 @@ export function ConceptSurvey() {
         </div>
       </div>
 
-      {error && (
+      {shownError && (
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{shownError}</AlertDescription>
         </Alert>
       )}
 
@@ -146,7 +146,7 @@ export function ConceptSurvey() {
             </span>
           </div>
           <CardContent className="pt-0 pb-4">
-            <div className="relative rounded-xl overflow-hidden bg-slate-100 mb-3">
+            <div className="relative rounded-xl overflow-hidden bg-slate-50 mb-3">
               <img
                 src={validImages[imageIndex]}
                 alt={`Marketing concept ${imageIndex + 1}`}
@@ -221,7 +221,7 @@ export function ConceptSurvey() {
         >
           {submitting ? 'Submitting…' : 'Submit my feedback'}
         </Button>
-        <p className="text-xs text-slate-400 text-center mt-2">
+        <p className="text-xs text-slate-500 text-center mt-2">
           Your feedback is stored securely and is visible only to authorized research administrators.
         </p>
       </div>
@@ -244,12 +244,12 @@ function QuestionCard({
     <Card className="border border-slate-200 hover:border-orange-200 transition-colors">
       <CardContent className="pt-4 pb-4">
         <div className="flex gap-3">
-          <span className="text-sm font-bold text-slate-400 mt-0.5 w-6 flex-shrink-0">{index + 1}.</span>
+          <span className="text-sm font-bold text-slate-500 mt-0.5 w-6 flex-shrink-0">{index + 1}.</span>
           <div className="flex-1 space-y-3">
             <div className="flex items-start justify-between gap-2">
               <p className="text-sm font-medium text-slate-900 leading-snug">{question.text}</p>
               {question.required && (
-                <span className="text-[10px] text-rose-500 font-semibold flex-shrink-0">Required</span>
+                <span className="text-[11px] text-rose-500 font-semibold flex-shrink-0">Required</span>
               )}
             </div>
             {question.type === 'scale' && (
@@ -297,7 +297,7 @@ function ScaleInput({ value, onChange }: { value: number | undefined; onChange: 
   const currentValue = value ?? SCALE_MIDPOINT;
   return (
     <div className="space-y-2">
-      <div className="flex justify-between text-xs text-slate-400">
+      <div className="flex justify-between text-xs text-slate-500">
         <span>1 — Not at all</span>
         <span>9 — Extremely</span>
       </div>
@@ -310,7 +310,7 @@ function ScaleInput({ value, onChange }: { value: number | undefined; onChange: 
             className={`flex-1 py-2 rounded-md text-sm font-bold border-2 transition-all ${
               currentValue === n
                 ? 'bg-orange-500 border-orange-500 text-white shadow-sm'
-                : 'border-slate-200 text-slate-600 hover:border-orange-300 hover:text-orange-600'
+                : 'border-slate-200 text-slate-700 hover:border-orange-300 hover:text-orange-600'
             }`}
           >
             {n}
@@ -370,7 +370,7 @@ function ImageChoiceInput({
   onChange: (v: string) => void;
 }) {
   if (images.length === 0) {
-    return <p className="text-xs text-slate-400 italic">No concept visuals to compare.</p>;
+    return <p className="text-xs text-slate-500 italic">No concept visuals to compare.</p>;
   }
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -385,7 +385,7 @@ function ImageChoiceInput({
         >
           <img src={url} alt={`Concept visual ${i + 1}`} className="w-full aspect-square object-cover" />
           <span className={`absolute top-1.5 right-1.5 flex size-5 items-center justify-center rounded-full border-2 shadow-sm ${
-            value === url ? 'bg-orange-500 border-orange-500 text-white' : 'bg-white/90 border-slate-300 text-transparent'
+            value === url ? 'bg-orange-500 border-orange-500 text-white' : 'bg-white/90 border-slate-200 text-transparent'
           }`}>
             <CheckCircle2 className="size-3" />
           </span>
@@ -415,7 +415,7 @@ function RankingInput({
   };
   return (
     <div className="space-y-2">
-      <p className="text-xs text-slate-400">Rank from 1 (most preferred) to {options.length} (least preferred)</p>
+      <p className="text-xs text-slate-500">Rank from 1 (most preferred) to {options.length} (least preferred)</p>
       {options.map((opt, i) => (
         <div key={opt} className="flex items-center gap-2">
           <span className="text-xs font-bold text-slate-500 w-4">{i + 1}.</span>

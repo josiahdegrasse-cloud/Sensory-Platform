@@ -12,8 +12,8 @@ const EVENT_ICON: Record<string, typeof FlaskConical> = {
 
 const EVENT_ACCENT: Record<string, string> = {
   import: 'border-blue-200 bg-blue-50 text-blue-700',
-  concept: 'border-slate-200 bg-slate-50 text-slate-600',
-  report: 'border-slate-200 bg-slate-50 text-slate-600',
+  concept: 'border-slate-200 bg-slate-50 text-slate-700',
+  report: 'border-slate-200 bg-slate-50 text-slate-700',
 };
 
 const DECISION_ACCENT: Record<string, string> = {
@@ -33,7 +33,7 @@ function eventAccent(event: ProductHistoryEvent): string {
     const dec = event.metadata.decision as string | undefined;
     return dec ? (DECISION_ACCENT[dec] ?? EVENT_ACCENT.import) : EVENT_ACCENT.import;
   }
-  return EVENT_ACCENT[event.type] ?? 'border-slate-200 bg-slate-50 text-slate-600';
+  return EVENT_ACCENT[event.type] ?? 'border-slate-200 bg-slate-50 text-slate-700';
 }
 
 function formatDate(iso: string) {
@@ -72,7 +72,7 @@ function TimelineNode({ event, showConnector }: { event: ProductHistoryEvent; sh
               {decisionOutcome}
             </Badge>
           )}
-          <span className="ml-auto text-xs text-slate-400 shrink-0">{formatDate(event.timestamp)}</span>
+          <span className="ml-auto text-xs text-slate-500 shrink-0">{formatDate(event.timestamp)}</span>
         </div>
         <p className="mt-0.5 text-xs text-slate-500 leading-relaxed">{event.detail}</p>
         {event.type === 'decision' && typeof event.metadata.issfScore === 'number' && (
@@ -89,7 +89,7 @@ function TimelineNode({ event, showConnector }: { event: ProductHistoryEvent; sh
 export function ProductHistoryTimeline({ timeline }: { timeline: ProductTimeline }) {
   if (timeline.events.length === 0) {
     return (
-      <div className="text-center py-8 text-sm text-slate-400">
+      <div className="text-center py-8 text-sm text-slate-500">
         No history events found for this product yet.
       </div>
     );
@@ -99,7 +99,7 @@ export function ProductHistoryTimeline({ timeline }: { timeline: ProductTimeline
 
   return (
     <Card className="border border-slate-200">
-      <CardHeader className="border-b border-slate-100">
+      <CardHeader className="border-b border-slate-200">
         <CardTitle className="flex items-center gap-2 text-base">
           <FlaskConical className="size-4 text-slate-500" aria-hidden />
           Development history: {timeline.sampleName}

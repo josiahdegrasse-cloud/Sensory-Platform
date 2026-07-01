@@ -160,7 +160,7 @@ export function QuestionsStep({
       <Collapsible open={coverageOpen} onOpenChange={setCoverageOpen} className="rounded-lg border border-slate-200 bg-slate-50">
         <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
           <div>
-            <p className="text-sm font-semibold text-slate-800">Survey coverage</p>
+            <p className="text-sm font-semibold text-slate-700">Survey coverage</p>
             <p className="text-xs text-slate-500">{questions.length} questions, about {estimatedDuration}</p>
           </div>
           <ChevronDown className={`size-4 text-slate-500 transition-transform ${coverageOpen ? 'rotate-180' : ''}`} />
@@ -171,7 +171,7 @@ export function QuestionsStep({
           const width = count === 0 ? 0 : Math.round((count / maxCatCount) * 100);
           return (
             <div key={cat} className="flex items-center gap-3">
-              <div className="w-24 text-[10px] font-semibold text-slate-500 capitalize text-right">{cat}</div>
+              <div className="w-24 text-[11px] font-semibold text-slate-500 capitalize text-right">{cat}</div>
               <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
                 {count > 0 && (
                   <div
@@ -180,10 +180,10 @@ export function QuestionsStep({
                   />
                 )}
               </div>
-              <div className="w-5 text-[10px] font-bold text-center">
+              <div className="w-5 text-[11px] font-bold text-center">
                 {count === 0
                   ? <span className="text-rose-400">✗</span>
-                  : <span className="text-slate-600">{count}</span>
+                  : <span className="text-slate-700">{count}</span>
                 }
               </div>
             </div>
@@ -204,19 +204,19 @@ export function QuestionsStep({
             className={`rounded-xl border bg-white transition-all ${
               dragOverIdx === i && draggedIdx !== i
                 ? 'border-blue-400 shadow-md bg-blue-50'
-                : 'border-slate-200 hover:border-slate-300'
+                : 'border-slate-200 hover:border-slate-200'
             } ${draggedIdx === i ? 'opacity-40' : ''}`}
           >
             <div className="py-3 px-4">
               <div className="flex items-start gap-3">
                 <div className="mt-0.5 flex flex-col items-center gap-0.5 text-slate-300">
                   {editing && <GripVertical className="size-4 cursor-grab active:cursor-grabbing" aria-hidden />}
-                  <span className="text-[11px] font-bold text-slate-400">{i + 1}</span>
+                  <span className="text-[11px] font-bold text-slate-500">{i + 1}</span>
                   {editing && <button
                     type="button"
                     onClick={() => moveQuestion(i, i - 1)}
                     disabled={i === 0}
-                    className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-30"
+                    className="rounded p-0.5 text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-30"
                     aria-label={`Move question ${i + 1} up`}
                   >
                     <ChevronUp className="size-3.5" aria-hidden />
@@ -225,7 +225,7 @@ export function QuestionsStep({
                     type="button"
                     onClick={() => moveQuestion(i, i + 1)}
                     disabled={i === questions.length - 1}
-                    className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-30"
+                    className="rounded p-0.5 text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-30"
                     aria-label={`Move question ${i + 1} down`}
                   >
                     <ChevronDown className="size-3.5" aria-hidden />
@@ -237,17 +237,17 @@ export function QuestionsStep({
                     onChange={e => update(q.id, 'text', e.target.value)}
                     readOnly={!editing}
                     placeholder="Question text…"
-                    className="border-0 px-0 py-0 h-auto text-sm font-medium text-slate-900 focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-slate-400"
+                    className="border-0 px-0 py-0 h-auto text-sm font-medium text-slate-900 focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-slate-500"
                   />
                   <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${CATEGORY_COLORS[q.category]}`}>
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${CATEGORY_COLORS[q.category]}`}>
                       {q.category}
                     </span>
-                    <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                    <span className="text-[11px] font-medium text-slate-500 bg-slate-50 px-2 py-0.5 rounded-full">
                       {QUESTION_TYPE_LABELS[q.type]}
                     </span>
                     {q.required && (
-                      <span className="text-[10px] font-medium text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full">Required</span>
+                      <span className="text-[11px] font-medium text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full">Required</span>
                     )}
                   </div>
                 </div>
@@ -266,7 +266,7 @@ export function QuestionsStep({
       </div>
 
       {editing && <div className="flex justify-center">
-        <Button variant="outline" size="sm" onClick={addBlank} className="text-slate-600">
+        <Button variant="outline" size="sm" onClick={addBlank} className="text-slate-700">
           <Plus className="size-3.5 mr-1.5" />Add another question
         </Button>
       </div>}
@@ -284,16 +284,16 @@ export function QuestionsStep({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {questions.length > 0 && (
-            <Button variant="outline" size="sm" onClick={() => setEditing(value => !value)} className="text-slate-700 border-slate-300">
+            <Button variant="outline" size="sm" onClick={() => setEditing(value => !value)} className="text-slate-700 border-slate-200">
               {editing ? 'Finish editing' : 'Edit survey'}
             </Button>
           )}
           {questions.length === 0 && (
-            <Button variant="outline" size="sm" onClick={() => { addBlank(); setEditing(true); }} className="text-slate-700 border-slate-300">
+            <Button variant="outline" size="sm" onClick={() => { addBlank(); setEditing(true); }} className="text-slate-700 border-slate-200">
               <Plus className="size-3.5 mr-1" />Add question
             </Button>
           )}
-          <Button size="sm" onClick={requestRegenerate} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button size="sm" onClick={requestRegenerate}>
             <FileText className="size-3.5 mr-1.5" />
             {generated ? 'Rebuild draft survey' : 'Build draft survey'}
           </Button>

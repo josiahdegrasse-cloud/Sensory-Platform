@@ -94,7 +94,7 @@ export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, 
             </CardTitle>
             <DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={activePanelistN} />
           </div>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-700">
             Frequency of attribute selection across {activePanelistN} {usingLiveData ? 'panelists' : 'reference observations'}.
             {canShowSignificance
               ? ` Significance threshold: ≥${critP05}/${activePanelistN} (binomial, p=0.5, α=0.05).`
@@ -127,7 +127,7 @@ export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, 
                         <div className="bg-white p-3 shadow-lg rounded-lg border">
                           <p className="font-bold text-slate-900">{d.attribute}</p>
                           <p className="text-sm text-slate-700">Selected by {d.count}/{activePanelistN} ({d.percentage.toFixed(0)}%)</p>
-                          <p className="text-sm text-slate-600">
+                          <p className="text-sm text-slate-700">
                             p = {p < 0.001 ? "<0.001" : p.toFixed(3)}{" "}
                             {d.sig ? <span className="font-bold text-emerald-700">{d.sig}</span> : "(n.s.)"}
                           </p>
@@ -226,7 +226,7 @@ export function IntensityTab({
             </CardTitle>
             <DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={activePanelistN} />
           </div>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-700">
             Mean intensity scores from {activePanelistN} {usingLiveData ? 'panelists (live)' : 'semi-trained panelists'}
           </p>
           <SampleContext name={activeSampleName} id={activeSampleId} />
@@ -336,7 +336,7 @@ export function HedonicTab({
             </CardTitle>
             <DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={n} />
           </div>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-700">
             Consumer acceptance ratings: 1 = Dislike Extremely, 9 = Like Extremely · n={n} panelists
           </p>
           <SampleContext name={activeSampleName} id={activeSampleId} />
@@ -355,8 +355,8 @@ export function HedonicTab({
                       <div className="bg-white p-3 shadow-lg rounded-lg border">
                         <p className="font-bold text-slate-900">{d.category}</p>
                         <p className="text-sm text-slate-700">Mean: {d.score.toFixed(2)} / 9</p>
-                        <p className="text-sm text-slate-600">SD: ±{d.sd.toFixed(2)}</p>
-                        <p className="text-sm text-slate-600">SEM: ±{d.sem.toFixed(2)} (n={n})</p>
+                        <p className="text-sm text-slate-700">SD: ±{d.sd.toFixed(2)}</p>
+                        <p className="text-sm text-slate-700">SEM: ±{d.sem.toFixed(2)} (n={n})</p>
                         <p className="text-sm text-emerald-700 font-medium">95% CI: {(d.score - d.ci95).toFixed(2)} – {(d.score + d.ci95).toFixed(2)}</p>
                       </div>
                     );
@@ -401,18 +401,18 @@ export function HedonicTab({
           <div className="mt-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
             <div className="text-sm space-y-2">
               <div className="flex justify-between">
-                <span className="text-slate-600">Average Score:</span>
+                <span className="text-slate-700">Average Score:</span>
                 <span className="font-bold text-slate-900">{activeAvgHedonic}/9</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-600">Highest Dimension:</span>
+                <span className="text-slate-700">Highest Dimension:</span>
                 <span className="font-bold text-slate-900">
                   {activeHedonicData.reduce((max, item) => item.score > max.score ? item : max).category}
                   ({activeHedonicData.reduce((max, item) => item.score > max.score ? item : max).score.toFixed(1)})
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-600">Lowest Dimension:</span>
+                <span className="text-slate-700">Lowest Dimension:</span>
                 <span className="font-bold text-slate-900">
                   {activeHedonicData.reduce((min, item) => item.score < min.score ? item : min).category}
                   ({activeHedonicData.reduce((min, item) => item.score < min.score ? item : min).score.toFixed(1)})
@@ -432,7 +432,7 @@ function SampleContext({ name, id }: { name: string; id: string }) {
       <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 font-semibold text-blue-800">
         {name}
       </span>
-      <span className="rounded-md border border-slate-200 bg-white px-2 py-1 font-medium text-slate-600">
+      <span className="rounded-md border border-slate-200 bg-white px-2 py-1 font-medium text-slate-700">
         ID {id}
       </span>
     </div>
@@ -455,7 +455,7 @@ export function CommentsTab({ usingLiveData, matchingLiveData, commentsByProduct
             <MessageCircle className="size-5 text-blue-600" />
             Panelist Comments
           </CardTitle>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-700">
             Free-text feedback submitted by panelists for this sample
           </p>
         </CardHeader>
@@ -464,7 +464,7 @@ export function CommentsTab({ usingLiveData, matchingLiveData, commentsByProduct
             <div className="py-12 text-center">
               <MessageCircle className="size-12 text-slate-300 mx-auto mb-3" />
               <p className="text-slate-500">No live responses for this sample yet.</p>
-              <p className="text-sm text-slate-400 mt-1">Comments will appear once panelists submit evaluations.</p>
+              <p className="text-sm text-slate-500 mt-1">Comments will appear once panelists submit evaluations.</p>
             </div>
           ) : (() => {
             const comments = commentsByProduct[matchingLiveData.productId] ?? [];
@@ -473,7 +473,7 @@ export function CommentsTab({ usingLiveData, matchingLiveData, commentsByProduct
                 <div className="py-12 text-center">
                   <MessageCircle className="size-12 text-slate-300 mx-auto mb-3" />
                   <p className="text-slate-500">No comments submitted yet.</p>
-                  <p className="text-sm text-slate-400 mt-1">{matchingLiveData.n} panelist{matchingLiveData.n !== 1 ? 's' : ''} responded but left no comments.</p>
+                  <p className="text-sm text-slate-500 mt-1">{matchingLiveData.n} panelist{matchingLiveData.n !== 1 ? 's' : ''} responded but left no comments.</p>
                 </div>
               );
             }
@@ -521,7 +521,7 @@ export function EmotionalTab({ activeEmotions, activeEmotionalBalance, activePan
             </CardTitle>
             <DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={activePanelistN} />
           </div>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-700">
             17 positive + 8 negative emotions rated on 0-5 scale
           </p>
         </CardHeader>
@@ -566,12 +566,12 @@ export function EmotionalTab({ activeEmotions, activeEmotionalBalance, activePan
             <h3 className="mb-3 font-bold text-blue-900">Emotional balance</h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <div className="text-sm text-slate-600 mb-1">Net Emotional Score</div>
+                <div className="text-sm text-slate-700 mb-1">Net Emotional Score</div>
                 <div className="text-3xl font-bold text-slate-900">{activeEmotionalBalance}</div>
                 <div className="text-xs text-slate-500 mt-1">Positive - Negative</div>
               </div>
               <div>
-                <div className="text-sm text-slate-600 mb-1">Interpretation</div>
+                <div className="text-sm text-slate-700 mb-1">Interpretation</div>
                 <Badge className={parseFloat(activeEmotionalBalance) >= 2 ? "bg-emerald-600" :
                                  parseFloat(activeEmotionalBalance) >= 0 ? "bg-amber-600" : "bg-rose-600"}>
                   {parseFloat(activeEmotionalBalance) >= 2 ? "Highly Positive" :

@@ -18,6 +18,7 @@ import {
   claimPanelistKit, markPanelistKitStarted, markPanelistKitSubmitted,
   updatePanelistKitFulfillment, reportPanelistKitIssue, recordPanelistKitReminder,
   voidPanelistKit, createReplacementPanelistKit, fetchPanelistKitEvents,
+  fetchAdminAccessRequests, fetchMyAdminAccessRequest, requestAdminAccess, resolveAdminAccessRequest,
   fetchPublicWorkspaceConfig,
   fetchOrgEmailDomains, addOrgEmailDomain, removeOrgEmailDomain,
   insertProduct, updateProduct, updateProductAssignments, deleteProduct,
@@ -45,6 +46,8 @@ export const queryKeys = {
   panelistKitInvite: (token: string) => ['panelistKitInvite', token] as const,
   panelistKitManualInvite: (code: string) => ['panelistKitManualInvite', code] as const,
   panelistKitEvents: (kitId: string) => ['panelistKitEvents', kitId] as const,
+  adminAccessRequests: ['adminAccessRequests'] as const,
+  myAdminAccessRequest: ['myAdminAccessRequest'] as const,
   activeProducts: ['activeProducts'] as const,
   templates: ['templates'] as const,
   panelists: ['panelists'] as const,
@@ -342,6 +345,37 @@ export function useUpdateCommercializationReportStatus() {
 
 export function useOrgEmailDomains() {
   return useQuery({ queryKey: queryKeys.orgEmailDomains, queryFn: fetchOrgEmailDomains })
+}
+
+export function useAdminAccessRequests(enabled = true) {
+  return useQuery({ queryKey: queryKeys.adminAccessRequests, queryFn: fetchAdminAccessRequests, enabled })
+}
+
+export function useMyAdminAccessRequest(enabled = true) {
+  return useQuery({ queryKey: queryKeys.myAdminAccessRequest, queryFn: fetchMyAdminAccessRequest, enabled })
+}
+
+export function useRequestAdminAccess() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: requestAdminAccess,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.myAdminAccessRequest })
+      qc.invalidateQueries({ queryKey: queryKeys.adminAccessRequests })
+    },
+  })
+}
+
+export function useResolveAdminAccessRequest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { requestId: string; decision: 'approved' | 'rejected'; note?: string }) =>
+      resolveAdminAccessRequest(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.adminAccessRequests })
+      qc.invalidateQueries({ queryKey: queryKeys.panelists })
+    },
+  })
 }
 
 export function useAddOrgEmailDomain() {
@@ -772,7 +806,7 @@ export function useRejectPendingImport() {
   })
 }
 
-// Lists CSVs in the connected Drive folder. Manual-fetch only (no polling) —
+// Lists supported files in the connected Drive folder. Manual-fetch only (no polling) —
 // the modal triggers it on open via `enabled`.
 export function useDriveFiles(enabled = false) {
   return useQuery({

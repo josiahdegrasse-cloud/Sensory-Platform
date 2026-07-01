@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { ESSENSE25_EMOTIONS, type QuestionnaireResponse } from "../data/survey-domain";
 import { useAllResponses, useProducts } from "./hooks";
 
@@ -43,18 +43,14 @@ export function useSurveyData(): UseSurveyDataResult {
   const { data: allResponsesData, isError: liveDataFetchFailed } = useAllResponses();
   const { data: products = [] } = useProducts();
 
-  const [multiSampleResponses, setMultiSampleResponses] = useState<MultiSampleSession[]>([]);
-  const [selectedMultiProduct, setSelectedMultiProduct] = useState<string>('');
-  const [liveAggregations, setLiveAggregations] = useState<LiveAggregation[]>([]);
-  const [commentsByProduct, setCommentsByProduct] = useState<Record<string, string[]>>({});
+  // Explicit user selection; when empty we fall back to the first available
+  // session below (derived, not mirrored into state via an effect).
+  const [selectedOverride, setSelectedMultiProduct] = useState<string>('');
 
-  useEffect(() => {
-    if (!allResponsesData) return;
-    const allResponses = allResponsesData;
-    const productsById = new Map(products.map(product => [product.id, product]));
-
-    // Multi-sample: group per-sample rows into session-level objects
-    const multiRows = allResponses.filter((r: QuestionnaireResponse) =>
+  // Multi-sample: group per-sample rows into session-level objects.
+  const multiSampleResponses = useMemo<MultiSampleSession[]>(() => {
+    if (!allResponsesData) return [];
+    const multiRows = allResponsesData.filter((r: QuestionnaireResponse) =>
       r.sessionType?.endsWith('-sample-sequential')
     );
     const sessionMap = new Map<string, MultiSampleSession>();
@@ -78,21 +74,21 @@ export function useSurveyData(): UseSurveyDataResult {
         emotionalProfile: r.emotionalProfile,
       });
     });
-    const sessions = Array.from(sessionMap.values());
-    setMultiSampleResponses(sessions);
-    if (sessions.length > 0 && !selectedMultiProduct) {
-      setSelectedMultiProduct(sessions[0].productId);
-    }
+    return Array.from(sessionMap.values());
+  }, [allResponsesData]);
 
-    // Single-sample aggregation
-    const singleResponses = allResponses.filter(
+  // Single-sample aggregations + free-text comments, derived from live responses.
+  const { liveAggregations, commentsByProduct } = useMemo<{
+    liveAggregations: LiveAggregation[];
+    commentsByProduct: Record<string, string[]>;
+  }>(() => {
+    if (!allResponsesData) return { liveAggregations: [], commentsByProduct: {} };
+    const productsById = new Map(products.map(product => [product.id, product]));
+
+    const singleResponses = allResponsesData.filter(
       (r: QuestionnaireResponse) => !r.sessionType
     );
-    if (singleResponses.length === 0) {
-      setLiveAggregations([]);
-      setCommentsByProduct({});
-      return;
-    }
+    if (singleResponses.length === 0) return { liveAggregations: [], commentsByProduct: {} };
 
     const grouped = new Map<string, QuestionnaireResponse[]>();
     singleResponses.forEach((r: QuestionnaireResponse) => {
@@ -157,8 +153,6 @@ export function useSurveyData(): UseSurveyDataResult {
       });
     });
 
-    setLiveAggregations(aggregations);
-
     const commentsMap: Record<string, string[]> = {};
     singleResponses.forEach((r: QuestionnaireResponse) => {
       if (r.comments && r.comments.trim()) {
@@ -166,8 +160,11 @@ export function useSurveyData(): UseSurveyDataResult {
         commentsMap[r.productId].push(r.comments.trim());
       }
     });
-    setCommentsByProduct(commentsMap);
+
+    return { liveAggregations: aggregations, commentsByProduct: commentsMap };
   }, [allResponsesData, products]);
+
+  const selectedMultiProduct = selectedOverride || multiSampleResponses[0]?.productId || '';
 
   return {
     liveDataFetchFailed: !!liveDataFetchFailed,

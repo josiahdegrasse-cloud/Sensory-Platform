@@ -81,7 +81,7 @@ export function OrgEmailDomainsCard() {
           <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
             {domains.map(({ domain }) => (
               <li key={domain} className="flex items-center justify-between px-3 py-2">
-                <span className="font-mono text-sm text-slate-800">@{domain}</span>
+                <span className="font-mono text-sm text-slate-700">@{domain}</span>
                 <Button
                   type="button"
                   variant="ghost"
@@ -89,7 +89,7 @@ export function OrgEmailDomainsCard() {
                   onClick={() => handleRemove(domain)}
                   disabled={removeDomain.isPending}
                   aria-label={`Remove ${domain}`}
-                  className="text-slate-400 hover:text-red-600"
+                  className="text-slate-500 hover:text-red-600"
                 >
                   <Trash2 className="size-4" />
                 </Button>

@@ -128,7 +128,7 @@ describe('fetchImportBatches', () => {
       rowCount: 2,
       recognizedColumns: ['sampleId', 'compound'],
       ignoredColumns: [],
-      detection: { slug: 'cheese', label: 'Cheese', confidence: 0.9, evidence: [], aliases: [] },
+      detection: { slug: 'cheese', label: 'Cheese', confidence: 0.9, evidence: [], aliases: [], modifiers: [] },
       eTongueData: [],
       gcmsData: {
         A1: [{ name: 'Diacetyl', concentration: 2, aroma: 'buttery', threshold: 1 }],

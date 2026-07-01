@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -45,9 +45,9 @@ type StudyStatusFilter = 'all' | StudyLifecycleStatus;
 type StudyTypeFilter = 'all' | StudyType;
 
 const studyStatusStyles: Record<StudyLifecycleStatus, string> = {
-  draft: 'bg-white text-slate-600 border-slate-300',
+  draft: 'bg-white text-slate-700 border-slate-200',
   active: 'bg-white text-emerald-700 border-emerald-300',
-  closed: 'bg-white text-slate-700 border-slate-300',
+  closed: 'bg-white text-slate-700 border-slate-200',
   archived: 'bg-white text-amber-700 border-amber-300',
 };
 
@@ -151,18 +151,27 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
     { id: '1', code: generateBlindCode('manual-sample:1'), label: '' },
   ]);
 
-  useEffect(() => {
+  // Reset the editable attribute set when the selected product changes.
+  // React's render-phase "adjust state on change" pattern — no effect needed,
+  // and unlike the old effect a products refetch no longer clobbers edits.
+  const [attrSeedProduct, setAttrSeedProduct] = useState<string | null>(selectedProduct);
+  if (selectedProduct !== attrSeedProduct) {
+    setAttrSeedProduct(selectedProduct);
     if (selectedProduct) {
       const product = products.find(p => p.id === selectedProduct);
       setCustomAttributes(product?.customAttributes || getDefaultCataAttributes(product?.category ?? ''));
     }
-  }, [selectedProduct, products]);
+  }
 
-  useEffect(() => {
-    if (!selectedProduct) return;
-    const product = products.find(p => p.id === selectedProduct);
-    if (product && matchFoodType(product.category) !== foodType) setSelectedProduct(null);
-  }, [foodType, products, selectedProduct]);
+  // Clear a selection that no longer matches the active food type.
+  const [foodTypeForSelection, setFoodTypeForSelection] = useState(foodType);
+  if (foodType !== foodTypeForSelection) {
+    setFoodTypeForSelection(foodType);
+    if (selectedProduct) {
+      const product = products.find(p => p.id === selectedProduct);
+      if (product && matchFoodType(product.category) !== foodType) setSelectedProduct(null);
+    }
+  }
 
   // ── Computed stats ────────────────────────────────────────────────────────────
 
@@ -174,6 +183,9 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
   const activePanelists = filterAssignablePanelists(panelists);
   const configuredSampleCount = samples.filter(sample => sample.code.trim() && sample.label.trim()).length;
   const canReviewStudy = Boolean(newProductName && newProductCategory && (productType !== 'multi' || configuredSampleCount === TRIANGLE_TEST_UNDERLYING_SAMPLE_COUNT));
+  const selectedProjectId = selectedBatchId
+    ? importBatches.find(batch => batch.id === selectedBatchId)?.projectId ?? null
+    : null;
 
   const allStudySummaries = useMemo(() => buildStudySummaries({
     products,
@@ -196,7 +208,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
     if (study.type === 'concept_test') return scopedConceptStudyIds.has(study.id);
     const product = products.find(p => p.id === study.id);
     if (!product) return false;
-    if (selectedBatchId) return product.sourceImportBatchId === selectedBatchId;
+    if (selectedBatchId) return product.sourceImportBatchId === selectedBatchId || (selectedProjectId ? product.projectId === selectedProjectId : false);
     if (matchFoodType(product.category) !== foodType) return false;
     if (subCategory && product.category !== subCategory) return false;
     return true;
@@ -227,7 +239,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
   const selectableSourceSamples = products
     .filter(product => {
       if (product.status === 'archived' || product.isMultiSample || !product.sourceSampleId) return false;
-      if (selectedBatchId) return product.sourceImportBatchId === selectedBatchId;
+      if (selectedBatchId) return product.sourceImportBatchId === selectedBatchId || (selectedProjectId ? product.projectId === selectedProjectId : false);
       return matchFoodType(product.category) === foodType;
     })
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
@@ -607,7 +619,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                 className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                   active
                     ? 'border-slate-800 text-slate-900'
-                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-200'
                 }`}
               >
                 <Icon className="size-3.5" />
@@ -663,16 +675,16 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
       {isResponsesMode && (
         <div className="grid gap-3 md:grid-cols-3">
           <div className="rounded-lg border border-slate-200 bg-white p-4">
-            <div className="flex items-center gap-2 font-semibold text-slate-950"><Activity className="size-4 text-slate-500" />Response target</div>
-            <p className="mt-1 text-xs leading-5 text-slate-600">Use this stage to confirm each active study has enough panelist evidence before opening Insights.</p>
+            <div className="flex items-center gap-2 font-semibold text-slate-900"><Activity className="size-4 text-slate-500" />Response target</div>
+            <p className="mt-1 text-xs leading-5 text-slate-700">Use this stage to confirm each active study has enough panelist evidence before opening Insights.</p>
           </div>
           <div className="rounded-lg border border-slate-200 bg-white p-4">
-            <div className="flex items-center gap-2 font-semibold text-slate-950"><Users className="size-4 text-slate-500" />Panelist coverage</div>
-            <p className="mt-1 text-xs leading-5 text-slate-600">Assignment labels and response counts below show which studies still need fielding attention.</p>
+            <div className="flex items-center gap-2 font-semibold text-slate-900"><Users className="size-4 text-slate-500" />Panelist coverage</div>
+            <p className="mt-1 text-xs leading-5 text-slate-700">Assignment labels and response counts below show which studies still need fielding attention.</p>
           </div>
           <div className="rounded-lg border border-slate-200 bg-white p-4">
-            <div className="flex items-center gap-2 font-semibold text-slate-950"><ArrowRight className="size-4 text-slate-500" />Next handoff</div>
-            <p className="mt-1 text-xs leading-5 text-slate-600">When response targets are met, continue to Insights for evidence interpretation.</p>
+            <div className="flex items-center gap-2 font-semibold text-slate-900"><ArrowRight className="size-4 text-slate-500" />Next handoff</div>
+            <p className="mt-1 text-xs leading-5 text-slate-700">When response targets are met, continue to Insights for evidence interpretation.</p>
           </div>
         </div>
       )}
@@ -685,13 +697,13 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
         </div>
         <div className="w-px h-4 bg-slate-200" />
         <div className="flex items-center gap-2">
-          <Users className="size-3.5 text-slate-400" />
+          <Users className="size-3.5 text-slate-500" />
           <span className="text-sm font-bold text-slate-900">{activePanelists.length}</span>
           <span className="text-sm text-slate-500">active panelists</span>
         </div>
         <div className="w-px h-4 bg-slate-200" />
         <div className="flex items-center gap-2">
-          <Activity className="size-3.5 text-slate-400" />
+          <Activity className="size-3.5 text-slate-500" />
           <span className="text-sm font-bold text-slate-900">{totalStudyResponses}</span>
           <span className="text-sm text-slate-500">total responses</span>
         </div>
@@ -700,7 +712,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
       </div>
 
       <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-        <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex-wrap">
+        <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-200 bg-slate-50/60 flex-wrap">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs bg-white">
               {(['all', 'draft', 'active', 'closed', 'archived'] as const).map(s => (
@@ -708,7 +720,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                   key={s}
                   onClick={() => setFilterStatus(s)}
                   className={`px-3 py-1.5 font-semibold capitalize transition-colors border-r border-slate-200 last:border-r-0 ${
-                    filterStatus === s ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
+                    filterStatus === s ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-50'
                   }`}
                 >
                   {s === 'all' ? `All (${studyCounts.all})` : `${s} (${studyCounts[s]})`}
@@ -725,7 +737,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                   className={`px-3 py-1.5 font-semibold transition-colors border-r border-slate-200 last:border-r-0 ${
                     filterType === type
                       ? type === 'product_sensory' ? 'bg-blue-700 text-white' : type === 'multi_sample' ? 'bg-purple-700 text-white' : type === 'concept_test' ? 'bg-teal-700 text-white' : 'bg-slate-900 text-white'
-                      : 'text-slate-600 hover:bg-slate-50'
+                      : 'text-slate-700 hover:bg-slate-50'
                   }`}
                 >
                   {label}
@@ -734,7 +746,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
               })}
             </div>
             <div className="relative">
-              <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
               <Input
                 placeholder="Search studies…"
                 value={searchQuery}
@@ -750,7 +762,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
 
         <div className="p-4">
           {filteredStudies.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 py-12 text-center">
+            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 py-12 text-center">
               <ClipboardList className="size-10 mb-3 text-slate-300" />
               <p className="text-sm font-semibold text-slate-700">
                 {scopedStudySummaries.length === 0 ? `No ${currentFoodTypeLabel.toLowerCase()} studies yet` : 'No studies match the current filters'}
@@ -783,32 +795,31 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                          <Badge variant="outline" className={`text-[10px] ${meta.className}`}><Icon className="mr-1 size-3" />{meta.label}</Badge>
-                          <Badge variant="outline" className={`text-[10px] capitalize ${studyStatusStyles[study.status]}`}>{study.status}</Badge>
-                          {product?.blinded && <Badge variant="outline" className="border-slate-400 bg-white text-[10px] text-slate-700">Blinded</Badge>}
+                          <Badge variant="outline" className={`text-[11px] ${meta.className}`}><Icon className="mr-1 size-3" />{meta.label}</Badge>
+                          <Badge variant="outline" className={`text-[11px] capitalize ${studyStatusStyles[study.status]}`}>{study.status}</Badge>
+                          {product?.blinded && <Badge variant="outline" className="border-slate-400 bg-white text-[11px] text-slate-700">Blinded</Badge>}
                         </div>
                         <h2 className="truncate text-base font-bold text-slate-900">{study.name}</h2>
-                        <p className="mt-1 text-xs text-slate-600">{meta.description}</p>
+                        <p className="mt-1 text-xs text-slate-700">{meta.description}</p>
                         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
                           <span>{study.linkedLabel}</span>
                           <span>{study.assignmentLabel}</span>
-                          <span>{study.responseProgressLabel}</span>
                           {study.sourceImportBatchName && <span className="truncate">Source: {study.sourceImportBatchName.replace(/\.csv$/i, '')}</span>}
                         </div>
                       </div>
                       {isProductStudy && (
-                        <button onClick={() => setSelectedProduct(study.id)} className="shrink-0 rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+                        <button onClick={() => setSelectedProduct(study.id)} className="shrink-0 rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
                           <Edit2 className="mr-1 inline size-3" />Edit
                         </button>
                       )}
                     </div>
 
-                    <div className="mt-3 rounded-lg border border-slate-100 bg-white p-3">
+                    <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <span className="text-xs font-semibold text-slate-700">Panel completion</span>
                         <span className="text-xs font-semibold text-slate-500">{study.responseProgressLabel}</span>
                       </div>
-                      <Progress value={study.completionPercent} className="h-1.5 bg-slate-100" />
+                      <Progress value={study.completionPercent} className="h-1.5 bg-slate-50" />
                     </div>
 
                     {blockerPreview.length > 0 && (
@@ -823,7 +834,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                           </span>
                         ))}
                         {study.blockers.length > blockerPreview.length && (
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">+{study.blockers.length - blockerPreview.length} more</span>
+                          <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-500">+{study.blockers.length - blockerPreview.length} more</span>
                         )}
                       </div>
                     )}
@@ -947,7 +958,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
 
       {panelists.length === 0 ? (
         <Card>
-          <CardContent className="py-12 text-center text-slate-400">
+          <CardContent className="py-12 text-center text-slate-500">
             <Users className="size-10 mx-auto mb-2 opacity-30" />
             <p className="text-sm">No panelists registered yet.</p>
           </CardContent>
@@ -964,7 +975,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
             <div className="flex flex-wrap gap-2">
               {panelists.map(p => (
                 <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
-                  <span className="text-sm font-medium text-slate-800">{p.name}</span>
+                  <span className="text-sm font-medium text-slate-700">{p.name}</span>
                   {editingPanelistId === p.id ? (
                     <div className="flex gap-1">
                       {/* eslint-disable-next-line jsx-a11y/no-autofocus -- inline edit field appears on user action; focusing it is the expected behaviour */}
@@ -974,7 +985,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                     </div>
                   ) : (
                     <>
-                      <span className={`font-mono text-xs ${p.panelistId ? 'text-slate-600' : 'text-slate-400 italic'}`}>{p.panelistId ?? 'no ID'}</span>
+                      <span className={`font-mono text-xs ${p.panelistId ? 'text-slate-700' : 'text-slate-500 italic'}`}>{p.panelistId ?? 'no ID'}</span>
                       <Button size="sm" variant="ghost" className="h-6 text-xs px-1" onClick={() => handleEditPanelistId(p.id, p.panelistId)}>Edit</Button>
                     </>
                   )}
@@ -1005,7 +1016,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
               <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-900">Recovery available</p>
-                  <p className="text-xs text-slate-600">
+                  <p className="text-xs text-slate-700">
                     {recoverableImportCount} archived or deleted project{recoverableImportCount === 1 ? '' : 's'} can be restored below.
                   </p>
                 </div>
@@ -1013,7 +1024,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
               </div>
             )}
             {importBatches.length === 0 ? (
-              <div className="py-12 text-center text-slate-400">
+              <div className="py-12 text-center text-slate-500">
                 <Database className="size-10 mx-auto mb-2 opacity-30" />
                 <p className="text-sm">No imports yet. Upload a CSV in Machine Testing to get started.</p>
               </div>
@@ -1033,13 +1044,13 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                   </thead>
                   <tbody>
                     {importBatches.map(batch => (
-                      <tr key={batch.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td className="py-2.5 px-3 font-medium text-slate-800 max-w-[200px] truncate">{batch.fileName}</td>
+                      <tr key={batch.id} className="border-b border-slate-200 hover:bg-slate-50 transition-colors">
+                        <td className="py-2.5 px-3 font-medium text-slate-700 max-w-[200px] truncate">{batch.fileName}</td>
                         <td className="py-2.5 px-3">
                           <Badge variant="outline" className="text-xs">{batch.foodTypeLabel}</Badge>
                         </td>
-                        <td className="py-2.5 px-3 text-slate-600">{batch.rowCount}</td>
-                        <td className="py-2.5 px-3 text-slate-600">{batch.importedByName ?? '—'}</td>
+                        <td className="py-2.5 px-3 text-slate-700">{batch.rowCount}</td>
+                        <td className="py-2.5 px-3 text-slate-700">{batch.importedByName ?? '—'}</td>
                         <td className="py-2.5 px-3 text-slate-500 text-xs">
                           {new Date(batch.createdAt).toLocaleDateString()} {new Date(batch.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </td>
@@ -1114,12 +1125,12 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
           <DialogHeader className="border-b border-slate-200 px-6 py-5">
             <div className="flex items-center justify-between gap-4 pr-8">
               <DialogTitle className="flex items-center gap-2">
-                {createStep === 'form' && <><Plus className="size-5 text-slate-600" />New Study</>}
-                {createStep === 'review' && <><CheckCircle2 className="size-5 text-slate-600" />Step 1: Review Details</>}
-                {createStep === 'configure' && <><Settings className="size-5 text-slate-600" />Step 2: Configure Questionnaire</>}
+                {createStep === 'form' && <><Plus className="size-5 text-slate-700" />New Study</>}
+                {createStep === 'review' && <><CheckCircle2 className="size-5 text-slate-700" />Step 1: Review Details</>}
+                {createStep === 'configure' && <><Settings className="size-5 text-slate-700" />Step 2: Configure Questionnaire</>}
               </DialogTitle>
               {createStep !== 'form' && (
-                <Badge variant="outline" className="border-slate-300 text-slate-700">{createStep === 'review' ? '1 of 2' : '2 of 2'}</Badge>
+                <Badge variant="outline" className="border-slate-200 text-slate-700">{createStep === 'review' ? '1 of 2' : '2 of 2'}</Badge>
               )}
             </div>
           </DialogHeader>
@@ -1152,12 +1163,12 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                             }`}
                           >
                             <span className="space-y-3">
-                              <span className={`flex size-11 items-center justify-center rounded-lg ${productType === type ? 'bg-slate-900' : 'bg-slate-100'}`}>
+                              <span className={`flex size-11 items-center justify-center rounded-lg ${productType === type ? 'bg-slate-900' : 'bg-slate-50'}`}>
                                 <Icon className={`size-5 ${productType === type ? 'text-white' : 'text-slate-500'}`} />
                               </span>
                               <span className="block">
                                 <span className="block text-sm font-bold text-slate-900">{label}</span>
-                                <span className="mt-1 block text-xs leading-5 text-slate-600">{desc}</span>
+                                <span className="mt-1 block text-xs leading-5 text-slate-700">{desc}</span>
                               </span>
                             </span>
                             <span className={`mt-4 flex min-h-5 items-center gap-1 text-xs font-medium ${productType === type ? 'text-slate-700' : 'text-transparent'}`}>
@@ -1191,7 +1202,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                           onCheckedChange={v => setBlindedStudy(!!v)}
                         />
                         <div>
-                          <Label htmlFor="blindedStudy" className="cursor-pointer font-semibold text-slate-800">Blinded study</Label>
+                          <Label htmlFor="blindedStudy" className="cursor-pointer font-semibold text-slate-700">Blinded study</Label>
                           <p className="mt-1 text-xs leading-5 text-slate-500">
                             Panelists will see sample codes only — product name and category will not be disclosed during evaluation.
                           </p>
@@ -1205,7 +1216,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <Label className="text-sm font-bold text-slate-900">Triangle Test Samples</Label>
-                          <p className="mt-1 text-xs leading-5 text-slate-600">
+                          <p className="mt-1 text-xs leading-5 text-slate-700">
                             Select exactly two underlying samples. The third coded serving is generated as a duplicate.
                           </p>
                         </div>
@@ -1247,7 +1258,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                                     <span
                                       aria-hidden
                                       className={`flex size-4 items-center justify-center rounded border ${
-                                        selectedSample ? 'border-slate-900 bg-slate-900' : 'border-slate-300 bg-white'
+                                        selectedSample ? 'border-slate-900 bg-slate-900' : 'border-slate-200 bg-white'
                                       }`}
                                     >
                                       {selectedSample && <CheckCircle2 className="size-3 text-white" />}
@@ -1272,7 +1283,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                         ))}
                       </div>
                       {configuredSampleCount === TRIANGLE_TEST_UNDERLYING_SAMPLE_COUNT && (
-                        <div className="grid gap-2 rounded-lg border border-slate-300 bg-white p-3 text-xs text-slate-700 sm:grid-cols-3">
+                        <div className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-700 sm:grid-cols-3">
                           <p><strong>2 underlying samples</strong> selected</p>
                           <p>3 coded servings generated</p>
                           <p>Odd-sample triangle choice</p>
@@ -1302,15 +1313,15 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                 <div className="space-y-4 p-6">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                      <div className="text-sm text-slate-600 mb-1">Study Name</div>
+                      <div className="text-sm text-slate-700 mb-1">Study Name</div>
                       <div className="font-bold text-slate-900 text-lg flex items-center gap-2 flex-wrap">
                         {pendingProduct.name}
-                        {pendingProduct.isMultiSample && <Badge variant="outline" className="border-slate-300 text-slate-700"><Layers className="size-3 mr-1" />Triangle Test</Badge>}
-                        {pendingProduct.blinded && <Badge variant="outline" className="border-slate-300 text-slate-700">Blinded</Badge>}
+                        {pendingProduct.isMultiSample && <Badge variant="outline" className="border-slate-200 text-slate-700"><Layers className="size-3 mr-1" />Triangle Test</Badge>}
+                        {pendingProduct.blinded && <Badge variant="outline" className="border-slate-200 text-slate-700">Blinded</Badge>}
                       </div>
                     </div>
                     <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                      <div className="text-sm text-slate-600 mb-1">Category</div>
+                      <div className="text-sm text-slate-700 mb-1">Category</div>
                       <div className="font-bold text-slate-900 text-lg">{pendingProduct.category}</div>
                     </div>
                   </div>
@@ -1327,7 +1338,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                         {pendingProduct.samples.map((sample, idx) => (
                           <div key={sample.id} className="flex items-center gap-3 p-3 bg-white rounded border border-slate-200">
                             <div className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-sm">{idx + 1}</div>
-                            <div><div className="font-bold text-slate-900">Code: {sample.code}</div><div className="text-sm text-slate-600">{sample.label}</div></div>
+                            <div><div className="font-bold text-slate-900">Code: {sample.code}</div><div className="text-sm text-slate-700">{sample.label}</div></div>
                           </div>
                         ))}
                       </div>
@@ -1335,7 +1346,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                   )}
                   <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
                     <div className="text-sm font-semibold text-slate-700 mb-3">What happens next</div>
-                    <ul className="text-sm text-slate-600 space-y-2">
+                    <ul className="text-sm text-slate-700 space-y-2">
                       <li className="flex items-start gap-2"><CheckCircle2 className="size-4 text-emerald-600 flex-shrink-0 mt-0.5" />Study created through the existing product questionnaire flow and set active</li>
                       <li className="flex items-start gap-2"><CheckCircle2 className="size-4 text-emerald-600 flex-shrink-0 mt-0.5" />Configure which attributes panelists will evaluate</li>
                       <li className="flex items-start gap-2"><CheckCircle2 className="size-4 text-emerald-600 flex-shrink-0 mt-0.5" />{pendingProduct.isMultiSample ? 'Panelists evaluate three coded servings and identify the odd sample' : 'Panelists see this product in their questionnaire'}</li>
@@ -1359,7 +1370,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                     <div className="text-sm font-semibold text-slate-700 mb-1">Configuring:</div>
                     <div className="font-bold text-slate-900 text-lg flex items-center gap-2 flex-wrap">
                       {pendingProduct.name}
-                      {pendingProduct.isMultiSample && <Badge variant="outline" className="border-slate-300 text-slate-700"><Layers className="size-3 mr-1" />Triangle Test</Badge>}
+                      {pendingProduct.isMultiSample && <Badge variant="outline" className="border-slate-200 text-slate-700"><Layers className="size-3 mr-1" />Triangle Test</Badge>}
                     </div>
                     {pendingProduct.isMultiSample && (
                       <div className="text-xs text-slate-500 mt-1">All {pendingProduct.samples?.length} coded servings use the same questionnaire attributes</div>
@@ -1368,7 +1379,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
 
                   <div className="p-4 bg-white rounded-lg border border-slate-200">
                     <Label htmlFor="newAttrModal" className="text-sm font-bold text-slate-900 mb-2 block">Add Product-Specific Attribute</Label>
-                    <p className="text-xs text-slate-600 mb-3">Custom attributes relevant to this product (e.g., "Smoky" for smoked varieties)</p>
+                    <p className="text-xs text-slate-700 mb-3">Custom attributes relevant to this product (e.g., "Smoky" for smoked varieties)</p>
                     <div className="flex gap-2">
                       <Input id="newAttrModal" placeholder="e.g., Smoky, Herbal, Peppery" value={newAttribute} onChange={e => setNewAttribute(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddCustomAttribute()} />
                       <Button onClick={handleAddCustomAttribute} className="bg-slate-900 hover:bg-slate-800"><Plus className="size-4 mr-1" />Add</Button>
@@ -1391,7 +1402,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                         </div>
                       ))}
                       {customAttributes.filter(attr => !modalStdAttrs.includes(attr)).map(attr => (
-                        <div key={attr} className="flex items-center space-x-2 p-2 bg-slate-50 rounded border border-slate-300">
+                        <div key={attr} className="flex items-center space-x-2 p-2 bg-slate-50 rounded border border-slate-200">
                           <Checkbox id={`attr-modal-${attr}`} checked disabled />
                           <Label htmlFor={`attr-modal-${attr}`} className="text-sm flex-1 font-medium text-slate-900">{attr}</Label>
                           <button onClick={() => handleRemoveAttribute(attr)} className="text-rose-600 hover:text-rose-700"><Trash2 className="size-4" /></button>

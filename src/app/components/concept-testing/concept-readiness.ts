@@ -22,12 +22,14 @@ export function getConceptReadiness({
   assignedPanelistIds,
   panelists,
   targetPanelSize,
+  requireApprovedVisuals = false,
 }: {
   draft: ConceptDraft;
   questions: Question[];
   assignedPanelistIds: string[];
   panelists?: AssignablePanelist[];
   targetPanelSize?: number;
+  requireApprovedVisuals?: boolean;
 }): ConceptReadinessResult {
   const projectReady = Boolean(draft.projectName.trim());
   const missingBriefFields = [
@@ -39,6 +41,11 @@ export function getConceptReadiness({
     !draft.targetMarket.trim() && 'target customer',
   ].filter(Boolean) as string[];
   const validImageCount = draft.marketingImages.filter(image => image.trim()).length;
+  const approvedImageCount = draft.marketingImages.reduce((count, image, index) => {
+    if (!image.trim()) return count;
+    return draft.marketingImageReviews[index]?.status === 'approved' ? count + 1 : count;
+  }, 0);
+  const visualsReady = requireApprovedVisuals ? approvedImageCount > 0 && approvedImageCount === validImageCount : validImageCount > 0;
   const validQuestionCount = questions.filter(question => question.text.trim()).length;
   const questionsReady = validQuestionCount > 0 && validQuestionCount === questions.length;
   const activeAssignedCount = panelists
@@ -65,9 +72,11 @@ export function getConceptReadiness({
     {
       id: 'visuals',
       label: 'Concept visuals',
-      ready: validImageCount > 0,
+      ready: visualsReady,
       detail: validImageCount > 0
-        ? `${validImageCount} visual${validImageCount === 1 ? '' : 's'} selected.`
+        ? requireApprovedVisuals
+          ? `${approvedImageCount}/${validImageCount} selected visual${validImageCount === 1 ? '' : 's'} approved for panelist use.`
+          : `${validImageCount} visual${validImageCount === 1 ? '' : 's'} selected.`
         : 'Select or add at least one concept visual.',
       fixStep: 'visuals',
     },
