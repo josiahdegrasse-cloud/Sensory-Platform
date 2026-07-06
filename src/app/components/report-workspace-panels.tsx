@@ -111,6 +111,9 @@ export function ReportPdfPreviewPanel({ input }: { input: CommercializationRepor
   const [previewUrl, setPreviewUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const fittedPreviewUrl = previewUrl
+    ? `${previewUrl}#toolbar=0&navpanes=0&scrollbar=0&view=Fit`
+    : '';
 
   useEffect(() => {
     let active = true;
@@ -135,10 +138,10 @@ export function ReportPdfPreviewPanel({ input }: { input: CommercializationRepor
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
         <div>
           <h2 className="font-semibold text-slate-900">PDF preview</h2>
-          <p className="text-sm text-slate-500">Generated from this saved version and the current workspace branding.</p>
+          <p className="text-xs text-slate-500">Fit-to-page preview generated from this saved version and workspace branding.</p>
         </div>
         <Button variant="outline" onClick={() => downloadCommercializationReportPdf(input)}>
           <Download className="size-4" />Download PDF
@@ -149,7 +152,11 @@ export function ReportPdfPreviewPanel({ input }: { input: CommercializationRepor
       ) : error ? (
         <div className="flex min-h-80 items-center justify-center p-6 text-sm text-rose-700">{error}</div>
       ) : (
-        <iframe title="Commercialization report PDF preview" src={previewUrl} className="h-[760px] w-full bg-slate-50" />
+        <iframe
+          title="Commercialization report PDF preview"
+          src={fittedPreviewUrl}
+          className="h-[calc(100vh-15rem)] min-h-[620px] w-full bg-slate-50"
+        />
       )}
     </div>
   );

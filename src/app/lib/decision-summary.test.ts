@@ -9,8 +9,6 @@ const decision: GoStopTweakDecision = {
   confidenceScore: 82,
   decision: 'TWEAK',
   recommendation: 'Adjust texture before advancing.',
-  costSavings: 0,
-  timeline: '2 weeks',
   riskLevel: 'medium',
   details: ['Texture liking is below target.', 'Overall liking is close to target.'],
   dimensionScores: { hedonic: 70, texture: 55, cata: 72, emotional: 68 },

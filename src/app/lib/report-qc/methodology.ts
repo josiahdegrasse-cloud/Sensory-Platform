@@ -62,7 +62,7 @@ export function buildMethodology(input: {
     instrumentSignal: input.instrumentSignal,
     gatePenalty: input.gatePenalty,
     displayPrecisionAdjustment,
-    missingDataPolicy: 'Expected texture cues not captured by the study receive zero contribution under the versioned completeness-penalty rule; they remain labeled missing and are never represented as measured zero.',
+    missingDataPolicy: 'Texture is scored over the cues the study actually measured (NFI-GST-2.0). Expected cues the study did not capture are excluded from the texture average — they remain labeled missing, are never represented as measured zero, and reduce the decision CONFIDENCE via the texture descriptor-coverage input instead of deflating the texture score.',
     formula: input.instrumentSignal === null
       ? 'Instrument signal unavailable; the stored ISSF cannot be fully reproduced from the report snapshot.'
       : `ISSF = (${weightedBase.toFixed(1)} × 0.86) + (${input.instrumentSignal.toFixed(1)} × 0.14) - ${input.gatePenalty.toFixed(1)}${displayPrecisionAdjustment === 0 ? '' : ` ${displayPrecisionAdjustment > 0 ? '+' : '-'} ${Math.abs(displayPrecisionAdjustment).toFixed(1)} displayed-precision reconciliation`} = ${reproducedIssf.toFixed(1)}`,
@@ -89,10 +89,10 @@ export function isIssfReproduced(methodology: MethodologyEvidence): boolean {
 }
 
 // ── Texture / dimension calculation explanation ─────────────────────────────
-// Cheese positive texture cues; mirrors scoreTexture's positiveKeys so the
-// explanation matches the score. Missing cues (firm, spreadable) score 0 and
-// drag the positive average down — this is why a creamy/smooth product can still
-// fall below the texture readiness line.
+// Positive texture cue vocabularies; mirrors scoreTexture's positiveKeys so
+// the explanation matches the score. Under NFI-GST-2.0, the texture average
+// uses only the cues the study measured; unmeasured cues are excluded (and
+// lower confidence via descriptor coverage, not the texture score).
 const TEXTURE_POSITIVE_KEYS: Record<string, string[]> = {
   cheese: ['creamy', 'smooth', 'firm', 'spreadable'],
   meat: ['juicy', 'tender', 'firm'],
@@ -105,8 +105,71 @@ export interface TextureBreakdown {
   explanation: string;
 }
 
-export function buildTextureBreakdown(intensity: Record<string, number>, foodTypeSlug: string, score: number, threshold: number): TextureBreakdown {
+export function buildTextureBreakdown(
+  intensity: Record<string, number>,
+  foodTypeSlug: string,
+  score: number,
+  threshold: number,
+  methodVersion = 'NFI-GST-2.0',
+): TextureBreakdown {
   const positiveKeys = TEXTURE_POSITIVE_KEYS[foodTypeSlug] ?? TEXTURE_POSITIVE_KEYS.cheese;
+
+  // Saved reports keep the explanation of the method that produced their
+  // stored score. NFI-GST-1.x used the zero-fill completeness penalty; the
+  // reproduction must match that stored arithmetic, not today's rule.
+  if (!/NFI-GST-2/.test(methodVersion)) {
+    return buildLegacyZeroFillBreakdown(intensity, positiveKeys, score, threshold);
+  }
+
+  // Mirrors the engine's "measured" test exactly: a measured 0 is evidence,
+  // an absent key is missing evidence.
+  const measured = (k: string) => Number.isFinite(intensity[k]);
+
+  const positiveMetrics: RawMetric[] = positiveKeys.map(key => ({
+    label: `${key} (positive cue)`,
+    value: measured(key) ? Number(intensity[key]) : 'not captured',
+    scale: '0–10',
+    direction: 'higher_better',
+    missing: !measured(key),
+  }));
+  const negativeMetrics: RawMetric[] = TEXTURE_NEGATIVE_KEYS
+    .filter(measured)
+    .map(key => ({ label: `${key} (negative cue)`, value: Number(intensity[key]), scale: '0–10', direction: 'lower_better' }));
+
+  const measuredPositive = positiveKeys.filter(measured);
+  const measuredNegative = TEXTURE_NEGATIVE_KEYS.filter(measured);
+  const missing = positiveKeys.filter(k => !measured(k));
+
+  if (measuredPositive.length === 0) {
+    return {
+      rawMetrics: [...positiveMetrics, ...negativeMetrics],
+      explanation: `Texture ${score}/100 (threshold ${threshold}). No texture descriptor cues were measured for this study, so under NFI-GST-2.0 the 9-pt hedonic texture liking stands in as the only texture evidence. Texture descriptor coverage is 0/${positiveKeys.length}, which lowers the decision confidence — the score reflects the evidence available, not fabricated descriptor data.`,
+    };
+  }
+
+  const posAvg = measuredPositive.reduce((s, k) => s + Number(intensity[k]), 0) / measuredPositive.length;
+  const negAvg = measuredNegative.length > 0
+    ? measuredNegative.reduce((s, k) => s + Number(intensity[k]), 0) / measuredNegative.length
+    : 0;
+  const reproduced = Math.max(0, Math.min(100, (posAvg / 10) * 105 - (negAvg / 10) * 45));
+
+  const explanation = missing.length
+    ? `Texture ${score}/100 (threshold ${threshold}) = (${posAvg.toFixed(2)}/10 × 105) - (${negAvg.toFixed(2)}/10 × 45) = ${reproduced.toFixed(1)}, averaged over the measured cues (${measuredPositive.join(', ')}). Unmeasured cues (${missing.join(', ')}) are excluded under NFI-GST-2.0 — they remain missing values, not measured zeros, and reduce decision confidence through texture descriptor coverage (${measuredPositive.length}/${positiveKeys.length}).`
+    : `Texture ${score}/100 (threshold ${threshold}) = (${posAvg.toFixed(2)}/10 × 105) - (${negAvg.toFixed(2)}/10 × 45) = ${reproduced.toFixed(1)}, using positive cues (${positiveKeys.join(', ')}) net of negative cues.`;
+
+  return { rawMetrics: [...positiveMetrics, ...negativeMetrics], explanation };
+}
+
+// Reproduction of the NFI-GST-1.x texture arithmetic for reports saved under
+// that method: expected-but-unobserved positive cues contributed zero to the
+// average (the "completeness penalty"). Kept so a legacy report's stored score
+// and its QC explanation remain arithmetically consistent.
+function buildLegacyZeroFillBreakdown(
+  intensity: Record<string, number>,
+  positiveKeys: string[],
+  score: number,
+  threshold: number,
+): TextureBreakdown {
   const present = (k: string) => Number.isFinite(intensity[k]) && Number(intensity[k]) > 0;
 
   const positiveMetrics: RawMetric[] = positiveKeys.map(key => ({

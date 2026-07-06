@@ -24,7 +24,11 @@ export function mergeAnalysisProfiles(
       gcmsOlfactometry: imported.gcmsOlfactometry.length > 0
         ? imported.gcmsOlfactometry
         : reference.gcmsOlfactometry,
-      istdRecovery: imported.istdRecovery || reference.istdRecovery,
+      // ?? (not ||): a measured 0% recovery is a real QC failure and must
+      // survive the merge. null (not measured) still falls back to the demo
+      // reference value — this branch only runs for reference-ID samples,
+      // whose whole profile is already labeled reference/demo.
+      istdRecovery: imported.istdRecovery ?? reference.istdRecovery,
       olfactometryFlowSplit: imported.olfactometryFlowSplit || reference.olfactometryFlowSplit,
     });
   });

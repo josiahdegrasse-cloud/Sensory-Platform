@@ -175,7 +175,9 @@ function buildGates(
     id: `sensory.${gate.id}`,
     category: 'sensory',
     label: gate.label,
-    status: gate.status === 'fail' ? 'fail' : gate.status === 'watch' ? 'pending' : 'pass',
+    // not_measured maps to 'pending' (evidence outstanding) — it must never
+    // silently read as a pass in the report QC ledger.
+    status: gate.status === 'fail' ? 'fail' : gate.status === 'watch' || gate.status === 'not_measured' ? 'pending' : 'pass',
     detail: gate.detail,
   }));
   return [
@@ -218,7 +220,10 @@ function buildDimensions(
     const numeric = Number(score);
     // Texture gets a real calculation explanation showing the missing positive
     // cues that drag the composite below the readiness line.
-    const texture = key === 'texture' ? buildTextureBreakdown(intensity, foodTypeSlug, numeric, readiness) : null;
+    // Snapshots that predate methodVersion are by definition legacy (1.x).
+    const texture = key === 'texture'
+      ? buildTextureBreakdown(intensity, foodTypeSlug, numeric, readiness, snapshot.decision.methodVersion || 'NFI-GST-1.1')
+      : null;
     const calculationExplanation = texture
       ? texture.explanation
       : `${formatDecisionDimension(key as keyof GoStopTweakDecision['dimensionScores'])} scores ${numeric}/100 (threshold ${readiness}) from the panel measures shown.`;

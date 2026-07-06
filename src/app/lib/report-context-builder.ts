@@ -122,8 +122,6 @@ export function decisionRecordToGoStopTweakDecision(
     confidenceScore: snapshot.decision.confidence,
     decision: decision.decision,
     recommendation: snapshot.decision.recommendation,
-    costSavings: 0,
-    timeline: 'pilot validation',
     riskLevel: 'medium',
     details: decision.note ? [decision.note] : [],
     dimensionScores: snapshot.decision.dimensions,

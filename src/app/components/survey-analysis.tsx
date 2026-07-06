@@ -72,7 +72,9 @@ function buildImportedProfiles(dataset: ReturnType<typeof useInstrumentalDataset
         odourIntensity: compound.threshold > 0 && compound.concentration > compound.threshold ? 5 : Math.min(5, Math.max(1, compound.concentration)),
         concentration: compound.concentration, threshold: compound.threshold,
       })),
-      istdRecovery: 0,
+      // No instrument QC in a CSV import; the reference-blend merge backfills
+      // the demo value only for demo-ID samples (see mergeAnalysisProfiles).
+      istdRecovery: null,
       olfactometryFlowSplit: 'Imported CSV',
       cata: {},
       intensity: {},

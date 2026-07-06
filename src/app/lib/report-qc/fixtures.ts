@@ -87,8 +87,6 @@ export function coconutCheddarDecision(): GoStopTweakDecision {
     confidenceScore: 91,
     decision: 'GO',
     recommendation: snap.decision.recommendation,
-    costSavings: 0,
-    timeline: 'pilot',
     riskLevel: 'medium',
     details: [],
     dimensionScores: COCONUT_CHEDDAR_DIMENSIONS,

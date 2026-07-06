@@ -10,8 +10,6 @@ describe('decision report', () => {
         issfScore: 68,
         confidenceScore: 82,
         recommendation: 'Adjust salt & aroma.',
-        costSavings: 1,
-        timeline: '1 week',
         riskLevel: 'medium',
         details: [],
         dimensionScores: { hedonic: 60, texture: 60, cata: 60, emotional: 60 },

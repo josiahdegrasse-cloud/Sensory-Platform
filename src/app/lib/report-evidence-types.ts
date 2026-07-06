@@ -46,7 +46,9 @@ export type CriticalAttributeResult = {
   sampleId: string;
   id: string;
   label: string;
-  status: 'pass' | 'watch' | 'fail';
+  // 'not_measured' = the evidence behind the gate was never collected
+  // (panel-only study); a caveat, never a blocker.
+  status: 'pass' | 'watch' | 'fail' | 'not_measured';
   detail: string;
   impact: number;
 };

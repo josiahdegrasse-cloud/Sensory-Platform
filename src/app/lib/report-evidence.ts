@@ -1,7 +1,7 @@
 import { convergenceData, calculateScreeningRiskScore, checkEscalationTriggers } from '../data/convergence-data';
 import type { EnhancedSensoryProfile } from '../data/enhanced-sensory';
 import { METHOD_COMPARISON, VALIDATION_DATASET } from '../data/validation-data';
-import { calculateGoStopTweakDecision, PANEL_N, type GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
+import { calculateGoStopTweakDecision, PANEL_N, textureCoverage, type GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
 import { getCommercializationProjectProfile } from '../data/coconut-cheddar-profile';
 import {
   type BuildEvidenceBundleInput,
@@ -286,7 +286,7 @@ function decisionReasons(
     primary ? `${primary.sampleName}: ${primary.decision} at ISSF ${primary.issfScore.toFixed(1)} with ${primary.confidenceScore.toFixed(0)}% confidence.` : '',
     ...decisions.flatMap(decision => decision.gates
       .filter(gate => gate.status !== 'pass')
-      .map(gate => `${decision.sampleName} ${gate.label}: ${gate.status.toUpperCase()} (${gate.detail})`)),
+      .map(gate => `${decision.sampleName} ${gate.label}: ${gate.status.replace('_', ' ').toUpperCase()} (${gate.detail})`)),
     ...qualityWarnings.map(warning => warning.description),
   ].filter(Boolean);
 }
@@ -331,7 +331,7 @@ function qualityWarningsFor(decisions: Array<{ profile: EnhancedSensoryProfile; 
 function buildSensoryProfileEvidence(profiles: EnhancedSensoryProfile[], foodTypeSlug: string, decision?: GoStopTweakDecision) {
   const profile = profiles[0];
   if (!profile) return null;
-  const panelSize = PANEL_N;
+  const panelSize = profile.panelN && profile.panelN > 0 ? profile.panelN : PANEL_N;
   const descriptors = Object.entries(profile.cata ?? {})
     .map(([descriptor, count]) => ({ descriptor, count: Number(count) }))
     .sort((a, b) => b.count - a.count);
@@ -355,12 +355,23 @@ function buildSensoryProfileEvidence(profiles: EnhancedSensoryProfile[], foodTyp
   const trainedReferenceScore = profile.trainedPanelReference && decision
     ? Math.max(0, Math.min(100, 100 - Math.abs(decision.issfScore - profile.trainedPanelReference.overallQuality) * 1.2))
     : 78;
-  const qcScore = profile.istdRecovery >= 85 && profile.istdRecovery <= 110 ? 96 : profile.istdRecovery >= 75 ? 82 : 62;
+  // Mirrors confidenceFromEvidence in go-stop-tweak-engine.ts (NFI-GST-2.0):
+  // a missing instrument QC contributes a low-weight neutral term, and texture
+  // descriptor coverage is its own confidence input.
+  const qcTerm = profile.istdRecovery == null
+    ? { input: 'Instrument QC recovery (not measured)', score: 75, weightPct: 10 }
+    : {
+        input: 'Instrument QC recovery',
+        score: profile.istdRecovery >= 85 && profile.istdRecovery <= 110 ? 96 : profile.istdRecovery >= 75 ? 82 : 62,
+        weightPct: 20,
+      };
+  const coverage = textureCoverage(profile, foodTypeSlug);
   const confidenceCalculation = [
     { input: 'Trained-panel agreement', score: trainedReferenceScore, weightPct: profile.trainedPanelReference ? 45 : 20 },
-    { input: 'Instrument QC recovery', score: qcScore, weightPct: 20 },
+    qcTerm,
     { input: 'GC-MS/olfactometry coverage', score: profile.gcmsOlfactometry.length > 0 ? 92 : 70, weightPct: 20 },
     { input: 'Descriptor evidence coverage', score: Object.keys(profile.cata).length > 0 ? 88 : 65, weightPct: 15 },
+    { input: 'Texture descriptor coverage', score: 55 + coverage * 45, weightPct: 10 },
   ].map(item => ({ ...item, contribution: item.score * item.weightPct / 100 }));
   const topTexture = ['creamy', 'smooth', 'firm', 'juicy', 'soft', 'springy', 'grainy', 'chalky', 'dry', 'rubbery']
     .filter(key => Number.isFinite(intensity[key]))
@@ -395,9 +406,13 @@ function buildSensoryProfileEvidence(profiles: EnhancedSensoryProfile[], foodTyp
         source: 'Internal-standard QC',
         batchId: profile.sampleId,
         replicateCount: 1,
-        finding: `Recovery ${profile.istdRecovery.toFixed(1)}%`,
+        finding: profile.istdRecovery == null
+          ? 'Not measured — no instrument QC was run for this study'
+          : `Recovery ${profile.istdRecovery.toFixed(1)}%`,
         benchmark: 'Pass range 85–110%',
-        decisionEffect: profile.istdRecovery >= 85 && profile.istdRecovery <= 110 ? 'supports' as const : 'watch' as const,
+        decisionEffect: profile.istdRecovery != null && profile.istdRecovery >= 85 && profile.istdRecovery <= 110
+          ? 'supports' as const
+          : 'watch' as const,
       },
     ],
     confidenceCalculation,

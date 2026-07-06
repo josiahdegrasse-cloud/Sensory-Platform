@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { AlertTriangle, Check, CheckCircle2, ClipboardCheck, ShieldAlert, Upload, X } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, ClipboardCheck, Minus, ShieldAlert, Upload, X } from 'lucide-react';
 import { Link } from 'react-router';
 import { buildDecisionSummary } from '../lib/decision-summary';
 import { useFoodType } from '../contexts/food-type-context';
@@ -39,12 +39,20 @@ const STATUS_STYLE: Record<GateStatus, string> = {
   pass: 'bg-emerald-50 text-emerald-700',
   watch: 'bg-amber-50 text-amber-700',
   fail: 'bg-rose-50 text-rose-700',
+  // Evidence never collected (panel-only study) — neutral, not a pass.
+  not_measured: 'bg-slate-100 text-slate-500',
 };
 
 function statusIcon(status: GateStatus) {
   if (status === 'pass') return Check;
   if (status === 'fail') return X;
+  if (status === 'not_measured') return Minus;
   return AlertTriangle;
+}
+
+function statusBadgeLabel(status: GateStatus) {
+  if (status === 'watch') return 'REVIEW';
+  return status.replace('_', ' ').toUpperCase();
 }
 
 function prototypeSignal(decision: GoStopTweakDecision) {
@@ -59,22 +67,36 @@ function prototypeSignal(decision: GoStopTweakDecision) {
   return strongest ? `Strongest: ${strongest[0]}` : 'No hard gates open';
 }
 
-function decisionCriteria(decision: GoStopTweakDecision): Array<{
+function decisionCriteria(decision: GoStopTweakDecision, goThreshold: number): Array<{
   id: string;
   label: string;
   question: string;
   status: GateStatus;
   detail: string;
+  badgeLabel?: string;
 }> {
   const acceptance = decision.dimensionScores.hedonic;
-  const productQuality = (decision.dimensionScores.texture + decision.dimensionScores.cata) / 2;
+  const dimensions = Object.entries(decision.dimensionScores) as Array<
+    [keyof GoStopTweakDecision['dimensionScores'], number]
+  >;
+  const weakestDimension = [...dimensions].sort((a, b) => a[1] - b[1])[0];
+  const weakestLabel = weakestDimension?.[0] === 'hedonic'
+    ? 'consumer acceptance'
+    : weakestDimension?.[0] === 'cata'
+      ? 'category fit'
+      : weakestDimension?.[0] === 'emotional'
+        ? 'emotional response'
+        : 'texture';
+  const weakestScore = weakestDimension?.[1] ?? decision.issfScore;
   const worstGate = decision.gates.find(gate => gate.status === 'fail')
     ?? decision.gates.find(gate => gate.status === 'watch');
   const defectStatus: GateStatus = decision.gates.some(gate => gate.status === 'fail')
     ? 'fail'
     : decision.gates.some(gate => gate.status === 'watch')
       ? 'watch'
-      : 'pass';
+      : decision.gates.length > 0 && decision.gates.every(gate => gate.status === 'not_measured')
+        ? 'not_measured'
+        : 'pass';
 
   return [
     {
@@ -85,18 +107,32 @@ function decisionCriteria(decision: GoStopTweakDecision): Array<{
       detail: `Liking evidence scored ${acceptance.toFixed(0)}/100. ${acceptance >= 70 ? 'Acceptance supports advancement.' : 'Acceptance needs improvement before scale-up.'}`,
     },
     {
-      id: 'quality',
-      label: 'Product quality',
-      question: 'Does the sensory profile meet the expected quality level?',
-      status: productQuality >= 68 ? 'pass' : productQuality < 48 ? 'fail' : 'watch',
-      detail: `Texture scored ${decision.dimensionScores.texture.toFixed(0)} and category fit scored ${decision.dimensionScores.cata.toFixed(0)}. ${productQuality >= 68 ? 'The combined quality signal is strong.' : 'At least one product-quality dimension is holding the result back.'}`,
+      id: 'texture',
+      label: 'Texture',
+      question: 'Is the product texture strong enough to advance without another formula pass?',
+      status: decision.dimensionScores.texture >= 72 ? 'pass' : decision.dimensionScores.texture < 55 ? 'fail' : 'watch',
+      badgeLabel: decision.dimensionScores.texture >= 72 ? undefined : 'FOCUS',
+      detail: decision.dimensionScores.texture >= 72
+        ? `Texture scored ${decision.dimensionScores.texture.toFixed(0)}/100. The texture signal is strong enough for advancement.`
+        : `Texture scored ${decision.dimensionScores.texture.toFixed(0)}/100. This is the main formula area to improve before retesting.`,
+    },
+    {
+      id: 'category-fit',
+      label: 'Category fit',
+      question: 'Does the product read like the intended category?',
+      status: decision.dimensionScores.cata >= 68 ? 'pass' : decision.dimensionScores.cata < 50 ? 'fail' : 'watch',
+      detail: decision.dimensionScores.cata >= 68
+        ? `Category fit scored ${decision.dimensionScores.cata.toFixed(0)}/100. Panel descriptors support the intended product category.`
+        : `Category fit scored ${decision.dimensionScores.cata.toFixed(0)}/100. The product needs clearer category-positive cues before advancement.`,
     },
     {
       id: 'defects',
       label: 'Defect risk',
       question: 'Are any aroma or instrument-quality issues blocking the decision?',
       status: defectStatus,
-      detail: worstGate?.detail ?? 'No aroma defect or instrument-quality gate is open.',
+      detail: worstGate?.detail ?? (defectStatus === 'not_measured'
+        ? 'Aroma and instrument-quality evidence was not collected for this study; this call rests on panel evidence alone.'
+        : 'No aroma defect or instrument-quality gate is open.'),
     },
     {
       id: 'confidence',
@@ -104,6 +140,18 @@ function decisionCriteria(decision: GoStopTweakDecision): Array<{
       question: 'Is the evidence strong enough to support this call?',
       status: decision.confidenceScore >= 72 ? 'pass' : 'watch',
       detail: `${decision.confidenceScore.toFixed(0)}% confidence. ${decision.confidenceScore >= 72 ? 'The evidence clears the GO confidence requirement.' : 'More responses or validation would reduce decision uncertainty.'}`,
+    },
+    {
+      id: 'optimization-focus',
+      label: decision.issfScore >= goThreshold ? 'Advancement margin' : 'Score margin',
+      question: decision.issfScore >= goThreshold
+        ? 'How much room does the prototype have above GO?'
+        : 'How close is this prototype to GO?',
+      status: decision.issfScore >= goThreshold ? 'pass' : 'watch',
+      badgeLabel: decision.issfScore >= goThreshold ? 'CLEARED' : 'NEAR GO',
+      detail: decision.issfScore >= goThreshold
+        ? `The total ISSF score clears GO. Keep ${weakestLabel} stable during scale-up because it is the lowest current dimension at ${weakestScore.toFixed(0)}/100.`
+        : `The total ISSF score is ${(goThreshold - decision.issfScore).toFixed(1)} points short of GO. The focus row above explains the practical change to retest.`,
     },
   ];
 }
@@ -120,24 +168,24 @@ function ThresholdTrack({ score, stopThreshold, goThreshold }: {
 
   return (
     <div aria-label={`ISSF score ${score.toFixed(1)} out of 100. ${distance}.`}>
-      <div className="mb-3 flex items-end justify-between gap-3">
+      <div className="mb-2 flex items-end justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-slate-900">Decision threshold</p>
           <p className="mt-0.5 text-xs text-slate-500">{distance}</p>
         </div>
-        <p className="text-2xl font-bold tabular-nums text-slate-900">{score.toFixed(1)}</p>
+        <p className="text-xl font-bold tabular-nums text-slate-900">{score.toFixed(1)}</p>
       </div>
-      <div className="relative pt-3">
-        <div className="flex h-2 overflow-hidden rounded-full">
+      <div className="relative pt-2.5">
+        <div className="flex h-1.5 overflow-hidden rounded-full">
           <span className="bg-rose-300" style={{ width: `${stopThreshold}%` }} />
           <span className="bg-amber-300" style={{ width: `${goThreshold - stopThreshold}%` }} />
           <span className="bg-emerald-300" style={{ width: `${100 - goThreshold}%` }} />
         </div>
         <span
-          className="absolute top-0 h-4 w-1 rounded-full bg-slate-950"
+          className="absolute top-0 h-3.5 w-1 rounded-full bg-slate-950"
           style={{ left: `${marker}%`, transform: 'translateX(-50%)' }}
         />
-        <div className="mt-2 grid grid-cols-3 text-[11px] font-medium text-slate-500">
+        <div className="mt-1.5 grid grid-cols-3 text-[11px] font-medium text-slate-500">
           <span>STOP &lt; {stopThreshold}</span>
           <span className="text-center">TWEAK</span>
           <span className="text-right">GO ≥ {goThreshold}</span>
@@ -172,7 +220,7 @@ export function DecisionReviewWorkspace({
   );
   const summary = buildDecisionSummary(selected);
   const outcomeStyle = OUTCOME_STYLE[selected.decision];
-  const criteria = decisionCriteria(selected);
+  const criteria = decisionCriteria(selected, goThreshold);
   const primaryPrescription = selected.prescriptions[0];
   const parentDecisionId = confirmedDecision?.recordId ?? null;
   const { subCategory } = useFoodType();
@@ -261,7 +309,9 @@ export function DecisionReviewWorkspace({
           <section aria-labelledby="decisive-evidence-heading">
             <div className="mb-4">
               <h3 id="decisive-evidence-heading" className="text-base font-semibold text-slate-900">Decisive evidence</h3>
-              <p className="mt-1 text-sm text-slate-700">The four questions that determine whether this prototype advances.</p>
+              <p className="mt-1 text-sm text-slate-700">
+                Strengths and focus areas are separated so one strong dimension does not hide another that needs work.
+              </p>
             </div>
             <div className="divide-y divide-slate-100 border-y border-slate-200">
               {criteria.map(criterion => {
@@ -277,7 +327,7 @@ export function DecisionReviewWorkspace({
                       <p className="mt-2 text-sm leading-6 text-slate-700">{criterion.detail}</p>
                     </div>
                     <Badge className={`${STATUS_STYLE[criterion.status]} w-fit border-0 shadow-none`}>
-                      {criterion.status === 'watch' ? 'REVIEW' : criterion.status.toUpperCase()}
+                      {criterion.badgeLabel ?? statusBadgeLabel(criterion.status)}
                     </Badge>
                   </div>
                 );

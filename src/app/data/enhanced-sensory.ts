@@ -40,9 +40,15 @@ export interface EnhancedSensoryProfile {
     isBlankArtefact?: boolean; // 25.4 min "burnt plastic" auto-removed
   }>;
   
-  // Internal standard QC
-  istdRecovery: number; // % recovery of 10 ng/L citronellal
+  // Internal standard QC. null = no instrument QC was run for this study
+  // (panel-only evidence); the QC gate must report "not measured", never a
+  // fabricated pass.
+  istdRecovery: number | null; // % recovery of 10 ng/L citronellal
   olfactometryFlowSplit: string; // "67:33 confirmed"
+
+  // Actual respondent count behind cata/intensity/hedonic/emotions. Reference
+  // profiles omit it and fall back to the nominal PANEL_N (14).
+  panelN?: number;
   
   // Semi-trained panel CATA (14 panelists, 25 attributes from Flavour Lexicon)
   cata: {

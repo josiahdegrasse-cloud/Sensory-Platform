@@ -102,8 +102,11 @@ function importedProfile(
       concentration: compound.concentration,
       threshold: compound.threshold,
     })),
-    istdRecovery: 90,
-    olfactometryFlowSplit: 'Imported CSV',
+    // Panel-only evidence has no instrument QC — null keeps the QC gate at
+    // "not measured" in downstream reports instead of a fabricated pass.
+    istdRecovery: null,
+    olfactometryFlowSplit: compounds.length > 0 ? 'Imported CSV' : 'Not measured',
+    panelN: aggregation.n,
     cata: aggregation.cata,
     intensity: aggregation.intensity,
     hedonic: {

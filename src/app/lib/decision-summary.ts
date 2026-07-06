@@ -39,10 +39,15 @@ function confidenceLabel(score: number): DecisionConfidence {
 export function buildDecisionSummary(decision: GoStopTweakDecision): DecisionSummary {
   const failedGate = decision.gates.find(gate => gate.status === 'fail');
   const watchedGate = decision.gates.find(gate => gate.status === 'watch');
+  const unmeasuredGates = decision.gates.filter(gate => gate.status === 'not_measured');
   const reasons = [
     ...decision.details,
     failedGate?.detail,
     watchedGate?.detail,
+    // Honest caveat: evidence that was never collected is surfaced, not hidden.
+    unmeasuredGates.length > 0
+      ? `Not measured: ${unmeasuredGates.map(gate => gate.label.toLowerCase()).join(', ')} — this call rests on panel evidence alone.`
+      : undefined,
   ].filter((reason): reason is string => Boolean(reason));
 
   return {

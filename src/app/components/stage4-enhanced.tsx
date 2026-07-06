@@ -171,8 +171,11 @@ export function Stage4Enhanced() {
           concentration: compound.concentration,
           threshold: compound.threshold,
         })),
-        istdRecovery: 90,
-        olfactometryFlowSplit: 'Imported CSV',
+        // Panel-only imports carry no instrument QC — null keeps the QC gate
+        // honest ("not measured"), instead of fabricating a passing recovery.
+        istdRecovery: null,
+        olfactometryFlowSplit: compounds.length > 0 ? 'Imported CSV' : 'Not measured',
+        panelN: aggregation.n,
         cata: aggregation.cata,
         intensity: aggregation.intensity,
         hedonic: {
