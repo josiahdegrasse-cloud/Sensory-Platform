@@ -16,6 +16,17 @@ export type ConceptImageMode =
   | 'buyer_presentation'
   | 'concept_board';
 
+/** The three render sizes the gpt-image family supports. */
+export type ConceptImageSize = '1024x1024' | '1536x1024' | '1024x1536';
+
+export const CONCEPT_IMAGE_SIZES: ConceptImageSize[] = ['1024x1024', '1536x1024', '1024x1536'];
+
+export const CONCEPT_IMAGE_SIZE_LABELS: Record<ConceptImageSize, string> = {
+  '1024x1024': 'Square',
+  '1536x1024': 'Landscape',
+  '1024x1536': 'Portrait',
+};
+
 export interface ConceptImageModeDefinition {
   id: ConceptImageMode;
   label: string;
@@ -26,6 +37,8 @@ export interface ConceptImageModeDefinition {
   avoid: string;
   /** How much rendered text the image may carry. */
   textPolicy: 'name-and-positioning' | 'name-only' | 'no-text';
+  /** Render size matched to how this format is actually used downstream. */
+  size: ConceptImageSize;
 }
 
 export const CONCEPT_IMAGE_MODES: ConceptImageModeDefinition[] = [
@@ -40,6 +53,7 @@ export const CONCEPT_IMAGE_MODES: ConceptImageModeDefinition[] = [
     avoid:
       'fake nutrition facts panels, dense or unreadable label text, fantasy or physically impossible packaging structures, random badges, real brand logos',
     textPolicy: 'name-and-positioning',
+    size: '1024x1024',
   },
   {
     id: 'lifestyle',
@@ -51,6 +65,7 @@ export const CONCEPT_IMAGE_MODES: ConceptImageModeDefinition[] = [
     avoid:
       'sterile stock-photo posing, readable packaging text, celebrity likenesses, exaggerated performance or health storytelling, perfect plastic food, extra fingers or distorted hands',
     textPolicy: 'no-text',
+    size: '1536x1024',
   },
   {
     id: 'ecommerce',
@@ -62,6 +77,7 @@ export const CONCEPT_IMAGE_MODES: ConceptImageModeDefinition[] = [
     avoid:
       'busy backgrounds, props that obscure the product, decorative typography overlays, badges or rosettes, warped pack edges, floating objects',
     textPolicy: 'name-only',
+    size: '1024x1024',
   },
   {
     id: 'shelf',
@@ -73,6 +89,7 @@ export const CONCEPT_IMAGE_MODES: ConceptImageModeDefinition[] = [
     avoid:
       'real retailer names or signage, competitor logos or recognizable competitor packs, fake price tags with claims, detailed readable labels on neighboring products, impossible shelf spacing',
     textPolicy: 'name-only',
+    size: '1536x1024',
   },
   {
     id: 'social_ad',
@@ -84,6 +101,7 @@ export const CONCEPT_IMAGE_MODES: ConceptImageModeDefinition[] = [
     avoid:
       'rendered headlines or slogans, claim text of any kind, meme styling, surreal AI-art effects, confetti, excessive glow, distorted product forms',
     textPolicy: 'name-only',
+    size: '1024x1536',
   },
   {
     id: 'ingredient_benefit',
@@ -95,6 +113,7 @@ export const CONCEPT_IMAGE_MODES: ConceptImageModeDefinition[] = [
     avoid:
       'health or nutrition claim text, medical imagery, certification marks, ingredient callout labels or annotations, levitating ingredient storms',
     textPolicy: 'no-text',
+    size: '1024x1024',
   },
   {
     id: 'buyer_presentation',
@@ -106,6 +125,7 @@ export const CONCEPT_IMAGE_MODES: ConceptImageModeDefinition[] = [
     avoid:
       'gimmicky effects, aggressive marketing styling, dense text, awards or endorsement imagery, overly dramatic shadows that hide product truth',
     textPolicy: 'name-and-positioning',
+    size: '1536x1024',
   },
   {
     id: 'concept_board',
@@ -117,6 +137,7 @@ export const CONCEPT_IMAGE_MODES: ConceptImageModeDefinition[] = [
     avoid:
       'readable text blocks, logos, watermark-style labels, clashing visual styles between tiles, scrapbook clutter',
     textPolicy: 'no-text',
+    size: '1536x1024',
   },
 ];
 
@@ -137,6 +158,18 @@ export function normalizeConceptImageMode(value: unknown): ConceptImageMode {
 export function getConceptImageMode(value: unknown): ConceptImageModeDefinition {
   const id = normalizeConceptImageMode(value);
   return CONCEPT_IMAGE_MODES.find(mode => mode.id === id)!;
+}
+
+/**
+ * Resolves the render size for a mode. `override` accepts an explicit size
+ * (admin's "image shape" choice) or 'auto'/anything else to use the mode's
+ * catalog default, so every format renders in the shape it is used in
+ * downstream (ecommerce square, shelf landscape, social portrait, ...).
+ */
+export function getConceptImageSize(mode: unknown, override?: unknown): ConceptImageSize {
+  const requested = typeof override === 'string' ? override.trim() : '';
+  if ((CONCEPT_IMAGE_SIZES as string[]).includes(requested)) return requested as ConceptImageSize;
+  return getConceptImageMode(mode).size;
 }
 
 // A generation batch spans these modes (in priority order, lead mode first) so

@@ -2,13 +2,16 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import {
   buildModeSequence,
+  getConceptImageSize,
   normalizeConceptImageMode,
   normalizePromptStyle,
 } from '../_shared/concept-image-catalog.ts'
 import {
   buildConceptImageBrief,
   buildConceptImagePrompt,
+  buildConceptImageRefinePrompt,
   type ConceptImageBrief,
+  type ConceptReferenceContext,
 } from '../_shared/concept-image-prompt.ts'
 
 interface GenerateConceptImagesBody {
@@ -39,6 +42,20 @@ interface GenerateConceptImagesBody {
   quality?: string;
   /** When false, all images use the lead mode instead of spanning distinct modes. */
   spreadModes?: boolean;
+  /** Explicit render size override; anything else uses each mode's catalog size. */
+  size?: string;
+  /**
+   * The concept's locked product-design image (a concept_images id owned by
+   * this org). When present, generation switches to the image-edit endpoint so
+   * every new format re-stages that exact design.
+   */
+  referenceImageIds?: string[];
+  /** Set false to skip applying the org brand kit for this batch. */
+  useBrandKit?: boolean;
+  /** 'refine' = single-image targeted revision of baseImageId. */
+  intent?: string;
+  baseImageId?: string;
+  refineInstruction?: string;
 }
 
 const DEFAULT_IMAGE_COUNT = 4;
@@ -55,6 +72,78 @@ function decodeBase64Image(dataUrlOrBase64: string) {
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes;
+}
+
+interface StoredBrandKit {
+  referenceImagePath: string;
+  sourceImageId: string;
+  sourceConceptName: string;
+  brandDescriptor: string;
+}
+
+/** Tolerant parse of workspace_settings.brand_kit (jsonb; column may not exist yet). */
+function parseBrandKit(value: unknown): StoredBrandKit | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  const kit: StoredBrandKit = {
+    referenceImagePath: clean(record.referenceImagePath),
+    sourceImageId: clean(record.sourceImageId),
+    sourceConceptName: clean(record.sourceConceptName),
+    brandDescriptor: clean(record.brandDescriptor),
+  };
+  return kit.referenceImagePath || kit.brandDescriptor ? kit : null;
+}
+
+interface ReferenceFile {
+  bytes: Uint8Array;
+  name: string;
+}
+
+/**
+ * Sends one image request. With reference files it uses the image-edit
+ * endpoint (multipart, image[] per reference — locked design first, brand kit
+ * second, matching the prompt's attachment-order contract); without, the plain
+ * generations endpoint. Both return b64 image data in the same response shape.
+ */
+async function requestOpenAiImage(input: {
+  openAiKey: string;
+  model: string;
+  prompt: string;
+  size: string;
+  quality: string;
+  references: ReferenceFile[];
+}) {
+  if (input.references.length === 0) {
+    return fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${input.openAiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: input.model,
+        prompt: input.prompt,
+        n: 1,
+        size: input.size,
+        quality: input.quality,
+        background: 'opaque',
+      }),
+    });
+  }
+  const form = new FormData();
+  form.append('model', input.model);
+  form.append('prompt', input.prompt);
+  form.append('n', '1');
+  form.append('size', input.size);
+  form.append('quality', input.quality);
+  for (const reference of input.references) {
+    form.append('image[]', new Blob([reference.bytes as BlobPart], { type: 'image/png' }), reference.name);
+  }
+  return fetch('https://api.openai.com/v1/images/edits', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${input.openAiKey}` },
+    body: form,
+  });
 }
 
 Deno.serve(async (req: Request) => {
@@ -146,9 +235,11 @@ Deno.serve(async (req: Request) => {
       .eq('org_id', orgId)
       .eq('active', true)
       .maybeSingle();
+    // select('*') so the optional brand_kit / branding columns are tolerated on
+    // databases that have not run the newest migrations yet.
     const { data: workspaceSettings } = await serviceClient
       .from('workspace_settings')
-      .select('concept_max_generations_per_concept, concept_monthly_budget_cents, concept_require_approval, organization_name, report_tone')
+      .select('*')
       .eq('org_id', orgId)
       .maybeSingle();
 
@@ -162,12 +253,108 @@ Deno.serve(async (req: Request) => {
     const configuredStyle = normalizePromptStyle(clean(body.promptStyle, clean(settings?.prompt_style, 'balanced')));
     const costPerImage = Number(settings?.estimated_cost_per_image) || 0.034;
 
-    const count = Math.max(1, Math.min(configuredMax, Number(body.count) || configuredCount));
     const model = configuredModel;
     const quality = configuredQuality;
     const projectName = clean(body.projectName, 'Project 1');
     const foodTypeSlug = clean(body.foodTypeSlug);
-    const primaryMode = normalizeConceptImageMode(body.mode);
+    const intent: 'explore' | 'refine' = clean(body.intent) === 'refine' ? 'refine' : 'explore';
+    const refineInstruction = clean(body.refineInstruction);
+    const sizeOverride = clean(body.size);
+    const useBrandKit = body.useBrandKit !== false;
+    const settingsRecord = (workspaceSettings ?? {}) as Record<string, unknown>;
+    const brandKit = parseBrandKit(settingsRecord.brand_kit);
+    const brandColors = [clean(settingsRecord.primary_color), clean(settingsRecord.accent_color)].filter(Boolean);
+
+    // ── Reference images (org-validated, storage-backed) ────────────────────
+    // Every reference must be a concept_images row owned by this org; a tenant
+    // can never pull another org's image into a prompt.
+    const loadOrgImageRows = async (ids: string[]) => {
+      if (ids.length === 0) return [];
+      const { data, error } = await serviceClient
+        .from('concept_images')
+        .select('id, storage_path, mode')
+        .eq('org_id', orgId)
+        .in('id', ids);
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; storage_path: string | null; mode: string | null }>;
+    };
+    const downloadReference = async (path: string, name: string): Promise<ReferenceFile> => {
+      const { data, error } = await serviceClient.storage.from('concept-images').download(path);
+      if (error || !data) throw new Error(`Reference image is no longer available in storage (${name}).`);
+      return { bytes: new Uint8Array(await data.arrayBuffer()), name };
+    };
+
+    let baseImageMode = '';
+    const referenceFiles: ReferenceFile[] = [];
+    let productLocked = false;
+    let brandKitImageAttached = false;
+
+    if (intent === 'refine') {
+      const baseId = clean(body.baseImageId);
+      if (!baseId) {
+        return new Response(JSON.stringify({ error: 'Refinement requires the image to refine (baseImageId).' }), {
+          status: 400,
+          headers: { ...headers, 'Content-Type': 'application/json' },
+        });
+      }
+      const [baseRow] = await loadOrgImageRows([baseId]);
+      if (!baseRow?.storage_path) {
+        return new Response(JSON.stringify({ error: 'The image to refine was not found in this workspace.' }), {
+          status: 404,
+          headers: { ...headers, 'Content-Type': 'application/json' },
+        });
+      }
+      baseImageMode = clean(baseRow.mode, 'packaging');
+      referenceFiles.push(await downloadReference(baseRow.storage_path, 'base-image.png'));
+    } else {
+      // Locked product design (at most one), attached first per the prompt's
+      // attachment-order contract.
+      const lockedIds = (Array.isArray(body.referenceImageIds) ? body.referenceImageIds : [])
+        .map(id => clean(id)).filter(Boolean).slice(0, 1);
+      if (lockedIds.length > 0) {
+        const [lockedRow] = await loadOrgImageRows(lockedIds);
+        if (!lockedRow?.storage_path) {
+          return new Response(JSON.stringify({ error: 'The locked design image was not found in this workspace.' }), {
+            status: 404,
+            headers: { ...headers, 'Content-Type': 'application/json' },
+          });
+        }
+        referenceFiles.push(await downloadReference(lockedRow.storage_path, 'locked-design.png'));
+        productLocked = true;
+      }
+      // Org brand kit reference, attached second. A missing file degrades to
+      // descriptor-only brand guidance rather than failing the batch.
+      if (useBrandKit && brandKit?.referenceImagePath && brandKit.sourceImageId !== lockedIds[0]) {
+        try {
+          referenceFiles.push(await downloadReference(brandKit.referenceImagePath, 'brand-kit.png'));
+          brandKitImageAttached = true;
+        } catch (_err) {
+          brandKitImageAttached = false;
+        }
+      }
+    }
+
+    const referenceContext: ConceptReferenceContext | null = intent === 'refine'
+      ? null
+      : productLocked || (useBrandKit && brandKit)
+        ? {
+            productLocked,
+            brandKit: useBrandKit && brandKit
+              ? {
+                  brandDescriptor: brandKit.brandDescriptor,
+                  brandColors,
+                  hasReferenceImage: brandKitImageAttached,
+                }
+              : null,
+          }
+        : null;
+
+    const count = intent === 'refine'
+      ? 1
+      : Math.max(1, Math.min(configuredMax, Number(body.count) || configuredCount));
+    const primaryMode = intent === 'refine'
+      ? normalizeConceptImageMode(baseImageMode)
+      : normalizeConceptImageMode(body.mode);
 
     // Branding comes from the caller's workspace settings, never from the
     // request body — a tenant cannot generate under another client's name.
@@ -203,10 +390,14 @@ Deno.serve(async (req: Request) => {
       foodTypeSlug,
     });
 
-    const angles = buildModeSequence(primaryMode, count, body.spreadModes !== false);
+    const angles = intent === 'refine'
+      ? [primaryMode]
+      : buildModeSequence(primaryMode, count, body.spreadModes !== false);
     const angledPrompts = angles.map(angle => {
-      const built = buildConceptImagePrompt({ ...brief, imageMode: angle });
-      return { angle, prompt: built.prompt, summary: built.summary };
+      const built = intent === 'refine'
+        ? buildConceptImageRefinePrompt({ brief: { ...brief, imageMode: angle }, instruction: refineInstruction })
+        : buildConceptImagePrompt({ ...brief, imageMode: angle }, referenceContext);
+      return { angle, size: getConceptImageSize(angle, sizeOverride), prompt: built.prompt, summary: built.summary };
     });
     const prompt = angledPrompts[0].prompt;
     const estimatedCost = Number((count * costPerImage).toFixed(4));
@@ -289,6 +480,14 @@ Deno.serve(async (req: Request) => {
           keyBenefits: body.keyBenefits,
           // Full normalized brief for provenance — what the prompts were built from.
           imageBrief: brief,
+          // Reference provenance: how this batch was anchored (or not).
+          generationIntent: intent,
+          baseImageId: intent === 'refine' ? clean(body.baseImageId) : null,
+          refineInstruction: intent === 'refine' ? refineInstruction : null,
+          lockedDesignImageId: productLocked ? clean((body.referenceImageIds ?? [])[0]) : null,
+          brandKitApplied: Boolean(intent !== 'refine' && useBrandKit && brandKit),
+          brandKitImageAttached,
+          sizes: angledPrompts.map(item => item.size),
         },
       })
       .select()
@@ -298,25 +497,20 @@ Deno.serve(async (req: Request) => {
 
     // One request per angle (n: 1 each) so every image is art-directed from a
     // genuinely distinct prompt — a single shared prompt with n > 1 just
-    // produces near-duplicate renders of the same shot.
-    const angleResponses = await Promise.all(angledPrompts.map(async ({ angle, prompt: anglePrompt, summary }) => {
-      const res = await fetch('https://api.openai.com/v1/images/generations', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${openAiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model,
-          prompt: anglePrompt,
-          n: 1,
-          size: '1024x1024',
-          quality,
-          background: 'opaque',
-        }),
+    // produces near-duplicate renders of the same shot. When reference images
+    // are present (locked design / brand kit / refine base), the shared helper
+    // switches to the image-edit endpoint so the design carries across angles.
+    const angleResponses = await Promise.all(angledPrompts.map(async ({ angle, size, prompt: anglePrompt, summary }) => {
+      const res = await requestOpenAiImage({
+        openAiKey,
+        model,
+        prompt: anglePrompt,
+        size,
+        quality,
+        references: referenceFiles,
       });
       const json = await res.json();
-      return { angle, prompt: anglePrompt, summary, ok: res.ok, status: res.status, json };
+      return { angle, size, prompt: anglePrompt, summary, ok: res.ok, status: res.status, json };
     }));
 
     const failed = angleResponses.find(r => !r.ok);
@@ -331,10 +525,10 @@ Deno.serve(async (req: Request) => {
 
     const imageResults = [] as Array<{
       id: string; url: string; storagePath: string;
-      mode: string; promptStyle: string; summary: string; revisedPrompt?: string;
+      mode: string; size: string; promptStyle: string; summary: string; revisedPrompt?: string;
     }>;
     for (let index = 0; index < angleResponses.length; index++) {
-      const { angle, prompt: anglePrompt, summary, json } = angleResponses[index];
+      const { angle, size, prompt: anglePrompt, summary, json } = angleResponses[index];
       const item = ((json.data ?? [])[0] ?? {}) as { b64_json?: string; url?: string; revised_prompt?: string };
       let signedUrl = '';
       let storagePath = '';
@@ -387,6 +581,7 @@ Deno.serve(async (req: Request) => {
         url: signedUrl,
         storagePath,
         mode: angle,
+        size,
         promptStyle: configuredStyle,
         summary,
         revisedPrompt: item.revised_prompt,
@@ -405,6 +600,10 @@ Deno.serve(async (req: Request) => {
       quality,
       promptStyle: configuredStyle,
       modes: angles,
+      sizes: angledPrompts.map(item => item.size),
+      intent,
+      usedLockedDesign: productLocked,
+      usedBrandKit: Boolean(intent !== 'refine' && useBrandKit && brandKit),
       summary: angledPrompts[0].summary,
       estimatedCost,
       prompt,

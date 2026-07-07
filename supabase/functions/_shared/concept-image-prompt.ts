@@ -200,6 +200,63 @@ function brandPhrase(brief: ConceptImageBrief): string {
     : 'a credible early-stage food brand';
 }
 
+// ─── Reference images (locked design + org brand kit) ───────────────────────
+
+/** Org-level house style carried across concepts (the compounding brand kit). */
+export interface ConceptBrandKitContext {
+  /** Free-text style descriptor the admin maintains (materials, mood, voice). */
+  brandDescriptor: string;
+  /** Configured brand colors (hex or names) from workspace branding. */
+  brandColors: string[];
+  /** True when a brand-kit reference image is attached to the request. */
+  hasReferenceImage: boolean;
+}
+
+export interface ConceptReferenceContext {
+  /**
+   * True when this concept's locked product-design image is attached — the
+   * model must treat it as the same physical product and only re-stage it.
+   */
+  productLocked: boolean;
+  brandKit?: ConceptBrandKitContext | null;
+}
+
+/**
+ * Sentences that bind the prompt to the attached reference image(s). Attachment
+ * order contract (mirrored by the edge function): locked product design first,
+ * brand-kit reference second.
+ */
+export function buildReferenceDirections(reference?: ConceptReferenceContext | null): string[] {
+  if (!reference) return [];
+  const directions: string[] = [];
+  const kit = reference.brandKit ?? null;
+  const kitHasImage = Boolean(kit?.hasReferenceImage);
+
+  if (reference.productLocked) {
+    const which = kitHasImage ? 'The first attached reference image' : 'The attached reference image';
+    directions.push(
+      `${which} is this concept's approved product and pack design. Treat it as the exact same physical product: preserve the pack structure, label layout and hierarchy, brand colors, name placement, materials, and product identity precisely — do not redesign, restyle, or rename it. Re-stage that exact product for the format described below; only the scene, camera, lighting, and composition may change.`,
+    );
+  }
+
+  if (kit) {
+    const colorNote = kit.brandColors.length ? ` Core brand colors: ${kit.brandColors.join(', ')}.` : '';
+    const styleNote = kit.brandDescriptor ? ` House style notes: ${kit.brandDescriptor}.` : '';
+    if (kitHasImage) {
+      const which = reference.productLocked ? 'The second attached reference image' : 'The attached reference image';
+      directions.push(
+        `${which} shows this company's established house brand style. New design work must read as the same brand family — consistent palette, typography voice, and material finish — while remaining a genuinely distinct product design, not a copy of that reference.${colorNote}${styleNote}`,
+      );
+    } else if (kit.brandDescriptor || kit.brandColors.length) {
+      directions.push(
+        `Honor the company's established house brand style so this reads as the same brand family while remaining a distinct new design.${colorNote}${styleNote}`,
+      );
+    }
+  }
+
+  return directions;
+}
+
 const TEXT_POLICY_DIRECTIONS: Record<string, string> = {
   'name-and-positioning':
     'Keep any rendered package text minimal and readable: at most the product name and one short positioning line. No other label copy.',
@@ -238,7 +295,10 @@ function retailFormatDirection(mode: ConceptImageMode): string {
   return 'Concept-board craft: use a disciplined grid and unified lighting language so all cues feel curated by one art director.';
 }
 
-export function buildConceptImagePrompt(brief: ConceptImageBrief): { prompt: string; summary: string } {
+export function buildConceptImagePrompt(
+  brief: ConceptImageBrief,
+  reference?: ConceptReferenceContext | null,
+): { prompt: string; summary: string } {
   const mode = getConceptImageMode(brief.imageMode);
   const style = getPromptStyle(brief.promptStyle);
   const product = brief.productName || 'a new food product concept';
@@ -249,6 +309,8 @@ export function buildConceptImagePrompt(brief: ConceptImageBrief): { prompt: str
   const sections = [
     // 1. Subject
     `Create a professional ${mode.label.toLowerCase()} concept image for "${product}"${category}, developed for ${brandPhrase(brief)}.`,
+    // 1b. Reference images (locked product design and/or org brand kit)
+    ...buildReferenceDirections(reference),
     // 2. Image mode direction
     `${mode.purpose}. ${mode.direction}`,
     // 3. Marketing positioning
@@ -311,8 +373,38 @@ export function buildConceptImagePrompt(brief: ConceptImageBrief): { prompt: str
       : `${product}${category}`,
     segments ? `for ${segments}` : '',
     brief.targetOccasion ? `(${brief.targetOccasion})` : '',
+    reference?.productLocked ? '(re-staged from the locked product design)' : '',
   ].filter(Boolean);
   const summary = `${summaryParts.join(' — ')}.`;
 
+  return { prompt, summary };
+}
+
+/**
+ * Prompt for a single-image targeted revision via the image-edit endpoint:
+ * keep the approved visual, change only what the admin asked for. Deliberately
+ * compact — the attached image carries the design; the text carries the delta
+ * plus the platform's claim-safety and anti-artifact guardrails.
+ */
+export function buildConceptImageRefinePrompt(input: {
+  brief: ConceptImageBrief;
+  instruction: string;
+}): { prompt: string; summary: string } {
+  const mode = getConceptImageMode(input.brief.imageMode);
+  const product = input.brief.productName || 'this food product concept';
+  const instruction = input.instruction.trim() || 'Improve overall commercial polish without changing the design.';
+
+  const sections = [
+    `The attached image is an approved ${mode.label.toLowerCase()} concept visual for "${product}". Apply exactly one focused revision and change nothing else.`,
+    `Requested revision: ${instruction}.`,
+    'Preserve everything the revision does not name: pack structure and design, label layout and text, brand colors, product identity, food styling, camera framing, lighting character, and photographic style.',
+    TEXT_POLICY_DIRECTIONS[mode.textPolicy],
+    `Strictly avoid: ${PLATFORM_FORBIDDEN_IN_IMAGES.join('; ')}; ${mode.avoid}.`,
+    `Avoid AI-image tells: ${sentenceList(AI_ARTIFACTS_TO_AVOID)}.`,
+    'Output quality: the same senior-agency concept standard as the original — commercially plausible with no generative artifacts.',
+  ];
+
+  const prompt = sections.join(' ').slice(0, MAX_PROMPT_LENGTH);
+  const summary = `${mode.label} refinement — ${instruction}`;
   return { prompt, summary };
 }

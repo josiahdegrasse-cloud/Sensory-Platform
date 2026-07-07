@@ -13,6 +13,7 @@ import {
   fetchFoodTypes, fetchInstrumentalDataset, fetchImportBatches,
   fetchProjects, createProject, renameProject, assignBatchToProject,
   fetchWorkspaceSettings, updateWorkspaceSettings, fetchAuditEvents,
+  adoptConceptImageAsBrandKit, clearConceptBrandKit,
   fetchDecisionRecords,
   fetchPanelistKits, fetchPanelistKitInvite, fetchPanelistKitInviteByManualCode, generatePanelistKits,
   claimPanelistKit, markPanelistKitStarted, markPanelistKitSubmitted,
@@ -557,6 +558,30 @@ export function useUpdateWorkspaceSettings() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.workspaceSettings })
       qc.invalidateQueries({ queryKey: queryKeys.publicWorkspaceConfig })
+      qc.invalidateQueries({ queryKey: queryKeys.auditEvents })
+    },
+  })
+}
+
+/** Adopt an approved concept image as the org's concept brand kit. */
+export function useAdoptBrandKit() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { imageId: string; sourceConceptName: string; brandDescriptor?: string; actorId?: string | null }) =>
+      adoptConceptImageAsBrandKit(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.workspaceSettings })
+      qc.invalidateQueries({ queryKey: queryKeys.auditEvents })
+    },
+  })
+}
+
+export function useClearBrandKit() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (actorId?: string | null) => clearConceptBrandKit(actorId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.workspaceSettings })
       qc.invalidateQueries({ queryKey: queryKeys.auditEvents })
     },
   })

@@ -32,6 +32,7 @@ const draft: ConceptDraft = {
   forbiddenClaims: '',
   approvalStatus: 'draft',
   variantDimensions: { ...EMPTY_VARIANT_DIMENSIONS },
+  brandReference: null,
 };
 
 const questions: Question[] = [{

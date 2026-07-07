@@ -15,9 +15,12 @@ import {
 } from 'lucide-react';
 import {
   CONCEPT_IMAGE_MODES,
+  CONCEPT_IMAGE_SIZE_LABELS,
+  CONCEPT_IMAGE_SIZES,
   PROMPT_STYLES,
   normalizePromptStyle,
   type ConceptImageMode,
+  type ConceptImageSize,
   type PromptStyleId,
 } from '../../../../supabase/functions/_shared/concept-image-catalog.ts';
 import type { ConceptDraft } from './types';
@@ -27,6 +30,10 @@ export interface ImageGenerationOptions {
   count: number;
   quality: string;
   spreadModes: boolean;
+  /** 'auto' renders each format at its catalog size; a size forces one shape. */
+  sizeOverride: 'auto' | ConceptImageSize;
+  /** When a design is locked, whether this batch re-stages it (vs. explores fresh). */
+  useLockedDesign: boolean;
 }
 
 const CREATIVE_TERRITORY_GUIDANCE: Record<string, string> = {
@@ -116,10 +123,12 @@ export function ImageDirectionPanel({
   const style = normalizePromptStyle(draft.promptStyle);
   const applyPreset = (preset: (typeof IMAGE_PRESETS)[number]) => {
     onOptionsChange({
+      ...options,
       mode: preset.mode,
       count: Math.min(maxCount, preset.count),
       quality: preset.quality,
       spreadModes: preset.spreadModes,
+      sizeOverride: 'auto',
     });
     onChange({ ...draft, promptStyle: preset.promptStyle });
   };
@@ -189,7 +198,7 @@ export function ImageDirectionPanel({
 
       {advancedOpen && (
         <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-4">
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1.5">
               <Label htmlFor="concept-image-style" className="text-xs font-medium">Creative territory</Label>
               <Select value={style} onValueChange={(value) => onChange({ ...draft, promptStyle: value })}>
@@ -232,6 +241,26 @@ export function ImageDirectionPanel({
               </Select>
               <p className="text-[11px] leading-4 text-slate-500">
                 High quality is recommended for buyer-ready retail concept visuals.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="concept-image-size" className="text-xs font-medium">Image shape</Label>
+              <Select
+                value={options.sizeOverride}
+                onValueChange={(value) => onOptionsChange({ ...options, sizeOverride: value as ImageGenerationOptions['sizeOverride'] })}
+              >
+                <SelectTrigger id="concept-image-size" aria-label="Image shape" className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto" className="text-xs">Auto — match each format</SelectItem>
+                  {CONCEPT_IMAGE_SIZES.map(size => (
+                    <SelectItem key={size} value={size} className="text-xs">
+                      {CONCEPT_IMAGE_SIZE_LABELS[size]} ({size})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] leading-4 text-slate-500">
+                Auto renders each format in the shape it is used in: square packs, landscape shelf and deck shots, portrait social.
               </p>
             </div>
           </div>

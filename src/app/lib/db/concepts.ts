@@ -51,6 +51,8 @@ export interface ConceptTest {
   archivedAt?: string | null;
   /** Structured positioning dimensions for causal analysis across concepts. */
   variantDimensions?: Record<string, string | null>;
+  /** The concept image locked as this concept's product design, if any. */
+  brandReferenceImageId?: string | null;
 }
 
 export interface ConceptResponse {
@@ -183,6 +185,8 @@ function toConceptTest(row: Tables['concept_tests']['Row']): ConceptTest {
     launchedAt: row.launched_at ?? null,
     archivedAt: row.archived_at ?? null,
     variantDimensions: fromJson<Record<string, string | null>>(row.variant_dimensions) ?? {},
+    // Cast: column may predate regenerated database.types.ts.
+    brandReferenceImageId: ((row as Record<string, unknown>).brand_reference_image_id as string | null) ?? null,
   };
 }
 
@@ -236,30 +240,39 @@ async function hydrateConceptTestImages(test: ConceptTest, includeMeta = false):
 export async function insertConceptTest(
   test: Omit<ConceptTest, 'id' | 'createdAt'>,
 ): Promise<ConceptTest> {
-  const { data, error } = await supabase
-    .from('concept_tests')
-    .insert({
-      name: test.name,
-      category: test.category,
-      description: test.description,
-      image_urls: test.imageIds?.length ? [] : test.imageUrls,
-      generated_image_ids: test.imageIds ?? [],
-      target_market: test.targetMarket,
-      price_point: test.pricePoint,
-      key_benefits: test.keyBenefits,
-      questions: asJson(test.questions),
-      panel_size: test.panelSize,
-      assigned_panelist_ids: test.assignedPanelistIds,
-      concept_folder_name: test.projectName ?? 'Project 1',
-      food_type_slug: test.foodTypeSlug ?? '',
-      approval_notes: test.approvalNotes ?? '',
-      status: test.status,
-      launched_at: test.status === 'active' ? new Date().toISOString() : null,
-      variant_dimensions: test.variantDimensions ?? {},
-    })
-    .select()
-    .single();
+  const basePayload = {
+    name: test.name,
+    category: test.category,
+    description: test.description,
+    image_urls: test.imageIds?.length ? [] : test.imageUrls,
+    generated_image_ids: test.imageIds ?? [],
+    target_market: test.targetMarket,
+    price_point: test.pricePoint,
+    key_benefits: test.keyBenefits,
+    questions: asJson(test.questions),
+    panel_size: test.panelSize,
+    assigned_panelist_ids: test.assignedPanelistIds,
+    concept_folder_name: test.projectName ?? 'Project 1',
+    food_type_slug: test.foodTypeSlug ?? '',
+    approval_notes: test.approvalNotes ?? '',
+    status: test.status,
+    launched_at: test.status === 'active' ? new Date().toISOString() : null,
+    variant_dimensions: test.variantDimensions ?? {},
+  };
+  // brand_reference_image_id lands with the concept_brand_kit migration;
+  // retry without it on databases that have not applied it yet.
+  let { data, error } = test.brandReferenceImageId
+    ? await supabase
+        .from('concept_tests')
+        .insert({ ...basePayload, brand_reference_image_id: test.brandReferenceImageId } as never)
+        .select()
+        .single()
+    : await supabase.from('concept_tests').insert(basePayload).select().single();
+  if (error && test.brandReferenceImageId && error.message?.includes('brand_reference_image_id')) {
+    ({ data, error } = await supabase.from('concept_tests').insert(basePayload).select().single());
+  }
   if (error) throw dbError(error);
+  if (!data) throw new Error('Concept insert returned no row.');
   const concept = toConceptTest(data);
   if (test.imageIds?.length) {
     await linkConceptImagesToConcept(concept.id, test.imageIds);

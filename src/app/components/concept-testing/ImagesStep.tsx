@@ -16,11 +16,13 @@ import {
   AlertDialogTitle,
 } from '../ui/alert-dialog';
 import {
-  CheckCircle2, ChevronDown, Image as ImageIcon, Loader2,
-  Plus, RefreshCw, ShieldCheck, Sparkles, Trash2,
+  CheckCircle2, ChevronDown, Image as ImageIcon, Loader2, Lock,
+  Plus, RefreshCw, ShieldCheck, Sparkles, Star, Trash2, Unlock, Wand2,
 } from 'lucide-react';
+import { Switch } from '../ui/switch';
 import { supabase } from '../../lib/supabase';
 import { updateConceptImageReviewStatus } from '../../lib/database';
+import { useAdoptBrandKit, useWorkspaceSettings } from '../../lib/hooks';
 import { detectFoodType, getFoodTypeProfile } from '../../lib/food-intelligence';
 import type { ConceptGenerationSettings } from '../../lib/db/concepts';
 import { useAuth } from '../../contexts/auth-context';
@@ -32,6 +34,7 @@ import {
 import {
   buildConceptImageBrief,
   buildConceptImagePrompt,
+  type ConceptReferenceContext,
 } from '../../../../supabase/functions/_shared/concept-image-prompt.ts';
 import type {
   ConceptDraft,
@@ -46,6 +49,8 @@ interface CandidateImage {
   url: string;
   selected: boolean;
   mode?: string;
+  size?: string;
+  storagePath?: string;
   promptStyle?: string;
   summary?: string;
   revisedPrompt?: string;
@@ -126,10 +131,13 @@ function AIGovernancePanel({
   candidates,
   model,
   quality,
+  sourceLabel,
 }: {
   candidates: CandidateImage[];
   model?: string;
   quality: ImageGenerationOptions['quality'];
+  /** Provenance of this batch: fresh, locked-design re-stage, or brand-kit anchored. */
+  sourceLabel: string;
 }) {
   const selectedCount = candidates.filter(candidate => candidate.selected && candidate.url).length;
   const promptTraceCount = candidates.filter(candidate => candidate.revisedPrompt || candidate.summary).length;
@@ -140,9 +148,10 @@ function AIGovernancePanel({
         <ShieldCheck className="size-4 text-slate-500" />
         <p className="text-xs font-semibold text-slate-700">AI governance</p>
       </div>
-      <div className="mt-3 grid gap-2 text-[11px] leading-4 text-slate-700 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-3 grid gap-2 text-[11px] leading-4 text-slate-700 sm:grid-cols-2 lg:grid-cols-5">
         <span><strong className="text-slate-700">Model:</strong> {model ?? 'gpt-image-1.5'}</span>
         <span><strong className="text-slate-700">Quality:</strong> {quality}</span>
+        <span><strong className="text-slate-700">Source:</strong> {sourceLabel}</span>
         <span><strong className="text-slate-700">Approval:</strong> AI draft, admin review required</span>
         <span><strong className="text-slate-700">Prompt trace:</strong> {promptTraceCount}/{candidates.length} saved</span>
       </div>
@@ -167,6 +176,8 @@ export function ImagesStep({
   requireApproval: boolean;
 }) {
   const { user } = useAuth();
+  const { data: workspaceSettings } = useWorkspaceSettings();
+  const adoptBrandKit = useAdoptBrandKit();
   const maxImages = Math.max(1, settings?.maxImagesPerConcept ?? 4);
   const estimatedCostPerImage = settings?.estimatedCostPerImage ?? 0.034;
   const [options, setOptions] = useState<ImageGenerationOptions>(() => ({
@@ -174,6 +185,8 @@ export function ImagesStep({
     count: Math.min(settings?.defaultImageCount ?? 4, maxImages),
     quality: settings?.defaultQuality ?? 'high',
     spreadModes: true,
+    sizeOverride: 'auto',
+    useLockedDesign: true,
   }));
   const [aiCandidates, setAiCandidates] = useState<CandidateImage[]>([]);
   const [generating, setGenerating] = useState(false);
@@ -181,6 +194,13 @@ export function ImagesStep({
   const [generationConfirmationOpen, setGenerationConfirmationOpen] = useState(false);
   const [promptExpanded, setPromptExpanded] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
+  // Single-image refinement: one open refine box at a time.
+  const [refine, setRefine] = useState<{ index: number | null; text: string; busy: boolean; error: string }>({
+    index: null, text: '', busy: false, error: '',
+  });
+
+  const brandKit = workspaceSettings?.brandKit ?? null;
+  const lockedDesignActive = Boolean(draft.brandReference && options.useLockedDesign);
 
   const detection = useMemo(
     () => detectFoodType(draft.category, draft.name, draft.description),
@@ -226,6 +246,22 @@ export function ImagesStep({
     draft.variantDimensions?.visualComplexity,
   ]);
 
+  // Mirrors the server's reference context so the previewed prompt matches
+  // what will actually be sent (locked design + org brand kit).
+  const previewReferenceContext = useMemo<ConceptReferenceContext | null>(() => {
+    if (!lockedDesignActive && !brandKit) return null;
+    return {
+      productLocked: lockedDesignActive,
+      brandKit: brandKit
+        ? {
+            brandDescriptor: brandKit.brandDescriptor,
+            brandColors: [workspaceSettings?.primaryColor, workspaceSettings?.accentColor].filter((c): c is string => Boolean(c)),
+            hasReferenceImage: Boolean(brandKit.referenceImagePath),
+          }
+        : null,
+    };
+  }, [brandKit, lockedDesignActive, workspaceSettings?.accentColor, workspaceSettings?.primaryColor]);
+
   // Client-side preview of the brief the server will build. Branding
   // (organization name, report tone) is applied server-side from workspace
   // settings, so the preview uses the neutral fallback phrasing.
@@ -264,8 +300,8 @@ export function ImagesStep({
       projectName: draft.projectName,
       foodTypeSlug: detection.slug,
     });
-    return buildConceptImagePrompt(brief);
-  }, [canGenerate, detection.label, detection.slug, draft, options, profile.riskMarkers, profile.successMarkers, settings?.defaultModel, variantImageMode, variantPositioningCues]);
+    return buildConceptImagePrompt(brief, previewReferenceContext);
+  }, [canGenerate, detection.label, detection.slug, draft, options, previewReferenceContext, profile.riskMarkers, profile.successMarkers, settings?.defaultModel, variantImageMode, variantPositioningCues]);
 
   const handleGenerate = async () => {
     if (!canGenerate) return;
@@ -300,6 +336,10 @@ export function ImagesStep({
         quality: options.quality,
         count: options.count,
         spreadModes: options.spreadModes,
+        size: options.sizeOverride,
+        // Locked design: every image in the batch re-stages this exact pack.
+        referenceImageIds: lockedDesignActive && draft.brandReference ? [draft.brandReference.imageId] : [],
+        useBrandKit: true,
         variantDimensions: draft.variantDimensions ?? {},
       },
     });
@@ -321,7 +361,8 @@ export function ImagesStep({
     }
 
     const images = (data?.images ?? []) as Array<{
-      id?: string; url: string; mode?: string; promptStyle?: string; summary?: string; revisedPrompt?: string;
+      id?: string; url: string; mode?: string; size?: string; storagePath?: string;
+      promptStyle?: string; summary?: string; revisedPrompt?: string;
     }>;
     setAiCandidates(images.map((image) => ({
       ...image,
@@ -334,6 +375,69 @@ export function ImagesStep({
       setGenerationError('OpenAI returned no images. Try a more specific concept description.');
     }
     setGenerating(false);
+  };
+
+  // Targeted single-image revision via the image-edit endpoint: keeps the rest
+  // of the batch, replaces only the refined candidate (as a fresh AI draft).
+  const handleRefine = async (candidateIndex: number) => {
+    const candidate = aiCandidates[candidateIndex];
+    if (!candidate?.id || refine.busy) return;
+    setRefine(prev => ({ ...prev, busy: true, error: '' }));
+    const { data, error } = await supabase.functions.invoke('generate-concept-images', {
+      body: {
+        intent: 'refine',
+        baseImageId: candidate.id,
+        refineInstruction: refine.text,
+        conceptName: draft.name,
+        category: draft.category || detection.label,
+        foodTypeSlug: detection.slug,
+        projectName: draft.projectName,
+        promptStyle: normalizePromptStyle(draft.promptStyle),
+        quality: options.quality,
+      },
+    });
+    if (error) {
+      let message = error.message;
+      const response = (error as { context?: Response }).context;
+      if (response instanceof Response) {
+        try {
+          const body = await response.clone().json();
+          message = body?.error ?? message;
+        } catch { /* not JSON */ }
+      }
+      setRefine(prev => ({ ...prev, busy: false, error: friendlyGenerationError(message) }));
+      return;
+    }
+    const image = ((data?.images ?? []) as Array<{
+      id?: string; url: string; mode?: string; size?: string; storagePath?: string;
+      promptStyle?: string; summary?: string; revisedPrompt?: string;
+    }>)[0];
+    if (!image?.url) {
+      setRefine(prev => ({ ...prev, busy: false, error: 'The refinement returned no image. Try a more specific instruction.' }));
+      return;
+    }
+    setAiCandidates(prev => prev.map((item, index) => index === candidateIndex
+      ? { ...image, selected: true, reviewStatus: 'draft' as const, qa: {}, reviewNotes: '' }
+      : item));
+    setRefine({ index: null, text: '', busy: false, error: '' });
+  };
+
+  const lockDesign = (candidate: CandidateImage) => {
+    if (!candidate.id) return;
+    onChange({
+      ...draft,
+      brandReference: { imageId: candidate.id, url: candidate.url, mode: candidate.mode ?? 'packaging' },
+    });
+    setOptions(prev => ({ ...prev, useLockedDesign: true }));
+  };
+
+  const adoptAsCompanyBrand = (imageId: string) => {
+    if (!imageId || adoptBrandKit.isPending) return;
+    adoptBrandKit.mutate({
+      imageId,
+      sourceConceptName: draft.name,
+      actorId: user?.id ?? null,
+    });
   };
 
   const addSelected = () => {
@@ -637,6 +741,47 @@ export function ImagesStep({
           </p>
         </div>
         <div className="space-y-4 p-4">
+          {draft.brandReference && (
+            <div className="flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <img
+                  src={draft.brandReference.url}
+                  alt="Locked product design"
+                  className="size-12 shrink-0 rounded-md border border-blue-200 bg-white object-contain"
+                />
+                <div className="min-w-0">
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-blue-950">
+                    <Lock className="size-3.5" aria-hidden /> Product design locked
+                  </p>
+                  <p className="mt-0.5 text-[11px] leading-4 text-blue-900">
+                    {options.useLockedDesign
+                      ? 'New batches re-stage this exact pack across formats instead of inventing a new design each time.'
+                      : 'Lock is paused — this batch explores fresh design directions.'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-3">
+                <label htmlFor="use-locked-design" className="flex items-center gap-2 text-[11px] font-semibold text-blue-950">
+                  Re-stage locked design
+                  <Switch
+                    id="use-locked-design"
+                    checked={options.useLockedDesign}
+                    onCheckedChange={(checked) => setOptions(prev => ({ ...prev, useLockedDesign: checked }))}
+                  />
+                </label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onChange({ ...draft, brandReference: null })}
+                  className="h-8 border-blue-200 text-xs text-blue-900 hover:bg-blue-100"
+                >
+                  <Unlock className="mr-1 size-3" /> Unlock
+                </Button>
+              </div>
+            </div>
+          )}
+
           <ImageDirectionPanel
             draft={draft}
             onChange={onChange}
@@ -654,6 +799,8 @@ export function ImagesStep({
                     ? `Generates ${options.count} distinct concept-visual formats, led by ${leadModeLabel.toLowerCase()}`
                     : `Generates ${options.count} ${leadModeLabel.toLowerCase()} variation${options.count > 1 ? 's' : ''}`}
                   {' '}into the {draft.projectName || 'Project 1'} folder.
+                  {lockedDesignActive && ' Re-stages the locked design.'}
+                  {!lockedDesignActive && brandKit && ' Applies the company brand kit.'}
                 </p>
               </div>
               <Button
@@ -738,7 +885,7 @@ export function ImagesStep({
                           <img
                             src={candidate.url}
                             alt={`Generated ${modeLabel} concept for ${draft.name}, option ${i + 1}`}
-                            className="h-full w-full object-cover"
+                            className="h-full w-full bg-slate-100 object-contain"
                           />
                           <span className={`absolute top-2 right-2 flex size-6 items-center justify-center rounded-full border-2 shadow-sm ${
                             candidate.selected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white/90 border-slate-200 text-transparent'
@@ -808,6 +955,90 @@ export function ImagesStep({
                                 Reject
                               </Button>
                             </div>
+                            {candidate.id && (
+                              <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={draft.brandReference?.imageId === candidate.id}
+                                  onClick={() => lockDesign(candidate)}
+                                  className="h-8 text-xs"
+                                  title="Use this exact design for every further image of this concept"
+                                >
+                                  <Lock className="mr-1 size-3" />
+                                  {draft.brandReference?.imageId === candidate.id ? 'Design locked' : 'Lock design'}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={refine.busy}
+                                  onClick={() => setRefine(prev => prev.index === i
+                                    ? { index: null, text: '', busy: false, error: '' }
+                                    : { index: i, text: '', busy: false, error: '' })}
+                                  className="h-8 text-xs"
+                                  title="Keep this image and request one focused change"
+                                >
+                                  <Wand2 className="mr-1 size-3" /> Refine
+                                </Button>
+                                {candidate.reviewStatus === 'approved' && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={adoptBrandKit.isPending || brandKit?.sourceImageId === candidate.id}
+                                    onClick={() => adoptAsCompanyBrand(candidate.id!)}
+                                    className="h-8 text-xs"
+                                    title="Make this the company-wide brand reference for future concepts"
+                                  >
+                                    <Star className="mr-1 size-3" />
+                                    {brandKit?.sourceImageId === candidate.id
+                                      ? 'Company brand'
+                                      : adoptBrandKit.isPending ? 'Saving...' : 'Set as company brand'}
+                                  </Button>
+                                )}
+                              </div>
+                            )}
+                            {refine.index === i && (
+                              <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-2">
+                                <Input
+                                  value={refine.text}
+                                  onChange={(event) => setRefine(prev => ({ ...prev, text: event.target.value }))}
+                                  placeholder="One focused change, e.g. warmer background, matte pouch"
+                                  aria-label="Refinement instruction"
+                                  disabled={refine.busy}
+                                  className="h-8 bg-white text-xs"
+                                />
+                                {refine.error && (
+                                  <p className="text-[11px] text-rose-700">{refine.error}</p>
+                                )}
+                                <div className="flex gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    disabled={refine.busy || !refine.text.trim()}
+                                    onClick={() => handleRefine(i)}
+                                    className="h-8 text-xs"
+                                  >
+                                    {refine.busy ? <><Loader2 className="mr-1 size-3 animate-spin" />Refining</> : 'Apply change'}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={refine.busy}
+                                    onClick={() => setRefine({ index: null, text: '', busy: false, error: '' })}
+                                    className="h-8 text-xs"
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                                <p className="text-[11px] leading-4 text-slate-500">
+                                  Replaces this draft only; the refined image returns as a new AI draft for review.
+                                </p>
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
@@ -860,6 +1091,9 @@ export function ImagesStep({
                   candidates={aiCandidates}
                   model={settings?.defaultModel}
                   quality={options.quality}
+                  sourceLabel={lockedDesignActive
+                    ? 'Locked design re-stage'
+                    : brandKit ? 'Brand-kit anchored' : 'Fresh generation'}
                 />
               )}
               </div>

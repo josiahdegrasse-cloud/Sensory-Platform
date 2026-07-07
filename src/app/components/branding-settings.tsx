@@ -1,4 +1,5 @@
-import { AlertTriangle, Palette } from 'lucide-react';
+import { AlertTriangle, Palette, Star } from 'lucide-react';
+import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -104,6 +105,55 @@ export function BrandingSettings({ draft, updateDraft, disabled }: {
             GO/TWEAK/STOP, workflow-stage, and data-provenance colors are platform-fixed
             so status reads identically for every client.
           </p>
+
+          {/* Concept brand kit: the durable house style AI concept visuals build on. */}
+          <div className="space-y-3 border-t border-slate-200 pt-4">
+            <Label className="flex items-center gap-1.5">
+              <Star className="size-4 text-slate-500" aria-hidden /> Concept brand kit
+            </Label>
+            {draft.brandKit ? (
+              <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs leading-5 text-slate-700">
+                  Adopted from <span className="font-semibold">{draft.brandKit.sourceConceptName || 'a concept visual'}</span>
+                  {draft.brandKit.updatedAt ? ` on ${new Date(draft.brandKit.updatedAt).toLocaleDateString()}` : ''}.
+                  New concept visuals use it as the house-style reference so every concept reads as this company's brand.
+                </p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="brand-kit-descriptor" className="text-xs font-medium">House style notes</Label>
+                  <Input
+                    id="brand-kit-descriptor"
+                    value={draft.brandKit.brandDescriptor}
+                    onChange={event => updateDraft('brandKit', {
+                      ...draft.brandKit!,
+                      brandDescriptor: event.target.value,
+                    })}
+                    placeholder="e.g. matte kraft materials, deep green accents, quiet serif voice"
+                    disabled={disabled}
+                    className="text-xs"
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    Included in every concept-image prompt alongside the reference image.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={disabled}
+                  onClick={() => updateDraft('brandKit', null)}
+                  className="h-8 text-xs"
+                >
+                  Clear brand kit
+                </Button>
+              </div>
+            ) : (
+              <p className="rounded-lg border border-dashed border-slate-300 bg-white p-3 text-xs leading-5 text-slate-500">
+                No brand kit yet. Approve a concept visual in Concept Lab and choose
+                “Set as company brand” — future concepts will then build on that house style
+                instead of starting from scratch.
+              </p>
+            )}
+          </div>
         </CardContent>
       </Card>
 

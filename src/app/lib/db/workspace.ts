@@ -5,6 +5,25 @@ import type { Database } from './database.types';
 
 type Tables = Database['public']['Tables'];
 
+/**
+ * The org's durable concept-visual house style. Seeded only by an explicit
+ * admin "Set as company brand" action on an approved concept image; applied
+ * (image + descriptors) to subsequent concept-image generations so new
+ * concepts read as the same brand family.
+ */
+export interface ConceptBrandKit {
+  /** Storage path (concept-images bucket) of the adopted reference image. */
+  referenceImagePath: string | null;
+  /** concept_images id the kit was adopted from. */
+  sourceImageId: string | null;
+  /** Concept name the kit was adopted from, for display. */
+  sourceConceptName: string;
+  /** Free-text house-style notes (materials, mood, typography voice). */
+  brandDescriptor: string;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
 export interface WorkspaceSettings {
   workspaceName: string;
   organizationName: string;
@@ -49,6 +68,8 @@ export interface WorkspaceSettings {
   logoUrl?: string | null;
   primaryColor?: string | null;
   accentColor?: string | null;
+  /** Concept-visual house style; null/absent until an admin adopts one. */
+  brandKit?: ConceptBrandKit | null;
   // Connected Google Drive folder for the monitored-import source.
   driveFolderId?: string | null;
   driveFolderName?: string | null;
@@ -143,10 +164,26 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     logoUrl: null,
     primaryColor: null,
     accentColor: null,
+    brandKit: null,
     driveFolderId: null,
     driveFolderName: null,
     updatedAt: null,
   };
+}
+
+/** Tolerant parse of the brand_kit jsonb column (absent pre-migration). */
+function toConceptBrandKit(value: unknown): ConceptBrandKit | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  const kit: ConceptBrandKit = {
+    referenceImagePath: typeof record.referenceImagePath === 'string' && record.referenceImagePath ? record.referenceImagePath : null,
+    sourceImageId: typeof record.sourceImageId === 'string' && record.sourceImageId ? record.sourceImageId : null,
+    sourceConceptName: typeof record.sourceConceptName === 'string' ? record.sourceConceptName : '',
+    brandDescriptor: typeof record.brandDescriptor === 'string' ? record.brandDescriptor : '',
+    updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : null,
+    updatedBy: typeof record.updatedBy === 'string' ? record.updatedBy : null,
+  };
+  return kit.referenceImagePath || kit.brandDescriptor ? kit : null;
 }
 
 function toWorkspaceSettings(row: Tables['workspace_settings']['Row']): WorkspaceSettings {
@@ -190,6 +227,9 @@ function toWorkspaceSettings(row: Tables['workspace_settings']['Row']): Workspac
     logoUrl: (row.logo_url as string) ?? null,
     primaryColor: (row.primary_color as string) ?? null,
     accentColor: (row.accent_color as string) ?? null,
+    // Cast: brand_kit lands with the concept_brand_kit migration and may not
+    // be in the generated types yet (regenerate database.types.ts after it).
+    brandKit: toConceptBrandKit((row as Record<string, unknown>).brand_kit),
     driveFolderId: (row.drive_folder_id as string) ?? null,
     driveFolderName: (row.drive_folder_name as string) ?? null,
     updatedAt: (row.updated_at as string) ?? null,
@@ -282,6 +322,9 @@ export async function updateWorkspaceSettings(
     logo_url: updates.logoUrl ?? null,
     primary_color: updates.primaryColor ?? null,
     accent_color: updates.accentColor ?? null,
+    // jsonb_populate_record ignores unknown keys, so this is safe to send
+    // before the concept_brand_kit migration has been applied.
+    brand_kit: updates.brandKit ?? {},
     drive_folder_id: updates.driveFolderId ?? null,
     drive_folder_name: updates.driveFolderName ?? null,
     updated_at: new Date().toISOString(),
@@ -314,6 +357,63 @@ export async function updateWorkspaceSettings(
   });
 
   return toWorkspaceSettings(row);
+}
+
+/**
+ * Adopts an approved concept image as the org's concept brand kit. Explicit,
+ * audited admin action — the kit then anchors future concept-image batches.
+ * Goes through updateWorkspaceSettings (full merge) because the settings RPC
+ * replaces the whole row; a partial patch would wipe other settings.
+ */
+export async function adoptConceptImageAsBrandKit(input: {
+  imageId: string;
+  sourceConceptName: string;
+  brandDescriptor?: string;
+  actorId?: string | null;
+}): Promise<WorkspaceSettings> {
+  const { data: imageRow, error: imageError } = await supabase
+    .from('concept_images')
+    .select('id, storage_path')
+    .eq('id', input.imageId)
+    .single();
+  if (imageError) throw dbError(imageError);
+  const storagePath = (imageRow?.storage_path as string | null) ?? null;
+  if (!storagePath) throw new Error('This image has no stored file to adopt as the brand reference.');
+
+  const current = await fetchWorkspaceSettings();
+  const updated = await updateWorkspaceSettings({
+    ...current,
+    brandKit: {
+      referenceImagePath: storagePath,
+      sourceImageId: input.imageId,
+      sourceConceptName: input.sourceConceptName.trim(),
+      brandDescriptor: input.brandDescriptor?.trim() || current.brandKit?.brandDescriptor || '',
+      updatedAt: new Date().toISOString(),
+      updatedBy: input.actorId ?? null,
+    },
+  }, input.actorId);
+
+  await insertAuditEvent({
+    actorId: input.actorId ?? null,
+    eventType: 'concept_brand_kit_adopted',
+    entityType: 'workspace_settings',
+    entityId: input.imageId,
+    metadata: { sourceImageId: input.imageId, sourceConceptName: input.sourceConceptName },
+  });
+  return updated;
+}
+
+/** Removes the org brand kit (audited); future batches generate unanchored. */
+export async function clearConceptBrandKit(actorId?: string | null): Promise<WorkspaceSettings> {
+  const current = await fetchWorkspaceSettings();
+  const updated = await updateWorkspaceSettings({ ...current, brandKit: null }, actorId);
+  await insertAuditEvent({
+    actorId: actorId ?? null,
+    eventType: 'concept_brand_kit_cleared',
+    entityType: 'workspace_settings',
+    metadata: {},
+  });
+  return updated;
 }
 
 export interface OrgEmailDomain {

@@ -33,6 +33,7 @@ const draft: ConceptDraft = {
   forbiddenClaims: '',
   approvalStatus: 'draft',
   variantDimensions: { ...EMPTY_VARIANT_DIMENSIONS },
+  brandReference: null,
 };
 
 describe('concept workflow smart defaults', () => {

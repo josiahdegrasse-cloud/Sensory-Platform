@@ -59,6 +59,7 @@ const makeEmptyDraft = (promptStyle: string = 'balanced'): ConceptDraft => ({
   forbiddenClaims: '',
   approvalStatus: 'draft',
   variantDimensions: { ...EMPTY_VARIANT_DIMENSIONS },
+  brandReference: null,
 });
 
 interface StoredConceptDraft {
@@ -286,6 +287,7 @@ export function ConceptTesting() {
           : draft.approvalStatus === 'approved' ? `Approved in Concept Lab before launch.${visualApprovalNotes ? `\n${visualApprovalNotes}` : ''}` : '',
         status: 'active',
         variantDimensions: draft.variantDimensions as unknown as Record<string, string | null>,
+        brandReferenceImageId: draft.brandReference?.imageId ?? null,
       });
       localStorage.removeItem(draftStorageKey);
       setStep('launched');

@@ -57,6 +57,20 @@ export interface ConceptVisualReview {
   source: 'ai' | 'external';
 }
 
+/**
+ * The concept image an admin locked as this concept's product design. Later
+ * generations re-stage this exact design (via the image-edit endpoint) instead
+ * of inventing a new pack per batch.
+ */
+export interface ConceptBrandReference {
+  /** concept_images id — validated server-side against the caller's org. */
+  imageId: string;
+  /** Signed display URL captured at lock time (expires ~1h; wizard-session use). */
+  url: string;
+  /** The mode the locked image was generated as. */
+  mode: string;
+}
+
 export interface ConceptDraft {
   name: string;
   category: string;
@@ -84,6 +98,8 @@ export interface ConceptDraft {
   approvalStatus: 'draft' | 'review' | 'approved';
   /** Structured positioning dimensions. Persisted to concept_tests.variant_dimensions. */
   variantDimensions: VariantDimensions;
+  /** Locked product design for reference-anchored generation; null = exploring. */
+  brandReference: ConceptBrandReference | null;
 }
 
 export type WizardStep = 'concept' | 'visuals' | 'survey' | 'panel' | 'review' | 'launched';
