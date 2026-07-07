@@ -9,6 +9,7 @@ import {
   fetchCommercializationReports, createCommercializationReport, updateCommercializationReportStatus,
   fetchEvidenceBundles, saveEvidenceBundle, generateReportNarrative, type ReportNarrativeRequest,
   fetchConceptTest, fetchConceptGenerationSettings, updateConceptGenerationSettings,
+  fetchConceptImageUsage,
   fetchConceptImageGenerations, fetchConceptProjectSummaries, fetchConceptLabDiagnostics,
   fetchFoodTypes, fetchInstrumentalDataset, fetchImportBatches,
   fetchProjects, createProject, renameProject, assignBatchToProject,
@@ -66,6 +67,7 @@ export const queryKeys = {
   evidenceBundles: (projectId?: string) => ['evidenceBundles', projectId ?? 'all'] as const,
   projectEvidence: (projectId: string) => ['projectEvidence', projectId] as const,
   conceptGenerationSettings: ['conceptGenerationSettings'] as const,
+  conceptImageUsage: ['conceptImageUsage'] as const,
   conceptImageGenerations: ['conceptImageGenerations'] as const,
   conceptProjects: ['conceptProjects'] as const,
   conceptLabDiagnostics: ['conceptLabDiagnostics'] as const,
@@ -410,6 +412,17 @@ export function useConceptImageGenerations(enabled = true) {
     queryKey: queryKeys.conceptImageGenerations,
     queryFn: fetchConceptImageGenerations,
     enabled,
+  })
+}
+
+/** Powers the "concept image credits" usage bar. Refetches after any
+ *  generation/refine call so the bar reflects spend immediately. */
+export function useConceptImageUsage(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.conceptImageUsage,
+    queryFn: fetchConceptImageUsage,
+    enabled,
+    staleTime: 15_000,
   })
 }
 

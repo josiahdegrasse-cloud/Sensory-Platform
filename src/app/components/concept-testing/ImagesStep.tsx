@@ -15,14 +15,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../ui/alert-dialog';
+import { useQueryClient } from '@tanstack/react-query';
 import {
-  CheckCircle2, ChevronDown, Image as ImageIcon, Loader2, Lock,
+  BatteryCharging, CheckCircle2, ChevronDown, Image as ImageIcon, Loader2, Lock,
   Plus, RefreshCw, ShieldCheck, Sparkles, Star, Trash2, Unlock, Wand2,
 } from 'lucide-react';
 import { Switch } from '../ui/switch';
 import { supabase } from '../../lib/supabase';
 import { updateConceptImageReviewStatus } from '../../lib/database';
-import { useAdoptBrandKit, useWorkspaceSettings } from '../../lib/hooks';
+import { useAdoptBrandKit, useWorkspaceSettings, useConceptImageUsage, queryKeys } from '../../lib/hooks';
+import { creditsTone, daysUntilReset } from '../../lib/concept-credits';
 import { detectFoodType, getFoodTypeProfile } from '../../lib/food-intelligence';
 import type { ConceptGenerationSettings } from '../../lib/db/concepts';
 import { useAuth } from '../../contexts/auth-context';
@@ -128,6 +130,55 @@ function friendlyGenerationError(message: string) {
   return message || 'Image generation failed. Try again with a clearer concept brief.';
 }
 
+const CREDITS_BAR_TONE: Record<'ok' | 'warn' | 'critical', { bar: string; preview: string; text: string }> = {
+  ok: { bar: 'bg-emerald-500', preview: 'bg-emerald-200', text: 'text-emerald-700' },
+  warn: { bar: 'bg-amber-500', preview: 'bg-amber-200', text: 'text-amber-700' },
+  critical: { bar: 'bg-rose-500', preview: 'bg-rose-200', text: 'text-rose-700' },
+};
+
+/**
+ * A Claude-Code-style usage meter for concept image generation: shows credits
+ * used this month as a bar rather than a running dollar total. `previewFraction`
+ * (0..1) renders the pending generation's expected draw as a lighter segment
+ * appended to the current usage, so an admin sees the "before / after" at a
+ * glance before confirming.
+ */
+function ConceptCreditsBar({ usage, previewFraction, compact }: {
+  usage: { fraction: number; periodResetsAt: string } | undefined;
+  previewFraction?: number;
+  compact?: boolean;
+}) {
+  if (!usage) return null;
+  const used = Math.max(0, Math.min(1, usage.fraction));
+  const preview = Math.max(0, Math.min(1 - used, previewFraction ?? 0));
+  const tone = CREDITS_BAR_TONE[creditsTone(used + preview)];
+  const days = daysUntilReset(usage.periodResetsAt);
+
+  return (
+    <div className={compact ? 'space-y-1' : 'space-y-1.5'}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+          <BatteryCharging className="size-3.5 text-slate-400" aria-hidden />
+          Concept image credits
+        </span>
+        <span className={`text-xs font-semibold ${tone.text}`}>
+          {Math.round(used * 100)}%{preview > 0 ? ` → ${Math.round((used + preview) * 100)}%` : ''} used
+        </span>
+      </div>
+      <div className="flex h-2 w-full overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full ${tone.bar}`} style={{ width: `${used * 100}%` }} />
+        {preview > 0 && <div className={`h-full ${tone.preview}`} style={{ width: `${preview * 100}%` }} />}
+      </div>
+      {!compact && (
+        <p className="text-[11px] text-slate-500">
+          Resets in {days} day{days === 1 ? '' : 's'}.
+          {preview > 0 ? ' Highlighted segment is what this batch will use.' : ''}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function AIGovernancePanel({
   candidates,
   model,
@@ -177,7 +228,9 @@ export function ImagesStep({
   requireApproval: boolean;
 }) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { data: workspaceSettings } = useWorkspaceSettings();
+  const { data: creditsUsage } = useConceptImageUsage();
   const adoptBrandKit = useAdoptBrandKit();
   const maxImages = Math.max(1, settings?.maxImagesPerConcept ?? 4);
   const estimatedCostPerImage = settings?.estimatedCostPerImage ?? 0.034;
@@ -227,8 +280,13 @@ export function ImagesStep({
     && draft.targetMarket.trim()
   );
   // Quality-aware: the configured per-image rate is the medium baseline.
+  // Not shown to the admin as a dollar figure — expressed as a credits-bar
+  // fraction of the monthly budget instead (see ConceptCreditsBar).
   const estimatedCost = estimateConceptImageCost(estimatedCostPerImage, options.quality, options.count);
-  const estimatedPerImage = estimateConceptImageCost(estimatedCostPerImage, options.quality, 1);
+  const previewFraction = creditsUsage && creditsUsage.budget > 0 ? estimatedCost / creditsUsage.budget : 0;
+  const refinePreviewFraction = creditsUsage && creditsUsage.budget > 0
+    ? estimateConceptImageCost(estimatedCostPerImage, options.quality, 1) / creditsUsage.budget
+    : 0;
   const styleLabel = getPromptStyle(draft.promptStyle).label;
   const leadModeLabel = getConceptImageMode(options.mode).label;
 
@@ -378,6 +436,7 @@ export function ImagesStep({
       setGenerationError('OpenAI returned no images. Try a more specific concept description.');
     }
     setGenerating(false);
+    queryClient.invalidateQueries({ queryKey: queryKeys.conceptImageUsage });
   };
 
   // Targeted single-image revision via the image-edit endpoint: keeps the rest
@@ -423,6 +482,7 @@ export function ImagesStep({
       ? { ...image, selected: true, reviewStatus: 'draft' as const, qa: {}, reviewNotes: '' }
       : item));
     setRefine({ index: null, text: '', busy: false, error: '' });
+    queryClient.invalidateQueries({ queryKey: queryKeys.conceptImageUsage });
   };
 
   const lockDesign = (candidate: CandidateImage) => {
@@ -837,9 +897,9 @@ export function ImagesStep({
               </p>
             )}
             {canGenerate && !generating && (
-              <p className="text-[11px] text-slate-500 mt-3">
-                Estimated cost per generation: about ${estimatedCost.toFixed(2)}.
-              </p>
+              <div className="mt-3">
+                <ConceptCreditsBar usage={creditsUsage} previewFraction={previewFraction} compact />
+              </div>
             )}
           </div>
 
@@ -1039,6 +1099,7 @@ export function ImagesStep({
                                 </div>
                                 <p className="text-[11px] leading-4 text-slate-500">
                                   Replaces this draft only; the refined image returns as a new AI draft for review.
+                                  {refinePreviewFraction > 0 && ` Uses about ${Math.max(1, Math.round(refinePreviewFraction * 100))}% of this month's concept image credits.`}
                                 </p>
                               </div>
                             )}
@@ -1146,16 +1207,10 @@ export function ImagesStep({
               <dt className="text-slate-700">Model / quality</dt>
               <dd className="font-semibold text-slate-900">{settings?.defaultModel ?? 'gpt-image-1.5'} · {options.quality}</dd>
             </div>
-            <div className="flex items-center justify-between gap-4">
-              <dt className="text-slate-700">Estimated cost per image ({options.quality})</dt>
-              <dd className="font-semibold text-slate-900">${estimatedPerImage.toFixed(3)}</dd>
-            </div>
-            <div className="flex items-center justify-between gap-4 border-t border-slate-200 pt-2">
-              <dt className="font-semibold text-slate-700">Estimated total</dt>
-              <dd className="font-bold text-slate-900">${estimatedCost.toFixed(2)}</dd>
+            <div className="border-t border-slate-200 pt-3">
+              <ConceptCreditsBar usage={creditsUsage} previewFraction={previewFraction} />
             </div>
           </dl>
-          <p className="text-xs text-slate-500">This is an estimate based on the workspace setting. Actual OpenAI billing may vary.</p>
           <AlertDialogFooter>
             <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
             <AlertDialogAction type="button" onClick={handleGenerate} className="bg-slate-900 hover:bg-slate-800">

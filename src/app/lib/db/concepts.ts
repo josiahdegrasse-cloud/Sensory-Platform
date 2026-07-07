@@ -1,5 +1,6 @@
 import { supabase } from '../supabase';
 import { asJson, dbError, edgeFunctionErrorMessage, fromJson } from './shared';
+import { nextMonthStartIso } from '../concept-credits';
 import type { Database } from './database.types';
 
 type Tables = Database['public']['Tables'];
@@ -659,6 +660,58 @@ export async function fetchConceptGenerationSettings(): Promise<ConceptGeneratio
     throw dbError(error);
   }
   return data ? toConceptSettings(data) : defaultConceptSettings();
+}
+
+export interface ConceptImageUsage {
+  /** This month's estimated spend across all concept-image generations. */
+  spend: number;
+  /** The effective monthly budget (min of the two configured caps, when both are set). */
+  budget: number;
+  /** spend / budget, 0 when there is no budget configured. Can exceed 1. */
+  fraction: number;
+  /** ISO instant the usage window resets (start of next month, UTC). */
+  periodResetsAt: string;
+}
+
+/**
+ * Client-side mirror of the edge function's own monthly-budget accounting
+ * (generate-concept-images/index.ts), so the UI can show a live "credits used
+ * this month" bar without exposing raw dollar figures. RLS scopes both
+ * queries to the caller's org; only admins can read either table.
+ */
+export async function fetchConceptImageUsage(): Promise<ConceptImageUsage> {
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+
+  const [settingsResult, workspaceResult, spendResult] = await Promise.all([
+    supabase.from('concept_generation_settings').select('monthly_budget').eq('active', true).maybeSingle(),
+    supabase.from('workspace_settings').select('concept_monthly_budget_cents').maybeSingle(),
+    supabase
+      .from('concept_image_generations')
+      .select('estimated_cost')
+      .gte('created_at', monthStart.toISOString())
+      .in('status', ['generating', 'completed']),
+  ]);
+
+  const missingTable = (error: { message?: string } | null) =>
+    Boolean(error?.message && /concept_generation_settings|concept_image_generations|workspace_settings|schema cache|does not exist/i.test(error.message));
+
+  if (spendResult.error && !missingTable(spendResult.error)) throw dbError(spendResult.error);
+
+  const settingsBudget = Math.max(0, Number(settingsResult.data?.monthly_budget) || 0);
+  const workspaceBudget = Math.max(0, Number((workspaceResult.data as Record<string, unknown> | null)?.concept_monthly_budget_cents) || 0) / 100;
+  const budget = settingsBudget > 0 && workspaceBudget > 0
+    ? Math.min(settingsBudget, workspaceBudget)
+    : Math.max(settingsBudget, workspaceBudget);
+  const spend = (spendResult.data ?? []).reduce((sum, row) => sum + Number(row.estimated_cost ?? 0), 0);
+
+  return {
+    spend,
+    budget,
+    fraction: budget > 0 ? spend / budget : 0,
+    periodResetsAt: nextMonthStartIso(),
+  };
 }
 
 export async function fetchConceptLabDiagnostics(): Promise<ConceptLabDiagnostics> {
