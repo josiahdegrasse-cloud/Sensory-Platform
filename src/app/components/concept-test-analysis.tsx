@@ -10,8 +10,12 @@ import { DataProvenanceBadge } from './data-provenance-badge';
 import { useAdminConceptTests, useConceptTestResponses } from '../lib/hooks';
 import type { ConceptTest, ConceptQuestion, ConceptResponse } from '../lib/database';
 import {
-  AlertTriangle, CheckCircle2, ChevronDown, Layers, Megaphone, MessageSquare, Search, ShoppingBag, Sparkles, Target, Trophy, Users,
+  AlertTriangle, CheckCircle2, ChevronDown, FileDown, Layers, Megaphone, MessageSquare, Search, ShoppingBag, Sparkles, Star, Target, Trophy, Users,
 } from 'lucide-react';
+import { Button } from './ui/button';
+import { useAuth } from '../contexts/auth-context';
+import { useAdoptBrandKit, useWorkspaceSettings } from '../lib/hooks';
+import { downloadConceptBoardPdf } from '../utils/concept-board-export';
 import { InsightInterpretationBlock } from './insights-ui';
 import { TEMPORARY_CHEESE_DEMO_LABEL } from '../data/demo/temporary-cheese-demo';
 import { summarizeConceptResponses } from '../lib/commercialization-report';
@@ -160,6 +164,11 @@ function ConceptResultsPanel({ test, responses, minimumResponses }: {
   minimumResponses: number;
 }) {
   const validImages = test.imageUrls.filter(u => u.trim());
+  // URL/id pairs stay index-aligned so a panel-winning visual can be traced
+  // back to its concept_images row (and adopted as the company brand kit).
+  const validImagePairs = test.imageUrls
+    .map((url, index) => ({ url, id: test.imageIds?.[index] ?? '' }))
+    .filter(pair => pair.url.trim());
   const evidenceIsLimited = responses.length < minimumResponses;
   const summary = summarizeConceptResponses(test.questions, responses);
   const strongestScale = [...summary.scaleMetrics].sort((a, b) => b.average - a.average)[0];
@@ -320,6 +329,8 @@ function ConceptResultsPanel({ test, responses, minimumResponses }: {
                       question={question}
                       responses={responses}
                       images={validImages}
+                      imagePairs={validImagePairs}
+                      conceptName={test.name}
                       evidenceIsLimited={evidenceIsLimited}
                     />
                   ))}
@@ -511,11 +522,13 @@ function groupConceptQuestions(questions: ConceptQuestion[]) {
 }
 
 function QuestionResultCard({
-  question, responses, images, evidenceIsLimited,
+  question, responses, images, imagePairs, conceptName, evidenceIsLimited,
 }: {
   question: ConceptQuestion;
   responses: ConceptResponse[];
   images: string[];
+  imagePairs: Array<{ url: string; id: string }>;
+  conceptName: string;
   evidenceIsLimited: boolean;
 }) {
   const answered = responses.filter(r => {
@@ -546,7 +559,13 @@ function QuestionResultCard({
         ) : question.type === 'ranking' ? (
           <RankingResults answers={answered.map(r => r.answers[question.id] as string[])} options={question.options ?? []} />
         ) : question.type === 'image_choice' ? (
-          <ImageChoiceResults answers={answered.map(r => r.answers[question.id] as string)} images={images} evidenceIsLimited={evidenceIsLimited} />
+          <ImageChoiceResults
+            answers={answered.map(r => r.answers[question.id] as string)}
+            images={images}
+            imagePairs={imagePairs}
+            conceptName={conceptName}
+            evidenceIsLimited={evidenceIsLimited}
+          />
         ) : (
           <OpenTextResults answers={answered.map(r => String(r.answers[question.id]))} />
         )}
@@ -708,11 +727,18 @@ function RankingResults({ answers, options }: { answers: string[][]; options: st
   );
 }
 
-function ImageChoiceResults({ answers, images, evidenceIsLimited }: {
+function ImageChoiceResults({ answers, images, imagePairs, conceptName, evidenceIsLimited }: {
   answers: string[];
   images: string[];
+  imagePairs: Array<{ url: string; id: string }>;
+  conceptName: string;
   evidenceIsLimited: boolean;
 }) {
+  const { user } = useAuth();
+  const { data: workspaceSettings } = useWorkspaceSettings();
+  const adoptBrandKit = useAdoptBrandKit();
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
   if (images.length === 0) {
     return <p className="text-xs text-slate-500 italic">No concept visuals were attached to this test.</p>;
   }
@@ -723,15 +749,82 @@ function ImageChoiceResults({ answers, images, evidenceIsLimited }: {
     .map((url, index) => ({ url, index, count: tally.get(url) ?? 0 }))
     .sort((a, b) => b.count - a.count);
   const winner = entries[0];
+  // Evidence loop: a panel-validated winner can be promoted straight into the
+  // company brand kit, so the next concept starts from proven preference —
+  // not from scratch. Only offered on solid evidence (min responses met).
+  const winnerImageId = winner ? (imagePairs.find(pair => pair.url === winner.url)?.id ?? '') : '';
+  const winnerIsBrandKit = Boolean(winnerImageId) && workspaceSettings?.brandKit?.sourceImageId === winnerImageId;
+  const canAdoptWinner = Boolean(winner && winner.count > 0 && winnerImageId && !evidenceIsLimited);
+
+  const handleExportBoard = async () => {
+    setExporting(true);
+    setExportError('');
+    try {
+      await downloadConceptBoardPdf({
+        conceptName,
+        organizationName: workspaceSettings?.organizationName ?? '',
+        contextLine: evidenceIsLimited
+          ? `Directional preference read from ${total} panel response${total === 1 ? '' : 's'} — below the confidence threshold for a client-facing claim.`
+          : `Panel preference from ${total} response${total === 1 ? '' : 's'}.`,
+        images: entries.map(entry => ({
+          url: entry.url,
+          label: `Option ${entry.index + 1}`,
+          sublabel: total > 0 ? `${entry.count} of ${total} selections (${Math.round((entry.count / total) * 100)}%)` : undefined,
+          highlight: winner ? entry.url === winner.url && entry.count > 0 : false,
+        })),
+      });
+    } catch {
+      setExportError('Could not build the concept board PDF. Try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="space-y-3">
-      {winner && winner.count > 0 && (
-        <LeadingOptionBadge
-          label={evidenceIsLimited ? 'Current leading direction' : 'Leading visual'}
-          detail={`Option ${winner.index + 1}, ${winner.count} of ${total} selections (${Math.round((winner.count / total) * 100)}%)`}
-        />
-      )}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        {winner && winner.count > 0 ? (
+          <LeadingOptionBadge
+            label={evidenceIsLimited ? 'Current leading direction' : 'Leading visual'}
+            detail={`Option ${winner.index + 1}, ${winner.count} of ${total} selections (${Math.round((winner.count / total) * 100)}%)`}
+          />
+        ) : <span />}
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {canAdoptWinner && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={adoptBrandKit.isPending || winnerIsBrandKit}
+              onClick={() => adoptBrandKit.mutate({
+                imageId: winnerImageId,
+                sourceConceptName: conceptName,
+                actorId: user?.id ?? null,
+              })}
+              className="h-8 w-fit text-xs"
+              title={`Panel-validated winner (${Math.round((winner.count / total) * 100)}% of ${total} selections) becomes the company brand reference for future concepts`}
+            >
+              <Star className="mr-1 size-3" />
+              {winnerIsBrandKit
+                ? 'Company brand'
+                : adoptBrandKit.isPending ? 'Saving...' : 'Set winner as company brand'}
+            </Button>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={exporting}
+            onClick={handleExportBoard}
+            className="h-8 w-fit text-xs"
+            title="Download a one-page concept board with these visuals and their panel evidence"
+          >
+            <FileDown className="mr-1 size-3" />
+            {exporting ? 'Building...' : 'Export concept board'}
+          </Button>
+        </div>
+      </div>
+      {exportError && <p className="text-xs text-rose-700">{exportError}</p>}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {entries.map(({ url, index, count }) => {
           const pct = total > 0 ? Math.round((count / total) * 100) : 0;

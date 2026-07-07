@@ -161,6 +161,27 @@ export function getConceptImageMode(value: unknown): ConceptImageModeDefinition 
 }
 
 /**
+ * Cost multipliers by quality tier, relative to the org's configured
+ * estimated_cost_per_image (which is the MEDIUM-quality baseline). Mirrors the
+ * gpt-image family's published pricing shape: low renders cost a fraction of
+ * medium, high renders roughly 4x. 'auto' is estimated at the medium rate.
+ * Estimates only — actual provider billing governs.
+ */
+export const QUALITY_COST_MULTIPLIERS: Record<string, number> = {
+  low: 0.3,
+  medium: 1,
+  high: 4,
+  auto: 1,
+};
+
+/** Quality-aware cost estimate shared by the edge function and the UI. */
+export function estimateConceptImageCost(baseCostPerImage: number, quality: string, count: number): number {
+  const multiplier = QUALITY_COST_MULTIPLIERS[quality] ?? 1;
+  const total = Math.max(0, baseCostPerImage) * multiplier * Math.max(1, count);
+  return Number(total.toFixed(4));
+}
+
+/**
  * Resolves the render size for a mode. `override` accepts an explicit size
  * (admin's "image shape" choice) or 'auto'/anything else to use the mode's
  * catalog default, so every format renders in the shape it is used in

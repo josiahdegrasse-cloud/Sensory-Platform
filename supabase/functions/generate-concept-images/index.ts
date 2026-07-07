@@ -2,6 +2,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import {
   buildModeSequence,
+  estimateConceptImageCost,
   getConceptImageSize,
   normalizeConceptImageMode,
   normalizePromptStyle,
@@ -400,7 +401,9 @@ Deno.serve(async (req: Request) => {
       return { angle, size: getConceptImageSize(angle, sizeOverride), prompt: built.prompt, summary: built.summary };
     });
     const prompt = angledPrompts[0].prompt;
-    const estimatedCost = Number((count * costPerImage).toFixed(4));
+    // Quality-aware estimate (configured rate = medium baseline) so the budget
+    // gate reflects that a high-quality render costs a multiple of medium.
+    const estimatedCost = estimateConceptImageCost(costPerImage, quality, count);
     const maxGenerations = Math.max(1, Number(workspaceSettings?.concept_max_generations_per_concept) || 12);
     const settingsBudget = Math.max(0, Number(settings?.monthly_budget) || 0);
     const workspaceBudget = Math.max(0, Number(workspaceSettings?.concept_monthly_budget_cents) || 0) / 100;

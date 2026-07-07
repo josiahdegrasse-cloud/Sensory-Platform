@@ -27,6 +27,7 @@ import { detectFoodType, getFoodTypeProfile } from '../../lib/food-intelligence'
 import type { ConceptGenerationSettings } from '../../lib/db/concepts';
 import { useAuth } from '../../contexts/auth-context';
 import {
+  estimateConceptImageCost,
   getConceptImageMode,
   getPromptStyle,
   normalizePromptStyle,
@@ -225,7 +226,9 @@ export function ImagesStep({
     && draft.packageFormat.trim()
     && draft.targetMarket.trim()
   );
-  const estimatedCost = estimatedCostPerImage * options.count;
+  // Quality-aware: the configured per-image rate is the medium baseline.
+  const estimatedCost = estimateConceptImageCost(estimatedCostPerImage, options.quality, options.count);
+  const estimatedPerImage = estimateConceptImageCost(estimatedCostPerImage, options.quality, 1);
   const styleLabel = getPromptStyle(draft.promptStyle).label;
   const leadModeLabel = getConceptImageMode(options.mode).label;
 
@@ -1144,8 +1147,8 @@ export function ImagesStep({
               <dd className="font-semibold text-slate-900">{settings?.defaultModel ?? 'gpt-image-1.5'} · {options.quality}</dd>
             </div>
             <div className="flex items-center justify-between gap-4">
-              <dt className="text-slate-700">Estimated cost per image</dt>
-              <dd className="font-semibold text-slate-900">${estimatedCostPerImage.toFixed(3)}</dd>
+              <dt className="text-slate-700">Estimated cost per image ({options.quality})</dt>
+              <dd className="font-semibold text-slate-900">${estimatedPerImage.toFixed(3)}</dd>
             </div>
             <div className="flex items-center justify-between gap-4 border-t border-slate-200 pt-2">
               <dt className="font-semibold text-slate-700">Estimated total</dt>

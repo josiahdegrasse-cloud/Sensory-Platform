@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CONCEPT_IMAGE_MODES,
   CONCEPT_IMAGE_SIZES,
+  estimateConceptImageCost,
   getConceptImageSize,
 } from '../../../../supabase/functions/_shared/concept-image-catalog.ts';
 import {
@@ -38,6 +39,23 @@ describe('per-mode render sizes', () => {
     expect(getConceptImageSize('packaging', '1536x1024')).toBe('1536x1024');
     expect(getConceptImageSize('shelf', 'auto')).toBe('1536x1024');
     expect(getConceptImageSize('shelf', '4096x4096')).toBe('1536x1024');
+  });
+});
+
+describe('quality-aware cost estimate', () => {
+  it('scales the configured medium rate by quality tier and count', () => {
+    expect(estimateConceptImageCost(0.034, 'medium', 4)).toBeCloseTo(0.136, 4);
+    expect(estimateConceptImageCost(0.034, 'low', 4)).toBeCloseTo(0.0408, 4);
+    expect(estimateConceptImageCost(0.034, 'high', 4)).toBeCloseTo(0.544, 4);
+  });
+
+  it('an unknown quality tier defaults to the medium multiplier', () => {
+    expect(estimateConceptImageCost(0.034, 'ultra', 1)).toBeCloseTo(0.034, 4);
+  });
+
+  it('never goes negative and treats a non-positive count as one image', () => {
+    expect(estimateConceptImageCost(-1, 'medium', 4)).toBe(0);
+    expect(estimateConceptImageCost(0.034, 'medium', 0)).toBeCloseTo(0.034, 4);
   });
 });
 
