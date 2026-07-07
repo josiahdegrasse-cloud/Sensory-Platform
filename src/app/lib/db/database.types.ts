@@ -593,6 +593,7 @@ export type Database = {
           approval_notes: string | null
           archived_at: string | null
           assigned_panelist_ids: string[] | null
+          brand_reference_image_id: string | null
           category: string
           concept_folder_name: string | null
           created_at: string | null
@@ -617,6 +618,7 @@ export type Database = {
           approval_notes?: string | null
           archived_at?: string | null
           assigned_panelist_ids?: string[] | null
+          brand_reference_image_id?: string | null
           category?: string
           concept_folder_name?: string | null
           created_at?: string | null
@@ -641,6 +643,7 @@ export type Database = {
           approval_notes?: string | null
           archived_at?: string | null
           assigned_panelist_ids?: string[] | null
+          brand_reference_image_id?: string | null
           category?: string
           concept_folder_name?: string | null
           created_at?: string | null
@@ -662,6 +665,13 @@ export type Database = {
           variant_dimensions?: Json | null
         }
         Relationships: [
+          {
+            foreignKeyName: "concept_tests_brand_reference_image_id_fkey"
+            columns: ["brand_reference_image_id"]
+            isOneToOne: false
+            referencedRelation: "concept_images"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "concept_tests_org_id_fkey"
             columns: ["org_id"]
@@ -1777,6 +1787,7 @@ export type Database = {
           anonymize_panelists_in_reports: boolean
           auto_create_food_types: boolean
           auto_create_surveys_from_imports: boolean
+          brand_kit: Json
           concept_max_generations_per_concept: number
           concept_monthly_budget_cents: number
           concept_require_approval: boolean
@@ -1823,6 +1834,7 @@ export type Database = {
           anonymize_panelists_in_reports?: boolean
           auto_create_food_types?: boolean
           auto_create_surveys_from_imports?: boolean
+          brand_kit?: Json
           concept_max_generations_per_concept?: number
           concept_monthly_budget_cents?: number
           concept_require_approval?: boolean
@@ -1869,6 +1881,7 @@ export type Database = {
           anonymize_panelists_in_reports?: boolean
           auto_create_food_types?: boolean
           auto_create_surveys_from_imports?: boolean
+          brand_kit?: Json
           concept_max_generations_per_concept?: number
           concept_monthly_budget_cents?: number
           concept_require_approval?: boolean
@@ -2231,6 +2244,7 @@ export type Database = {
           anonymize_panelists_in_reports: boolean
           auto_create_food_types: boolean
           auto_create_surveys_from_imports: boolean
+          brand_kit: Json
           concept_max_generations_per_concept: number
           concept_monthly_budget_cents: number
           concept_require_approval: boolean
