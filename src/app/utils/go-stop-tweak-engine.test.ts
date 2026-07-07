@@ -117,3 +117,56 @@ describe('GO / STOP / TWEAK engine — invariants', () => {
     expect(decision.issfScore).toBeLessThanOrEqual(54);
   });
 });
+
+describe('GO / STOP / TWEAK engine — NFI-GST-2.0 evidence honesty', () => {
+  const sample = ENHANCED_SENSORY_DATA.find(item => item.sampleId === 'S4')!;
+
+  it('CATA scoring is invariant to panel size at equal citation rates', () => {
+    const doubledCata = Object.fromEntries(
+      Object.entries(sample.cata).map(([attribute, count]) => [attribute, count * 2]),
+    );
+    const smallPanel = calculateGoStopTweakDecision({ ...sample, panelN: 14 }, weights, 'cheese');
+    const bigPanel = calculateGoStopTweakDecision(
+      { ...sample, cata: doubledCata, panelN: 28 },
+      weights,
+      'cheese',
+    );
+    expect(bigPanel.dimensionScores.cata).toBeCloseTo(smallPanel.dimensionScores.cata, 6);
+  });
+
+  it('scores texture over measured cues only — unmeasured cues are not zeros', () => {
+    // Only creamy + smooth measured (no firm/spreadable, no negative cues):
+    // texture = mean(8.4, 8.6)/10 × 105 = 89.25, not deflated by absent keys.
+    const measuredOnly = { ...sample, intensity: { creamy: 8.4, smooth: 8.6 } };
+    const decision = calculateGoStopTweakDecision(measuredOnly, weights, 'cheese');
+    expect(decision.dimensionScores.texture).toBeCloseTo(89.25, 1);
+  });
+
+  it('falls back to hedonic texture liking when no texture cues were measured', () => {
+    const noCues = { ...sample, intensity: {} };
+    const decision = calculateGoStopTweakDecision(noCues, weights, 'cheese');
+    expect(decision.dimensionScores.texture).toBeCloseTo((sample.hedonic.texture / 9) * 100, 1);
+  });
+
+  it('reports not_measured gates for panel-only studies and issues GO with an explicit caveat', () => {
+    const panelOnly = { ...sample, istdRecovery: null, gcmsOlfactometry: [] };
+    const decision = calculateGoStopTweakDecision(panelOnly, weights, 'cheese');
+    expect(decision.gates.find(gate => gate.id === 'qc')?.status).toBe('not_measured');
+    expect(decision.gates.find(gate => gate.id === 'off-note')?.status).toBe('not_measured');
+    // Absence of evidence never blocks a GO, but the call carries the caveat.
+    expect(decision.decision).toBe('GO');
+    expect(decision.recommendation).toContain('panel evidence alone');
+    expect(decision.details.some(detail => detail.includes('NOT MEASURED'))).toBe(true);
+  });
+
+  it('honors a legitimately zeroed single dimension weight', () => {
+    const withoutTexture = calculateGoStopTweakDecision(
+      sample,
+      { hedonic: 30, texture: 0, cata: 25, emotional: 15 },
+      'cheese',
+    );
+    const withTexture = calculateGoStopTweakDecision(sample, weights, 'cheese');
+    expect(Number.isFinite(withoutTexture.issfScore)).toBe(true);
+    expect(withoutTexture.issfScore).not.toBe(withTexture.issfScore);
+  });
+});

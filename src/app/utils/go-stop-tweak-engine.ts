@@ -14,7 +14,13 @@ export interface DecisionWeights {
 export interface DecisionGate {
   id: string;
   label: string;
-  status: 'pass' | 'watch' | 'fail';
+  /**
+   * `not_measured` = the evidence behind this gate was never collected for
+   * this study (e.g. panel-only run with no GC-MS / instrument QC). It is
+   * honest absence: it never blocks a GO the way fail/watch do, but it is
+   * surfaced as an explicit caveat instead of masquerading as a pass.
+   */
+  status: 'pass' | 'watch' | 'fail' | 'not_measured';
   detail: string;
   impact: number;
 }
@@ -33,8 +39,6 @@ export interface GoStopTweakDecision {
   confidenceScore: number;
   decision: DecisionOutcome;
   recommendation: string;
-  costSavings: number;
-  timeline: string;
   riskLevel: DecisionRisk;
   details: string[];
   dimensionScores: { hedonic: number; texture: number; cata: number; emotional: number };
@@ -59,7 +63,8 @@ export interface GoStopTweakDecision {
  *
  * Key knobs and their intent:
  *  • METHOD_VERSION — embedded in every decision fingerprint for audit trails.
- *  • PANEL_N — nominal panel size used to normalize CATA citation counts.
+ *  • PANEL_N — nominal fallback panel size for CATA normalization when a
+ *    profile does not carry its real respondent count (`sample.panelN`).
  *    Matches RESEARCH_PANEL_N for the simulated reference panel (n=14).
  *  • DEFECT_WORDS / BENEFIT_WORDS — generic CATA lexicon markers, extended per
  *    food type by getFoodTypeProfile(). Matching is substring-based, so terms
@@ -73,8 +78,19 @@ export interface GoStopTweakDecision {
  *    any failed gate) — quality floors that cannot be averaged away.
  *  • Gate penalties (off-note −22/−9, QC −12/−5) and ISTD recovery bands
  *    (85–110% pass, 75–85% watch, <75% fail) — instrument QC discipline.
+ *
+ * NFI-GST-2.0 (this version) vs 1.1:
+ *  • Texture is scored over the cues the study actually MEASURED; descriptor
+ *    coverage feeds the confidence score instead of zero-filling the texture
+ *    score (the old "completeness penalty"). With no texture descriptors at
+ *    all, the 9-pt hedonic texture liking stands in as the only evidence.
+ *  • CATA normalizes by the real respondent count (`sample.panelN`), falling
+ *    back to PANEL_N only for reference profiles.
+ *  • `istdRecovery: null` and an empty GC-MS table produce `not_measured`
+ *    gates instead of silent passes; a GO issued with unmeasured gates carries
+ *    an explicit caveat. Fabricated costSavings/timeline outputs were removed.
  */
-const METHOD_VERSION = 'NFI-GST-1.1';
+const METHOD_VERSION = 'NFI-GST-2.0';
 /** Nominal panel size used to normalize CATA citation counts. */
 export const PANEL_N = 14;
 const DEFECT_WORDS = [
@@ -112,19 +128,35 @@ function weightedMean(parts: Array<{ score: number; weight: number }>) {
   return parts.reduce((sum, part) => sum + part.score * part.weight, 0) / totalWeight;
 }
 
-function confidenceFromEvidence(sample: EnhancedSensoryProfile, score: number, gates: DecisionGate[]) {
-  const qc = clamp(sample.istdRecovery, 0, 110);
-  const qcScore = qc >= 85 && qc <= 110 ? 96 : qc >= 75 ? 82 : 62;
+function confidenceFromEvidence(
+  sample: EnhancedSensoryProfile,
+  score: number,
+  gates: DecisionGate[],
+  foodTypeSlug: string,
+) {
+  // Instrument QC: a real recovery measurement scores by band; a study with
+  // no instrument QC (istdRecovery null) contributes a low-weight neutral
+  // term — absence of QC is unknown risk, neither a pass boost nor a failure.
+  const qcTerm = sample.istdRecovery == null
+    ? { score: 75, weight: 10 }
+    : (() => {
+        const qc = clamp(sample.istdRecovery, 0, 110);
+        return { score: qc >= 85 && qc <= 110 ? 96 : qc >= 75 ? 82 : 62, weight: 20 };
+      })();
   const trainedReferenceScore = sample.trainedPanelReference
     ? clamp(100 - Math.abs(score - sample.trainedPanelReference.overallQuality) * 1.2)
     : 78;
+  // Descriptor coverage: texture evidence completeness lowers confidence
+  // (never the texture score itself). Full coverage → 100, none → 55.
+  const coverage = textureCoverage(sample, foodTypeSlug);
   const gatePenalty = gates.filter(gate => gate.status === 'fail').length * 8 +
     gates.filter(gate => gate.status === 'watch').length * 3;
   return clamp(weightedMean([
     { score: trainedReferenceScore, weight: sample.trainedPanelReference ? 45 : 20 },
-    { score: qcScore, weight: 20 },
+    qcTerm,
     { score: sample.gcmsOlfactometry.length > 0 ? 92 : 70, weight: 20 },
     { score: Object.keys(sample.cata).length > 0 ? 88 : 65, weight: 15 },
+    { score: 55 + coverage * 45, weight: 10 },
   ]) - gatePenalty, 35, 98);
 }
 
@@ -137,16 +169,33 @@ function scoreHedonic(sample: EnhancedSensoryProfile) {
   ]));
 }
 
+/**
+ * Fraction (0..1) of the food type's expected positive texture cues that the
+ * study actually measured. Exposed so confidence and report narratives can
+ * report descriptor coverage; the texture SCORE itself only uses measured cues.
+ */
+export function textureCoverage(sample: EnhancedSensoryProfile, foodTypeSlug: string) {
+  const positiveKeys = positiveTextureCues(foodTypeSlug);
+  const measured = positiveKeys.filter(key => Number.isFinite(sample.intensity[key]));
+  return positiveKeys.length > 0 ? measured.length / positiveKeys.length : 0;
+}
+
 function scoreTexture(sample: EnhancedSensoryProfile, foodTypeSlug: string) {
   const intensity = sample.intensity;
-  const positiveKeys = foodTypeSlug === 'meat'
-    ? ['juicy', 'tender', 'firm']
-    : foodTypeSlug === 'bread'
-      ? ['soft', 'crusty', 'chewy', 'airy', 'springy']
-      : ['creamy', 'smooth', 'firm', 'spreadable'];
-  const negativeKeys = ['grainy', 'chalky', 'dry', 'rubbery', 'gummy', 'sticky', 'dense'];
-  const positive = positiveKeys.reduce((sum, key) => sum + safeScore(intensity[key]), 0) / Math.max(1, positiveKeys.length);
-  const negative = negativeKeys.reduce((sum, key) => sum + safeScore(intensity[key]), 0) / Math.max(1, negativeKeys.length);
+  const positiveKeys = positiveTextureCues(foodTypeSlug);
+  // Score only what the study measured. Unmeasured cues are missing evidence
+  // (reflected in confidence via textureCoverage), not measured zeros.
+  const measuredPositive = positiveKeys.filter(key => Number.isFinite(intensity[key]));
+  const measuredNegative = NEGATIVE_TEXTURE_KEYS.filter(key => Number.isFinite(intensity[key]));
+  if (measuredPositive.length === 0) {
+    // No texture descriptors at all: the 9-pt hedonic texture liking is the
+    // only texture evidence available. Coverage 0 pulls confidence down.
+    return clamp((safeScore(sample.hedonic.texture, 5) / 9) * 100);
+  }
+  const positive = measuredPositive.reduce((sum, key) => sum + safeScore(intensity[key]), 0) / measuredPositive.length;
+  const negative = measuredNegative.length > 0
+    ? measuredNegative.reduce((sum, key) => sum + safeScore(intensity[key]), 0) / measuredNegative.length
+    : 0;
   return clamp((positive / 10) * 105 - (negative / 10) * 45);
 }
 
@@ -160,8 +209,12 @@ function scoreCata(sample: EnhancedSensoryProfile, foodTypeSlug: string) {
   const riskCount = Object.entries(sample.cata)
     .filter(([attribute]) => includesAny(attribute, riskWords))
     .reduce((sum, [, count]) => sum + count, 0);
-  const positiveScore = clamp((positiveCount / (PANEL_N * 4)) * 100);
-  const defectPenalty = clamp((riskCount / (PANEL_N * 3)) * 70);
+  // Normalize by the study's real respondent count so a 50-person panel and
+  // an 8-person panel produce comparable citation rates. PANEL_N is only the
+  // fallback for reference profiles that predate panelN.
+  const panelN = sample.panelN && sample.panelN > 0 ? sample.panelN : PANEL_N;
+  const positiveScore = clamp((positiveCount / (panelN * 4)) * 100);
+  const defectPenalty = clamp((riskCount / (panelN * 3)) * 70);
   return clamp(positiveScore - defectPenalty + 20);
 }
 
@@ -189,6 +242,7 @@ function scoreInstrumentSignal(sample: EnhancedSensoryProfile, foodTypeSlug: str
 function buildOffNoteGates(sample: EnhancedSensoryProfile, foodTypeSlug: string): DecisionGate[] {
   const profile = getFoodTypeProfile(foodTypeSlug);
   const riskWords = [...profile.riskMarkers, ...DEFECT_WORDS];
+  const aromaScreened = sample.gcmsOlfactometry.length > 0;
   const riskCompounds = sample.gcmsOlfactometry
     .filter(compound => !compound.isBlankArtefact)
     .map(compound => {
@@ -209,19 +263,27 @@ function buildOffNoteGates(sample: EnhancedSensoryProfile, foodTypeSlug: string)
   gates.push({
     id: 'off-note',
     label: 'Off-note barrier',
-    status: critical.length > 0 ? 'fail' : moderate.length > 0 ? 'watch' : 'pass',
-    detail: worst
-      ? `${worst.compound.compound}: ${worst.compound.odour}, intensity ${worst.compound.odourIntensity.toFixed(1)}/5${worst.thresholdRatio ? `, ${worst.thresholdRatio.toFixed(1)}x threshold` : ''}`
-      : 'No risk aroma above decision threshold.',
+    status: !aromaScreened
+      ? 'not_measured'
+      : critical.length > 0 ? 'fail' : moderate.length > 0 ? 'watch' : 'pass',
+    detail: !aromaScreened
+      ? 'Aroma screening (GC-MS / olfactometry) was not performed for this study.'
+      : worst
+        ? `${worst.compound.compound}: ${worst.compound.odour}, intensity ${worst.compound.odourIntensity.toFixed(1)}/5${worst.thresholdRatio ? `, ${worst.thresholdRatio.toFixed(1)}x threshold` : ''}`
+        : 'No risk aroma above decision threshold.',
     impact: critical.length > 0 ? -22 : moderate.length > 0 ? -9 : 0,
   });
 
   gates.push({
     id: 'qc',
     label: 'Instrument QC',
-    status: sample.istdRecovery < 75 ? 'fail' : sample.istdRecovery < 85 ? 'watch' : 'pass',
-    detail: `ISTD recovery ${sample.istdRecovery.toFixed(1)}%.`,
-    impact: sample.istdRecovery < 75 ? -12 : sample.istdRecovery < 85 ? -5 : 0,
+    status: sample.istdRecovery == null
+      ? 'not_measured'
+      : sample.istdRecovery < 75 ? 'fail' : sample.istdRecovery < 85 ? 'watch' : 'pass',
+    detail: sample.istdRecovery == null
+      ? 'No instrument QC data for this study.'
+      : `ISTD recovery ${sample.istdRecovery.toFixed(1)}%.`,
+    impact: sample.istdRecovery == null ? 0 : sample.istdRecovery < 75 ? -12 : sample.istdRecovery < 85 ? -5 : 0,
   });
 
   return gates;
@@ -307,7 +369,8 @@ function buildPrescriptions(
 
 function fingerprint(sample: EnhancedSensoryProfile, score: number, gates: DecisionGate[]) {
   const gateCode = gates.map(gate => `${gate.id}:${gate.status}`).join('|');
-  const raw = `${METHOD_VERSION}|${sample.sampleId}|${score.toFixed(1)}|${gateCode}|${sample.istdRecovery.toFixed(1)}`;
+  const qcCode = sample.istdRecovery == null ? 'NA' : sample.istdRecovery.toFixed(1);
+  const raw = `${METHOD_VERSION}|${sample.sampleId}|${score.toFixed(1)}|${gateCode}|${qcCode}`;
   let hash = 0;
   for (let i = 0; i < raw.length; i++) {
     hash = (hash * 31 + raw.charCodeAt(i)) >>> 0;
@@ -323,12 +386,19 @@ export function calculateGoStopTweakDecision(
 ): GoStopTweakDecision {
   const stopThreshold = clamp(thresholds.stop, 0, 99);
   const goThreshold = clamp(Math.max(stopThreshold + 1, thresholds.go), 1, 100);
-  const normalizedWeights = {
-    hedonic: weights.hedonic || 30,
-    texture: weights.texture || 25,
-    cata: weights.cata || 25,
-    emotional: weights.emotional || 15,
+  // ?? (not ||) so a workspace can legitimately zero out a single dimension.
+  // All-zero weights are a configuration error, not a preference — fall back
+  // to the method defaults rather than scoring on nothing.
+  const requestedWeights = {
+    hedonic: weights.hedonic ?? 30,
+    texture: weights.texture ?? 25,
+    cata: weights.cata ?? 25,
+    emotional: weights.emotional ?? 15,
   };
+  const requestedTotal = Object.values(requestedWeights).reduce((sum, value) => sum + value, 0);
+  const normalizedWeights = requestedTotal > 0
+    ? requestedWeights
+    : { hedonic: 30, texture: 25, cata: 25, emotional: 15 };
   const totalWeight = Object.values(normalizedWeights).reduce((sum, value) => sum + value, 0);
   const dimensionScores = {
     hedonic: scoreHedonic(sample),
@@ -351,13 +421,20 @@ export function calculateGoStopTweakDecision(
     dimensionScores.hedonic < 45;
   const issfScore = hardStop ? Math.min(baseScore - gatePenalty, 54) : baseScore - gatePenalty;
   const finalScore = clamp(issfScore);
-  const confidenceScore = confidenceFromEvidence(sample, finalScore, gates);
+  const confidenceScore = confidenceFromEvidence(sample, finalScore, gates, foodTypeSlug);
   const prescriptions = buildPrescriptions(sample, dimensionScores, gates, foodTypeSlug);
+  const unmeasuredGates = gates.filter(gate => gate.status === 'not_measured');
 
   let decision: DecisionOutcome = 'TWEAK';
   if (hardStop || finalScore < stopThreshold) {
     decision = 'STOP';
-  } else if (finalScore >= goThreshold && confidenceScore >= 72 && gates.every(gate => gate.status === 'pass')) {
+  } else if (
+    finalScore >= goThreshold &&
+    confidenceScore >= 72 &&
+    // not_measured never blocks a GO (absence of evidence is not a defect),
+    // but fail/watch always do. Unmeasured gates surface as an explicit caveat.
+    gates.every(gate => gate.status !== 'fail' && gate.status !== 'watch')
+  ) {
     decision = 'GO';
   }
 
@@ -366,18 +443,21 @@ export function calculateGoStopTweakDecision(
     : decision === 'TWEAK' || confidenceScore < 75
       ? 'medium'
       : 'low';
-  const timeline = decision === 'GO' ? '1 week' : decision === 'STOP' ? '3-6 weeks' : '10-14 days';
+  const unmeasuredCaveat = unmeasuredGates.length > 0
+    ? ` Note: ${unmeasuredGates.map(gate => gate.label.toLowerCase()).join(' and ')} evidence was not collected for this study, so this call rests on panel evidence alone.`
+    : '';
   const recommendation = decision === 'GO'
-    ? 'Advance with controlled scale-up. No hard sensory gates are open, and the evidence stack supports moving forward.'
+    ? `Advance with controlled scale-up. No measured sensory gate is open, and the evidence stack supports moving forward.${unmeasuredCaveat}`
     : decision === 'STOP'
       ? 'Do not advance this formula. A hard gate or quality floor failed, so the next move is fundamental reformulation.'
-      : `Tweak before advancing. Highest leverage: ${prescriptions[0]?.target ?? 'focused formula optimization'}.`;
+      : `Tweak before advancing. Highest leverage: ${prescriptions[0]?.target ?? 'focused formula optimization'}.${unmeasuredCaveat}`;
 
+  const gateStatusLabel = (status: DecisionGate['status']) => status.replace('_', ' ').toUpperCase();
   const details = [
     `${METHOD_VERSION}: score ${finalScore.toFixed(1)}/100, confidence ${confidenceScore.toFixed(0)}%.`,
     `Hedonic ${dimensionScores.hedonic.toFixed(0)}, texture ${dimensionScores.texture.toFixed(0)}, CATA ${dimensionScores.cata.toFixed(0)}, emotional ${dimensionScores.emotional.toFixed(0)}.`,
     `Instrument signal ${instrumentSignal.toFixed(0)}; gate penalty ${gatePenalty.toFixed(0)}.`,
-    ...gates.map(gate => `${gate.label}: ${gate.status.toUpperCase()} (${gate.detail})`),
+    ...gates.map(gate => `${gate.label}: ${gateStatusLabel(gate.status)} (${gate.detail})`),
   ];
 
   if (sample.trainedPanelReference) {
@@ -392,8 +472,6 @@ export function calculateGoStopTweakDecision(
     confidenceScore,
     decision,
     recommendation,
-    costSavings: decision === 'GO' ? 33000 : decision === 'TWEAK' ? 28000 : 18000,
-    timeline,
     riskLevel,
     details,
     dimensionScores,
