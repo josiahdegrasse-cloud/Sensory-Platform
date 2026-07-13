@@ -1673,6 +1673,246 @@ export type Database = {
           },
         ]
       }
+      rag_audit_events: {
+        Row: {
+          action: string
+          details_json: Json
+          id: string
+          occurred_at: string
+          outcome: string
+          request_id: string
+          resource_id: string
+          resource_type: string
+          role: string
+          subject: string
+          tenant_id: string
+        }
+        Insert: {
+          action: string
+          details_json?: Json
+          id: string
+          occurred_at: string
+          outcome: string
+          request_id: string
+          resource_id: string
+          resource_type: string
+          role: string
+          subject: string
+          tenant_id: string
+        }
+        Update: {
+          action?: string
+          details_json?: Json
+          id?: string
+          occurred_at?: string
+          outcome?: string
+          request_id?: string
+          resource_id?: string
+          resource_type?: string
+          role?: string
+          subject?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rag_audit_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
+      rag_auth_login_states: {
+        Row: {
+          expires_at: string
+          payload_json: string
+          state: string
+        }
+        Insert: {
+          expires_at: string
+          payload_json: string
+          state: string
+        }
+        Update: {
+          expires_at?: string
+          payload_json?: string
+          state?: string
+        }
+        Relationships: []
+      }
+      rag_auth_sessions: {
+        Row: {
+          created_at: string
+          expires_at: string
+          payload_json: string
+          session_id: string
+        }
+        Insert: {
+          created_at: string
+          expires_at: string
+          payload_json: string
+          session_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          payload_json?: string
+          session_id?: string
+        }
+        Relationships: []
+      }
+      rag_chunks: {
+        Row: {
+          chunk_id: string
+          chunk_index: number
+          document_id: string
+          embedding: string
+          evidence_type: string
+          heading: string
+          library_id: string
+          method_tags: string
+          page_end: number
+          page_start: number
+          parent_id: string
+          parent_text: string
+          search_vector: unknown
+          section: string
+          source_path: string
+          tenant_id: string
+          text: string
+          title: string
+          topic_tags: string
+        }
+        Insert: {
+          chunk_id: string
+          chunk_index: number
+          document_id: string
+          embedding: string
+          evidence_type?: string
+          heading?: string
+          library_id: string
+          method_tags?: string
+          page_end: number
+          page_start: number
+          parent_id?: string
+          parent_text?: string
+          search_vector?: unknown
+          section: string
+          source_path: string
+          tenant_id: string
+          text: string
+          title: string
+          topic_tags?: string
+        }
+        Update: {
+          chunk_id?: string
+          chunk_index?: number
+          document_id?: string
+          embedding?: string
+          evidence_type?: string
+          heading?: string
+          library_id?: string
+          method_tags?: string
+          page_end?: number
+          page_start?: number
+          parent_id?: string
+          parent_text?: string
+          search_vector?: unknown
+          section?: string
+          source_path?: string
+          tenant_id?: string
+          text?: string
+          title?: string
+          topic_tags?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rag_chunks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
+      rag_index_config: {
+        Row: {
+          key: string
+          value: string
+        }
+        Insert: {
+          key: string
+          value: string
+        }
+        Update: {
+          key?: string
+          value?: string
+        }
+        Relationships: []
+      }
+      rag_jobs: {
+        Row: {
+          attempts: number
+          cancel_requested: boolean
+          created_at: string
+          error: string | null
+          finished_at: string | null
+          heartbeat_at: string | null
+          id: string
+          kind: string
+          max_attempts: number
+          payload_json: string
+          result_json: string | null
+          started_at: string | null
+          status: string
+          tenant_id: string
+          worker_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          cancel_requested?: boolean
+          created_at: string
+          error?: string | null
+          finished_at?: string | null
+          heartbeat_at?: string | null
+          id: string
+          kind: string
+          max_attempts?: number
+          payload_json?: string
+          result_json?: string | null
+          started_at?: string | null
+          status: string
+          tenant_id: string
+          worker_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          cancel_requested?: boolean
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          heartbeat_at?: string | null
+          id?: string
+          kind?: string
+          max_attempts?: number
+          payload_json?: string
+          result_json?: string | null
+          started_at?: string | null
+          status?: string
+          tenant_id?: string
+          worker_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rag_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
       responses: {
         Row: {
           cata_attributes: Json | null
@@ -2036,6 +2276,8 @@ export type Database = {
         }[]
       }
       current_org_id: { Args: never; Returns: string }
+      current_org_slug: { Args: never; Returns: string }
+      custom_access_token_hook: { Args: { event: Json }; Returns: Json }
       delete_import_batch: {
         Args: { target_batch_id: string }
         Returns: undefined
