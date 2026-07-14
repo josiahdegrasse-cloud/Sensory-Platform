@@ -3,7 +3,7 @@ import { PANEL_N, type GoStopTweakDecision } from '../utils/go-stop-tweak-engine
 import { parseEvidenceAssistResult, type EvidenceAssistResult } from './evidence-assist';
 import { openRagSource, ragFetch } from './rag-client';
 
-const CACHE_PREFIX = 'nfi:tweak-intelligence:v12';
+const CACHE_PREFIX = 'nfi:tweak-intelligence:v13';
 
 type CategoryFamily = 'plant_based_cheese' | 'cheese' | 'bread' | 'meat' | 'yogurt' | 'generic';
 type PrimaryIssueKind = 'texture' | 'aroma' | 'go_protection' | 'generic';
@@ -231,7 +231,7 @@ export function buildTweakEvidenceChain(input: {
       hypothesisStatus: 'needs_confirmation',
       verification: `Before reformulation, compare the current control with an intended-${canonicalFoodType(foodType, decision.sampleName).label.toLowerCase()} benchmark using the same ballot. Collect respondent-level category fit, CATA, texture liking, and overall liking so descriptor penalties and drivers can be tested rather than assumed.`,
       experimentScope: 'Only after the driver is confirmed: run C0 plus no more than three targeted variants. Change one predeclared mechanism per variant and keep all other process conditions fixed.',
-      advancementGates: buildAdvancementGates(decision, profile, goThreshold, 58),
+      advancementGates: buildAdvancementGates(decision, profile, goThreshold, weakestScore),
     };
   }
 
@@ -243,7 +243,7 @@ export function buildTweakEvidenceChain(input: {
       hypothesisStatus: 'needs_confirmation',
       verification: 'Benchmark the current control and repeat the texture scorecard with respondent-level liking plus the relevant instrumental checks. Use those results to select the mechanism—not the literature title alone.',
       experimentScope: 'Run C0 plus no more than three targeted variants selected from the confirmed driver. Change one predeclared mechanism per variant and keep all other process conditions fixed.',
-      advancementGates: buildAdvancementGates(decision, profile, goThreshold, 68),
+      advancementGates: buildAdvancementGates(decision, profile, goThreshold, weakestScore),
     };
   }
 
@@ -257,7 +257,7 @@ export function buildTweakEvidenceChain(input: {
     hypothesisStatus: primaryIssue.kind === 'aroma' ? 'supported' : 'needs_confirmation',
     verification: 'Confirm the blocker against the current control and a relevant category benchmark before selecting a formulation mechanism.',
     experimentScope: 'Run C0 plus no more than three targeted variants. Change one predeclared mechanism per variant and keep all other process conditions fixed.',
-    advancementGates: buildAdvancementGates(decision, profile, goThreshold, 68),
+    advancementGates: buildAdvancementGates(decision, profile, goThreshold, weakestScore),
   };
 }
 
@@ -265,12 +265,12 @@ function buildAdvancementGates(
   decision: GoStopTweakDecision,
   profile: EnhancedSensoryProfile,
   goThreshold: number,
-  focusThreshold: number,
+  currentFocusScore: number,
 ) {
   const currentOverall = Number.isFinite(profile.hedonic.overall) ? profile.hedonic.overall : null;
   const protectedCues = protectedAttributes(profile).slice(0, 4);
   return [
-    `The failing dimension reaches at least ${focusThreshold}/100 and improves versus C0 beyond the study's predeclared uncertainty margin.`,
+    `The failing dimension improves from the current ${currentFocusScore.toFixed(0)}/100 result by more than the study's predeclared uncertainty margin; a score at or below ${currentFocusScore.toFixed(0)}/100 does not pass.`,
     `${currentOverall !== null ? `Overall liking remains at or above the current ${currentOverall.toFixed(1)}/9` : 'Overall liking does not decline'}${protectedCues.length > 0 ? `, while ${protectedCues.join(', ')} remain protected` : ''}.`,
     `ISSF reaches GO ≥ ${goThreshold}, evidence strength remains ≥72%, and no defect or quality gate is open.`,
     'The improvement repeats on a fresh confirmation batch. Storage temperature, evaluation timepoints, pH drift, and physical stability limits are defined before the run; passing a day-0 screen alone is not enough.',
@@ -292,13 +292,17 @@ export async function fetchRagStatus(): Promise<RagStatus> {
   return response.json() as Promise<RagStatus>;
 }
 
-export async function fetchTweakDiagnosis(request: TweakDiagnosisRequest): Promise<TweakDiagnosisResponse> {
+export async function fetchTweakDiagnosis(
+  request: TweakDiagnosisRequest,
+  signal?: AbortSignal,
+): Promise<TweakDiagnosisResponse> {
   const response = await ragFetch('/api/tweak-diagnosis', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(request),
+    signal,
   });
   if (!response.ok) throw new Error(`Tweak Intelligence unavailable (${response.status})`);
   const payload = await response.json() as TweakDiagnosisResponse;

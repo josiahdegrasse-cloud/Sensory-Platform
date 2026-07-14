@@ -105,4 +105,22 @@ describe('tweak intelligence client contract', () => {
     ]));
     expect(chain.evidenceBoundary).toContain('does not establish consumer concept');
   });
+
+  it('never sets the Almond Gouda advancement gate below its current texture score', () => {
+    const profile = ENHANCED_SENSORY_DATA.find(item => item.sampleName === 'Almond Gouda v1.0');
+    expect(profile).toBeTruthy();
+    const decision = calculateGoStopTweakDecision(profile!, weights, 'cheese');
+
+    const chain = buildTweakEvidenceChain({ decision, profile: profile!, foodType: 'cheese', goThreshold: 75 });
+
+    expect(decision.dimensionScores.texture).toBeCloseTo(69, 0);
+    expect(chain.observation).toContain('Texture is the measured blocker at 69/100');
+    expect(chain.experimentScope).toContain('C0 plus no more than three targeted variants');
+    expect(chain.advancementGates[0]).toContain('improves from the current 69/100');
+    expect(chain.advancementGates[0]).toContain('a score at or below 69/100 does not pass');
+    expect(chain.advancementGates.join(' ')).not.toContain('68/100');
+    expect(chain.advancementGates).toEqual(expect.arrayContaining([
+      expect.stringContaining('ISSF reaches GO ≥ 75'),
+    ]));
+  });
 });
