@@ -1293,6 +1293,7 @@ export type Database = {
           packed_at: string | null
           printed_at: string | null
           product_id: string
+          recipient_address: string | null
           recipient_email: string | null
           recipient_name: string | null
           replacement_for_kit_id: string | null
@@ -1327,6 +1328,7 @@ export type Database = {
           packed_at?: string | null
           printed_at?: string | null
           product_id: string
+          recipient_address?: string | null
           recipient_email?: string | null
           recipient_name?: string | null
           replacement_for_kit_id?: string | null
@@ -1361,6 +1363,7 @@ export type Database = {
           packed_at?: string | null
           printed_at?: string | null
           product_id?: string
+          recipient_address?: string | null
           recipient_email?: string | null
           recipient_name?: string | null
           replacement_for_kit_id?: string | null
@@ -1564,43 +1567,67 @@ export type Database = {
       }
       profiles: {
         Row: {
+          address_line_1: string | null
+          address_line_2: string | null
+          city: string | null
           consent_accepted_at: string | null
           consent_user_agent: string | null
           consent_version: string | null
+          country: string | null
           created_at: string | null
           email: string | null
           id: string
           name: string | null
           org_id: string | null
           panelist_id: string | null
+          phone: string | null
+          postal_code: string | null
+          profile_completed_at: string | null
+          region: string | null
           role: string
           status: string
           training_level: string
         }
         Insert: {
+          address_line_1?: string | null
+          address_line_2?: string | null
+          city?: string | null
           consent_accepted_at?: string | null
           consent_user_agent?: string | null
           consent_version?: string | null
+          country?: string | null
           created_at?: string | null
           email?: string | null
           id: string
           name?: string | null
           org_id?: string | null
           panelist_id?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          profile_completed_at?: string | null
+          region?: string | null
           role?: string
           status?: string
           training_level?: string
         }
         Update: {
+          address_line_1?: string | null
+          address_line_2?: string | null
+          city?: string | null
           consent_accepted_at?: string | null
           consent_user_agent?: string | null
           consent_version?: string | null
+          country?: string | null
           created_at?: string | null
           email?: string | null
           id?: string
           name?: string | null
           org_id?: string | null
           panelist_id?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          profile_completed_at?: string | null
+          region?: string | null
           role?: string
           status?: string
           training_level?: string
@@ -2197,6 +2224,21 @@ export type Database = {
           sample_code: string
         }[]
       }
+      complete_panelist_profile: {
+        Args: {
+          p_address_line_1: string
+          p_address_line_2?: string
+          p_city?: string
+          p_consent_user_agent?: string
+          p_consent_version?: string
+          p_country?: string
+          p_name: string
+          p_phone: string
+          p_postal_code?: string
+          p_region?: string
+        }
+        Returns: undefined
+      }
       create_commercialization_report: {
         Args: {
           target_concept_test_id: string
@@ -2305,12 +2347,14 @@ export type Database = {
           p_assigned_product_ids?: string[]
           p_expires_at?: string
           p_handling_instructions?: string
+          p_panelist_ids?: string[]
           p_recipients?: Json
           p_response_deadline?: string
           target_product_id: string
         }
         Returns: {
           assigned_product_ids: string[]
+          claimed_by: string
           created_at: string
           expires_at: string
           handling_instructions: string
@@ -2318,6 +2362,7 @@ export type Database = {
           kit_code: string
           manual_code: string
           product_id: string
+          recipient_address: string
           recipient_email: string
           recipient_name: string
           response_deadline: string
@@ -2401,6 +2446,7 @@ export type Database = {
           printed_at: string
           product_id: string
           product_name: string
+          recipient_address: string
           recipient_email: string
           recipient_name: string
           reminder_count: number
