@@ -36,9 +36,6 @@ export function getConceptReadiness({
     !draft.name.trim() && 'concept name',
     !draft.category.trim() && 'category',
     !draft.description.trim() && 'description',
-    !draft.productAppearance.trim() && 'product appearance',
-    !draft.packageFormat.trim() && 'package format',
-    !draft.targetMarket.trim() && 'target customer',
   ].filter(Boolean) as string[];
   const validImageCount = draft.marketingImages.filter(image => image.trim()).length;
   const approvedImageCount = draft.marketingImages.reduce((count, image, index) => {
@@ -65,7 +62,7 @@ export function getConceptReadiness({
       label: 'Concept brief',
       ready: missingBriefFields.length === 0,
       detail: missingBriefFields.length === 0
-        ? 'Name, category, and description are ready.'
+        ? 'Name, category, and positioning promise are ready.'
         : `Add ${missingBriefFields.join(', ')} in Concept.`,
       fixStep: 'concept',
     },
@@ -78,7 +75,7 @@ export function getConceptReadiness({
           ? `${approvedImageCount}/${validImageCount} selected visual${validImageCount === 1 ? '' : 's'} approved for panelist use.`
           : `${validImageCount} visual${validImageCount === 1 ? '' : 's'} selected.`
         : 'Select or add at least one concept visual.',
-      fixStep: 'visuals',
+      fixStep: 'concept',
     },
     {
       id: 'questions',

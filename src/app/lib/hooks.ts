@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   fetchProducts, fetchActiveProducts, fetchTemplates,
-  fetchPanelists, fetchPanelistReliability,
+  fetchPanelists, fetchPanelistReliability, invitePanelistAccount,
   fetchAllResponses, fetchUserResponses,
   fetchConceptTestsForPanelist, fetchUserConceptResponses,
   fetchConceptTestsForAdmin, fetchConceptTestsForStudyDashboard, fetchConceptResponsesForTest,
@@ -39,6 +39,21 @@ import type { TrainingLevel } from '../utils/panelist-metrics'
 import type { Product } from './study-types'
 import { getTenantSlug } from './tenant'
 import { buildEvidenceBundle } from './report-evidence-source'
+import {
+  fetchRagStatus,
+  fetchTweakDiagnosis,
+  tweakDiagnosisCacheKey,
+  type TweakDiagnosisRequest,
+} from './tweak-intelligence'
+import {
+  fetchLibraryDocuments,
+  fetchLibraryStatus,
+  ingestLibrary,
+  reviewLibraryDocument,
+  scanLibrary,
+  type LibraryDocumentReview,
+  type LibraryRequest,
+} from './nfi-library'
 
 export const queryKeys = {
   pendingImports: ['pendingImports'] as const,
@@ -80,6 +95,10 @@ export const queryKeys = {
   orgEmailDomains: ['orgEmailDomains'] as const,
   auditEvents: ['auditEvents'] as const,
   decisionRecords: ['decisionRecords'] as const,
+  ragStatus: ['ragStatus'] as const,
+  libraryStatus: ['libraryStatus'] as const,
+  libraryDocuments: ['libraryDocuments'] as const,
+  tweakDiagnosis: (request: TweakDiagnosisRequest) => ['tweakDiagnosis', tweakDiagnosisCacheKey(request)] as const,
 }
 
 export function useProducts() {
@@ -217,6 +236,14 @@ export function usePanelists() {
   return useQuery({ queryKey: queryKeys.panelists, queryFn: fetchPanelists })
 }
 
+export function useInvitePanelist() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ email, redirectTo }: { email: string; redirectTo: string }) => invitePanelistAccount(email, redirectTo),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.panelists }),
+  })
+}
+
 export function usePanelistReliability() {
   return useQuery({ queryKey: queryKeys.panelistReliability, queryFn: fetchPanelistReliability })
 }
@@ -232,6 +259,85 @@ export function useAllResponses() {
 
 export function useDecisionRecords() {
   return useQuery({ queryKey: queryKeys.decisionRecords, queryFn: () => fetchDecisionRecords(500) })
+}
+
+export function useRagStatus() {
+  return useQuery({
+    queryKey: queryKeys.ragStatus,
+    queryFn: fetchRagStatus,
+    retry: false,
+    staleTime: 30_000,
+  })
+}
+
+export function useLibraryStatus() {
+  return useQuery({
+    queryKey: queryKeys.libraryStatus,
+    queryFn: fetchLibraryStatus,
+    retry: false,
+    staleTime: 30_000,
+  })
+}
+
+export function useLibraryDocuments() {
+  return useQuery({
+    queryKey: queryKeys.libraryDocuments,
+    queryFn: fetchLibraryDocuments,
+    retry: false,
+    staleTime: 30_000,
+  })
+}
+
+export function useScanLibrary() {
+  return useMutation({ mutationFn: (request?: LibraryRequest) => scanLibrary(request) })
+}
+
+export function useIngestLibrary() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (request?: LibraryRequest) => ingestLibrary(request),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.libraryStatus })
+      qc.invalidateQueries({ queryKey: queryKeys.libraryDocuments })
+      qc.invalidateQueries({ queryKey: queryKeys.ragStatus })
+    },
+  })
+}
+
+export function useReviewLibraryDocument() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (review: LibraryDocumentReview) => reviewLibraryDocument(review),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.libraryDocuments })
+      qc.invalidateQueries({ queryKey: queryKeys.libraryStatus })
+    },
+  })
+}
+
+export function useTweakDiagnosis(request: TweakDiagnosisRequest | null) {
+  return useQuery({
+    queryKey: request ? queryKeys.tweakDiagnosis(request) : ['tweakDiagnosis', 'disabled'],
+    queryFn: () => fetchTweakDiagnosis(request!),
+    enabled: Boolean(request),
+    retry: false,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnReconnect: 'always',
+  })
+}
+
+/**
+ * On-demand LLM narrative generation. Kept out of useTweakDiagnosis's default
+ * (deterministic_only) load deliberately: the local Ollama pass can take
+ * 15-45s and is sometimes rejected by the RAG service's own anti-hallucination
+ * gate, so it must be an explicit user action rather than block every panel load.
+ */
+export function useTweakNarrative() {
+  return useMutation({
+    mutationFn: (request: TweakDiagnosisRequest) =>
+      fetchTweakDiagnosis({ ...request, options: { ...request.options, reportMode: 'ollama_report_writer' } }),
+  })
 }
 
 export function useUserResponses(userId: string) {
@@ -330,7 +436,8 @@ export function useProjectEvidenceBundle(projectId: string | null | undefined, c
   })
 }
 
-// Calls the evidence-constrained narrative Edge Function (OpenAI).
+// Calls the local Food RAG report writer. The backend uses Ollama when it is
+// available and deterministic local writing when it is not.
 export function useGenerateReportNarrative() {
   return useMutation({
     mutationFn: (input: ReportNarrativeRequest) => generateReportNarrative(input),

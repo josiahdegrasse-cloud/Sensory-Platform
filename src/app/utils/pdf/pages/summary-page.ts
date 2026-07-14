@@ -164,7 +164,7 @@ export function renderFinalSummaryPage(
   const metricWidth = (contentWidth - 20) / 3;
   [
     ['ISSF score', data.issfScore.toFixed(1)],
-    ['Model confidence', `${data.confidence.toFixed(0)}%`],
+    ['Evidence strength', `${data.confidence.toFixed(0)}/100`],
     ['Concept evidence', `${data.evidenceStrength} · n=${data.responseCount}`],
   ].forEach(([label, value], index) => {
     const x = margin + index * (metricWidth + 10);

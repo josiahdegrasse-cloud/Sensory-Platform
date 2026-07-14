@@ -68,7 +68,7 @@ export function DataProvenanceBadge({ provenance, n, detail, className }: {
     <span
       title={config.title}
       className={cn(
-        'inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+        'inline-flex w-fit shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-0.5 text-xs font-semibold',
         config.className,
         className,
       )}

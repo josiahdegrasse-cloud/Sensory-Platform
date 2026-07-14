@@ -1,4 +1,6 @@
 import type { CommercializationReportSnapshot } from '../commercialization-report';
+import type { ReportSafeEvidenceCard } from '../evidence-assist';
+import type { LiteratureCitation } from './types';
 
 export type ReportAgentMode = 'quick_draft' | 'full_release_review';
 
@@ -126,5 +128,9 @@ export interface ReportOrchestratorResult {
     modelUsage?: unknown;
     contextChanged?: boolean;
   };
+  // Deduped union of literatureCitations from professional_report_writer,
+  // sensory_science_reviewer, and instrumental_science_reviewer.
+  literatureCitations: LiteratureCitation[];
+  evidenceCards: ReportSafeEvidenceCard[];
   snapshot: CommercializationReportSnapshot;
 }

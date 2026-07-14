@@ -11,6 +11,7 @@ import { buildClaimLineage } from './artifacts';
 import { hashReportContext } from './hash';
 import { authorizeReportExport } from './release';
 import { validateAgentResult } from './result-validation';
+import { assertReportWriterInputSafe, buildReportWriterContext } from '../evidence-assist';
 import type {
   ActionPlanResult,
   AgentConflict,
@@ -710,8 +711,8 @@ export async function orchestrateReportAgents(
     addCompleted(state, ['action_plan_engineer']);
   }
 
-  const draft = await invoke(input.runner, 'professional_report_writer', hash, 0, {
-    context: input.context,
+  const writerPacket: ReportAgentPacketMap['professional_report_writer'] = {
+    context: buildReportWriterContext(input.context),
     approvedClaims,
     commercialStrategy,
     actionPlan,
@@ -723,7 +724,17 @@ export async function orchestrateReportAgents(
         cause: 'Claims compliance review.',
       })),
     ],
-  }, evidenceIds, mode);
+  };
+  assertReportWriterInputSafe(writerPacket);
+  const draft = await invoke(
+    input.runner,
+    'professional_report_writer',
+    hash,
+    0,
+    writerPacket,
+    evidenceIds,
+    mode,
+  );
   outputs.professional_report_writer = draft;
   addCompleted(state, ['professional_report_writer']);
 

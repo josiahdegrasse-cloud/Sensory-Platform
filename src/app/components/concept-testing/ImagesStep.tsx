@@ -2,8 +2,6 @@ import { useMemo, useState } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
-import { StageEmptyState } from '../stage-empty-state';
 import { DataProvenanceBadge } from '../data-provenance-badge';
 import {
   AlertDialog,
@@ -17,8 +15,8 @@ import {
 } from '../ui/alert-dialog';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  BatteryCharging, CheckCircle2, ChevronDown, Image as ImageIcon, Loader2, Lock,
-  Plus, RefreshCw, ShieldCheck, Sparkles, Star, Trash2, Unlock, Wand2,
+  BatteryCharging, CheckCircle2, Loader2, Lock,
+  RefreshCw, ShieldCheck, Sparkles, Star, Unlock, Wand2,
 } from 'lucide-react';
 import { Switch } from '../ui/switch';
 import { supabase } from '../../lib/supabase';
@@ -68,7 +66,7 @@ const QA_ITEMS: Array<{ key: ConceptVisualQaKey; label: string }> = [
   { key: 'packBelievability', label: 'Product and pack form are physically believable.' },
   { key: 'foodRealism', label: 'Food texture looks appetizing and realistic.' },
   { key: 'claimSafety', label: 'No fake claims, badges, QR codes, certifications, or dense AI text.' },
-  { key: 'audienceFit', label: 'Visual fits the target customer and occasion.' },
+  { key: 'audienceFit', label: 'Visual fits the intended audience and occasion.' },
   { key: 'panelistReady', label: 'Safe and clear enough for panelist stimulus use.' },
   { key: 'buyerDeckReady', label: 'Strong enough for a buyer or internal review deck.' },
 ];
@@ -106,6 +104,9 @@ const isValidImageUrl = (u: string) =>
 
 function friendlyGenerationError(message: string) {
   const lower = message.toLowerCase();
+  if (lower.includes('failed to send a request') || lower.includes('failed to fetch') || lower.includes('networkerror')) {
+    return 'Could not reach the generate-concept-images Edge Function. Check that the function is deployed or being served locally, and that your Supabase URL is reachable.';
+  }
   if (lower.includes('function') && lower.includes('not found')) {
     return 'Image generator is not deployed yet. Deploy the generate-concept-images Supabase function.';
   }
@@ -246,8 +247,6 @@ export function ImagesStep({
   const [generating, setGenerating] = useState(false);
   const [generationError, setGenerationError] = useState('');
   const [generationConfirmationOpen, setGenerationConfirmationOpen] = useState(false);
-  const [promptExpanded, setPromptExpanded] = useState(false);
-  const [manualOpen, setManualOpen] = useState(false);
   // Single-image refinement: one open refine box at a time.
   const [refine, setRefine] = useState<{ index: number | null; text: string; busy: boolean; error: string }>({
     index: null, text: '', busy: false, error: '',
@@ -261,23 +260,11 @@ export function ImagesStep({
     [draft.category, draft.description, draft.name],
   );
   const profile = getFoodTypeProfile(detection.slug);
-  const validImageEntries = draft.marketingImages
-    .map((url, index) => ({
-      url,
-      index,
-      id: draft.marketingImageIds[index] ?? '',
-      review: draft.marketingImageReviews[index] ?? emptyReview(draft.marketingImageIds[index] ?? ''),
-    }))
-    .filter(entry => entry.url.trim() && isValidImageUrl(entry.url));
-  const validImages = validImageEntries.map(entry => entry.url);
-  const approvedImageCount = validImageEntries.filter(entry => entry.review.status === 'approved').length;
+  const validImages = draft.marketingImages.filter(url => url.trim() && isValidImageUrl(url));
   const canGenerate = !!(
     draft.name.trim()
     && draft.category.trim()
     && draft.description.trim()
-    && draft.productAppearance.trim()
-    && draft.packageFormat.trim()
-    && draft.targetMarket.trim()
   );
   // Quality-aware: the configured per-image rate is the medium baseline.
   // Not shown to the admin as a dollar figure — expressed as a credits-bar
@@ -294,12 +281,39 @@ export function ImagesStep({
   const variantImageMode = draft.variantDimensions?.channel === 'lifestyle' ? 'lifestyle' : options.mode;
   const variantPositioningCues = useMemo(() => {
     const cues: string[] = [];
-    if (draft.variantDimensions?.positioning === 'premium') cues.push('premium aesthetic, typographic restraint');
-    if (draft.variantDimensions?.positioning === 'accessible') cues.push('friendly, approachable, everyday');
-    if (draft.variantDimensions?.appeal === 'health') cues.push('clean ingredients, natural textures, health cues');
-    if (draft.variantDimensions?.appeal === 'indulgent') cues.push('rich, indulgent, sensory abundance');
-    if (draft.variantDimensions?.visualComplexity === 'minimal') cues.push('minimal composition, whitespace-led');
-    if (draft.variantDimensions?.visualComplexity === 'expressive') cues.push('bold, expressive, colourful');
+    const positioningCues: Record<string, string> = {
+      premium: 'premium aesthetic, typographic restraint',
+      accessible: 'friendly, approachable, everyday',
+      value: 'clear value cues, straightforward shelf communication',
+      craft: 'small-batch craft cues, tactile materials',
+      functional: 'benefit-led functional food cues, credible restraint',
+      playful: 'playful energy, bright approachable details',
+      heritage: 'heritage-inspired trust cues, familiar category language',
+      disruptive: 'modern challenger-brand attitude, distinctive shelf impact',
+    };
+    const appealCues: Record<string, string> = {
+      health: 'clean ingredients, natural textures, health cues',
+      indulgent: 'rich, indulgent, sensory abundance',
+      taste_first: 'appetite-first flavor cues and sensory payoff',
+      convenience: 'easy-use, everyday convenience cues',
+      sustainable: 'responsible materials and sustainability cues without overclaiming',
+      family_friendly: 'broad family appeal, familiar usage cues',
+      adventurous: 'discovery-led flavor and exploratory energy',
+    };
+    const complexityCues: Record<string, string> = {
+      minimal: 'minimal composition, whitespace-led',
+      expressive: 'bold, expressive, colourful',
+      ingredient_led: 'ingredient-forward styling with visible natural cues',
+      clinical: 'precise, clean, evidence-led visual language',
+      editorial: 'polished editorial composition, premium magazine-like staging',
+      abundant: 'generous sensory abundance and full appetizing composition',
+    };
+    const positioning = draft.variantDimensions?.positioning;
+    const appeal = draft.variantDimensions?.appeal;
+    const complexity = draft.variantDimensions?.visualComplexity;
+    if (positioning && positioningCues[positioning]) cues.push(positioningCues[positioning]);
+    if (appeal && appealCues[appeal]) cues.push(appealCues[appeal]);
+    if (complexity && complexityCues[complexity]) cues.push(complexityCues[complexity]);
     return cues;
   }, [
     draft.variantDimensions?.appeal,
@@ -328,6 +342,14 @@ export function ImagesStep({
   // settings, so the preview uses the neutral fallback phrasing.
   const preview = useMemo(() => {
     if (!canGenerate) return null;
+    const targetSegments = draft.targetMarket
+      || draft.variantDimensions?.targetDemographic
+      || '';
+    const productAppearance = draft.productAppearance
+      || `${draft.category || detection.label} product, styled to make the core eating quality and sensory promise visible`;
+    const packageFormat = draft.packageFormat
+      || draft.variantDimensions?.packagingFormat
+      || 'commercially believable concept packaging';
     const positioningParts = [
       draft.description,
       draft.pricePoint ? `priced around ${draft.pricePoint}` : '',
@@ -338,12 +360,12 @@ export function ImagesStep({
       conceptName: draft.name,
       foodCategory: draft.category || detection.label,
       conceptPositioning: positioningParts.join(', '),
-      targetSegments: draft.targetMarket,
+      targetSegments,
       targetOccasion: draft.targetOccasion,
-      productAppearance: draft.packageFormat
-        ? `${draft.productAppearance}${draft.variantDimensions?.packagingFormat ? ` (${draft.variantDimensions.packagingFormat})` : ''}`
-        : draft.productAppearance,
-      packageFormat: draft.packageFormat,
+      productAppearance: draft.variantDimensions?.packagingFormat
+        ? `${productAppearance} (${draft.variantDimensions.packagingFormat})`
+        : productAppearance,
+      packageFormat,
       visualSetting: draft.visualSetting,
       colorDirection: draft.colorDirection
         || (draft.variantDimensions?.brandColorScheme ? `${draft.variantDimensions.brandColorScheme} palette` : ''),
@@ -378,10 +400,10 @@ export function ImagesStep({
         foodTypeSlug: detection.slug,
         projectName: draft.projectName,
         description: draft.description,
-        targetMarket: draft.targetMarket,
+        targetMarket: draft.targetMarket || draft.variantDimensions?.targetDemographic || '',
         targetOccasion: draft.targetOccasion,
-        productAppearance: draft.productAppearance,
-        packageFormat: draft.packageFormat,
+        productAppearance: draft.productAppearance || `${draft.category || detection.label} product, styled to make the core eating quality and sensory promise visible`,
+        packageFormat: draft.packageFormat || draft.variantDimensions?.packagingFormat || 'commercially believable concept packaging',
         visualSetting: draft.visualSetting,
         colorDirection: draft.colorDirection
           || (draft.variantDimensions?.brandColorScheme ? `${draft.variantDimensions.brandColorScheme} palette` : ''),
@@ -536,24 +558,6 @@ export function ImagesStep({
     setAiCandidates([]);
   };
 
-  const removeImage = (i: number) =>
-    onChange({
-      ...draft,
-      marketingImages: draft.marketingImages.filter((_, j) => j !== i),
-      marketingImageIds: draft.marketingImageIds.filter((_, j) => j !== i),
-      marketingImageReviews: draft.marketingImageReviews.filter((_, j) => j !== i),
-    });
-
-  const updateDraftImageReview = (imageIndex: number, patch: Partial<ConceptVisualReview>) => {
-    const nextReviews = draft.marketingImages.map((_, index) => ({
-      ...(draft.marketingImageReviews[index] ?? emptyReview(draft.marketingImageIds[index] ?? '')),
-      imageId: draft.marketingImageIds[index] ?? '',
-      source: draft.marketingImageIds[index] ? 'ai' as const : 'external' as const,
-    }));
-    nextReviews[imageIndex] = { ...nextReviews[imageIndex], ...patch };
-    onChange({ ...draft, marketingImageReviews: nextReviews });
-  };
-
   const persistReview = async (
     imageId: string,
     status: ConceptVisualReviewStatus,
@@ -596,211 +600,22 @@ export function ImagesStep({
     }
   };
 
-  const reviewSelectedImage = async (imageIndex: number, status: ConceptVisualReviewStatus) => {
-    const review = draft.marketingImageReviews[imageIndex] ?? emptyReview(draft.marketingImageIds[imageIndex] ?? '');
-    updateDraftImageReview(imageIndex, {
-      status,
-      reviewedAt: new Date().toISOString(),
-      reviewedBy: user?.id,
-    });
-    try {
-      await persistReview(draft.marketingImageIds[imageIndex] ?? '', status, review.qa, review.notes);
-    } catch (err) {
-      updateDraftImageReview(imageIndex, {
-        status: review.status,
-        notes: `${review.notes}${review.notes ? '\n' : ''}Review save failed: ${err instanceof Error ? err.message : 'Could not save image review.'}`,
-      });
-    }
-  };
-
-  const selectedVisualsSection = (
-    <section className="rounded-lg border border-slate-200 bg-white">
-      <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
-            <ImageIcon className="size-4 text-slate-500" /> Panelist visuals
-          </h3>
-          <p className="mt-0.5 text-xs text-slate-500">
-            These are the concept stimulus images panelists will actually see.
-          </p>
-        </div>
-        {validImages.length > 0 ? (
-          <DataProvenanceBadge provenance={requireApproval && approvedImageCount < validImages.length ? 'ai-draft' : 'approved'} n={validImages.length} />
-        ) : (
-          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">
-            Required
-          </span>
-        )}
-      </div>
-
-      <div className="p-4">
-        {validImages.length > 0 ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {validImageEntries.map(({ url, index, id, review }, i) => {
-              const complete = qaComplete(review.qa);
-              return (
-              <div key={`${url}-${index}`} className="group overflow-hidden rounded-lg border border-slate-200 bg-white">
-                <div className="relative">
-                <img
-                  src={url}
-                  alt={`Approved concept visual for ${draft.name || 'this concept'}, option ${i + 1}`}
-                  className="aspect-square w-full object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeImage(index)}
-                  className="absolute right-2 top-2 rounded-full bg-white/95 p-1 text-slate-500 opacity-0 shadow-sm transition-all hover:bg-rose-500 hover:text-white group-hover:opacity-100 focus:opacity-100"
-                  aria-label={`Remove image ${i + 1}`}
-                >
-                  <Trash2 className="size-3" />
-                </button>
-                </div>
-                <div className="space-y-3 border-t border-slate-200 bg-white p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-medium text-slate-500">Visual {i + 1}</span>
-                    <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusClasses(review.status)}`}>
-                      {statusLabel(review.status)}
-                    </span>
-                  </div>
-                  {requireApproval && review.status !== 'approved' && (
-                    <p className="text-[11px] leading-4 text-amber-700">
-                      Approval required before this can launch.
-                    </p>
-                  )}
-                  <div className="space-y-1.5">
-                    {QA_ITEMS.map(item => (
-                      <label key={item.key} className="flex items-start gap-2 text-[11px] leading-4 text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(review.qa[item.key])}
-                          onChange={(event) => updateDraftImageReview(index, {
-                            qa: { ...review.qa, [item.key]: event.target.checked },
-                          })}
-                          className="mt-0.5"
-                        />
-                        <span>{item.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <Textarea
-                    value={review.notes}
-                    onChange={(event) => updateDraftImageReview(index, { notes: event.target.value })}
-                    placeholder="Reviewer note"
-                    className="min-h-16 text-xs"
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={!complete}
-                      onClick={() => reviewSelectedImage(index, 'approved')}
-                      className="h-8 text-xs"
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => reviewSelectedImage(index, 'rejected')}
-                      className="h-8 border-rose-200 text-rose-700 hover:bg-rose-50"
-                    >
-                      Reject
-                    </Button>
-                    {id ? (
-                      <span className="self-center text-[11px] text-slate-500">AI provenance saved</span>
-                    ) : (
-                      <span className="self-center text-[11px] text-slate-500">External image</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              );
-            })}
-          </div>
-        ) : (
-          <StageEmptyState
-            icon={ImageIcon}
-            headline="No panelist visuals selected"
-            body="Generate draft options below or add an approved image URL. At least one visual is required before launch."
-          />
-        )}
-
-        <Collapsible open={manualOpen} onOpenChange={setManualOpen} className="mt-4 rounded-lg border border-slate-200">
-          <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left">
-            <span className="text-xs font-semibold text-slate-700">Add external image URL</span>
-            <ChevronDown className={`size-3.5 text-slate-500 transition-transform ${manualOpen ? 'rotate-180' : ''}`} />
-          </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-3 border-t border-slate-200 p-3">
-            {draft.marketingImages.map((url, i) => (
-              url.startsWith('data:') ? null : (
-                <div key={i} className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Input
-                      aria-label={`Concept image URL ${i + 1}`}
-                      value={url}
-                      onChange={(e) => {
-                        const next = [...draft.marketingImages];
-                        next[i] = e.target.value;
-                        onChange({ ...draft, marketingImages: next });
-                      }}
-                      placeholder="https://..."
-                      className="flex-1 text-xs"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeImage(i)}
-                      className="shrink-0 text-slate-300 hover:text-rose-500"
-                      aria-label={`Remove concept image URL ${i + 1}`}
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  </div>
-                  {url.trim() && !isValidImageUrl(url) && (
-                    <p className="pl-1 text-xs text-rose-500">URL must start with https://</p>
-                  )}
-                </div>
-              )
-            ))}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onChange({
-                ...draft,
-                marketingImages: [...draft.marketingImages, ''],
-                marketingImageIds: [...draft.marketingImageIds, ''],
-                marketingImageReviews: [...draft.marketingImageReviews, emptyReview('', 'external')],
-              })}
-              className="h-8 w-fit text-xs text-slate-700"
-            >
-              <Plus className="mr-1 size-3" /> Add URL
-            </Button>
-          </CollapsibleContent>
-        </Collapsible>
-      </div>
-    </section>
-  );
-
   return (
     <div className="space-y-6">
       <div>
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Choose concept visuals</h2>
+          <h2 className="text-xl font-bold text-slate-900">Create visual options</h2>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
-            Review the visuals panelists will see, then generate or add options when the set needs work.
+            Generate draft visuals from the image brief, then review the credible options.
           </p>
         </div>
       </div>
 
-      {selectedVisualsSection}
-
       <section className="rounded-lg border border-slate-200 bg-white">
         <div className="border-b border-slate-200 px-4 py-3">
-          <h3 className="text-sm font-semibold text-slate-900">Create visual options</h3>
+          <h3 className="text-sm font-semibold text-slate-900">Image generation</h3>
           <p className="mt-0.5 text-xs text-slate-500">
-            Generate AI drafts from the approved brief, then add only credible options to the panelist set above.
+            Pick the output type and generate AI drafts for review.
           </p>
         </div>
         <div className="space-y-4 p-4">
@@ -882,7 +697,7 @@ export function ImagesStep({
 
             {!canGenerate && (
               <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mt-3">
-                Complete the product name, category, description, appearance, package format, and target customer before generating visuals.
+                Complete the product name, category, and positioning promise before generating visuals.
               </p>
             )}
             {canGenerate && (
@@ -1166,7 +981,7 @@ export function ImagesStep({
         </div>
       </section>
 
-      <AlertDialog open={generationConfirmationOpen} onOpenChange={(open) => { setGenerationConfirmationOpen(open); if (!open) setPromptExpanded(false); }}>
+      <AlertDialog open={generationConfirmationOpen} onOpenChange={setGenerationConfirmationOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Generate {options.count} concept visual{options.count > 1 ? 's' : ''}?</AlertDialogTitle>
@@ -1179,23 +994,8 @@ export function ImagesStep({
               <p className="text-xs font-semibold text-blue-900">Art direction summary</p>
               <p className="text-xs text-blue-900/90 leading-snug">{preview.summary}</p>
               <p className="text-[11px] leading-4 text-blue-900/75">
-                Built for retail concept review: {leadModeLabel.toLowerCase()} led, {styleLabel.toLowerCase()} creative territory,
-                {options.quality} quality, with pack realism, food realism, and claim-safety constraints.
+                Built from the {leadModeLabel.toLowerCase()} preset with pack realism, food realism, and claim-safety constraints.
               </p>
-              <button
-                type="button"
-                onClick={() => setPromptExpanded(expanded => !expanded)}
-                aria-expanded={promptExpanded}
-                className="flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:text-blue-900"
-              >
-                <ChevronDown className={`size-3 transition-transform ${promptExpanded ? 'rotate-180' : ''}`} />
-                {promptExpanded ? 'Hide full prompt' : 'View full prompt (advanced)'}
-              </button>
-              {promptExpanded && (
-                <p className="text-[11px] text-slate-700 leading-relaxed max-h-40 overflow-y-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2">
-                  {preview.prompt}
-                </p>
-              )}
             </div>
           )}
           <dl className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">

@@ -34,7 +34,7 @@ export function ReportApprovalBar({ report, blockedReason }: {
   const busy = updateStatus.isPending;
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 print:hidden">
+    <div className="border-b border-slate-200 bg-white px-1 py-3 print:hidden">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
           {report.status === 'approved' ? (
@@ -48,11 +48,11 @@ export function ReportApprovalBar({ report, blockedReason }: {
               tone={report.status === 'review' ? 'warning' : 'info'}
             />
           )}
-          <span className="text-xs text-slate-500">
+          <span className="text-sm text-slate-600">
             v{report.version}
-            {report.status === 'draft' && ' — submit for review when the draft is ready for sign-off.'}
-            {report.status === 'review' && ' — approving locks this report as the project deliverable.'}
-            {report.status === 'approved' && ' — this report is the approved project deliverable.'}
+            {report.status === 'draft' && ' · Submit when the content and release checks are complete.'}
+            {report.status === 'review' && ' · Approval locks this version as the project deliverable.'}
+            {report.status === 'approved' && ' · Approved project deliverable.'}
           </span>
         </div>
         <div className="flex items-center gap-2">

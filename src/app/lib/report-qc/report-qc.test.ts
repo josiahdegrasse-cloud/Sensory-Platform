@@ -7,6 +7,7 @@ import {
 } from './fixtures';
 import { buildReportContext } from './context';
 import { runQcPipeline } from './pipeline';
+import { lintText } from './lint';
 import { stageHeadline } from './stage';
 import { validateReportContext } from './validate';
 import { validateDimensionEvidenceConsistency } from './validate';
@@ -93,6 +94,26 @@ describe('report-qc: validation guards', () => {
     expect(result.errors.some(e => e.code === 'unsupported-claim')).toBe(true);
   });
 
+  it('blocks consumer preference claims when concept n=1 even if an unrelated evidence id is attached', () => {
+    const ctx = coconutCheddarContext('draft');
+    ctx.concept.responseCount = 1;
+    ctx.claims.push({
+      id: 'claim.one-response-preference',
+      claim: 'Consumers prefer this product.',
+      claimType: 'consumer_preference',
+      evidenceIds: [ctx.sourceEvidenceIds[0]],
+      confidence: 0.5,
+      permittedWording: [],
+      prohibitedWording: [],
+      limitations: [],
+      reviewerStatus: 'unreviewed',
+    });
+    const result = validateReportContext(ctx);
+    expect(result.exportAllowed).toBe(false);
+    expect(result.errors.some(error => error.code === 'unsupported-claim' && /n=1/.test(error.message))).toBe(true);
+    expect(ctx.decision.sensoryOutcome).toBe('GO');
+  });
+
   it('caps the score and blocks export when a section is empty', () => {
     const ctx = coconutCheddarContext('draft');
     const broken: GeneratedSections = { sections: [{ label: 'Decision', text: '' }] };
@@ -110,6 +131,14 @@ describe('report-qc: validation guards', () => {
     expect(result.score.blockers.some(b => /malformed/.test(b))).toBe(true);
   });
 
+  it('does not flag standard report headings or HACCP as undefined acronyms', () => {
+    const findings = lintText(
+      'Product readiness',
+      'PRODUCT DECISION: GO. PRODUCT READINESS CONCLUSION. Complete HACCP-defined microbiology checks.',
+    );
+    expect(findings.some(finding => finding.code === 'undefined-acronym')).toBe(false);
+  });
+
   it('flags raw system language', () => {
     const ctx = coconutCheddarContext('draft');
     const sections: GeneratedSections = {
@@ -117,6 +146,19 @@ describe('report-qc: validation guards', () => {
     };
     const result = runQcPipeline({ ctx, generated: sections });
     expect(result.score.blockers.some(w => /evidence bundle/i.test(w))).toBe(true);
+  });
+
+  it('blocks paths, backend names, retrieved chunks and raw floating-point artifacts', () => {
+    const ctx = coconutCheddarContext('draft');
+    const sections: GeneratedSections = {
+      sections: [{
+        label: 'Scientific context',
+        text: 'Retrieved chunk /Users/example/private/source.pdf from rag_food returned 78.123456.',
+      }],
+    };
+    const result = runQcPipeline({ ctx, generated: sections });
+    expect(result.exportAllowed).toBe(false);
+    expect(result.score.blockers.join(' ')).toMatch(/file path|retrieval language|backend implementation|floating-point/i);
   });
 
   it('blocks export when an action has no owner', () => {
@@ -247,6 +289,62 @@ describe('report-qc: validation guards', () => {
     const ctx = coconutCheddarContext();
     expect(ctx.conceptStrategy.reasonsToBelieve.join(' ')).toMatch(/cheddar-category/i);
     expect(ctx.conceptStrategy.reasonsToBelieve.join(' ')).not.toMatch(/\bdistinctive\b/i);
+  });
+
+  it('keeps cream-cheese identity and treats a one-response concept read as a hypothesis', () => {
+    const snapshot = coconutCheddarSnapshot({
+      product: { sampleId: 'S2', sampleName: 'Cashew Cream Cheese v2.0', foodType: 'Plant-based soft cheese' },
+      decision: {
+        ...coconutCheddarSnapshot().decision,
+        issfScore: 78.7,
+        confidence: 92,
+        dimensions: { hedonic: 82, texture: 76, cata: 84, emotional: 71 },
+      },
+      concept: {
+        ...coconutCheddarSnapshot().concept,
+        name: 'Cashew Cream Cheese v2.0',
+        description: 'A smooth chilled plant-based spread.',
+        keyBenefits: 'Smooth, creamy and spreadable',
+      },
+      evidence: {
+        responseCount: 1,
+        scaleMetrics: [],
+        topSelections: [{ option: '$5-$8', count: 1, percentage: 100 }],
+        comments: [],
+        purchaseIntent: 6,
+      },
+    });
+    const decision = {
+      ...coconutCheddarDecision(),
+      sampleId: 'S2',
+      sampleName: 'Cashew Cream Cheese v2.0',
+      issfScore: 78.7,
+      confidenceScore: 92,
+      dimensionScores: snapshot.decision.dimensions,
+    };
+    const ctx = buildReportContext({
+      snapshot,
+      decision,
+      approvalStatus: 'draft',
+      reportVersion: 1,
+      readinessThreshold: 60,
+      augmentation: coconutCheddarAugmentation(),
+    });
+
+    const strategy = Object.values(ctx.conceptStrategy).join(' ').toLowerCase();
+    expect(strategy).toContain('cream cheese');
+    expect(strategy).toContain('spreadable');
+    expect(strategy).toContain('bagels');
+    expect(strategy).not.toContain('cheddar');
+    expect(strategy).not.toContain('coconut');
+    expect(ctx.conceptStrategy.hypothesisOnly).toBe(true);
+    expect(ctx.gates.find(gate => gate.id === 'consumer.concept-validation')?.status).toBe('pending');
+    expect(ctx.decision.stageDecisionCode).toBe('ADVANCE_TO_COMMERCIAL_PREPARATION');
+    expect(ctx.decision.stageDecision).toBe('GO - Launch preparation approved');
+    expect(ctx.decision.conditions.join(' ')).toContain('at least n=30');
+    expect(ctx.actions[0].workstream).toBe('Texture scale-up confirmation');
+    expect(ctx.methodology.conditionalReason).toContain('above the 60/100 minimum readiness line');
+    expect(ctx.methodology.conditionalReason).not.toContain('71/100) is below');
   });
 
   it('detects duplicate paragraphs and raw system leakage', () => {

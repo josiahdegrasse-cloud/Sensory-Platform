@@ -47,6 +47,7 @@ export function InsightsPrototypeWorkspace({
   descriptorContent,
   intensityContent,
   commentsContent,
+  comparisonContent,
 }: {
   prototypes: InsightsPrototypeOption[];
   selectedId: string;
@@ -62,6 +63,7 @@ export function InsightsPrototypeWorkspace({
   descriptorContent: ReactNode;
   intensityContent: ReactNode;
   commentsContent: ReactNode;
+  comparisonContent?: ReactNode;
 }) {
   const [prototypeQuery, setPrototypeQuery] = useState('');
   const [prototypeSort, setPrototypeSort] = useState<'priority' | 'liking' | 'responses' | 'name'>('priority');
@@ -115,7 +117,7 @@ export function InsightsPrototypeWorkspace({
       <ProductListPanel
         title="Project prototypes"
         description="Find and rank samples without losing your place."
-        className="lg:sticky lg:top-24"
+        className="lg:sticky lg:top-24 lg:self-stretch"
         listLabel="Project prototypes"
         controls={(
           <>
@@ -258,6 +260,8 @@ export function InsightsPrototypeWorkspace({
               </div>
             </CardContent>
         </Card>
+
+        {comparisonContent}
       </div>
     </div>
   );

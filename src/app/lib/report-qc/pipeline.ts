@@ -99,7 +99,9 @@ function collectMissingEvidence(ctx: ReportContext): string[] {
   if (ctx.concept.responseCount === 0) missing.push('Concept-test responses (n=0): consumer preference and purchase intent cannot be validated.');
   const weak = ctx.dimensions.filter(d => d.score < ctx.thresholds.readiness);
   for (const dim of weak) missing.push(`${dim.label} (${dim.score}/100) is below the ${ctx.thresholds.readiness}/100 readiness line.`);
-  if (ctx.gates.some(g => g.category === 'claims' && g.status !== 'pass')) missing.push('Claims and legal approval not on file.');
+  if (ctx.gates.some(g => g.category === 'claims' && g.status !== 'pass')) {
+    missing.push('Claims/legal review is not approved. Complete and record a signed claims/legal review before external distribution.');
+  }
   if (!ctx.dimensions.every(d => d.sampleSize)) missing.push('Panel sample sizes are not documented for every dimension.');
   return missing;
 }

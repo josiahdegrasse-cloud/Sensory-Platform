@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { AlertTriangle, Check, CheckCircle2, ClipboardCheck, Minus, ShieldAlert, Upload, X } from 'lucide-react';
+import { useMemo, type ReactNode } from 'react';
+import { AlertTriangle, Check, CheckCircle2, ClipboardCheck, Minus, Upload, X } from 'lucide-react';
 import { Link } from 'react-router';
 import { buildDecisionSummary } from '../lib/decision-summary';
 import { useFoodType } from '../contexts/food-type-context';
@@ -55,6 +55,12 @@ function statusBadgeLabel(status: GateStatus) {
   return status.replace('_', ' ').toUpperCase();
 }
 
+function decisionScoreBand(score: number, stopThreshold: number, goThreshold: number) {
+  if (score < stopThreshold) return 'STOP';
+  if (score >= goThreshold) return 'GO';
+  return 'TWEAK';
+}
+
 function prototypeSignal(decision: GoStopTweakDecision) {
   const openGate = decision.gates.find(gate => gate.status === 'fail')
     ?? decision.gates.find(gate => gate.status === 'watch');
@@ -67,7 +73,7 @@ function prototypeSignal(decision: GoStopTweakDecision) {
   return strongest ? `Strongest: ${strongest[0]}` : 'No hard gates open';
 }
 
-function decisionCriteria(decision: GoStopTweakDecision, goThreshold: number): Array<{
+function decisionCriteria(decision: GoStopTweakDecision): Array<{
   id: string;
   label: string;
   question: string;
@@ -76,18 +82,9 @@ function decisionCriteria(decision: GoStopTweakDecision, goThreshold: number): A
   badgeLabel?: string;
 }> {
   const acceptance = decision.dimensionScores.hedonic;
-  const dimensions = Object.entries(decision.dimensionScores) as Array<
+  const weakestDimension = (Object.entries(decision.dimensionScores) as Array<
     [keyof GoStopTweakDecision['dimensionScores'], number]
-  >;
-  const weakestDimension = [...dimensions].sort((a, b) => a[1] - b[1])[0];
-  const weakestLabel = weakestDimension?.[0] === 'hedonic'
-    ? 'consumer acceptance'
-    : weakestDimension?.[0] === 'cata'
-      ? 'category fit'
-      : weakestDimension?.[0] === 'emotional'
-        ? 'emotional response'
-        : 'texture';
-  const weakestScore = weakestDimension?.[1] ?? decision.issfScore;
+  >).sort((a, b) => a[1] - b[1])[0]?.[0];
   const worstGate = decision.gates.find(gate => gate.status === 'fail')
     ?? decision.gates.find(gate => gate.status === 'watch');
   const defectStatus: GateStatus = decision.gates.some(gate => gate.status === 'fail')
@@ -114,7 +111,9 @@ function decisionCriteria(decision: GoStopTweakDecision, goThreshold: number): A
       badgeLabel: decision.dimensionScores.texture >= 72 ? undefined : 'FOCUS',
       detail: decision.dimensionScores.texture >= 72
         ? `Texture scored ${decision.dimensionScores.texture.toFixed(0)}/100. The texture signal is strong enough for advancement.`
-        : `Texture scored ${decision.dimensionScores.texture.toFixed(0)}/100. This is the main formula area to improve before retesting.`,
+        : weakestDimension === 'texture'
+          ? `Texture scored ${decision.dimensionScores.texture.toFixed(0)}/100 and is the weakest measured dimension. Diagnose the responsible texture cues before choosing a formula intervention.`
+          : `Texture scored ${decision.dimensionScores.texture.toFixed(0)}/100. It is a secondary signal, not yet a proven cause of the weaker ${weakestDimension === 'cata' ? 'category-fit' : 'decision'} result.`,
     },
     {
       id: 'category-fit',
@@ -123,7 +122,7 @@ function decisionCriteria(decision: GoStopTweakDecision, goThreshold: number): A
       status: decision.dimensionScores.cata >= 68 ? 'pass' : decision.dimensionScores.cata < 50 ? 'fail' : 'watch',
       detail: decision.dimensionScores.cata >= 68
         ? `Category fit scored ${decision.dimensionScores.cata.toFixed(0)}/100. Panel descriptors support the intended product category.`
-        : `Category fit scored ${decision.dimensionScores.cata.toFixed(0)}/100. The product needs clearer category-positive cues before advancement.`,
+        : `Category fit scored ${decision.dimensionScores.cata.toFixed(0)}/100. Confirm whether formulation, the benchmark, or the study lexicon caused the weak signal before selecting an intervention.`,
     },
     {
       id: 'defects',
@@ -136,22 +135,10 @@ function decisionCriteria(decision: GoStopTweakDecision, goThreshold: number): A
     },
     {
       id: 'confidence',
-      label: 'Evidence confidence',
+      label: 'Evidence strength',
       question: 'Is the evidence strong enough to support this call?',
       status: decision.confidenceScore >= 72 ? 'pass' : 'watch',
-      detail: `${decision.confidenceScore.toFixed(0)}% confidence. ${decision.confidenceScore >= 72 ? 'The evidence clears the GO confidence requirement.' : 'More responses or validation would reduce decision uncertainty.'}`,
-    },
-    {
-      id: 'optimization-focus',
-      label: decision.issfScore >= goThreshold ? 'Advancement margin' : 'Score margin',
-      question: decision.issfScore >= goThreshold
-        ? 'How much room does the prototype have above GO?'
-        : 'How close is this prototype to GO?',
-      status: decision.issfScore >= goThreshold ? 'pass' : 'watch',
-      badgeLabel: decision.issfScore >= goThreshold ? 'CLEARED' : 'NEAR GO',
-      detail: decision.issfScore >= goThreshold
-        ? `The total ISSF score clears GO. Keep ${weakestLabel} stable during scale-up because it is the lowest current dimension at ${weakestScore.toFixed(0)}/100.`
-        : `The total ISSF score is ${(goThreshold - decision.issfScore).toFixed(1)} points short of GO. The focus row above explains the practical change to retest.`,
+      detail: `${decision.confidenceScore.toFixed(0)}% screening evidence strength. ${decision.confidenceScore >= 72 ? 'This supports the current formulation decision; it does not establish concept or commercialization readiness.' : 'More responses or validation would strengthen this formulation evidence set.'}`,
     },
   ];
 }
@@ -168,24 +155,21 @@ function ThresholdTrack({ score, stopThreshold, goThreshold }: {
 
   return (
     <div aria-label={`ISSF score ${score.toFixed(1)} out of 100. ${distance}.`}>
-      <div className="mb-2 flex items-end justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-slate-900">Decision threshold</p>
-          <p className="mt-0.5 text-xs text-slate-500">{distance}</p>
-        </div>
-        <p className="text-xl font-bold tabular-nums text-slate-900">{score.toFixed(1)}</p>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Decision threshold</p>
+        <p className="text-xs font-semibold text-slate-700">{distance}</p>
       </div>
-      <div className="relative pt-2.5">
-        <div className="flex h-1.5 overflow-hidden rounded-full">
+      <div className="relative pt-2">
+        <div className="flex h-1 overflow-hidden rounded-full">
           <span className="bg-rose-300" style={{ width: `${stopThreshold}%` }} />
           <span className="bg-amber-300" style={{ width: `${goThreshold - stopThreshold}%` }} />
           <span className="bg-emerald-300" style={{ width: `${100 - goThreshold}%` }} />
         </div>
         <span
-          className="absolute top-0 h-3.5 w-1 rounded-full bg-slate-950"
+          className="absolute top-0 h-3 w-1 rounded-full bg-slate-950"
           style={{ left: `${marker}%`, transform: 'translateX(-50%)' }}
         />
-        <div className="mt-1.5 grid grid-cols-3 text-[11px] font-medium text-slate-500">
+        <div className="mt-1 grid grid-cols-3 text-[10px] font-medium text-slate-500">
           <span>STOP &lt; {stopThreshold}</span>
           <span className="text-center">TWEAK</span>
           <span className="text-right">GO ≥ {goThreshold}</span>
@@ -201,6 +185,7 @@ export function DecisionReviewWorkspace({
   stopThreshold,
   goThreshold,
   confirmedDecision,
+  intelligencePanel,
   onSelect,
   onConfirm,
 }: {
@@ -209,6 +194,7 @@ export function DecisionReviewWorkspace({
   stopThreshold: number;
   goThreshold: number;
   confirmedDecision: (GoStopTweakDecision & { recordId?: string | null }) | null;
+  intelligencePanel?: ReactNode;
   onSelect: (sampleId: string) => void;
   onConfirm: () => void;
 }) {
@@ -220,8 +206,38 @@ export function DecisionReviewWorkspace({
   );
   const summary = buildDecisionSummary(selected);
   const outcomeStyle = OUTCOME_STYLE[selected.decision];
-  const criteria = decisionCriteria(selected, goThreshold);
+  const criteria = decisionCriteria(selected);
   const primaryPrescription = selected.prescriptions[0];
+  const scoreBand = decisionScoreBand(selected.issfScore, stopThreshold, goThreshold);
+  const hardStopGate = selected.decision === 'STOP' && scoreBand !== 'STOP'
+    ? selected.gates.find(gate => gate.status === 'fail') ?? null
+    : null;
+  const decisionGap = selected.issfScore >= goThreshold
+    ? `${(selected.issfScore - goThreshold).toFixed(1)} points above GO`
+    : `${(goThreshold - selected.issfScore).toFixed(1)} points short of GO`;
+  const pointsToGo = goThreshold - selected.issfScore;
+  const decisionGapBadge = selected.issfScore >= goThreshold
+    ? 'CLEARED'
+    : pointsToGo <= 5
+      ? 'CLOSE'
+      : pointsToGo <= 10
+        ? 'MODERATE GAP'
+        : 'MATERIAL GAP';
+  const evidenceCriteria = [
+    ...criteria,
+    {
+      id: 'decision-gap',
+      label: selected.decision === 'GO' ? 'Decision margin' : 'Decision gap',
+      question: selected.decision === 'GO' ? 'How much room does the prototype have above GO?' : 'What closes the gap to GO?',
+      status: selected.issfScore >= goThreshold ? 'pass' as const : 'watch' as const,
+      badgeLabel: decisionGapBadge,
+      detail: selected.decision === 'GO'
+        ? `${decisionGap}. Protect the current sensory profile and revalidate after process or ingredient changes.`
+        : primaryPrescription
+          ? `${decisionGap}. ${primaryPrescription.target}: ${primaryPrescription.action}`
+          : `${decisionGap}. Address the failed criteria, then collect a new evidence set before reconsidering this prototype.`,
+    },
+  ];
   const parentDecisionId = confirmedDecision?.recordId ?? null;
   const { subCategory } = useFoodType();
   const selectedBatchId = parseBatchSelection(subCategory);
@@ -230,6 +246,16 @@ export function DecisionReviewWorkspace({
   const retestPath = selectedBatch
     ? projectPath(selectedBatch.projectId ?? selectedBatch.id, 'data', `?retest=${encodeURIComponent(parentDecisionId ?? selected.sampleId)}`)
     : `/stage1?retest=${encodeURIComponent(parentDecisionId ?? selected.sampleId)}`;
+  const retestState = {
+    retestImport: {
+      sampleId: selected.sampleId,
+      sampleName: selected.sampleName,
+      decision: selected.decision,
+      target: primaryPrescription?.target,
+      action: primaryPrescription?.action,
+      parentDecisionId,
+    },
+  };
 
   return (
     <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
@@ -265,7 +291,7 @@ export function DecisionReviewWorkspace({
                   active={active}
                   onClick={() => onSelect(decision.sampleId)}
                   title={decision.sampleName}
-                  meta={`ISSF ${decision.issfScore.toFixed(0)} · ${decision.confidenceScore.toFixed(0)}% confidence`}
+                  meta={`ISSF ${decision.issfScore.toFixed(0)} · ${decision.confidenceScore.toFixed(0)}% evidence`}
                   badge={(
                     <Badge className={`${badgeClass} shrink-0 border-0 text-[11px] shadow-none`}>
                       {decision.decision}
@@ -280,12 +306,25 @@ export function DecisionReviewWorkspace({
       </aside>
 
       <article className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <header className={`border-b p-6 ${outcomeStyle.surface}`}>
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+        <header className={`border-b px-4 py-3 ${outcomeStyle.surface}`}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge className={outcomeStyle.badge}>{selected.decision}</Badge>
-                <span className="text-xs font-semibold text-slate-700">{summary.confidence} confidence</span>
+                <span className="text-xs font-semibold text-slate-700">{summary.confidence} screening evidence</span>
+                {selected.decisionStatus === 'hold' && (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800">
+                    <AlertTriangle className="size-3.5" aria-hidden />
+                    Evidence hold
+                  </span>
+                )}
+                <span className="text-xs font-semibold text-slate-700">{scoreBand} score band</span>
+                {hardStopGate && (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-700">
+                    <AlertTriangle className="size-3.5" aria-hidden />
+                    Hard STOP gate
+                  </span>
+                )}
                 {confirmedDecision && (
                   <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
                     <CheckCircle2 className="size-3.5" aria-hidden />
@@ -293,140 +332,89 @@ export function DecisionReviewWorkspace({
                   </span>
                 )}
               </div>
-              <h2 className={`mt-4 text-xl font-bold ${outcomeStyle.text}`}>{selected.sampleName}</h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">{selected.recommendation}</p>
+              <h2 className={`mt-1 text-base font-bold sm:text-lg ${outcomeStyle.text}`}>{selected.sampleName}</h2>
+              <p className="mt-0.5 max-w-3xl text-sm leading-5 text-slate-700">{selected.recommendation}</p>
             </div>
             <div className="shrink-0 text-left sm:text-right">
               <p className="text-xs font-medium text-slate-500">ISSF score</p>
-              <p className="mt-1 text-3xl font-bold tabular-nums text-slate-900">{selected.issfScore.toFixed(1)}</p>
+              <p className="text-xl font-bold tabular-nums text-slate-900">{selected.issfScore.toFixed(1)}</p>
             </div>
           </div>
         </header>
 
-        <div className="space-y-8 p-6">
+          <div className="space-y-3 p-4">
           <ThresholdTrack score={selected.issfScore} stopThreshold={stopThreshold} goThreshold={goThreshold} />
 
-          <section aria-labelledby="decisive-evidence-heading">
-            <div className="mb-4">
-              <h3 id="decisive-evidence-heading" className="text-base font-semibold text-slate-900">Decisive evidence</h3>
-              <p className="mt-1 text-sm text-slate-700">
-                Strengths and focus areas are separated so one strong dimension does not hide another that needs work.
-              </p>
+          {hardStopGate && (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-900">
+              <span className="font-semibold">STOP triggered by hard gate, not the score band.</span>{' '}
+              ISSF is in the {scoreBand} band, but {hardStopGate.label.toLowerCase()} failed: {hardStopGate.detail}
             </div>
-            <div className="divide-y divide-slate-100 border-y border-slate-200">
-              {criteria.map(criterion => {
+          )}
+
+          <section aria-labelledby="decision-evidence-heading" className="rounded-lg border border-slate-200 bg-white">
+            <div className="border-b border-slate-100 px-3 py-2.5">
+              <h3 id="decision-evidence-heading" className="text-sm font-semibold text-slate-900">Decision evidence details</h3>
+              <p className="mt-0.5 text-xs text-slate-500">Acceptance, texture, category fit, defects, confidence, and decision gap.</p>
+            </div>
+            <div className="grid divide-y divide-slate-100 md:grid-cols-2 md:divide-x md:divide-y-0">
+              {evidenceCriteria.map((criterion, index) => {
                 const Icon = statusIcon(criterion.status);
                 return (
-                  <div key={criterion.id} className="grid gap-3 py-4 sm:grid-cols-[28px_minmax(0,1fr)_auto] sm:items-start">
-                    <span className={`flex size-7 items-center justify-center rounded-full ${STATUS_STYLE[criterion.status]}`}>
-                      <Icon className="size-4" aria-hidden />
+                  <div
+                    key={criterion.id}
+                    className={`flex gap-2.5 px-3 py-2.5 ${index > 1 ? 'md:border-t md:border-slate-100' : ''}`}
+                  >
+                    <span className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full ${STATUS_STYLE[criterion.status]}`}>
+                      <Icon className="size-3" aria-hidden />
                     </span>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">{criterion.label}</p>
-                      <p className="mt-0.5 text-xs font-medium text-slate-500">{criterion.question}</p>
-                      <p className="mt-2 text-sm leading-6 text-slate-700">{criterion.detail}</p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-slate-900">{criterion.label}</p>
+                        <Badge className={`${STATUS_STYLE[criterion.status]} border-0 px-1.5 py-0 text-[10px] leading-5 shadow-none`}>
+                          {criterion.badgeLabel ?? statusBadgeLabel(criterion.status)}
+                        </Badge>
+                      </div>
+                      <p className="mt-0.5 text-xs leading-5 text-slate-600">{criterion.detail}</p>
                     </div>
-                    <Badge className={`${STATUS_STYLE[criterion.status]} w-fit border-0 shadow-none`}>
-                      {criterion.badgeLabel ?? statusBadgeLabel(criterion.status)}
-                    </Badge>
                   </div>
                 );
               })}
             </div>
           </section>
 
-          <section aria-labelledby="decision-change-heading" className="rounded-lg border border-slate-200 bg-slate-50 p-5">
-            <div className="flex items-start gap-3">
-              <ShieldAlert className="mt-0.5 size-5 shrink-0 text-slate-700" aria-hidden />
-              <div className="min-w-0">
-                <h3 id="decision-change-heading" className="text-base font-semibold text-slate-900">
-                  {selected.decision === 'GO' ? 'What protects this decision?' : 'What changes this decision?'}
-                </h3>
-                {selected.decision === 'GO' ? (
-                  <>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">Maintain the current sensory profile during scale-up.</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-700">
-                      Revalidate the product after process or ingredient changes. A new defect signal, lower liking, or confidence below 72% would reopen the decision.
-                    </p>
-                  </>
-                ) : primaryPrescription ? (
-                  <>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">{primaryPrescription.target}</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-700">{primaryPrescription.action}</p>
-                    <p className="mt-3 text-xs font-semibold text-slate-700">
-                      Estimated improvement: up to {primaryPrescription.expectedLift.toFixed(0)} ISSF points. Retest before advancing.
-                    </p>
-                  </>
-                ) : (
-                  <p className="mt-2 text-sm leading-6 text-slate-700">
-                    Address the failed decision criteria, then collect a new evidence set before reconsidering this prototype.
-                  </p>
-                )}
-                {selected.decision !== 'GO' && (
-                  <div className="mt-4 border-t border-slate-200 pt-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      {selected.decision === 'STOP' ? 'Test a reformulation' : 'Confirm the adjustment'}
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-slate-700">
-                      Use a follow-up import for this exact item so the next decision compares the adjusted batch against the issue that blocked advancement.
-                    </p>
-                    <ol className="mt-3 grid gap-2 text-xs text-slate-700 sm:grid-cols-3">
-                      <li className="rounded-md border border-slate-200 bg-white px-3 py-2">
-                        <span className="block font-semibold text-slate-900">1. Make the change</span>
-                        {primaryPrescription?.action ?? 'Document the reformulation before retesting.'}
-                      </li>
-                      <li className="rounded-md border border-slate-200 bg-white px-3 py-2">
-                        <span className="block font-semibold text-slate-900">2. Import retest data</span>
-                        New CSV data will be labeled for {selected.sampleName}.
-                      </li>
-                      <li className="rounded-md border border-slate-200 bg-white px-3 py-2">
-                        <span className="block font-semibold text-slate-900">3. Re-run decision</span>
-                        Return here to confirm GO, TWEAK, or STOP on the new evidence.
-                      </li>
-                    </ol>
-                    {parentDecisionId ? (
-                      <Button asChild size="sm" className="mt-3 bg-slate-900 text-white hover:bg-slate-700">
-                        <Link
-                          to={retestPath}
-                          state={{
-                            retestImport: {
-                              sampleId: selected.sampleId,
-                              sampleName: selected.sampleName,
-                              decision: selected.decision,
-                              target: primaryPrescription?.target,
-                              action: primaryPrescription?.action,
-                              parentDecisionId,
-                            },
-                          }}
-                        >
-                          <Upload className="size-4" />
-                          {selected.decision === 'STOP'
-                            ? `Import reformulation for ${selected.sampleName}`
-                            : `Import retest for ${selected.sampleName}`}
-                        </Link>
-                      </Button>
-                    ) : (
-                      <Button size="sm" disabled className="mt-3">
-                        Confirm {selected.decision} before importing retest data
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
+          {selected.decision !== 'GO' && intelligencePanel}
+        </div>
 
-          <footer className="flex flex-col gap-4 border-t border-slate-200 pt-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="px-5 pb-5">
+          <footer className="flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-semibold text-slate-900">
-                {confirmedDecision ? `${confirmedDecision.decision} is saved for this evidence version.` : `Ready to confirm ${selected.decision}?`}
+              <p className="text-sm font-semibold text-slate-900">Decision actions</p>
+              <p className="mt-1 text-xs text-slate-500">
+                {confirmedDecision ? `${confirmedDecision.decision} is saved for this evidence version.` : 'Confirm this decision before resubmitting test data.'}
               </p>
-              <p className="mt-1 text-xs text-slate-500">You can record an intentional override in the confirmation dialog.</p>
             </div>
-            <Button onClick={onConfirm} className="bg-blue-700 text-white hover:bg-blue-800">
-              <ClipboardCheck className="size-4" />
-              {confirmedDecision ? 'Review confirmation' : `Confirm ${selected.decision}`}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={selected.decisionStatus === 'hold'} onClick={onConfirm} className="bg-blue-700 text-white hover:bg-blue-800">
+                <ClipboardCheck className="size-4" />
+                {confirmedDecision ? 'Review confirmation' : `Confirm ${selected.decision}`}
+              </Button>
+              {selected.decision !== 'GO' && (
+                parentDecisionId ? (
+                  <Button asChild variant="outline">
+                    <Link to={retestPath} state={retestState}>
+                      <Upload className="size-4" />
+                      Resubmit testing
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button variant="outline" disabled>
+                    <Upload className="size-4" />
+                    Resubmit testing
+                  </Button>
+                )
+              )}
+            </div>
           </footer>
         </div>
       </article>

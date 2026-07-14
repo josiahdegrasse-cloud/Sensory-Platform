@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { formatDistanceToNow } from 'date-fns';
 import {
@@ -12,7 +12,10 @@ import {
   FolderKanban,
   ListChecks,
   Lock,
+  Check,
+  Pencil,
   TriangleAlert,
+  X,
 } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { StageEmptyState } from './stage-empty-state';
@@ -25,6 +28,8 @@ import {
   useDecisionRecords,
   useImportBatches,
   useInstrumentalDataset,
+  useRenameProject,
+  useUpdateImportBatchName,
   useWorkspaceSettings,
 } from '../lib/hooks';
 import { ProjectStatusBadge, toneClasses, toneSolidClasses } from './project-status-badge';
@@ -38,6 +43,8 @@ import {
 } from '../lib/workflow/workflow-actions';
 import type { AuditEventRecord, ImportBatchRecord } from '../lib/database';
 import type { WorkflowStageStatus, WorkflowStageSummary } from '../lib/workflow/workflow-types';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
 
 const STAGE_STATUS_ICONS: Record<WorkflowStageStatus, typeof CheckCircle2> = {
   complete: CheckCircle2,
@@ -50,9 +57,9 @@ const STAGE_STATUS_ICONS: Record<WorkflowStageStatus, typeof CheckCircle2> = {
 
 function EvidenceStat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
-      <div className="text-lg font-semibold text-slate-900">{value}</div>
-      <div className="text-xs text-slate-500">{label}</div>
+    <div className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-center">
+      <div className="text-xl font-semibold tabular-nums text-slate-950">{value}</div>
+      <div className="mt-0.5 text-xs font-medium text-slate-500">{label}</div>
     </div>
   );
 }
@@ -69,13 +76,10 @@ function JourneyRail({
   activeStageId: string;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-1">
-      <ol
-        className="grid items-stretch gap-1"
-        style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(0, 1fr))` }}
-      >
+    <nav aria-label="Project workflow">
+      <ol className="grid grid-cols-2 items-stretch gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7">
         {stages.map(stage => {
-          const displayStatus = stage.id === 'concept' && stage.status === 'blocked' ? 'not_started' : stage.status;
+          const displayStatus = stage.status;
           const tone = workflowToneToSemanticTone(workflowTone(displayStatus));
           const Icon = STAGE_STATUS_ICONS[displayStatus];
           const isActive = stage.id === activeStageId;
@@ -84,18 +88,18 @@ function JourneyRail({
               <Link
                 to={stage.nextActionRoute}
                 title={`${stage.label}: ${workflowStatusLabel(displayStatus)}`}
-                className={`group flex h-full min-w-0 items-center justify-center gap-1.5 rounded-md border px-1.5 py-2 text-center text-[11px] font-semibold leading-tight transition-colors sm:px-2 sm:text-xs ${
+                className={`group flex min-h-12 min-w-0 items-center justify-center gap-2 px-3 py-2.5 text-center text-xs font-semibold transition-colors ${
                   isActive
-                    ? 'border-transparent bg-slate-900 text-white'
+                    ? 'bg-slate-900 text-white'
                     : displayStatus === 'complete'
-                      ? 'border-emerald-200 bg-white text-emerald-900 hover:border-emerald-300 hover:bg-emerald-50'
+                      ? 'bg-white text-emerald-900 hover:bg-emerald-50'
                       : displayStatus === 'blocked'
-                        ? 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-200 hover:text-slate-700'
-                        : 'border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-white hover:text-blue-900'
+                        ? 'bg-slate-50 text-slate-500 hover:text-slate-700'
+                        : 'bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-950'
                 }`}
                 aria-current={isActive ? 'step' : undefined}
               >
-                <span className={`hidden size-5 shrink-0 items-center justify-center rounded-full border sm:flex ${toneClasses(tone)}`}>
+                <span className={`flex size-5 shrink-0 items-center justify-center rounded-full border ${toneClasses(tone)}`}>
                   <Icon className="size-3.5" />
                 </span>
                 <span className="min-w-0 truncate">{stage.label}</span>
@@ -104,48 +108,51 @@ function JourneyRail({
           );
         })}
       </ol>
-    </div>
+    </nav>
   );
 }
 
 function StageTimelineItem({
   stage,
   active,
+  position,
+  total,
 }: {
   stage: WorkflowStageSummary;
   active: boolean;
+  position: number;
+  total: number;
 }) {
-  const hideConceptBlockedState = stage.id === 'concept' && stage.status === 'blocked';
-  const displayStatus = hideConceptBlockedState ? 'not_started' : stage.status;
-  const displayBlockers = hideConceptBlockedState ? [] : stage.blockers;
-  const displayDetail = hideConceptBlockedState ? 'No concept test has been created yet.' : stage.detail;
+  const displayStatus = stage.status;
+  const displayBlockers = stage.blockers;
+  const displayDetail = stage.detail;
   const tone = workflowToneToSemanticTone(workflowTone(displayStatus));
   const Icon = STAGE_STATUS_ICONS[displayStatus];
   const canNavigate = displayStatus !== 'blocked' || stage.nextActionRoute;
-  const shouldExpand = active || displayStatus === 'ready' || displayStatus === 'needs_review' || displayBlockers.length > 0 || stage.warnings.length > 0;
-  const evidence = stage.completedItems.slice(0, 3);
+  const shouldExpand = stage.completedItems.length > 0 || displayBlockers.length > 0 || stage.warnings.length > 0;
+  const evidence = uniqueItems(stage.completedItems)
+    .filter(item => item.replace(/[.\s]+$/g, '') !== displayDetail.replace(/[.\s]+$/g, ''))
+    .slice(0, 3);
   return (
-    <article className={`rounded-lg border bg-white p-4 ${active ? 'border-blue-200 ring-1 ring-blue-100' : 'border-slate-200'}`}>
+    <article className={active ? 'bg-blue-50/50 px-4 py-4 sm:px-5' : 'bg-white px-4 py-4 sm:px-5'}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
-          <span className={`flex size-9 shrink-0 items-center justify-center rounded-lg border ${toneClasses(tone)}`}>
-            <Icon className="size-4" />
+          <span className={`mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md border ${toneClasses(tone)}`}>
+            <Icon className="size-3.5" />
           </span>
           <div className="min-w-0">
+            <p className="text-[11px] font-semibold text-slate-500">Stage {position} of {total}</p>
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-semibold text-slate-900">{stage.label}</h3>
-              <ProjectStatusBadge label={workflowStatusLabel(displayStatus)} tone={tone} showIcon={false} />
+              <ProjectStatusBadge label={workflowStatusLabel(displayStatus)} tone={tone} showIcon={false} className="px-1.5 py-0 text-[10px] leading-4" />
             </div>
             <p className="mt-1 text-sm text-slate-700">{displayDetail}</p>
-            {!shouldExpand && evidence[0] && (
-              <p className="mt-1 text-xs text-slate-500">{evidence[0]}</p>
-            )}
           </div>
         </div>
         {canNavigate && (
           <Link
             to={stage.nextActionRoute}
-            className={`inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
+            className={`inline-flex min-h-8 w-fit shrink-0 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-semibold transition-colors ${
               active
                 ? toneSolidClasses(tone)
                 : 'border border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900'
@@ -158,28 +165,37 @@ function StageTimelineItem({
       </div>
 
       {shouldExpand && (
-        <div className="mt-4 grid gap-3 border-t border-slate-200 pt-4 md:grid-cols-3">
+        <div className="mt-3 grid gap-3 border-t border-slate-200 pt-3 md:grid-cols-3">
           {evidence.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-slate-700">Evidence</h4>
-              <ul className="mt-2 space-y-1 text-xs leading-5 text-slate-700">
-                {evidence.map(item => <li key={item}>{item}</li>)}
+              <h4 className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                <CheckCircle2 className="size-3.5 text-emerald-700" aria-hidden />
+                Evidence in place
+              </h4>
+              <ul className="mt-1.5 space-y-1 text-xs leading-5 text-slate-700">
+                {evidence.map(item => <li key={item}>• {item}</li>)}
               </ul>
             </div>
           )}
           {displayBlockers.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-rose-800">Gate</h4>
-              <ul className="mt-2 space-y-1 text-xs leading-5 text-rose-700">
-                {displayBlockers.slice(0, 2).map(item => <li key={item}>{item}</li>)}
+              <h4 className="flex items-center gap-1.5 text-xs font-semibold text-rose-800">
+                <Lock className="size-3.5" aria-hidden />
+                Gate
+              </h4>
+              <ul className="mt-1.5 space-y-1 text-xs leading-5 text-rose-700">
+                {displayBlockers.slice(0, 2).map(item => <li key={item}>• {item}</li>)}
               </ul>
             </div>
           )}
           {stage.warnings.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-amber-800">Watch</h4>
-              <ul className="mt-2 space-y-1 text-xs leading-5 text-amber-700">
-                {stage.warnings.slice(0, 2).map(item => <li key={item}>{item}</li>)}
+              <h4 className="flex items-center gap-1.5 text-xs font-semibold text-amber-800">
+                <TriangleAlert className="size-3.5" aria-hidden />
+                Needs attention
+              </h4>
+              <ul className="mt-1.5 space-y-1 text-xs leading-5 text-amber-700">
+                {stage.warnings.slice(0, 2).map(item => <li key={item}>• {item}</li>)}
               </ul>
             </div>
           )}
@@ -408,7 +424,14 @@ export function ProjectCommandCenter() {
   const { data: conceptTests = [] } = useAdminConceptTests();
   const { data: reports = [] } = useCommercializationReports();
   const { data: instrumentalDataset } = useInstrumentalDataset(true);
+  const renameProject = useRenameProject();
+  const updateImportBatchName = useUpdateImportBatchName();
   const [selectedHistorySampleId, setSelectedHistorySampleId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [draftName, setDraftName] = useState('');
+  const [renameError, setRenameError] = useState('');
+  const lastTitleTapAt = useRef(0);
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
   const routedProjectBatch = routeProjectId
     ? importBatches.find(batch => batch.projectId === routeProjectId && batch.status === 'active') ?? null
@@ -429,6 +452,53 @@ export function ProjectCommandCenter() {
   const effectiveBatchId = routedBatch?.id ?? (routeProjectId ? parseBatchSelection(subCategory) : null);
   const workflow = useProjectWorkflow(effectiveFoodType, effectiveBatchId);
   const batch = routedBatch ?? (effectiveBatchId ? importBatches.find(item => item.id === effectiveBatchId) ?? null : null);
+  const isRenaming = renameProject.isPending || updateImportBatchName.isPending;
+
+  useEffect(() => {
+    if (!editingName) return;
+    renameInputRef.current?.focus();
+    renameInputRef.current?.select();
+  }, [editingName]);
+
+  const startRenaming = () => {
+    setDraftName(workflow.projectName);
+    setRenameError('');
+    setEditingName(true);
+  };
+
+  const cancelRenaming = () => {
+    setDraftName(workflow.projectName);
+    setRenameError('');
+    setEditingName(false);
+  };
+
+  const saveProjectName = async () => {
+    const nextName = draftName.trim();
+    if (isRenaming) return;
+    if (!nextName) {
+      setRenameError('Project name is required.');
+      return;
+    }
+    if (nextName === workflow.projectName) {
+      setEditingName(false);
+      return;
+    }
+
+    setRenameError('');
+    try {
+      if (batch?.projectId) {
+        await renameProject.mutateAsync({ id: batch.projectId, name: nextName });
+      } else if (batch) {
+        await updateImportBatchName.mutateAsync({ id: batch.id, name: nextName });
+      } else {
+        setRenameError('This project could not be identified.');
+        return;
+      }
+      setEditingName(false);
+    } catch (error) {
+      setRenameError(error instanceof Error ? error.message : 'Unable to rename this project.');
+    }
+  };
 
   const batchSamples = useMemo(() => {
     if (!effectiveBatchId || !instrumentalDataset) return [];
@@ -475,43 +545,107 @@ export function ProjectCommandCenter() {
   }
 
   const contextLine = [
-    workflow.foodTypeLabel,
     workspaceSettings?.organizationName,
     batch && `Imported ${new Date(batch.createdAt).toLocaleDateString()}`,
-    batch && `${batch.sampleCount} sample${batch.sampleCount === 1 ? '' : 's'}`,
   ].filter(Boolean).join(' · ');
   const activeStageId = workflow.nextAction.stageId;
   const nextActionTone = workflowToneToSemanticTone(workflow.nextAction.tone);
-  const gateStages = workflow.stages.filter(stage => stage.id === 'report');
-  const gateBlockers = uniqueItems(gateStages.flatMap(stage => stage.blockers));
-  const gateWarnings = uniqueItems(gateStages.flatMap(stage => stage.warnings));
+  const reportGateStage = workflow.stages.find(stage => stage.id === 'report');
+  const gateBlockers = uniqueItems(reportGateStage?.blockers ?? []);
+  const gateWarnings = uniqueItems(reportGateStage?.warnings ?? []);
   const readinessLine = workflow.latestDecision?.decision === 'GO'
-    ? 'GO is confirmed. Concept and report work can move forward from the saved decision evidence.'
+    ? 'Ready for concept and report work from the confirmed decision.'
     : gateBlockers.length > 0
       ? 'Decision confirmation is the gate before report building.'
       : workflow.nextAction.description;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <section className="rounded-lg border border-slate-200 bg-white p-5">
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="min-w-0">
+      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="min-w-0 self-center">
             <Link to="/" className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition-colors hover:text-slate-700">
-              <ArrowLeft className="size-3.5" aria-hidden /> Overview
+              <ArrowLeft className="size-3.5" aria-hidden /> Projects
             </Link>
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl font-semibold text-slate-900">{workflow.projectName}</h1>
+            <div className="mt-3">
+              {editingName ? (
+                <div className="flex max-w-xl items-center gap-2">
+                  <Input
+                    ref={renameInputRef}
+                    value={draftName}
+                    onChange={event => setDraftName(event.target.value)}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter') void saveProjectName();
+                      if (event.key === 'Escape') cancelRenaming();
+                    }}
+                    onBlur={() => void saveProjectName()}
+                    aria-label="Project name"
+                    aria-invalid={Boolean(renameError)}
+                    className="h-14 bg-white text-3xl font-bold tracking-tight"
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    onMouseDown={event => event.preventDefault()}
+                    onClick={() => void saveProjectName()}
+                    disabled={isRenaming}
+                    aria-label="Save project name"
+                  >
+                    <Check className="size-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onMouseDown={event => event.preventDefault()}
+                    onClick={cancelRenaming}
+                    aria-label="Cancel project rename"
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="group/name flex min-w-0 items-center gap-2">
+                  <h1 className="min-w-0 text-4xl font-bold leading-tight tracking-tight text-slate-950">
+                    <button
+                      type="button"
+                      onDoubleClick={startRenaming}
+                      onPointerUp={event => {
+                        if (event.pointerType !== 'touch') return;
+                        const now = Date.now();
+                        if (now - lastTitleTapAt.current < 400) startRenaming();
+                        lastTitleTapAt.current = now;
+                      }}
+                      className="max-w-full truncate rounded-md text-left text-4xl font-bold leading-tight tracking-tight decoration-slate-400 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
+                      title="Double-click or double-tap to rename"
+                      aria-label={`${workflow.projectName}. Double-click or double-tap to rename.`}
+                    >
+                      {workflow.projectName}
+                    </button>
+                  </h1>
+                  <button
+                    type="button"
+                    onClick={startRenaming}
+                    className="rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20 sm:opacity-0 sm:group-hover/name:opacity-100 sm:focus:opacity-100"
+                    aria-label={`Rename ${workflow.projectName}`}
+                  >
+                    <Pencil className="size-4" />
+                  </button>
+                  {workflow.latestDecision?.decision === 'GO' && (
+                    <ProjectStatusBadge label="GO confirmed" tone="success" showIcon={false} />
+                  )}
+                </div>
+              )}
+              {renameError && <p className="mt-1 text-xs font-semibold text-rose-700" role="alert">{renameError}</p>}
             </div>
-            <p className="mt-1 max-w-3xl text-sm text-slate-700">
+            <p className="mt-1 max-w-3xl text-sm text-slate-600">
               {contextLine || 'A guided overview of what exists and what to do next.'}
             </p>
-            <p className="mt-4 max-w-2xl text-sm font-medium text-slate-700">{readinessLine}</p>
-            <div className="mt-5">
-              <JourneyRail stages={workflow.stages} activeStageId={activeStageId} />
-            </div>
+            <p className="mt-4 max-w-2xl text-sm font-medium text-slate-800">{readinessLine}</p>
           </div>
 
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <div className="rounded-lg bg-blue-50 p-4 ring-1 ring-inset ring-blue-200">
             <div className="flex items-center gap-2 text-sm font-semibold text-blue-950">
               <ClipboardCheck className="size-4" />
               Next action
@@ -528,70 +662,55 @@ export function ProjectCommandCenter() {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
-          <EvidenceStat label="samples" value={workflow.counts.importedSamples} />
-          <EvidenceStat label="studies" value={workflow.counts.activeStudies} />
-          <EvidenceStat label="responses" value={workflow.counts.responsesCollected} />
-          <EvidenceStat label="decisions" value={workflow.counts.decisionsRecorded} />
-          <EvidenceStat label="concepts" value={workflow.counts.conceptsActive} />
-          <EvidenceStat label="reports" value={workflow.counts.reportsSaved} />
+        <div className="border-t border-slate-200 px-5 py-4 sm:px-6">
+          <JourneyRail stages={workflow.stages} activeStageId={activeStageId} />
+        </div>
+
+        <div className="border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            <EvidenceStat label="Samples" value={workflow.counts.importedSamples} />
+            <EvidenceStat label="Studies" value={workflow.counts.activeStudies} />
+            <EvidenceStat label="Responses" value={workflow.counts.responsesCollected} />
+            <EvidenceStat label="Decisions" value={workflow.counts.decisionsRecorded} />
+            <EvidenceStat label="Concepts" value={workflow.counts.conceptsActive} />
+            <EvidenceStat label="Reports" value={workflow.counts.reportsSaved} />
+          </div>
         </div>
       </section>
 
       {(gateBlockers.length > 0 || gateWarnings.length > 0) && (
-        <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <Lock className="size-4 text-slate-500" />
-                Commercialization gates
-              </h2>
-              <p className="mt-1 max-w-3xl text-sm text-slate-700">
-                Report building stays locked until the saved decision evidence supports it.
-              </p>
-            </div>
-            <Link
-              to={workflow.nextAction.route}
-              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
-            >
-              {workflow.nextAction.label}
-              <ArrowRight className="size-3.5" />
-            </Link>
-          </div>
-          {gateBlockers.length > 0 && (
-            <ul className="mt-3 grid gap-2 text-sm text-slate-700 lg:grid-cols-2">
-              {gateBlockers.slice(0, 2).map(item => (
-                <li key={item} className="rounded-md border border-slate-200 bg-white px-3 py-2">
-                  {item}
-                </li>
-              ))}
-            </ul>
-          )}
-          {gateWarnings.length > 0 && (
-            <ul className="mt-3 grid gap-2 text-sm text-amber-800 lg:grid-cols-2">
-              {gateWarnings.slice(0, 2).map(item => (
-                <li key={item} className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-                  {item}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        <div className="flex flex-col gap-1 px-1 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            {gateBlockers.length > 0
+              ? `Report readiness has ${gateBlockers.length} outstanding item${gateBlockers.length === 1 ? '' : 's'}.`
+              : 'A report quality review is available.'}
+          </p>
+          <Link
+            to={reportGateStage?.nextActionRoute ?? workflow.nextAction.route}
+            className="w-fit font-semibold text-slate-600 underline-offset-4 hover:text-slate-900 hover:underline"
+          >
+            Review when ready
+          </Link>
+        </div>
       )}
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="font-semibold text-slate-900">Project journey</h2>
-            <p className="text-sm text-slate-700">Completed evidence is compact. Open gates show the reason and the next action.</p>
+            <h2 className="font-semibold text-slate-900">Workflow progress</h2>
+            <p className="max-w-3xl text-sm text-slate-700">
+              Each workstream is tracked independently. Completed evidence remains visible, while downstream gates show exactly what must happen next.
+            </p>
           </div>
         </div>
-        <div className="space-y-3">
-          {workflow.stages.map(item => (
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white divide-y divide-slate-200">
+          {workflow.stages.map((item, index) => (
             <StageTimelineItem
               key={item.id}
               stage={item}
               active={item.id === activeStageId}
+              position={index + 1}
+              total={workflow.stages.length}
             />
           ))}
         </div>

@@ -174,18 +174,30 @@ export function validateGeneratedReport(ctx: ReportContext, generated: Generated
     }
     lintFindings.push(...lintText(section.label, section.text));
     const claimType = classifyStatement(section.text);
-    if (ctx.concept.responseCount === 0
+    if (ctx.concept.responseCount < 30
       && ['consumer_preference', 'purchase_demand', 'representative_acceptance', 'market_readiness'].includes(claimType)
-      && !/\b(unvalidated|unsupported|hypothesis|not (?:a |yet )?|cannot|pending|no concept|n\s*=\s*0)\b/i.test(section.text)) {
-      errors.push(err('unsupported-consumer-language', `${section.label}: consumer or market conclusion is not bounded by concept evidence.`, 31));
+      && !/\b(unvalidated|unsupported|hypothesis|directional only|not (?:a |yet )?|cannot|pending|too few|minimum n|n\s*=\s*\d+)\b/i.test(section.text)) {
+      errors.push(err(
+        'unsupported-consumer-language',
+        `${section.label}: consumer or market conclusion is not bounded by concept evidence (concept responses n=${ctx.concept.responseCount}; minimum n=30).`,
+        31,
+      ));
     }
   }
   lintFindings.push(...findDuplicateParagraphs(generated.sections));
 
+  const evidenceLeakageCodes = new Set([
+    'absolute-file-path',
+    'raw-rag-language',
+    'internal-evidence-language',
+    'backend-name',
+    'raw-float',
+  ]);
   for (const finding of lintFindings) {
     if (finding.code === 'malformed-sentence'
       || finding.code === 'placeholder'
-      || finding.code.startsWith('raw-')) {
+      || finding.code.startsWith('raw-')
+      || evidenceLeakageCodes.has(finding.code)) {
       errors.push(err(finding.code, finding.message, 16));
     } else if (finding.code === 'duplicate-paragraph') {
       warnings.push(warn(finding.code, finding.message, 6));

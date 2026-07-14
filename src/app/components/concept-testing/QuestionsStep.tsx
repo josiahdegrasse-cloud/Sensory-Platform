@@ -47,6 +47,11 @@ export function QuestionsStep({
   const validImageCount = draft.marketingImages.filter(u => u.trim()).length;
 
   useEffect(() => {
+    if (reviewState !== 'draft') return;
+    onChange(buildTailoredConceptQuestions(draft));
+  }, [draft, onChange, reviewState]);
+
+  useEffect(() => {
     const imageChoiceRequired = validImageCount > 1;
     if (!questions.some(question =>
       question.type === 'image_choice' && question.required !== imageChoiceRequired

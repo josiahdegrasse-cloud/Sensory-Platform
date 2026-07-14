@@ -46,7 +46,7 @@ export function ProjectWorkflowProgress({ stages, variant = 'full', showDetails 
         {stages.map((stage, i) => {
           const styles = STATE_STYLES[stage.state];
           const clickable = stage.state !== 'blocked';
-          const chipClassName = cn('flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors', styles.chip);
+          const chipClassName = cn('flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors', styles.chip);
           return (
             <div key={stage.id} className="flex items-center flex-shrink-0">
               {clickable ? (

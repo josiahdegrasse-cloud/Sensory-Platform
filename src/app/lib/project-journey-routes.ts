@@ -70,13 +70,19 @@ export function projectPath(projectId: string, step: ProjectJourneyStep = 'overv
   return search ? `${base}${search.startsWith('?') ? search : `?${search}`}` : base;
 }
 
+export function projectStudiesPath(projectId: string, view: 'studies' | 'ship-outs' = 'studies', search = ''): string {
+  const base = projectPath(projectId, 'studies');
+  const path = view === 'studies' ? base : `${base}/${view}`;
+  return search ? `${path}${search.startsWith('?') ? search : `?${search}`}` : path;
+}
+
 export function legacyWorkflowPathToStep(pathname: string): ProjectJourneyStep | null {
   return LEGACY_PATH_TO_STEP[pathname.replace(/\/+$/, '') || '/'] ?? null;
 }
 
 export function projectScopedPathToStep(pathname: string): ProjectJourneyStep | null {
   const normalized = pathname.replace(/\/+$/, '') || '/';
-  const match = normalized.match(/^\/project\/[^/]+(?:\/([^/]+))?$/);
+  const match = normalized.match(/^\/project\/[^/]+(?:\/([^/]+))?(?:\/[^/]+)?$/);
   if (!match) return null;
   const step = match[1] ?? 'overview';
   return isProjectJourneyStep(step) ? step : null;

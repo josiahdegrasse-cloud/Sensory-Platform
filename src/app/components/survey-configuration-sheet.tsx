@@ -1,4 +1,5 @@
-import { AlertTriangle, Layers, Lock, Plus, Save, Trash2, Users } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Layers, Lock, PackageCheck, Plus, Save, Trash2, Users } from 'lucide-react';
+import { Link } from 'react-router';
 import type { Product } from '../data/survey-domain';
 import type { PanelistInfo } from '../lib/database';
 import { getAssignmentSummary } from '../lib/assignments';
@@ -14,10 +15,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from './ui/sheet';
-import { PanelistKitInserts } from './panelist-kit-inserts';
+import { projectStudiesPath } from '../lib/project-journey-routes';
 
 export function SurveyConfigurationSheet({
   product,
+  shipOutProjectId,
   panelists,
   standardAttributes,
   customAttributes,
@@ -36,6 +38,7 @@ export function SurveyConfigurationSheet({
   saving,
 }: {
   product: Product | null;
+  shipOutProjectId?: string | null;
   panelists: PanelistInfo[];
   standardAttributes: string[];
   customAttributes: string[];
@@ -227,7 +230,29 @@ export function SurveyConfigurationSheet({
               </div>
             </section>
 
-            <PanelistKitInserts product={product} />
+            <section className="border-t border-slate-200 pt-5" aria-labelledby="ship-outs-heading">
+              <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 id="ship-outs-heading" className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <PackageCheck className="size-4 text-slate-700" aria-hidden />
+                    Ship-outs
+                  </h3>
+                  <p className="mt-1 max-w-lg text-sm leading-6 text-slate-700">
+                    Build recipient boxes, generate unique QR inserts, and track packing, dispatch, claims, and completion in the project shipment workspace.
+                  </p>
+                </div>
+                {shipOutProjectId ? (
+                  <Button asChild variant="outline" className="shrink-0 bg-white">
+                    <Link to={projectStudiesPath(shipOutProjectId, 'ship-outs', `?study=${encodeURIComponent(product.id)}`)}>
+                      Open Ship-outs
+                      <ArrowRight className="size-4" aria-hidden />
+                    </Link>
+                  </Button>
+                ) : (
+                  <p className="max-w-52 text-xs leading-5 text-amber-800">Assign this study to a project before creating physical shipments.</p>
+                )}
+              </div>
+            </section>
           </div>
         )}
 

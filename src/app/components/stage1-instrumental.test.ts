@@ -86,7 +86,7 @@ describe('CSV import workflow intelligence', () => {
     expect(validation.errors).toEqual([]);
   });
 
-  it('categorizes yogurt styles from sample names and gives each chart group a distinct color', () => {
+  it('categorizes yogurt styles while keeping their chart palette restrained', () => {
     const names = [
       'Coconut cultured',
       'Low sugar skyr',
@@ -115,7 +115,7 @@ describe('CSV import workflow intelligence', () => {
     const colors = dataset.eTongueData.map(sample => getPointColor(sample.type, sample.category));
 
     expect(categories).toEqual(names);
-    expect(new Set(colors).size).toBe(names.length);
+    expect(new Set(colors)).toEqual(new Set(['#0f766e']));
     expect(inferYogurtCategory('Greek strained', 'Yogurt')).toBe('Greek strained');
   });
 });

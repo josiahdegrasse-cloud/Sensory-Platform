@@ -1,10 +1,11 @@
-import { Navigate, Outlet } from 'react-router';
+import { Navigate, Outlet, useLocation } from 'react-router';
 import { useAuth } from '../contexts/auth-context';
 
 type Role = 'panelist' | 'admin' | 'pending_admin';
 
 export function ProtectedRoute({ allowedRoles }: { allowedRoles: Role[] }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) return null;
   if (!user) return <Navigate to="/" replace />;
@@ -26,6 +27,10 @@ export function ProtectedRoute({ allowedRoles }: { allowedRoles: Role[] }) {
     if (user.role === 'panelist') return <Navigate to="/panelist" replace />;
     if (user.role === 'pending_admin') return <Navigate to="/" replace />;
     return <Navigate to="/" replace />;
+  }
+
+  if (user.role === 'panelist' && !user.profileCompletedAt && location.pathname !== '/panelist/profile') {
+    return <Navigate to="/panelist/profile" replace />;
   }
 
   return <Outlet />;

@@ -12,32 +12,71 @@ import {
 } from './pdf/theme';
 import {
   buildAppendix,
-  buildCommercialInsights,
   buildCommercializationPlan,
+  buildClaimsMatrix,
+  buildConsumerEvidence,
+  buildDecisionBasis,
   buildConceptPackaging,
   buildDecisionSnapshot,
   buildExecutiveReadout,
   buildMethodEvidence,
   buildPerformanceDashboard,
+  buildProductReadiness,
+  buildCommercialReadiness,
   buildRisks,
+  buildScientificContext,
   type CommercializationReportPdfInput,
 } from './pdf/sections';
 import {
-  renderCommercialInsightsPage,
   renderDecisionSnapshotPage,
-  renderExecutiveReadoutPage,
   renderPerformanceDashboardPage,
 } from './pdf/pages/decision-pages';
 import {
-  renderAppendixPage,
+  renderClaimsMatrixPage,
   renderCommercializationPlanPage,
-  renderConceptPackagingPage,
-  renderRisksPage,
-  renderMethodEvidencePage,
 } from './pdf/pages/action-pages';
+import {
+  renderDecisionBasisPage,
+  renderInstrumentalRiskPage,
+} from './pdf/pages/professional-pages';
+import {
+  renderCommercialStrategyPage,
+  renderProductReadinessPage,
+} from './pdf/pages/readiness-pages';
 import { runQcPipeline, type GeneratedSections, type QcPipelineResult } from '../lib/report-qc';
+import { evaluateCommercializationReport } from './commercialization-report-quality';
 
 export type { CommercializationReportPdfInput } from './pdf/sections';
+
+const RAW_CLIENT_FLOAT = /(-?\d+\.\d{5,})/g;
+
+export function normalizeClientFacingNumbers(value: string) {
+  if (/^(?:data|blob):/i.test(value)) return value;
+  return value.replace(RAW_CLIENT_FLOAT, (raw, _capture, offset: number) => {
+    const tokenStart = value.lastIndexOf(' ', offset) + 1;
+    const nextSpace = value.indexOf(' ', offset + raw.length);
+    const tokenEnd = nextSpace === -1 ? value.length : nextSpace;
+    const token = value.slice(tokenStart, tokenEnd).replace(/^[([{'"`]+|[)\]},;'"`]+$/g, '');
+    if (/^(?:doi:?)?10\.\d{4,9}\//i.test(token) || /^https?:\/\/(?:dx\.)?doi\.org\/10\.\d{4,9}\//i.test(token)) {
+      return raw;
+    }
+    const number = Number(raw);
+    if (!Number.isFinite(number)) return raw;
+    if (number !== 0 && Math.abs(number) < 0.0001) return number.toExponential(2);
+    return Number(number.toFixed(4)).toString();
+  });
+}
+
+function normalizeReportValue<T>(value: T): T {
+  if (typeof value === 'string') return normalizeClientFacingNumbers(value) as T;
+  if (Array.isArray(value)) return value.map(item => normalizeReportValue(item)) as T;
+  if (value && typeof value === 'object' && !(value instanceof Date)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, normalizeReportValue(item)]),
+    ) as T;
+  }
+  return value;
+}
 
 function slugify(value: string) {
   return value
@@ -75,10 +114,8 @@ export function buildCommercializationReportFilename(input: {
 }
 
 export async function buildCommercializationReportPdf(input: CommercializationReportPdfInput) {
-  const [{ jsPDF }, { default: autoTable }] = await Promise.all([
-    import('jspdf'),
-    import('jspdf-autotable'),
-  ]);
+  input = normalizeReportValue(input);
+  const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const template = input.reportTemplate ?? 'editorial-sage';
   const primary: Rgb = template === 'editorial-sage' ? CHARCOAL : hexToRgb(input.primaryColor) ?? SLATE_950;
@@ -109,28 +146,33 @@ export async function buildCommercializationReportPdf(input: CommercializationRe
   renderDecisionSnapshotPage(ctx, buildDecisionSnapshot(input), { packaging, logo });
 
   addContentPage(ctx);
-  renderExecutiveReadoutPage(ctx, buildExecutiveReadout(input));
+  renderDecisionBasisPage(ctx, buildDecisionBasis(input));
 
   addContentPage(ctx);
   renderPerformanceDashboardPage(ctx, buildPerformanceDashboard(input));
 
+  const scientific = buildScientificContext(input);
+  const risks = buildRisks(input);
   addContentPage(ctx);
-  renderMethodEvidencePage(ctx, buildMethodEvidence(input), autoTable);
+  renderInstrumentalRiskPage(ctx, scientific, risks);
 
   addContentPage(ctx);
-  renderCommercialInsightsPage(ctx, buildCommercialInsights(input));
+  renderProductReadinessPage(ctx, buildProductReadiness(input));
 
   addContentPage(ctx);
-  renderConceptPackagingPage(ctx, buildConceptPackaging(input), packaging);
+  renderCommercialStrategyPage(
+    ctx,
+    buildConceptPackaging(input),
+    buildConsumerEvidence(input),
+    buildCommercialReadiness(input),
+    packaging,
+  );
 
   addContentPage(ctx);
-  renderCommercializationPlanPage(ctx, buildCommercializationPlan(input), autoTable);
+  renderCommercializationPlanPage(ctx, buildCommercializationPlan(input));
 
   addContentPage(ctx);
-  renderRisksPage(ctx, buildRisks(input), autoTable);
-
-  addContentPage(ctx);
-  renderAppendixPage(ctx, buildAppendix(input), autoTable);
+  renderClaimsMatrixPage(ctx, buildClaimsMatrix(input));
 
   const pageCount = doc.getNumberOfPages();
   for (let page = 1; page <= pageCount; page += 1) {
@@ -155,26 +197,37 @@ export async function buildCommercializationReportPdf(input: CommercializationRe
     qc = runQcPipeline({ ctx: input.reportContext, generated });
   }
 
-  return { doc, filename, qc };
+  const clientEvaluation = evaluateCommercializationReport(doc, input);
+  return { doc, filename, qc, clientEvaluation };
 }
 
 export function buildGeneratedReportSections(input: CommercializationReportPdfInput): GeneratedSections {
   const exec = buildExecutiveReadout(input);
+  const basis = buildDecisionBasis(input);
   const method = buildMethodEvidence(input);
   const concept = buildConceptPackaging(input);
   const plan = buildCommercializationPlan(input);
   const appendix = buildAppendix(input);
+  const claims = buildClaimsMatrix(input);
+  const productReadiness = buildProductReadiness(input);
+  const commercialReadiness = buildCommercialReadiness(input);
+  const scientificContext = buildScientificContext(input);
   return {
     sections: [
       { label: 'Decision', text: `${buildDecisionSnapshot(input).reportTitle}. ${buildDecisionSnapshot(input).decisionSubheading}` },
+      { label: 'Decision basis', text: `${basis.decisionMargin}. ${basis.managementDecision}` },
       { label: 'Executive rationale', text: `${exec.decision} ${exec.rationale}` },
       { label: 'Executive recommendation', text: exec.commercialImplication },
       { label: 'Next move', text: exec.nextMove },
       { label: 'Methodology', text: `${method.issfFormula}. ${method.gateLogic}. ${method.instrumentalNote}` },
+      { label: 'Scientific guidance', text: scientificContext.guidance.map(item => `${item.title}: ${item.guidance}`).join(' ') || 'No report-safe external scientific guidance was saved with this report version.' },
       { label: 'Concept hypothesis', text: `${concept.positioning} ${concept.targetConsumer} ${concept.consumerNeed} ${concept.usageOccasion} ${concept.productPromise}` },
       { label: 'Packaging rationale', text: concept.packagingDirection },
-      { label: 'Execution plan', text: plan.rows.map(row => `${row.workstream}: ${row.currentRead}. ${row.requiredAction}. ${row.statusOwner}.`).join(' ') },
+      { label: 'Product readiness', text: `${productReadiness.rows.map(row => `${row.area}: ${row.status}. ${row.currentEvidence} Required: ${row.requiredEvidence}`).join(' ')} ${productReadiness.summary}` },
+      { label: 'Commercial readiness', text: `${commercialReadiness.rows.map(row => `${row.area}: ${row.status}. ${row.currentEvidence} Required: ${row.requiredEvidence}`).join(' ')} ${commercialReadiness.summary}` },
+      { label: 'Execution plan', text: `Consumer and market claims remain unvalidated until the named concept and claims steps are complete. ${plan.rows.map(row => `${row.workstream}: ${row.protocol}. Passing criteria: ${row.passingCriteria}. Owner: ${row.owner}. Timing: ${row.timing}. Budget: ${row.budget}.`).join(' ')}` },
       { label: 'Risks and limitations', text: buildRisks(input).claimsNote },
+      { label: 'Claims release', text: `${claims.rows.map(row => `${row.claim}: ${row.status}. ${row.permittedWording}`).join(' ')} ${claims.releaseDecision}` },
       { label: 'Traceability and approval', text: `${appendix.rows.map(row => row.join(': ')).join('. ')}. ${appendix.approvalNote}` },
     ],
   };
@@ -184,11 +237,14 @@ export async function downloadCommercializationReportPdf(input: Commercializatio
   if (!input.reportContext) {
     throw new Error('Report export blocked: a validated ReportContext is required. Open the report workspace to rebuild and authorize this version.');
   }
-  const { doc, filename, qc } = await buildCommercializationReportPdf(input);
+  const { doc, filename, qc, clientEvaluation } = await buildCommercializationReportPdf(input);
   // Critical QC errors block export (only enforced when a typed context is supplied).
   if (qc && !qc.exportAllowed) {
     const reasons = qc.score.blockers.slice(0, 5).join('; ');
     throw new Error(`Report export blocked by quality control: ${reasons}`);
+  }
+  if (!clientEvaluation.passed) {
+    throw new Error(`Report export blocked by client quality control: ${clientEvaluation.weaknesses.slice(0, 5).join('; ')}`);
   }
   doc.save(filename);
 }

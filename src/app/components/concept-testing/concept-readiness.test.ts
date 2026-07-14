@@ -68,13 +68,11 @@ describe('getConceptReadiness', () => {
     expect(items.every(item => item.detail.length > 0)).toBe(true);
   });
 
-  it('requires the minimum image brief before leaving the concept step', () => {
+  it('requires the bare concept brief before leaving the concept step', () => {
     const { items } = getConceptReadiness({
       draft: {
         ...draft,
-        targetMarket: '',
-        productAppearance: '',
-        packageFormat: '',
+        description: '',
       },
       questions,
       assignedPanelistIds: ['panelist-1'],
@@ -84,9 +82,42 @@ describe('getConceptReadiness', () => {
       ready: false,
       fixStep: 'concept',
     });
-    expect(items.find(item => item.id === 'brief')?.detail).toContain('product appearance');
-    expect(items.find(item => item.id === 'brief')?.detail).toContain('package format');
-    expect(items.find(item => item.id === 'brief')?.detail).toContain('target customer');
+    expect(items.find(item => item.id === 'brief')?.detail).toContain('description');
+  });
+
+  it('does not mention removed product, pack, or shopper blockers', () => {
+    const { items } = getConceptReadiness({
+      draft: {
+        ...draft,
+        productAppearance: '',
+        packageFormat: '',
+        targetMarket: '',
+      },
+      questions,
+      assignedPanelistIds: ['panelist-1'],
+    });
+    const readinessCopy = items.map(item => item.detail).join(' ');
+
+    expect(items.find(item => item.id === 'brief')).toMatchObject({ ready: true });
+    expect(readinessCopy).not.toMatch(/product and pack|shopper|target customer/i);
+  });
+
+  it('still requires a selected concept visual before launch', () => {
+    const { items } = getConceptReadiness({
+      draft: {
+        ...draft,
+        marketingImages: [],
+        marketingImageIds: [],
+        marketingImageReviews: [],
+      },
+      questions,
+      assignedPanelistIds: ['panelist-1'],
+    });
+
+    expect(items.find(item => item.id === 'visuals')).toMatchObject({
+      ready: false,
+      fixStep: 'concept',
+    });
   });
 
   it('blocks launch when selected visuals are not approved and approval is required', () => {
@@ -102,7 +133,7 @@ describe('getConceptReadiness', () => {
 
     expect(items.find(item => item.id === 'visuals')).toMatchObject({
       ready: false,
-      fixStep: 'visuals',
+      fixStep: 'concept',
     });
   });
 

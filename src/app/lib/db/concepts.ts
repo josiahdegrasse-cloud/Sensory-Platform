@@ -1,5 +1,6 @@
 import { supabase } from '../supabase';
-import { asJson, dbError, edgeFunctionErrorMessage, fromJson } from './shared';
+import { ragFetch } from '../rag-client';
+import { asJson, dbError, fromJson } from './shared';
 import { nextMonthStartIso } from '../concept-credits';
 import type { Database } from './database.types';
 
@@ -540,12 +541,20 @@ export interface ReportNarrativeRequest {
   revisionIssues?: string[];
 }
 
-// Calls the generate-report-narrative Edge Function (OpenAI, evidence-constrained).
+// Calls the local Food RAG service. Report prose is local-first: Ollama when
+// available, deterministic local fallback when the local writer is offline.
 export async function generateReportNarrative(
   input: ReportNarrativeRequest,
 ): Promise<{ sections: Record<string, string>; model: string }> {
-  const { data, error } = await supabase.functions.invoke('generate-report-narrative', { body: input });
-  if (error) throw new Error(await edgeFunctionErrorMessage(error, 'Narrative generation failed.'));
+  const response = await ragFetch('/api/report-narrative', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(`Local narrative generation failed (${response.status}).`);
+  const data = await response.json();
   const payload = data as { sections?: Record<string, string>; model?: string };
   return { sections: payload.sections ?? {}, model: payload.model ?? '' };
 }

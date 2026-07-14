@@ -9,7 +9,7 @@ export const AI_QUESTION_TEMPLATES: Question[] = [
   { id: 'q4',  text: 'What price per unit would you expect to pay for this product?', type: 'multiple_choice', options: ['Under $3', '$3–$5', '$5–$8', '$8–$12', 'Over $12'], required: true, category: 'price' },
   { id: 'q5',  text: 'What price would you consider too expensive for this product?', type: 'multiple_choice', options: ['Under $5', '$5–$8', '$8–$12', '$12–$18', 'Over $18'], required: false, category: 'price' },
   { id: 'q6',  text: 'Which of these attributes are most important to you in this product? (select all that apply)', type: 'multiple_choice', options: ['Taste/flavor', 'Texture', 'Nutritional value', 'Price', 'Sustainability', 'Convenience', 'Brand trust'], required: true, category: 'attributes' },
-  { id: 'q7',  text: 'How well does this product deliver on its claimed benefits?', type: 'scale', required: true, category: 'appeal' },
+  { id: 'q7',  text: 'How believable does this product feel based on the concept and visuals?', type: 'scale', required: true, category: 'appeal' },
   { id: 'q8',  text: 'How unique is this product compared to others you have tried?', type: 'scale', required: false, category: 'attributes' },
   { id: 'q9',  text: 'In which situations would you most likely use this product?', type: 'multiple_choice', options: ['Everyday meal', 'Special occasion', 'On-the-go snack', 'Cooking ingredient', 'Entertaining guests'], required: true, category: 'usage' },
   { id: 'q10', text: 'How often would you expect to purchase this product?', type: 'multiple_choice', options: ['Daily', 'Several times a week', 'Once a week', 'Once or twice a month', 'Less often'], required: true, category: 'purchase' },

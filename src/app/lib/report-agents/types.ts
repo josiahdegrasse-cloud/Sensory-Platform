@@ -5,6 +5,7 @@ import type {
   ReportContext,
   ValidationResult,
 } from '../report-qc';
+import type { ReportSafeEvidenceCard, ReportWriterContext } from '../evidence-assist';
 
 export type ReportExportStatus =
   | 'blocked'
@@ -13,6 +14,17 @@ export type ReportExportStatus =
   | 'client_ready';
 
 export type ReportReviewMode = 'standard' | 'full';
+
+// A literature citation surfaced from the local RAG corpus. `excerpt` is a
+// server-verified verbatim sentence (checked against the source PDF text),
+// never a raw, unverified excerpt — see rag_food/grounded_generation.py's
+// extract_verified_findings, which this shape mirrors.
+export interface LiteratureCitation {
+  id: string;
+  title: string;
+  excerpt: string;
+  source: string;
+}
 
 export type ReportAgentRole =
   | 'evidence_auditor'
@@ -164,6 +176,7 @@ export interface ScientificReviewResult {
   alternativeInterpretations: string[];
   missingMethodDisclosures: string[];
   blockers: string[];
+  literatureCitations?: LiteratureCitation[];
 }
 
 export interface ConsumerInsightsResult {
@@ -280,6 +293,13 @@ export interface WrittenReportResult {
       limitationIds: string[];
     }>;
   }>;
+  // Always server-computed from independently verified findings, never
+  // authored by the writer LLM itself — see rag_food/server.py's
+  // _literature_citation_payload. Inline [lit:Lx] tokens in section body
+  // text reference these ids.
+  literatureCitations?: LiteratureCitation[];
+  /** Report-safe Evidence Assist cards. Internal paths/excerpts are forbidden. */
+  evidenceCards?: ReportSafeEvidenceCard[];
 }
 
 export interface EditorialReviewResult {
@@ -439,7 +459,7 @@ export interface ReportAgentPacketMap {
     storedActions: ReportContext['actions'];
   };
   professional_report_writer: {
-    context: ReportContext;
+    context: ReportWriterContext;
     approvedClaims: EvidenceAuditResult['claims'];
     commercialStrategy: CommercialStrategyResult;
     actionPlan: ActionPlanResult;

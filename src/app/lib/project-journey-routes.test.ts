@@ -5,6 +5,7 @@ import {
   legacyPathForProject,
   legacyWorkflowPathToStep,
   projectPath,
+  projectStudiesPath,
   projectScopedPathToStep,
   projectStatusStagePath,
   projectStepToLegacyPath,
@@ -16,6 +17,8 @@ describe('project journey routes', () => {
     expect(projectPath('project-1')).toBe('/project/project-1');
     expect(projectPath('project-1', 'data')).toBe('/project/project-1/data');
     expect(projectPath('project-1', 'report', '?report=report-1')).toBe('/project/project-1/report?report=report-1');
+    expect(projectStudiesPath('project-1', 'ship-outs')).toBe('/project/project-1/studies/ship-outs');
+    expect(projectStudiesPath('project-1', 'ship-outs', '?study=study-1')).toBe('/project/project-1/studies/ship-outs?study=study-1');
   });
 
   it('maps legacy workflow routes to journey steps', () => {
@@ -33,6 +36,7 @@ describe('project journey routes', () => {
     expect(projectScopedPathToStep('/project/project-1')).toBe('overview');
     expect(projectScopedPathToStep('/project/project-1/data')).toBe('data');
     expect(projectScopedPathToStep('/project/project-1/decision')).toBe('decision');
+    expect(projectScopedPathToStep('/project/project-1/studies/ship-outs')).toBe('studies');
     expect(projectScopedPathToStep('/project/project-1/nope')).toBeNull();
     expect(currentPathToJourneyStep('/survey-analysis')).toBe('insights');
     expect(currentPathToJourneyStep('/project/project-1/concept')).toBe('concept');

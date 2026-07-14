@@ -21,7 +21,7 @@ export interface ClaimViolation {
 }
 
 // Detects restricted claims made without supporting evidence, plus consumer/market
-// claims asserted when there is no concept evidence (n=0).
+// claims asserted before the minimum interpretable concept threshold (n=30).
 export function findUnsupportedClaims(input: ClaimGuardInput): ClaimViolation[] {
   const violations: ClaimViolation[] = [];
   const conceptDependent: ClaimType[] = [
@@ -43,11 +43,11 @@ export function findUnsupportedClaims(input: ClaimGuardInput): ClaimViolation[] 
       continue;
     }
 
-    if (input.concept.responseCount === 0 && conceptDependent.includes(claim.claimType)) {
+    if (input.concept.responseCount < 30 && conceptDependent.includes(claim.claimType)) {
       violations.push({
         claimId: claim.id,
         claimType: claim.claimType,
-        reason: `Claim type "${claim.claimType}" requires concept responses, but n=0.`,
+        reason: `Claim type "${claim.claimType}" requires at least 30 concept responses, but n=${input.concept.responseCount}.`,
       });
     }
   }

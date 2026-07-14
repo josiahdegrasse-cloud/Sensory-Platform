@@ -3,6 +3,7 @@ import { getFoodTypeProfile } from '../lib/food-intelligence';
 
 export type DecisionOutcome = 'GO' | 'TWEAK' | 'STOP';
 export type DecisionRisk = 'low' | 'medium' | 'high';
+export type DecisionStatus = 'ready' | 'hold';
 
 export interface DecisionWeights {
   hedonic: number;
@@ -38,6 +39,8 @@ export interface GoStopTweakDecision {
   issfScore: number;
   confidenceScore: number;
   decision: DecisionOutcome;
+  decisionStatus?: DecisionStatus;
+  blockingReasons?: string[];
   recommendation: string;
   riskLevel: DecisionRisk;
   details: string[];
@@ -70,7 +73,7 @@ export interface GoStopTweakDecision {
  *    food type by getFoodTypeProfile(). Matching is substring-based, so terms
  *    like "sour" also hit "sourdough" — food-type risk/success markers exist
  *    to counterbalance this for category-appropriate descriptors.
- *  • Default thresholds (GO ≥ 76, STOP < 52) — see calculateGoStopTweakDecision;
+ *  • Default thresholds (GO ≥ 75, STOP < 45) — aligned with workspace defaults;
  *    overridable per workspace via decision settings.
  *  • Base blend (0.86 panel / 0.14 instrument) — panel perception dominates;
  *    the instrument signal nudges rather than decides.
@@ -79,7 +82,7 @@ export interface GoStopTweakDecision {
  *  • Gate penalties (off-note −22/−9, QC −12/−5) and ISTD recovery bands
  *    (85–110% pass, 75–85% watch, <75% fail) — instrument QC discipline.
  *
- * NFI-GST-2.0 (this version) vs 1.1:
+ * NFI-GST-2.1 (this version) builds on 2.0:
  *  • Texture is scored over the cues the study actually MEASURED; descriptor
  *    coverage feeds the confidence score instead of zero-filling the texture
  *    score (the old "completeness penalty"). With no texture descriptors at
@@ -88,9 +91,11 @@ export interface GoStopTweakDecision {
  *    back to PANEL_N only for reference profiles.
  *  • `istdRecovery: null` and an empty GC-MS table produce `not_measured`
  *    gates instead of silent passes; a GO issued with unmeasured gates carries
- *    an explicit caveat. Fabricated costSavings/timeline outputs were removed.
+ *    an explicit caveat. Imported profiles carry an evidence manifest so
+ *    placeholders never count as measured values; QC failures create a hold;
+ *    category-positive aromas do not become defects solely from detectability.
  */
-const METHOD_VERSION = 'NFI-GST-2.0';
+const METHOD_VERSION = 'NFI-GST-2.1';
 /** Nominal panel size used to normalize CATA citation counts. */
 export const PANEL_N = 14;
 const DEFECT_WORDS = [
@@ -118,8 +123,26 @@ function normalizeText(value: string) {
 }
 
 function includesAny(value: string, words: string[]) {
-  const text = normalizeText(value);
-  return words.some(word => text.includes(normalizeText(word)));
+  const text = ` ${normalizeText(value)} `;
+  return words.some(word => {
+    const normalizedWord = normalizeText(word);
+    return normalizedWord.length > 0 && text.includes(` ${normalizedWord} `);
+  });
+}
+
+const CATEGORY_AROMA_BENEFITS: Record<string, string[]> = {
+  bread: ['acetic acid', 'vinegar', 'sour', 'fermented', 'yeasty', 'malty', 'toasted', 'fresh baked'],
+  cheese: ['lactic acid', 'fermented', 'cheesy', 'buttery', 'nutty', 'tangy'],
+  yogurt: ['lactic acid', 'fermented', 'tangy', 'sour', 'milky', 'creamy'],
+  beverage: ['fermented', 'fruity', 'floral', 'citrus'],
+};
+
+function isTasteMeasured(sample: EnhancedSensoryProfile, key: keyof EnhancedSensoryProfile['taste']) {
+  return !sample.evidence || sample.evidence.measuredTaste.includes(key);
+}
+
+function hasMeasuredComposition(sample: EnhancedSensoryProfile) {
+  return !sample.evidence || sample.evidence.compositionMeasured;
 }
 
 function weightedMean(parts: Array<{ score: number; weight: number }>) {
@@ -134,6 +157,22 @@ function confidenceFromEvidence(
   gates: DecisionGate[],
   foodTypeSlug: string,
 ) {
+  if (sample.evidence?.provenance === 'imported') {
+    const panelN = sample.panelN && sample.panelN > 0 ? sample.panelN : 0;
+    const measuredHedonic = sample.evidence.measuredHedonic.length / 4;
+    const coverage = textureCoverage(sample, foodTypeSlug);
+    const gatePenalty = gates.filter(gate => gate.status === 'fail').length * 8 +
+      gates.filter(gate => gate.status === 'watch').length * 3;
+    return clamp(weightedMean([
+      { score: clamp(45 + Math.min(panelN, 40) / 40 * 55), weight: 30 },
+      { score: 40 + measuredHedonic * 60, weight: 25 },
+      { score: Object.keys(sample.cata).length > 0 ? 84 : 35, weight: 15 },
+      { score: 45 + coverage * 55, weight: 15 },
+      { score: sample.evidence.aromaMethod === 'not_measured' ? 45 : 82, weight: 10 },
+      { score: sample.evidence.compositionMeasured ? 90 : 50, weight: 5 },
+    ]) - gatePenalty, 25, 95);
+  }
+
   // Instrument QC: a real recovery measurement scores by band; a study with
   // no instrument QC (istdRecovery null) contributes a low-weight neutral
   // term — absence of QC is unknown risk, neither a pass boost nor a failure.
@@ -224,39 +263,60 @@ function scoreEmotional(sample: EnhancedSensoryProfile) {
 
 function scoreInstrumentSignal(sample: EnhancedSensoryProfile, foodTypeSlug: string) {
   const taste = sample.taste;
-  const bitternessPenalty = safeScore(taste.bitterness) + safeScore(taste.bitternessAftertaste);
-  const astringencyPenalty = safeScore(taste.astringency) + safeScore(taste.astringencyAftertaste);
+  const measured = (key: keyof EnhancedSensoryProfile['taste']) =>
+    isTasteMeasured(sample, key) ? safeScore(taste[key]) : 0;
+  const bitternessPenalty = measured('bitterness') + measured('bitternessAftertaste');
+  const astringencyPenalty = measured('astringency') + measured('astringencyAftertaste');
   const balance = foodTypeSlug === 'meat'
-    ? safeScore(taste.umami) * 1.8 + safeScore(taste.richness) * 1.2 + safeScore(taste.saltiness) * 0.7
+    ? measured('umami') * 1.8 + measured('richness') * 1.2 + measured('saltiness') * 0.7
     : foodTypeSlug === 'bread'
-      ? safeScore(taste.sweetness) * 1.2 + safeScore(taste.saltiness) * 0.8 - safeScore(taste.sourness) * 0.5
-      : safeScore(taste.umami) + safeScore(taste.richness) + safeScore(taste.saltiness) * 0.6;
-  const compositionBonus = foodTypeSlug === 'meat'
-    ? safeScore(sample.composition.protein) >= 15 ? 6 : 0
-    : foodTypeSlug === 'bread'
-      ? sample.composition.starchDryMatter >= 35 ? 6 : 0
-      : sample.composition.fat >= 20 ? 6 : 0;
+      ? measured('sweetness') * 1.2 + measured('saltiness') * 0.8 - measured('sourness') * 0.5
+      : measured('umami') + measured('richness') + measured('saltiness') * 0.6;
+  const compositionBonus = !hasMeasuredComposition(sample)
+    ? 0
+    : foodTypeSlug === 'meat'
+      ? safeScore(sample.composition.protein) >= 15 ? 6 : 0
+      : foodTypeSlug === 'bread'
+        ? sample.composition.starchDryMatter >= 35 ? 6 : 0
+        : sample.composition.fat >= 20 ? 6 : 0;
   return clamp(58 + balance * 4 + compositionBonus - bitternessPenalty * 3.2 - astringencyPenalty * 2.6);
 }
 
 function buildOffNoteGates(sample: EnhancedSensoryProfile, foodTypeSlug: string): DecisionGate[] {
   const profile = getFoodTypeProfile(foodTypeSlug);
   const riskWords = [...profile.riskMarkers, ...DEFECT_WORDS];
-  const aromaScreened = sample.gcmsOlfactometry.length > 0;
+  const benefitWords = [
+    ...profile.successMarkers,
+    ...BENEFIT_WORDS,
+    ...(CATEGORY_AROMA_BENEFITS[foodTypeSlug] ?? []),
+  ];
+  const aromaScreened = sample.gcmsOlfactometry.length > 0 && sample.evidence?.aromaMethod !== 'not_measured';
   const riskCompounds = sample.gcmsOlfactometry
     .filter(compound => !compound.isBlankArtefact)
     .map(compound => {
       const thresholdRatio = compound.threshold && compound.threshold > 0 && compound.concentration
         ? compound.concentration / compound.threshold
         : 0;
-      const matchesRisk = includesAny(`${compound.compound} ${compound.odour}`, riskWords);
+      const compoundText = `${compound.compound} ${compound.odour}`;
+      const matchesBenefit = includesAny(compoundText, benefitWords);
+      const matchesRisk = includesAny(compoundText, riskWords) && !matchesBenefit;
       const severity = Math.max(compound.odourIntensity / 5, thresholdRatio);
       return { compound, thresholdRatio, matchesRisk, severity };
     })
-    .filter(item => item.matchesRisk || item.thresholdRatio >= 1);
+    .filter(item => item.matchesRisk);
 
-  const critical = riskCompounds.filter(item => item.compound.odourIntensity >= 4 || item.thresholdRatio >= 1.5);
-  const moderate = riskCompounds.filter(item => item.compound.odourIntensity >= 3 || item.thresholdRatio >= 1);
+  const hasMeasuredOlfactometry = !sample.evidence || sample.evidence.aromaMethod === 'gc-o';
+  // A concentration above an odour threshold proves detectability, not defect
+  // severity. GC-MS-only imports can therefore open a review gate, while a
+  // hard product STOP requires measured GC-O intensity.
+  const critical = riskCompounds.filter(item =>
+    hasMeasuredOlfactometry && item.compound.odourIntensity >= 4
+  );
+  const moderate = riskCompounds.filter(item =>
+    hasMeasuredOlfactometry
+      ? item.compound.odourIntensity >= 3
+      : item.thresholdRatio >= 1
+  );
   const worst = [...riskCompounds].sort((a, b) => b.severity - a.severity)[0];
   const gates: DecisionGate[] = [];
 
@@ -279,11 +339,17 @@ function buildOffNoteGates(sample: EnhancedSensoryProfile, foodTypeSlug: string)
     label: 'Instrument QC',
     status: sample.istdRecovery == null
       ? 'not_measured'
-      : sample.istdRecovery < 75 ? 'fail' : sample.istdRecovery < 85 ? 'watch' : 'pass',
+      : sample.istdRecovery < 75 || sample.istdRecovery > 115
+        ? 'fail'
+        : sample.istdRecovery < 85 || sample.istdRecovery > 110 ? 'watch' : 'pass',
     detail: sample.istdRecovery == null
       ? 'No instrument QC data for this study.'
       : `ISTD recovery ${sample.istdRecovery.toFixed(1)}%.`,
-    impact: sample.istdRecovery == null ? 0 : sample.istdRecovery < 75 ? -12 : sample.istdRecovery < 85 ? -5 : 0,
+    impact: sample.istdRecovery == null
+      ? 0
+      : sample.istdRecovery < 75 || sample.istdRecovery > 115
+        ? 0
+        : sample.istdRecovery < 85 || sample.istdRecovery > 110 ? -5 : 0,
   });
 
   return gates;
@@ -324,12 +390,14 @@ function buildPrescriptions(
   foodTypeSlug: string,
 ): TweakPrescription[] {
   const prescriptions: TweakPrescription[] = [];
-  const failedOffNote = gates.find(gate => gate.id === 'off-note' && gate.status !== 'pass');
+  const failedOffNote = gates.find(gate =>
+    gate.id === 'off-note' && (gate.status === 'fail' || gate.status === 'watch')
+  );
   if (failedOffNote) {
     prescriptions.push({
       priority: 1,
-      target: 'Aroma defect control',
-      action: `Remove or mask ${failedOffNote.detail}. Re-test GC-O before running another panel.`,
+      target: 'Aroma balance control',
+      action: `Reduce or rebalance ${failedOffNote.detail} below the defect threshold while preserving category character. Re-test GC-O before running another panel.`,
       expectedLift: failedOffNote.status === 'fail' ? 18 : 9,
     });
   }
@@ -355,8 +423,8 @@ function buildPrescriptions(
   if (dimensionScores.cata < 58) {
     prescriptions.push({
       priority: prescriptions.length + 1,
-      target: 'Lexicon fit',
-      action: 'Increase category-positive descriptors and suppress defect descriptors in the next sensory screen.',
+      target: 'Category / lexicon fit',
+      action: 'First confirm whether the weak category signal is formulation-, benchmark-, or lexicon-driven. Then increase category-positive descriptors and suppress verified defect cues in a controlled retest.',
       expectedLift: clamp((65 - dimensionScores.cata) * 0.16, 3, 10),
     });
   }
@@ -367,22 +435,35 @@ function buildPrescriptions(
     .slice(0, 3);
 }
 
-function fingerprint(sample: EnhancedSensoryProfile, score: number, gates: DecisionGate[]) {
-  const gateCode = gates.map(gate => `${gate.id}:${gate.status}`).join('|');
-  const qcCode = sample.istdRecovery == null ? 'NA' : sample.istdRecovery.toFixed(1);
-  const raw = `${METHOD_VERSION}|${sample.sampleId}|${score.toFixed(1)}|${gateCode}|${qcCode}`;
-  let hash = 0;
-  for (let i = 0; i < raw.length; i++) {
-    hash = (hash * 31 + raw.charCodeAt(i)) >>> 0;
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`)
+      .join(',')}}`;
   }
-  return hash.toString(16).toUpperCase().padStart(8, '0');
+  return JSON.stringify(value);
+}
+
+function fingerprint(value: unknown) {
+  const raw = stableStringify(value);
+  let primary = 2166136261;
+  let secondary = 2246822519;
+  for (let i = 0; i < raw.length; i++) {
+    primary = Math.imul(primary ^ raw.charCodeAt(i), 16777619);
+    secondary = Math.imul(secondary ^ raw.charCodeAt(i), 3266489917);
+  }
+  return [primary, secondary]
+    .map(hash => (hash >>> 0).toString(16).toUpperCase().padStart(8, '0'))
+    .join('');
 }
 
 export function calculateGoStopTweakDecision(
   sample: EnhancedSensoryProfile,
   weights: DecisionWeights,
   foodTypeSlug: string,
-  thresholds: { go: number; stop: number } = { go: 76, stop: 52 },
+  thresholds: { go: number; stop: number } = { go: 75, stop: 45 },
 ): GoStopTweakDecision {
   const stopThreshold = clamp(thresholds.stop, 0, 99);
   const goThreshold = clamp(Math.max(stopThreshold + 1, thresholds.go), 1, 100);
@@ -390,10 +471,10 @@ export function calculateGoStopTweakDecision(
   // All-zero weights are a configuration error, not a preference — fall back
   // to the method defaults rather than scoring on nothing.
   const requestedWeights = {
-    hedonic: weights.hedonic ?? 30,
-    texture: weights.texture ?? 25,
-    cata: weights.cata ?? 25,
-    emotional: weights.emotional ?? 15,
+    hedonic: Math.max(0, safeScore(weights.hedonic, 30)),
+    texture: Math.max(0, safeScore(weights.texture, 25)),
+    cata: Math.max(0, safeScore(weights.cata, 25)),
+    emotional: Math.max(0, safeScore(weights.emotional, 15)),
   };
   const requestedTotal = Object.values(requestedWeights).reduce((sum, value) => sum + value, 0);
   const normalizedWeights = requestedTotal > 0
@@ -416,7 +497,9 @@ export function calculateGoStopTweakDecision(
     dimensionScores.emotional * normalizedWeights.emotional
   ) / Math.max(1, totalWeight);
   const baseScore = weightedBase * 0.86 + instrumentSignal * 0.14;
-  const hardStop = gates.some(gate => gate.status === 'fail') ||
+  // Product failures can force STOP. Instrument QC failures invalidate the
+  // evidence and place the decision on hold; they do not prove product failure.
+  const hardStop = gates.some(gate => gate.id === 'off-note' && gate.status === 'fail') ||
     sample.hedonic.overall < 3.8 ||
     dimensionScores.hedonic < 45;
   const issfScore = hardStop ? Math.min(baseScore - gatePenalty, 54) : baseScore - gatePenalty;
@@ -424,9 +507,25 @@ export function calculateGoStopTweakDecision(
   const confidenceScore = confidenceFromEvidence(sample, finalScore, gates, foodTypeSlug);
   const prescriptions = buildPrescriptions(sample, dimensionScores, gates, foodTypeSlug);
   const unmeasuredGates = gates.filter(gate => gate.status === 'not_measured');
+  const failedGate = gates.find(gate => gate.status === 'fail');
+  const scoreBand = finalScore < stopThreshold ? 'STOP' : finalScore >= goThreshold ? 'GO' : 'TWEAK';
+  const missingHedonic = sample.evidence?.provenance === 'imported'
+    ? (['appearance', 'flavour', 'texture', 'overall'] as const)
+        .filter(key => !sample.evidence?.measuredHedonic.includes(key))
+    : [];
+  const qcFailure = gates.find(gate => gate.id === 'qc' && gate.status === 'fail');
+  const blockingReasons = [
+    missingHedonic.length > 0
+      ? `Missing required hedonic measures: ${missingHedonic.join(', ')}.`
+      : null,
+    qcFailure ? `${qcFailure.label} failed: ${qcFailure.detail}` : null,
+  ].filter((reason): reason is string => Boolean(reason));
+  const decisionStatus: DecisionStatus = blockingReasons.length > 0 ? 'hold' : 'ready';
 
   let decision: DecisionOutcome = 'TWEAK';
-  if (hardStop || finalScore < stopThreshold) {
+  if (decisionStatus === 'hold') {
+    decision = 'TWEAK';
+  } else if (hardStop || finalScore < stopThreshold) {
     decision = 'STOP';
   } else if (
     finalScore >= goThreshold &&
@@ -448,13 +547,19 @@ export function calculateGoStopTweakDecision(
     : '';
   const recommendation = decision === 'GO'
     ? `Advance with controlled scale-up. No measured sensory gate is open, and the evidence stack supports moving forward.${unmeasuredCaveat}`
-    : decision === 'STOP'
-      ? 'Do not advance this formula. A hard gate or quality floor failed, so the next move is fundamental reformulation.'
-      : `Tweak before advancing. Highest leverage: ${prescriptions[0]?.target ?? 'focused formula optimization'}.${unmeasuredCaveat}`;
+    : decisionStatus === 'hold'
+      ? `Hold the decision until the evidence is valid. ${blockingReasons.join(' ')}`
+      : decision === 'STOP'
+      ? hardStop && scoreBand !== 'STOP'
+        ? `Do not advance to GO yet. The ISSF score sits in the ${scoreBand} band, but ${failedGate ? `${failedGate.label.toLowerCase()} triggered a hard STOP gate: ${failedGate.detail}` : 'a quality floor triggered a hard STOP gate'}. Confirm the blocker, correct it, and retest before another decision.`
+        : 'Do not advance this formula. The ISSF score or a hard quality floor is below the STOP requirement, so the next move is fundamental reformulation.'
+      : `Tweak before advancing. Measured blocker: ${prescriptions[0]?.target ?? 'focused formula optimization'}. Treat formulation mechanisms as hypotheses until a control or benchmark diagnostic links them to the failing signal.${unmeasuredCaveat}`;
 
   const gateStatusLabel = (status: DecisionGate['status']) => status.replace('_', ' ').toUpperCase();
   const details = [
-    `${METHOD_VERSION}: score ${finalScore.toFixed(1)}/100, confidence ${confidenceScore.toFixed(0)}%.`,
+    `${METHOD_VERSION}: score ${finalScore.toFixed(1)}/100, evidence strength ${confidenceScore.toFixed(0)}%.`,
+    `Decision readiness ${decisionStatus.toUpperCase()}.`,
+    `Decision zone ${scoreBand}; final outcome ${decision}${decision === 'STOP' && hardStop && scoreBand !== 'STOP' ? ' because a hard gate overrides the score band' : ''}.`,
     `Hedonic ${dimensionScores.hedonic.toFixed(0)}, texture ${dimensionScores.texture.toFixed(0)}, CATA ${dimensionScores.cata.toFixed(0)}, emotional ${dimensionScores.emotional.toFixed(0)}.`,
     `Instrument signal ${instrumentSignal.toFixed(0)}; gate penalty ${gatePenalty.toFixed(0)}.`,
     ...gates.map(gate => `${gate.label}: ${gateStatusLabel(gate.status)} (${gate.detail})`),
@@ -471,13 +576,28 @@ export function calculateGoStopTweakDecision(
     issfScore: finalScore,
     confidenceScore,
     decision,
+    decisionStatus,
+    blockingReasons,
     recommendation,
     riskLevel,
     details,
     dimensionScores,
     gates,
     prescriptions,
-    decisionFingerprint: fingerprint(sample, finalScore, gates),
+    decisionFingerprint: fingerprint({
+      methodVersion: METHOD_VERSION,
+      sample,
+      foodTypeSlug,
+      thresholds: { go: goThreshold, stop: stopThreshold },
+      weights: normalizedWeights,
+      dimensionScores,
+      instrumentSignal,
+      gates,
+      finalScore,
+      confidenceScore,
+      decision,
+      decisionStatus,
+    }),
     methodVersion: METHOD_VERSION,
   };
 }

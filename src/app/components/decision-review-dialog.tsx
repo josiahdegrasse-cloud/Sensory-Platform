@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { DecisionOutcome, GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
 import { formatDecisionNote } from '../lib/decision-summary';
+import { canConfirmDecisionOutcome } from '../lib/decision-governance';
 import { Button } from './ui/button';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -49,6 +50,12 @@ export function DecisionReviewDialog({
   const [note, setNote] = useState('');
 
   if (!decision) return null;
+  const isOverride = outcome !== decision.decision;
+  const availableOutcomes = OUTCOMES.filter(item =>
+    canConfirmDecisionOutcome(decision.decision, item.value)
+  );
+  const isHold = decision.decisionStatus === 'hold';
+  const overrideNeedsRationale = isOverride && !note.trim();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -56,7 +63,7 @@ export function DecisionReviewDialog({
         <DialogHeader>
           <DialogTitle>Confirm the decision</DialogTitle>
           <DialogDescription>
-            {decision.sampleName} · ISSF {decision.issfScore.toFixed(1)}/100. Saving creates an audit record; it does not change the underlying score.
+            {decision.sampleName} · ISSF {decision.issfScore.toFixed(1)}/100. Saving creates an audit record; it does not change the underlying score. Outcomes may only be confirmed as calculated or made more conservative.
           </DialogDescription>
         </DialogHeader>
 
@@ -72,7 +79,7 @@ export function DecisionReviewDialog({
 
         {overriding && (
           <div className="flex gap-2">
-            {OUTCOMES.map(item => (
+            {availableOutcomes.map(item => (
               <button
                 key={item.value}
                 type="button"
@@ -111,9 +118,16 @@ export function DecisionReviewDialog({
         )}
 
         <label htmlFor="decision-note" className="block text-xs font-semibold text-slate-700">
-          Administrative note <span className="font-normal text-slate-500">(optional)</span>
-          <Textarea id="decision-note" className="mt-1" rows={3} value={note} onChange={event => setNote(event.target.value)} placeholder="Add rationale, approvals, or a batch reference." />
+          {isOverride ? 'Override rationale' : 'Administrative note'}{' '}
+          <span className="font-normal text-slate-500">{isOverride ? '(required)' : '(optional)'}</span>
+          <Textarea id="decision-note" className="mt-1" rows={3} value={note} onChange={event => setNote(event.target.value)} placeholder={isOverride ? `Explain why ${decision.decision} is being confirmed as ${outcome}.` : 'Add rationale, approvals, or a batch reference.'} />
         </label>
+
+        {isHold && (
+          <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            This evidence is on hold and cannot be confirmed yet. {decision.blockingReasons?.join(' ')}
+          </p>
+        )}
 
         {error && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
@@ -121,8 +135,15 @@ export function DecisionReviewDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
           <Button
             className="bg-blue-700 text-white hover:bg-blue-800"
-            disabled={saving}
-            onClick={() => onConfirm(outcome, formatDecisionNote({ outcome, note, issue, adjustment, retest }))}
+            disabled={saving || isHold || overrideNeedsRationale}
+            onClick={() => onConfirm(outcome, formatDecisionNote({
+              outcome,
+              modelOutcome: decision.decision,
+              note,
+              issue,
+              adjustment,
+              retest,
+            }))}
           >
             {saving ? 'Saving...' : `Confirm ${outcome}`}
           </Button>

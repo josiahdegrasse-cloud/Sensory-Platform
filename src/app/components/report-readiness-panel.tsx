@@ -2,22 +2,22 @@ import { AlertTriangle, CheckCircle2, FileWarning, ShieldCheck } from 'lucide-re
 import { Badge } from './ui/badge';
 import type { ReportReadiness } from '../lib/report-context-builder';
 
-function toneClass(ok: boolean) {
-  return ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800';
-}
-
 function ReadinessItem({ label, value, ok }: { label: string; value: string; ok: boolean }) {
   return (
-    <div className={`rounded-lg border px-3 py-2 ${toneClass(ok)}`}>
-      <p className="text-[11px] font-bold uppercase tracking-wide opacity-80">{label}</p>
-      <p className="mt-1 text-sm font-semibold">{value}</p>
+    <div className="flex items-center justify-between gap-3 py-2.5">
+      <div>
+        <p className="text-xs font-medium text-slate-500">{label}</p>
+        <p className="mt-0.5 text-sm font-semibold capitalize text-slate-900">{value.replace(/_/g, ' ')}</p>
+      </div>
+      {ok ? <CheckCircle2 className="size-4 text-emerald-600" /> : <AlertTriangle className="size-4 text-amber-600" />}
     </div>
   );
 }
 
 export function ReportReadinessPanel({ readiness }: { readiness: ReportReadiness }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5">
+    <section className="rounded-lg border border-slate-200 bg-white">
+      <div className="p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="flex items-center gap-2 font-semibold text-slate-900">
@@ -25,7 +25,7 @@ export function ReportReadinessPanel({ readiness }: { readiness: ReportReadiness
             Report readiness
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Export and approval checks rebuilt from the saved report, evidence bundle, QC pipeline, and agent review metadata.
+            Confirm the evidence sources and resolve every blocker before client release.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -39,17 +39,18 @@ export function ReportReadinessPanel({ readiness }: { readiness: ReportReadiness
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+      <div className="mt-4 grid gap-x-5 border-y border-slate-200 sm:grid-cols-2 lg:grid-cols-5">
         <ReadinessItem label="Evidence bundle" value={readiness.evidenceBundleStatus} ok={readiness.evidenceBundleStatus !== 'missing'} />
         <ReadinessItem label="Sensory" value={readiness.sensoryStatus} ok={readiness.evidenceProvenance.sensory === 'live'} />
         <ReadinessItem label="Instrumental" value={readiness.instrumentalStatus} ok={readiness.evidenceProvenance.instrumental !== 'none'} />
         <ReadinessItem label="Concept" value={readiness.conceptStatus} ok={readiness.evidenceProvenance.concept === 'live'} />
         <ReadinessItem label="Purchase intent" value={readiness.purchaseIntentStatus} ok={readiness.evidenceProvenance.purchaseIntent === 'live'} />
       </div>
+      </div>
 
       {(readiness.exportBlockers.length > 0 || readiness.approvalBlockers.length > 0 || readiness.qcWarnings.length > 0) && (
-        <div className="mt-4 grid gap-3 lg:grid-cols-3">
-          <div className="rounded-lg border border-rose-200 bg-rose-50 p-3">
+        <div className="grid border-t border-slate-200 lg:grid-cols-3 lg:divide-x lg:divide-slate-200">
+          <div className="p-4">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-rose-900"><FileWarning className="size-4" />Export blockers</h3>
             {readiness.exportBlockers.length === 0 ? (
               <p className="mt-2 text-xs text-rose-700">None.</p>
@@ -59,7 +60,7 @@ export function ReportReadinessPanel({ readiness }: { readiness: ReportReadiness
               </ul>
             )}
           </div>
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+          <div className="border-t border-slate-200 p-4 lg:border-t-0">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-900"><AlertTriangle className="size-4" />Approval blockers</h3>
             {readiness.approvalBlockers.length === 0 ? (
               <p className="mt-2 text-xs text-amber-700">None.</p>
@@ -69,7 +70,7 @@ export function ReportReadinessPanel({ readiness }: { readiness: ReportReadiness
               </ul>
             )}
           </div>
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+          <div className="border-t border-slate-200 p-4 lg:border-t-0">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-blue-900"><CheckCircle2 className="size-4" />QC warnings</h3>
             {readiness.qcWarnings.length === 0 ? (
               <p className="mt-2 text-xs text-blue-700">None.</p>

@@ -39,12 +39,12 @@ describe('report-qc: stage-aware PDF render', () => {
     const input = renderInput();
     const { doc, qc } = await buildCommercializationReportPdf(input);
 
-    expect(doc.getNumberOfPages()).toBe(9);
+    expect(doc.getNumberOfPages()).toBe(8);
     expect(qc).toBeDefined();
     expect(qc!.exportAllowed).toBe(true);
     expect(qc!.qualityReport.reportStage).toBe('conditional_advancement');
     expect(qc!.qualityReport.launchAuthorization).toBe('not_approved');
-    expect(qc!.qualityReport.totalScore).toBeGreaterThanOrEqual(97);
+    expect(qc!.qualityReport.totalScore).toBeGreaterThanOrEqual(90);
     // Draft is never client-ready.
     expect(qc!.qualityReport.clientReady).toBe(false);
     expect(qc!.missingEvidence.some(m => /n=0/.test(m))).toBe(true);

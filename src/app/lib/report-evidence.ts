@@ -163,7 +163,7 @@ function createEvidenceRecords(
       id: evidenceId(['sample', profile.sampleId, 'decision']),
       evidenceType: 'metric',
       title: `${profile.sampleName} deterministic decision`,
-      description: `${decision.decision} at ISSF ${decision.issfScore.toFixed(1)} with ${decision.confidenceScore.toFixed(0)}% confidence.`,
+      description: `${decision.decision} at ISSF ${decision.issfScore.toFixed(1)} with ${decision.confidenceScore.toFixed(0)}% evidence strength.`,
       value: decision.decision,
       sourceType: 'go-stop-tweak-engine',
       sourceId: decision.decisionFingerprint,
@@ -185,8 +185,8 @@ function createEvidenceRecords(
     records.push(toEvidence({
       id: evidenceId(['sample', profile.sampleId, 'confidence']),
       evidenceType: 'metric',
-      title: 'Decision confidence',
-      description: `Deterministic evidence confidence for ${profile.sampleName}.`,
+      title: 'Decision evidence strength',
+      description: `Deterministic evidence-strength index for ${profile.sampleName}.`,
       value: Number(decision.confidenceScore.toFixed(0)),
       unit: '%',
       sourceType: 'go-stop-tweak-engine',
@@ -268,7 +268,11 @@ function createEvidenceRecords(
 }
 
 function deriveCandidateDecision(decisions: GoStopTweakDecision[], missingData: MissingDataIssue[]): DecisionType {
-  if (missingData.some(issue => issue.severity === 'critical') || decisions.length === 0) return 'INSUFFICIENT_DATA';
+  if (
+    missingData.some(issue => issue.severity === 'critical') ||
+    decisions.length === 0 ||
+    decisions.some(decision => decision.decisionStatus === 'hold')
+  ) return 'INSUFFICIENT_DATA';
   if (decisions.some(decision => decision.decision === 'STOP')) return 'STOP';
   if (decisions.some(decision => decision.decision === 'TWEAK')) return 'TWEAK';
   return 'GO';
@@ -283,7 +287,7 @@ function decisionReasons(
   if (candidate === 'INSUFFICIENT_DATA') return missingData.map(issue => issue.description);
   const primary = decisions[0];
   return [
-    primary ? `${primary.sampleName}: ${primary.decision} at ISSF ${primary.issfScore.toFixed(1)} with ${primary.confidenceScore.toFixed(0)}% confidence.` : '',
+    primary ? `${primary.sampleName}: ${primary.decision} at ISSF ${primary.issfScore.toFixed(1)} with ${primary.confidenceScore.toFixed(0)}% evidence strength.` : '',
     ...decisions.flatMap(decision => decision.gates
       .filter(gate => gate.status !== 'pass')
       .map(gate => `${decision.sampleName} ${gate.label}: ${gate.status.replace('_', ' ').toUpperCase()} (${gate.detail})`)),
@@ -303,11 +307,20 @@ function qualityWarningsFor(decisions: Array<{ profile: EnhancedSensoryProfile; 
     });
   }
   decisions.forEach(({ profile, decision }) => {
+    if (decision.decisionStatus === 'hold') {
+      warnings.push({
+        id: evidenceId(['decision-hold', profile.sampleId]),
+        title: 'Decision evidence on hold',
+        description: `${profile.sampleName} cannot be confirmed until its evidence blockers are resolved: ${decision.blockingReasons?.join(' ') ?? 'additional valid evidence is required.'}`,
+        severity: 'critical',
+        sampleId: profile.sampleId,
+      });
+    }
     if (decision.confidenceScore < 70) {
       warnings.push({
         id: evidenceId(['confidence', profile.sampleId, 'below-70']),
-        title: 'Low decision confidence',
-        description: `${profile.sampleName} confidence is below 70%; trained-panel or additional panel evidence is recommended before external claims.`,
+        title: 'Low decision evidence strength',
+        description: `${profile.sampleName} evidence strength is below 70%; trained-panel or additional panel evidence is recommended before external claims.`,
         severity: 'high',
         sampleId: profile.sampleId,
       });
@@ -336,18 +349,22 @@ function buildSensoryProfileEvidence(profiles: EnhancedSensoryProfile[], foodTyp
     .map(([descriptor, count]) => ({ descriptor, count: Number(count) }))
     .sort((a, b) => b.count - a.count);
   const intensity = profile.intensity ?? {};
-  const bitternessPenalty = (profile.taste.bitterness ?? 0) + (profile.taste.bitternessAftertaste ?? 0);
-  const astringencyPenalty = (profile.taste.astringency ?? 0) + (profile.taste.astringencyAftertaste ?? 0);
+  const measuredTaste = (key: keyof EnhancedSensoryProfile['taste']) =>
+    !profile.evidence || profile.evidence.measuredTaste.includes(key) ? profile.taste[key] ?? 0 : 0;
+  const bitternessPenalty = measuredTaste('bitterness') + measuredTaste('bitternessAftertaste');
+  const astringencyPenalty = measuredTaste('astringency') + measuredTaste('astringencyAftertaste');
   const balance = foodTypeSlug === 'meat'
-    ? profile.taste.umami * 1.8 + profile.taste.richness * 1.2 + profile.taste.saltiness * 0.7
+    ? measuredTaste('umami') * 1.8 + measuredTaste('richness') * 1.2 + measuredTaste('saltiness') * 0.7
     : foodTypeSlug === 'bread'
-      ? profile.taste.sweetness * 1.2 + profile.taste.saltiness * 0.8 - profile.taste.sourness * 0.5
-      : profile.taste.umami + profile.taste.richness + profile.taste.saltiness * 0.6;
-  const compositionBonus = foodTypeSlug === 'meat'
-    ? (profile.composition.protein >= 15 ? 6 : 0)
-    : foodTypeSlug === 'bread'
-      ? (profile.composition.starchDryMatter >= 35 ? 6 : 0)
-      : (profile.composition.fat >= 20 ? 6 : 0);
+      ? measuredTaste('sweetness') * 1.2 + measuredTaste('saltiness') * 0.8 - measuredTaste('sourness') * 0.5
+      : measuredTaste('umami') + measuredTaste('richness') + measuredTaste('saltiness') * 0.6;
+  const compositionBonus = profile.evidence && !profile.evidence.compositionMeasured
+    ? 0
+    : foodTypeSlug === 'meat'
+      ? (profile.composition.protein >= 15 ? 6 : 0)
+      : foodTypeSlug === 'bread'
+        ? (profile.composition.starchDryMatter >= 35 ? 6 : 0)
+        : (profile.composition.fat >= 20 ? 6 : 0);
   const instrumentSignal = Math.max(0, Math.min(100,
     58 + balance * 4 + compositionBonus - bitternessPenalty * 3.2 - astringencyPenalty * 2.6,
   ));
@@ -355,7 +372,7 @@ function buildSensoryProfileEvidence(profiles: EnhancedSensoryProfile[], foodTyp
   const trainedReferenceScore = profile.trainedPanelReference && decision
     ? Math.max(0, Math.min(100, 100 - Math.abs(decision.issfScore - profile.trainedPanelReference.overallQuality) * 1.2))
     : 78;
-  // Mirrors confidenceFromEvidence in go-stop-tweak-engine.ts (NFI-GST-2.0):
+  // Mirrors confidenceFromEvidence in go-stop-tweak-engine.ts (NFI-GST-2.1):
   // a missing instrument QC contributes a low-weight neutral term, and texture
   // descriptor coverage is its own confidence input.
   const qcTerm = profile.istdRecovery == null
@@ -366,13 +383,30 @@ function buildSensoryProfileEvidence(profiles: EnhancedSensoryProfile[], foodTyp
         weightPct: 20,
       };
   const coverage = textureCoverage(profile, foodTypeSlug);
-  const confidenceCalculation = [
-    { input: 'Trained-panel agreement', score: trainedReferenceScore, weightPct: profile.trainedPanelReference ? 45 : 20 },
-    qcTerm,
-    { input: 'GC-MS/olfactometry coverage', score: profile.gcmsOlfactometry.length > 0 ? 92 : 70, weightPct: 20 },
-    { input: 'Descriptor evidence coverage', score: Object.keys(profile.cata).length > 0 ? 88 : 65, weightPct: 15 },
-    { input: 'Texture descriptor coverage', score: 55 + coverage * 45, weightPct: 10 },
-  ].map(item => ({ ...item, contribution: item.score * item.weightPct / 100 }));
+  const rawConfidenceCalculation = (profile.evidence?.provenance === 'imported'
+    ? [
+        { input: 'Panel sample size', score: Math.max(0, Math.min(100, 45 + Math.min(panelSize, 40) / 40 * 55)), weightPct: 30 },
+        { input: 'Hedonic measure coverage', score: 40 + profile.evidence.measuredHedonic.length / 4 * 60, weightPct: 25 },
+        { input: 'Descriptor evidence coverage', score: Object.keys(profile.cata).length > 0 ? 84 : 35, weightPct: 15 },
+        { input: 'Texture descriptor coverage', score: 45 + coverage * 55, weightPct: 15 },
+        { input: 'Aroma evidence coverage', score: profile.evidence.aromaMethod === 'not_measured' ? 45 : 82, weightPct: 10 },
+        { input: 'Composition evidence coverage', score: profile.evidence.compositionMeasured ? 90 : 50, weightPct: 5 },
+      ]
+    : [
+        { input: 'Trained-panel agreement', score: trainedReferenceScore, weightPct: profile.trainedPanelReference ? 45 : 20 },
+        qcTerm,
+        { input: 'GC-MS/olfactometry coverage', score: profile.gcmsOlfactometry.length > 0 ? 92 : 70, weightPct: 20 },
+        { input: 'Descriptor evidence coverage', score: Object.keys(profile.cata).length > 0 ? 88 : 65, weightPct: 15 },
+        { input: 'Texture descriptor coverage', score: 55 + coverage * 45, weightPct: 10 },
+      ]
+  );
+  // confidenceFromEvidence uses a weighted mean, so the displayed percentages
+  // must be normalized when optional terms make the raw weights total >100.
+  const confidenceWeightTotal = rawConfidenceCalculation.reduce((sum, item) => sum + item.weightPct, 0);
+  const confidenceCalculation = rawConfidenceCalculation.map(item => {
+    const weightPct = item.weightPct / confidenceWeightTotal * 100;
+    return { ...item, weightPct, contribution: item.score * weightPct / 100 };
+  });
   const topTexture = ['creamy', 'smooth', 'firm', 'juicy', 'soft', 'springy', 'grainy', 'chalky', 'dry', 'rubbery']
     .filter(key => Number.isFinite(intensity[key]))
     .sort((a, b) => Number(intensity[b]) - Number(intensity[a]))
@@ -394,7 +428,7 @@ function buildSensoryProfileEvidence(profiles: EnhancedSensoryProfile[], foodTyp
         decisionEffect: 'supports' as const,
       },
       {
-        source: 'GC-MS / GC-O',
+        source: profile.evidence?.aromaMethod === 'gc-ms' ? 'GC-MS' : 'GC-MS / GC-O',
         batchId: profile.sampleId,
         finding: profile.gcmsOlfactometry.length
           ? `${profile.gcmsOlfactometry.length} aroma findings; no critical off-note gate failure`
@@ -473,6 +507,9 @@ export function buildEvidenceBundleFromProfiles(input: BuildEvidenceBundleInput)
     decision.gates.map(gate => ({ sampleId: profile.sampleId, ...gate })),
   );
   const evidence = createEvidenceRecords(decisions, missingData, qualityWarnings);
+  const usesCuratedReferenceEvidence = input.profiles.length > 0 && input.profiles.every(profile =>
+    !profile.evidence || profile.evidence.provenance === 'reference'
+  );
 
   return {
     id: `bundle_${sourceDataVersion}`,
@@ -484,10 +521,10 @@ export function buildEvidenceBundleFromProfiles(input: BuildEvidenceBundleInput)
     sampleSummaries,
     categoryResults,
     criticalAttributeResults,
-    screeningAlignment: Number(calculateScreeningAlignment().toFixed(3)),
-    rankAgreement: Number((calculateRankAgreement() ?? 0).toFixed(1)),
-    repeatability: Number((calculateRepeatability() ?? 0).toFixed(3)),
-    substitutionIndex: calculateSubstitutionIndex(),
+    screeningAlignment: usesCuratedReferenceEvidence ? Number(calculateScreeningAlignment().toFixed(3)) : null,
+    rankAgreement: usesCuratedReferenceEvidence ? Number((calculateRankAgreement() ?? 0).toFixed(1)) : null,
+    repeatability: usesCuratedReferenceEvidence ? Number((calculateRepeatability() ?? 0).toFixed(3)) : null,
+    substitutionIndex: usesCuratedReferenceEvidence ? calculateSubstitutionIndex() : null,
     evidence,
     missingData,
     qualityWarnings,

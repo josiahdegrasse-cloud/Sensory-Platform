@@ -3,17 +3,38 @@ import { orchestrateReportAgents } from './orchestrator';
 import { buildPageText, renderAgentReviewedReport } from './runtime';
 import { hashReportContext } from './hash';
 import { normalizeOrchestrationResult } from './agent-output-normalizer';
+import { containsInternalWritingInstructions } from '../report-evaluator';
 import type {
   ReportAgentMode,
   ReportOrchestratorResult,
 } from './agent-types';
 import type {
   ReportAgentRunner,
+  ReportRenderResult,
   ReportReviewMode,
+  WrittenReportResult,
 } from './types';
 
 function legacyMode(mode: ReportAgentMode): ReportReviewMode {
   return mode === 'quick_draft' ? 'standard' : 'full';
+}
+
+export function sanitizeReportSnapshotForReview(
+  snapshot: CommercializationReportPdfInput['snapshot'],
+  context: NonNullable<CommercializationReportPdfInput['reportContext']>,
+) {
+  const packagingFallback = containsInternalWritingInstructions(context.conceptStrategy.packagingHypothesis)
+    ? 'The selected packaging is a directional concept for review and is not final production artwork.'
+    : context.conceptStrategy.packagingHypothesis;
+  const narrative = { ...snapshot.narrative };
+  if (containsInternalWritingInstructions(narrative.packagingRationale)) {
+    narrative.packagingRationale = packagingFallback;
+  }
+  return { ...snapshot, narrative };
+}
+
+export function hasGeneratedReportDraft(result: ReportOrchestratorResult): boolean {
+  return result.metadata.agentsRun.includes('professional_report_writer');
 }
 
 export const REPORT_AGENT_WORKFLOW_STEPS = [
@@ -42,16 +63,21 @@ export async function runCommercializationReportOrchestrator(input: {
   estimatedCost?: number;
   modelUsage?: unknown;
   previousContextHash?: string | null;
+  render?: (input: { draft: WrittenReportResult; iteration: number }) => Promise<ReportRenderResult>;
 }): Promise<ReportOrchestratorResult> {
   const context = input.reportInput.reportContext;
   const reportContextHash = await hashReportContext(context);
-  const generatedSections = buildGeneratedReportSections(input.reportInput);
   if (!context || !input.reportInput.snapshot) {
     throw new Error('Report orchestration requires a validated ReportContext and report snapshot.');
   }
   if (context.decision.sensoryOutcome !== 'GO') {
     throw new Error('Formal commercialization report orchestration requires a confirmed GO sensory outcome.');
   }
+  const reviewInput = {
+    ...input.reportInput,
+    snapshot: sanitizeReportSnapshotForReview(input.reportInput.snapshot, context),
+  };
+  const generatedSections = buildGeneratedReportSections(reviewInput);
 
   const artifacts = await orchestrateReportAgents({
     mode: legacyMode(input.mode),
@@ -59,17 +85,20 @@ export async function runCommercializationReportOrchestrator(input: {
     generatedSections,
     pageText: buildPageText(generatedSections),
     runner: input.runner,
-    render: async ({ draft }) => renderAgentReviewedReport({
-      baseInput: input.reportInput,
+    render: input.render ?? (async ({ draft }) => renderAgentReviewedReport({
+      baseInput: reviewInput,
       draft,
-    }),
-    maxIterations: input.mode === 'quick_draft' ? 1 : 2,
+    })),
+    // One bounded pass keeps local generation practical on workstation-class
+    // hardware. Remaining defects are surfaced as blockers instead of silently
+    // triggering a second multi-minute model generation.
+    maxIterations: 1,
   });
 
   const result = normalizeOrchestrationResult({
     mode: input.mode,
     ctx: context,
-    snapshot: input.reportInput.snapshot,
+    snapshot: reviewInput.snapshot,
     generated: generatedSections,
     artifacts,
     estimatedCost: input.estimatedCost,
@@ -77,11 +106,5 @@ export async function runCommercializationReportOrchestrator(input: {
     contextChanged: Boolean(input.previousContextHash && input.previousContextHash !== reportContextHash),
   });
 
-  return {
-    ...result,
-    metadata: {
-      ...result.metadata,
-      agentsRun: result.agentOutputs.map(output => output.agentName),
-    },
-  };
+  return result;
 }

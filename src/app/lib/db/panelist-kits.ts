@@ -15,6 +15,8 @@ export interface GeneratedPanelistKit {
   handlingInstructions: string;
   recipientName: string | null;
   recipientEmail: string | null;
+  recipientAddress: string | null;
+  assignedPanelistId: string | null;
   createdAt: string;
 }
 
@@ -37,6 +39,7 @@ export interface PanelistKitRecord {
   handlingInstructions: string;
   recipientName: string | null;
   recipientEmail: string | null;
+  recipientAddress: string | null;
   printedAt: string | null;
   packedAt: string | null;
   shippedAt: string | null;
@@ -111,6 +114,7 @@ interface KitRow {
   handling_instructions: string | null;
   recipient_name?: string | null;
   recipient_email?: string | null;
+  recipient_address?: string | null;
   printed_at?: string | null;
   packed_at?: string | null;
   shipped_at?: string | null;
@@ -171,6 +175,8 @@ function toGeneratedKit(row: KitRow): GeneratedPanelistKit {
     handlingInstructions: row.handling_instructions ?? '',
     recipientName: row.recipient_name ?? null,
     recipientEmail: row.recipient_email ?? null,
+    recipientAddress: row.recipient_address ?? null,
+    assignedPanelistId: row.claimed_by ?? null,
     createdAt: row.created_at ?? new Date().toISOString(),
   };
 }
@@ -193,6 +199,7 @@ function toKitRecord(row: KitRow): PanelistKitRecord {
     handlingInstructions: row.handling_instructions ?? '',
     recipientName: row.recipient_name ?? null,
     recipientEmail: row.recipient_email ?? null,
+    recipientAddress: row.recipient_address ?? null,
     printedAt: row.printed_at ?? null,
     packedAt: row.packed_at ?? null,
     shippedAt: row.shipped_at ?? null,
@@ -257,8 +264,9 @@ export async function generatePanelistKits(input: {
   expiresAt?: string | null;
   responseDeadline?: string | null;
   handlingInstructions?: string;
-  recipients?: Array<{ name: string; email?: string }>;
+  recipients?: Array<{ name: string; email?: string; address?: string }>;
   assignedProductIds?: string[];
+  panelistIds?: string[];
 }): Promise<GeneratedPanelistKit[]> {
   const assignedProductIds = input.assignedProductIds?.length ? input.assignedProductIds : [input.productId];
   const baseArgs = {
@@ -272,8 +280,12 @@ export async function generatePanelistKits(input: {
   const { data, error } = await rpc<KitRow[]>('generate_panelist_kits', {
     ...baseArgs,
     p_assigned_product_ids: assignedProductIds,
+    p_panelist_ids: input.panelistIds?.length ? input.panelistIds : null,
   });
   if (error && isMissingAssignedProductsRpc(error)) {
+    if (input.panelistIds?.length) {
+      throw new Error('The database is missing the account-assignment migration required to create boxes for selected panelists.');
+    }
     if (assignedProductIds.length > 1) {
       throw new Error('The database is missing the box-pass migration needed for one QR to assign multiple tasting tasks. Apply the latest panelist box migration, then reload the Supabase API schema cache.');
     }

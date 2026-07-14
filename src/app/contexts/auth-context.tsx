@@ -12,6 +12,7 @@ export interface User {
   status?: 'active' | 'inactive' | 'archived';
   consentAcceptedAt?: string | null;
   consentVersion?: string | null;
+  profileCompletedAt?: string | null;
 }
 
 interface AuthContextType {
@@ -22,6 +23,7 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<string | null>;
   updatePassword: (newPassword: string) => Promise<string | null>;
   acceptConsent: () => Promise<string | null>;
+  refreshProfile: () => Promise<void>;
   isAuthenticated: boolean;
   isPasswordRecovery: boolean;
   loading: boolean;
@@ -89,6 +91,7 @@ async function loadProfile(supabaseUser: SupabaseUser): Promise<ProfileResult> {
       status: (data.status ?? 'active') as 'active' | 'archived' | 'inactive',
       consentAcceptedAt: data.consent_accepted_at ?? null,
       consentVersion: data.consent_version ?? null,
+      profileCompletedAt: data.profile_completed_at ?? null,
     },
     blockedMessage: null,
   };
@@ -221,8 +224,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshProfile = async (): Promise<void> => {
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    if (!currentUser) return;
+    const { profile, blockedMessage } = await loadProfile(currentUser);
+    if (profile) setUser(profile);
+    else if (blockedMessage) setAuthNotice(blockedMessage);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, loginWithGoogle, logout, resetPassword, updatePassword, acceptConsent, isAuthenticated: !!user, isPasswordRecovery, loading, authNotice }}>
+    <AuthContext.Provider value={{ user, login, loginWithGoogle, logout, resetPassword, updatePassword, acceptConsent, refreshProfile, isAuthenticated: !!user, isPasswordRecovery, loading, authNotice }}>
       {children}
     </AuthContext.Provider>
   );

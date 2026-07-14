@@ -2,11 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_CATA_ATTRIBUTES,
   INTENSITY_ATTRIBUTES,
+  SURVEY_EMOTIONS,
   getDefaultCataAttributes,
   getDefaultIntensityAttributes,
 } from './survey-domain';
 
 describe('survey-domain defaults', () => {
+  it('balances positive and negative emotions in live surveys', () => {
+    expect(SURVEY_EMOTIONS.positive).toHaveLength(SURVEY_EMOTIONS.negative.length);
+    expect(new Set([...SURVEY_EMOTIONS.positive, ...SURVEY_EMOTIONS.negative]).size).toBe(16);
+  });
+
   it('uses generic defaults for empty or unknown production categories', () => {
     expect(getDefaultCataAttributes('')).toContain('Off-note');
     expect(getDefaultCataAttributes('')).not.toContain('Cheese');

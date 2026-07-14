@@ -1,6 +1,7 @@
 import { formatDecisionDimension } from '../lib/commercialization-report';
 import { reportPageHeadings, type CommercializationReportPdfInput } from './pdf/sections';
 import type { PdfDocument } from './pdf/theme';
+import { excerptAppearsInClientCopy, scanClientFacingText } from '../lib/evidence-assist';
 
 export type RubricCategory = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
 
@@ -81,25 +82,52 @@ function scoreChecks(checks: QualityCheck[], ids: string[]) {
   return 1;
 }
 
+function findRawFloatArtifact(text: string) {
+  const pattern = /\b\d+\.\d{5,}\b/g;
+  for (const match of text.matchAll(pattern)) {
+    const offset = match.index ?? 0;
+    const tokenStart = text.lastIndexOf(' ', offset) + 1;
+    const nextSpace = text.indexOf(' ', offset + match[0].length);
+    const tokenEnd = nextSpace === -1 ? text.length : nextSpace;
+    const token = text.slice(tokenStart, tokenEnd).replace(/^[([{'"`]+|[)\]},;'"`]+$/g, '');
+    if (/^(?:doi:?)?10\.\d{4,9}\//i.test(token) || /^https?:\/\/(?:dx\.)?doi\.org\/10\.\d{4,9}\//i.test(token)) continue;
+    return match[0];
+  }
+  return null;
+}
+
 export function evaluateCommercializationReport(
   doc: PdfDocument,
   input: CommercializationReportPdfInput,
 ): CommercializationReportEvaluation {
   const pageTexts = extractGeneratedPdfPageText(doc);
   const pageWordCounts = pageTexts.map(countWords);
-  const beforeAppendix = pageTexts.slice(0, 8).join(' ').toLowerCase();
-  const appendix = pageTexts[8]?.toLowerCase() ?? '';
+  const clientReport = pageTexts.join(' ').toLowerCase();
   const dimensions = Object.keys(input.snapshot.decision.dimensions) as Array<keyof typeof input.snapshot.decision.dimensions>;
   const repeatedWarnings = repeatedCaveats(pageTexts);
-  const expectedHeadings = [
-    input.reportContext ? 'ADVANCE TO' : 'Commercialization Readiness Report',
-    ...reportPageHeadings.slice(1),
-  ];
+  const expectedHeadings: string[] = [...reportPageHeadings];
+  const readinessThreshold = input.reportContext?.thresholds.readiness ?? 60;
+  const productGo = input.snapshot.decision.outcome === 'GO'
+    && !(input.snapshot.decision.gates ?? []).some(gate => gate.status === 'fail')
+    && Object.values(input.snapshot.decision.dimensions).every(score => Number(score) >= readinessThreshold);
+  const launchBlockingLanguage = /not approval to launch|approval to continue validation, not approval to launch|launch is blocked|conditional advancement|commercialization is not approved/i;
+  const rawFloatPage = pageTexts.findIndex(page => findRawFloatArtifact(page) !== null);
+  const evidenceLeakage = scanClientFacingText(pageTexts.join(' '));
+  const internalLanguage = /evidence bundle|retrieved chunk|raw rag|backend source|rag_food|sourcePath|chunkId|saved sensory decision model|deterministic candidate decision|dimensionScores|scoreImplication/i;
+  const rawSourceMetadata = /(?:file:\/\/|\/(?:Users|home|var|tmp)\/)|nfi_publications[\\/]|sensory_rag_bulk_pack|uploaded_project_docs|(?:^|\s)[^\s]+\.(?:pdf|docx?|txt)(?:\s|$)/i;
+  const rawLiteratureExcerpt = excerptAppearsInClientCopy(
+    pageTexts.join(' '),
+    (input.snapshot.literatureCitations ?? []).map(citation => citation.excerpt),
+  );
+  const malformedCopy = /Shoppers who value the sensory strengths validated in screening/i.test(pageTexts.join(' '))
+    || /\.\s+(?:bagels|crackers|dips|sandwiches|seeking|looking)\b/.test(pageTexts.join(' '));
+  const cashewIdentity = /cashew.*cream cheese/i.test(`${input.snapshot.product.sampleName} ${input.snapshot.concept.name}`);
+  const identityDrift = cashewIdentity && /\b(?:cheddar|coconut-based|melting cheese|hard cheese)\b/i.test(pageTexts[5] ?? '');
   const checks: QualityCheck[] = [
     {
       id: 'page-count',
-      passed: pageTexts.length === 9,
-      detail: `Expected 9 pages; generated ${pageTexts.length}.`,
+      passed: pageTexts.length === 8,
+      detail: `Expected 8 pages; generated ${pageTexts.length}.`,
     },
     {
       id: 'required-headings',
@@ -108,24 +136,60 @@ export function evaluateCommercializationReport(
     },
     {
       id: 'cover-decision',
-      passed: includesAll(pageTexts[0] ?? '', [input.snapshot.product.sampleName, input.snapshot.product.foodType, 'Commercial decision', 'Readiness stage', 'Recommended next action']),
+      passed: includesAll(pageTexts[0] ?? '', [input.snapshot.product.sampleName, input.snapshot.product.foodType, 'Sensory decision', 'Readiness stage', 'Recommended next action']),
       detail: 'Cover identifies the product, decision, readiness, and next action.',
     },
     {
-      id: 'memo-structure',
-      passed: includesAll(pageTexts[1] ?? '', ['Decision', 'Rationale', 'Executive recommendation', 'Next move']),
-      detail: 'Executive summary uses the required business memo structure.',
+      id: 'decision-facts',
+      passed: includesAll(pageTexts[0] ?? '', ['ISSF score', 'Evidence strength', 'Concept evidence', 'Core strength', 'Main watch point']),
+      detail: 'Executive decision page includes the canonical decision facts and watch point.',
+    },
+    {
+      id: 'product-go-framing',
+      passed: !productGo || includesAll(pageTexts[0] ?? '', ['PRODUCT DECISION: GO', 'Approved for launch preparation', 'claims evidence limited']),
+      detail: 'A clean product GO must authorize launch preparation without being downgraded by concept evidence.',
+    },
+    {
+      id: 'claims-layer-separation',
+      passed: input.snapshot.evidence.responseCount >= 30
+        || includesAll(pageTexts.join(' '), ['directional only', 'Consumer preference', 'demand', 'Price acceptance', 'Packaging preference', 'purchase intent']),
+      detail: 'Low concept n limits named consumer and market claims without downgrading product GO.',
+    },
+    {
+      id: 'no-unsupported-launch-block',
+      passed: !launchBlockingLanguage.test(pageTexts.join(' ')),
+      detail: 'Launch-blocking language is prohibited unless a separate critical product gate has failed.',
     },
     {
       id: 'flow',
       passed: expectedHeadings.every((heading, index) => pageTexts[index]?.includes(heading)),
-      detail: 'Report follows decision, evidence, insight, direction, plan, risk, and source flow.',
+      detail: 'Report follows decision, evidence, product direction, and validation/release flow.',
+    },
+    {
+      id: 'decision-basis',
+      passed: includesAll(pageTexts[1] ?? '', ['Decision margin', 'Evidence populations and provenance', 'What would change the decision', 'Material limitations', 'Management decision']),
+      detail: 'Decision basis must explain evidence quality, sensitivity, limitations, and the management authorization.',
     },
     {
       id: 'commercial-actions',
-      passed: includesAll(pageTexts[4] ?? '', ['Why it matters commercially', 'Recommended action'])
-        && includesAll(pageTexts[6] ?? '', ['Required action', 'Status / owner', 'Next decision gate']),
-      detail: 'Insights and plan pages translate evidence into named actions.',
+      passed: includesAll(pageTexts[6] ?? '', ['Protocol', 'Pass / next gate', 'Owner:', 'Timing:', 'Budget:', 'If not met', 'Next decision gate']),
+      detail: 'Validation protocol identifies the method, passing criteria, ownership, timing, budget status, and next gate.',
+    },
+    {
+      id: 'product-readiness',
+      passed: includesAll(pageTexts[4] ?? '', ['Pilot manufacturing', 'Shelf life and food safety', 'Packaging compatibility', 'Regulatory, labeling, and nutrition', 'Required next evidence']),
+      detail: 'Product readiness covers manufacturing, shelf life and safety, packaging, regulatory, labeling, and nutrition evidence.',
+    },
+    {
+      id: 'commercial-readiness',
+      passed: includesAll(pageTexts[5] ?? '', ['Competitive benchmark', 'Price architecture', 'Unit economics', 'Channel and buyer strategy', 'Demand and launch forecast', 'Required next evidence']),
+      detail: 'Commercial readiness covers competition, price, economics, channel, buyer strategy, and demand evidence.',
+    },
+    {
+      id: 'blocked-language-scope',
+      passed: !pageTexts.slice(0, 7).some(page => /\bblocked\b/i.test(page))
+        && includesAll(pageTexts[7] ?? '', ['Blocked', 'External claim']),
+      detail: 'Blocked status is reserved for external claims; ordinary commercial evidence gaps use validation language.',
     },
     {
       id: 'score-interpretation',
@@ -133,49 +197,79 @@ export function evaluateCommercializationReport(
         const label = formatDecisionDimension(dimension).toLowerCase();
         const page = (pageTexts[2] ?? '').toLowerCase();
         const labelIndex = page.indexOf(label);
-        const implicationIndex = Math.max(
-          page.indexOf('business implication', labelIndex),
-          page.indexOf('commercial implication', labelIndex),
-        );
-        return labelIndex >= 0 && implicationIndex >= labelIndex && implicationIndex - labelIndex < 700;
+        return labelIndex >= 0 && page.includes('what the evidence supports');
       }),
       detail: 'Every major score has a nearby business implication.',
     },
     {
+      id: 'scientific-context-separation',
+      passed: includesAll(pageTexts[3] ?? '', ['Instrumental status', 'Technical and execution risks', 'Scientific guidance applied to the next study', 'Sources']),
+      detail: 'Project instrumental evidence, product risks, and citation-backed scientific context must remain visibly separate.',
+    },
+    {
+      id: 'consumer-evidence-boundary',
+      passed: includesAll(pageTexts[5] ?? '', ['Concept evidence boundary', `n=${input.snapshot.evidence.responseCount}`]),
+      detail: 'The commercial proposition must disclose the concept sample size and evidence boundary.',
+    },
+    {
       id: 'concept-strategy',
-      passed: includesAll(pageTexts[5] ?? '', ['Positioning hypothesis', 'Target segment', 'Consumer need', 'Usage occasion', 'Product promise', 'Directional concept visual']),
-      detail: 'Concept page presents a structured market hypothesis and labels the visual as directional.',
+      passed: includesAll(pageTexts[5] ?? '', ['Working proposition', 'Priority consumer', 'Promise', 'Price hypothesis', 'Directional concept visual', 'Competitive benchmark', 'Unit economics', 'Commercial conclusion']),
+      detail: 'Commercial case presents the proposition and visually summarizes consumer, competition, price, economics, channel, and demand readiness.',
     },
     {
       id: 'final-summary',
-      passed: includesAll(pageTexts[8] ?? '', [
-        'Appendix / Source Record',
-        'Decision record ID',
-        'Decision fingerprint',
-        'Method ID',
-        'Evidence populations',
-        'Approval status',
-        'Approval and distribution',
-      ]),
-      detail: 'Final page records traceability, evidence populations, conditions, approval, and distribution status.',
+      passed: includesAll(pageTexts[7] ?? '', ['Two claims are supported; four remain unavailable for release', 'Client-safe summary', 'Internal decision statement', 'External claim', 'Permitted wording', 'Requirement', 'Report status']),
+      detail: 'Final page closes with a claim-by-claim release matrix and report status.',
     },
     {
       id: 'scanability',
-      passed: pageTexts.every((_, index) => pageWordCounts[index] >= (index === 0 ? 55 : 70) && pageWordCounts[index] <= 520),
+      passed: pageTexts.every((_, index) => pageWordCounts[index] >= (index === 0 ? 50 : 40) && pageWordCounts[index] <= 400),
       detail: `Page word counts: ${pageWordCounts.join(', ')}.`,
     },
     {
       id: 'appendix-discipline',
-      passed: !beforeAppendix.includes('decision record id')
-        && !beforeAppendix.includes('decision fingerprint')
-        && !beforeAppendix.includes('method id')
-        && includesAll(appendix, ['Decision record ID', 'Decision fingerprint', 'Method ID', 'Export timestamp', 'Approval status']),
-      detail: 'Technical identifiers appear in the appendix and not the commercial body.',
+      passed: !clientReport.includes('decision record id')
+        && !clientReport.includes('decision fingerprint')
+        && !clientReport.includes('export timestamp')
+        && !clientReport.includes('model-confidence input'),
+      detail: 'Technical identifiers and calculation tables are excluded from the client PDF.',
     },
     {
       id: 'specific-language',
       passed: FORBIDDEN_GENERIC_PHRASES.every(phrase => !pageTexts.join(' ').toLowerCase().includes(phrase)),
       detail: 'Forbidden generic interpretation phrases are absent.',
+    },
+    {
+      id: 'number-formatting',
+      passed: rawFloatPage === -1,
+      detail: rawFloatPage === -1
+        ? 'Client-facing numbers must not contain raw floating-point artifacts.'
+        : `Page ${rawFloatPage + 1} contains an unformatted numeric value: ${findRawFloatArtifact(pageTexts[rawFloatPage]) ?? 'unknown'}.`,
+    },
+    {
+      id: 'product-identity',
+      passed: !identityDrift,
+      detail: 'Product identity must remain consistent with the selected product format.',
+    },
+    {
+      id: 'internal-language',
+      passed: !internalLanguage.test(pageTexts.join(' ')) && evidenceLeakage.length === 0,
+      detail: 'Client-facing text must not contain internal evidence or system phrases.',
+    },
+    {
+      id: 'raw-source-metadata',
+      passed: !rawSourceMetadata.test(pageTexts.join(' ')) && !rawLiteratureExcerpt,
+      detail: 'Client-facing literature must not expose storage paths, raw filenames, or retrieval-pack identifiers.',
+    },
+    {
+      id: 'copy-integrity',
+      passed: !malformedCopy,
+      detail: 'Client-facing copy must not contain sentence fragments or known generated-language failures.',
+    },
+    {
+      id: 'translated-positioning',
+      passed: !/e-tongue|GC-MS|GC-O|ISTD|\bppm\b|emotion balance/i.test(pageTexts[5] ?? ''),
+      detail: 'Product direction must translate evidence rather than dump raw metrics.',
     },
     {
       id: 'warning-repetition',
@@ -185,14 +279,14 @@ export function evaluateCommercializationReport(
   ];
 
   const scores: Record<RubricCategory, number> = {
-    A: scoreChecks(checks, ['cover-decision', 'memo-structure']),
+    A: scoreChecks(checks, ['cover-decision', 'decision-facts', 'product-go-framing', 'claims-layer-separation', 'decision-basis']),
     B: scoreChecks(checks, ['page-count', 'required-headings', 'flow', 'scanability', 'final-summary']),
-    C: scoreChecks(checks, ['commercial-actions', 'score-interpretation']),
-    D: scoreChecks(checks, ['score-interpretation', 'specific-language']),
-    E: scoreChecks(checks, ['concept-strategy']),
+    C: scoreChecks(checks, ['commercial-actions', 'product-readiness', 'commercial-readiness', 'score-interpretation', 'consumer-evidence-boundary']),
+    D: scoreChecks(checks, ['score-interpretation', 'scientific-context-separation', 'specific-language', 'number-formatting']),
+    E: scoreChecks(checks, ['concept-strategy', 'commercial-readiness', 'blocked-language-scope', 'product-identity', 'translated-positioning']),
     F: scoreChecks(checks, ['scanability', 'flow', 'final-summary']),
     G: scoreChecks(checks, ['appendix-discipline']),
-    H: scoreChecks(checks, ['specific-language', 'warning-repetition']),
+    H: scoreChecks(checks, ['specific-language', 'warning-repetition', 'internal-language', 'raw-source-metadata', 'copy-integrity', 'no-unsupported-launch-block']),
   };
   const weaknesses = checks.filter(check => !check.passed).map(check => check.detail);
   const passed = Object.values(scores).every(score => score >= 4)

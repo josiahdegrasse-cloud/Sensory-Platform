@@ -16,6 +16,7 @@ import { ReportsPage } from './reports-page';
 import { Stage1Instrumental } from './stage1-instrumental';
 import { Stage4Enhanced } from './stage4-enhanced';
 import { StudiesWorkspace } from './studies-workspace';
+import { ShipOutsWorkspace } from './ship-outs-workspace';
 import { SurveyAnalysis } from './survey-analysis';
 
 function LoadingProjectScope() {
@@ -33,7 +34,7 @@ function findProjectBatch(importBatches: ImportBatchRecord[], projectId?: string
     ?? null;
 }
 
-function ProjectStepContent({ step }: { step: ProjectJourneyStep }) {
+function ProjectStepContent({ step, substep }: { step: ProjectJourneyStep; substep?: string }) {
   const location = useLocation();
 
   switch (step) {
@@ -42,7 +43,7 @@ function ProjectStepContent({ step }: { step: ProjectJourneyStep }) {
     case 'data':
       return <Stage1Instrumental />;
     case 'studies':
-      return <StudiesWorkspace />;
+      return substep === 'ship-outs' ? <ShipOutsWorkspace /> : <StudiesWorkspace />;
     case 'insights':
       return <SurveyAnalysis />;
     case 'decision':
@@ -50,14 +51,14 @@ function ProjectStepContent({ step }: { step: ProjectJourneyStep }) {
     case 'concept':
       return <ConceptTesting />;
     case 'report':
-      return location.search.includes('report=')
+      return /[?&](report|decision|create)=/.test(location.search)
         ? <CommercializationReportPage />
         : <ReportsPage />;
   }
 }
 
 export function ProjectWorkflowRoute() {
-  const { projectId, step } = useParams<{ projectId: string; step?: string }>();
+  const { projectId, step, substep } = useParams<{ projectId: string; step?: string; substep?: string }>();
   const { data: importBatches = [], isLoading } = useImportBatches();
   const { subCategory, setSelection } = useFoodType();
   const batch = findProjectBatch(importBatches, projectId);
@@ -71,10 +72,13 @@ export function ProjectWorkflowRoute() {
 
   if (!projectId) return <Navigate to="/" replace />;
   if (!isProjectJourneyStep(journeyStep)) return <Navigate to={projectPath(projectId)} replace />;
+  if (substep && !(journeyStep === 'studies' && substep === 'ship-outs')) {
+    return <Navigate to={projectPath(projectId, journeyStep)} replace />;
+  }
   if (journeyStep === 'responses') return <Navigate to={projectPath(projectId, 'studies')} replace />;
   if (isLoading) return <LoadingProjectScope />;
   if (!batch) return <Navigate to="/" replace />;
   if (selectedBatchId !== batch.id) return <LoadingProjectScope />;
 
-  return <ProjectStepContent step={journeyStep} />;
+  return <ProjectStepContent step={journeyStep} substep={substep} />;
 }

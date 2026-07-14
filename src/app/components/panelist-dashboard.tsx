@@ -33,12 +33,21 @@ export function PanelistDashboard() {
   const completedConceptTests = conceptTests.filter(t => completedConceptIds.includes(t.id));
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="bg-white p-6 rounded-lg border border-slate-200">
-        <h1 className="text-2xl font-semibold text-slate-900">Welcome, {user?.name}!</h1>
-        <p className="text-slate-700 mt-2">Panelist ID: <span className="font-bold text-slate-900">{user?.panelistId}</span></p>
-        <p className="text-sm text-slate-700 mt-1">Start with the samples in your tasting box. Match the sample cue on each task before opening or tasting anything.</p>
-      </div>
+    <div className="mx-auto max-w-4xl space-y-6">
+      <header className="rounded-lg border border-slate-200 bg-white p-5 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-950">Your tasting tasks</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Welcome, {user?.name}. Match the sample cue before opening each item, then complete the tasks in order.</p>
+          </div>
+          {user?.panelistId && <span className="shrink-0 rounded-md bg-slate-100 px-3 py-2 text-xs text-slate-600">Panelist <strong className="font-mono text-slate-900">{user.panelistId}</strong></span>}
+        </div>
+        <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-100 pt-4 text-sm">
+          <span><strong className="text-slate-950">{availableProducts.length}</strong> tasting task{availableProducts.length === 1 ? '' : 's'} left</span>
+          {availableConceptTests.length > 0 && <span><strong className="text-slate-950">{availableConceptTests.length}</strong> concept task{availableConceptTests.length === 1 ? '' : 's'} left</span>}
+          <span className="text-slate-500">{completedProductIds.length + completedConceptIds.length} completed</span>
+        </div>
+      </header>
 
       {fetchError && (
         <Alert variant="destructive">
@@ -53,102 +62,34 @@ export function PanelistDashboard() {
         </Card>
       )}
 
-      {/* Statistics */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-3xl font-bold text-slate-900">{availableProducts.length}</div>
-            <div className="text-sm text-slate-700 mt-1">Food Evaluations Pending</div>
-            <div className="text-xs text-slate-500 mt-0.5">of {assignedProducts.length} assigned</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-3xl font-bold text-slate-900">{availableConceptTests.length}</div>
-            <div className="text-sm text-slate-700 mt-1">Marketing Tests Pending</div>
-            <div className="text-xs text-slate-500 mt-0.5">of {conceptTests.length} assigned</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-3xl font-bold text-slate-900">
-              {completedProductIds.length + completedConceptIds.length}
-            </div>
-            <div className="text-sm text-slate-700 mt-1">Completed</div>
-            <div className="text-xs text-slate-500 mt-0.5">of {assignedProducts.length + conceptTests.length} total</div>
-          </CardContent>
-        </Card>
-      </div>
-
       {availableProducts.length > 0 && (
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+        <section aria-labelledby="tasting-box-heading">
+          <div className="mb-3 flex items-end justify-between gap-4">
+          <h2 id="tasting-box-heading" className="flex items-center gap-2 text-lg font-bold text-slate-900">
             <PackageCheck className="size-6 text-slate-500" />
             Your tasting box
           </h2>
-          <div className="grid gap-4">
+          <p className="text-xs text-slate-500">Complete top to bottom</p>
+          </div>
+          <ol className="overflow-hidden rounded-lg border border-slate-200 bg-white divide-y divide-slate-200">
             {availableProducts.map((product, index) => {
               const summary = taskSummary(product);
               return (
-              <Card key={product.id} className="border border-slate-200 bg-white transition hover:border-slate-400">
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-sm font-bold text-white">
-                      {index + 1}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        {product.isMultiSample ? (
-                          <div className="w-10 h-10 rounded-lg bg-slate-900 flex items-center justify-center flex-shrink-0">
-                            <Layers className="size-5 text-white" />
-                          </div>
-                        ) : (
-                          <div className="w-10 h-10 rounded-lg bg-slate-900 flex items-center justify-center flex-shrink-0">
-                            <ClipboardList className="size-5 text-white" />
-                          </div>
-                        )}
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <CardTitle className="text-lg">{summary.label}</CardTitle>
-                            {product.blinded && <Badge variant="outline" className="border-slate-200 text-slate-700 text-xs">Blinded</Badge>}
-                          </div>
-                          <p className="text-xs text-slate-700">{summary.category}</p>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="outline" className="border-slate-200 text-slate-700">
-                            {product.isMultiSample ? <Layers className="size-3 mr-1" /> : <ClipboardList className="size-3 mr-1" />}
-                            {summary.taskType}
-                          </Badge>
-                          <Badge variant="outline" className="border-slate-200 text-slate-700">{summary.estimate}</Badge>
-                        </div>
-                        <p className="mt-2 text-sm font-medium text-slate-900">{summary.sampleCue}</p>
-                        <p className="mt-1 text-xs text-slate-700">Use the matching sample from your box. Complete this task before moving to the next sample.</p>
-                      </div>
-
-                      {product.isMultiSample && product.samples?.length ? (
-                        <p className="mt-2 text-xs text-slate-700">
-                          Includes three coded servings: two are the same and one is different.
-                        </p>
-                      ) : null}
-                    </div>
+              <li key={product.id} className="p-4 sm:p-5">
+                <div className="flex items-start gap-3">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white">{index + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-slate-950">{summary.label}</h3>{product.blinded && <Badge variant="outline" className="border-slate-300 text-xs text-slate-700">Coded</Badge>}</div>
+                    <p className="mt-1 text-sm font-semibold text-slate-700">Find: {summary.sampleCue}</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">{summary.taskType} · {summary.estimate}{product.isMultiSample && product.samples?.length ? ' · Keep all coded servings together' : ''}</p>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <Link to={summary.route}>
-                    <Button className="w-full text-base py-6 bg-slate-900 hover:bg-slate-800">
-                      {product.isMultiSample ? <Layers className="size-5 mr-2" /> : <ClipboardList className="size-5 mr-2" />}
-                      Start task {index + 1}
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
+                </div>
+                <Button asChild className={`mt-4 h-11 w-full ${index === 0 ? 'bg-slate-900 hover:bg-slate-800' : 'bg-white text-slate-800 border border-slate-300 hover:bg-slate-50'}`}><Link to={summary.route}>{product.isMultiSample ? <Layers className="size-4" /> : <ClipboardList className="size-4" />}{index === 0 ? 'Start this task' : `Open task ${index + 1}`}</Link></Button>
+              </li>
               );
             })}
-          </div>
-        </div>
+          </ol>
+        </section>
       )}
 
       {/* Available Marketing / Concept Tests */}

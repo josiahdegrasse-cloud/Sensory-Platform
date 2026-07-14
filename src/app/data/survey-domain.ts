@@ -99,3 +99,12 @@ export const ESSENSE25_EMOTIONS = {
     'Tame', 'Uninterested',
   ],
 };
+
+/** Balanced, lower-burden subset used by live questionnaires. */
+export const SURVEY_EMOTIONS = {
+  positive: [
+    'Happy', 'Satisfied', 'Pleasant', 'Interested',
+    'Enthusiastic', 'Calm', 'Comfortable', 'Energetic',
+  ],
+  negative: [...ESSENSE25_EMOTIONS.negative],
+};

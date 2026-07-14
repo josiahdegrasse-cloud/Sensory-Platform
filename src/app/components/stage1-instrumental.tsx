@@ -25,7 +25,6 @@ import {
   PolarRadiusAxis,
   Radar,
 } from "recharts";
-import { ProjectHeader } from "./project-header";
 import { ProductListItem, ProductListPanel } from './product-list';
 import { applyImportMappings, inferImportMappings } from "../lib/csv-import-mapping";
 import { encodeBatchSelection } from "../lib/project-identity";
@@ -77,8 +76,11 @@ export function Stage1Instrumental() {
   const [foodTypeOverride, setFoodTypeOverride] = useState('');
   const [projectNameEdited, setProjectNameEdited] = useState(false);
   const [isLoadingFromQueue, setIsLoadingFromQueue] = useState(!!pendingStoragePath);
+  const [aromaOpen, setAromaOpen] = useState(false);
+  const [instrumentSummaryHeight, setInstrumentSummaryHeight] = useState<number | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const instrumentSummaryRef = useRef<HTMLDivElement>(null);
   const { foodType, subCategory, setSelection, registerFoodTypes, archivedFoodTypes, deletedFoodTypes } = useFoodType();
   const {
     selectedSamples,
@@ -371,6 +373,43 @@ export function Stage1Instrumental() {
     compareMode,
     foodType,
   });
+  const aromaThresholdExceedances = selectedGCMSData.filter(compound =>
+    compound.threshold > 0 && compound.concentration >= compound.threshold
+  );
+  const aromaFlaggedCompounds = [...(aromaThresholdExceedances.length > 0 ? aromaThresholdExceedances : selectedGCMSData)].sort((a, b) => {
+    const aRatio = a.threshold > 0 ? a.concentration / a.threshold : 0;
+    const bRatio = b.threshold > 0 ? b.concentration / b.threshold : 0;
+    return bRatio - aRatio || b.concentration - a.concentration;
+  });
+  const primaryAromaCompound = [...aromaFlaggedCompounds].sort((a, b) => b.concentration - a.concentration)[0];
+  const aromaTotalConcentration = selectedGCMSData.reduce((sum, compound) => sum + compound.concentration, 0);
+  const aromaWithThreshold = selectedGCMSData.filter(compound => compound.threshold > 0).length;
+
+  useEffect(() => {
+    const element = instrumentSummaryRef.current;
+    if (!element) return;
+
+    const updateHeight = () => {
+      setInstrumentSummaryHeight(Math.ceil(element.getBoundingClientRect().height));
+    };
+
+    updateHeight();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateHeight);
+      return () => window.removeEventListener('resize', updateHeight);
+    }
+
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [
+    compareMode,
+    displayedSamples.length,
+    selectedCompositionData,
+    selectedGCMSData.length,
+    selectedSamples,
+  ]);
 
   const viewImportedCharts = (summary: ImportCompletionSummary) => {
     setSelection(summary.foodTypeSlug, null);
@@ -390,8 +429,6 @@ export function Stage1Instrumental() {
 
   return (
     <div className="space-y-6">
-      <ProjectHeader />
-
       {isLoadingFromQueue && (
         <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
           <div className="size-4 animate-spin rounded-full border-2 border-blue-300 border-t-blue-600" />
@@ -754,31 +791,36 @@ export function Stage1Instrumental() {
       )}
 
       <div id="machine-results" className="grid grid-cols-4 gap-6 scroll-mt-6">
-        <ProductListPanel
-          title="Samples"
-          description={compareMode
-            ? `Select one comparison sample (${selectedSamples.length}/2 selected)`
-            : 'Choose a sample to view detailed measurements'}
-          actions={(
-            <Button
-              variant={compareMode ? "default" : "outline"}
-              size="sm"
-              onClick={() => {
-                if (compareMode) {
-                  setCompareMode(false);
-                  setSelectedSamples([selectedSamples[0]]);
-                } else {
-                  setCompareMode(true);
-                  if (selectedSamples.length === 0) setSelectedSamples(["S3"]);
-                }
-              }}
-              className={compareMode ? "bg-slate-900 hover:bg-slate-700" : ""}
-            >
-              {compareMode ? "Comparing" : "Compare"}
-            </Button>
-          )}
+        <div
+          className="min-h-0"
+          style={instrumentSummaryHeight ? { height: instrumentSummaryHeight } : undefined}
         >
-            <div className="max-h-[620px] space-y-1 overflow-y-auto pr-1">
+          <ProductListPanel
+            title="Samples"
+            className="h-full min-h-0"
+            description={compareMode
+              ? `Select one comparison sample (${selectedSamples.length}/2 selected)`
+              : 'Choose a sample to view detailed measurements'}
+            actions={(
+              <Button
+                variant={compareMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  if (compareMode) {
+                    setCompareMode(false);
+                    setSelectedSamples([selectedSamples[0]]);
+                  } else {
+                    setCompareMode(true);
+                    if (selectedSamples.length === 0) setSelectedSamples(["S3"]);
+                  }
+                }}
+                className={compareMode ? "bg-slate-900 hover:bg-slate-700" : ""}
+              >
+                {compareMode ? "Comparing" : "Compare"}
+              </Button>
+            )}
+          >
+            <div className="h-full min-h-0 space-y-1 overflow-y-auto pr-1">
               {displayedSamples.map((sample) => {
                 const isSelected = selectedSamples.includes(sample.id);
 
@@ -794,6 +836,7 @@ export function Stage1Instrumental() {
                       </span>
                     )}
                     onClick={() => {
+                      setAromaOpen(false);
                       if (compareMode) {
                         if (isSelected) {
                           if (selectedSamples.length > 1)
@@ -810,11 +853,12 @@ export function Stage1Instrumental() {
                 );
               })}
             </div>
-        </ProductListPanel>
+          </ProductListPanel>
+        </div>
 
-        <div className="col-span-3 space-y-6">
-          <div className="grid grid-cols-3 gap-6">
-            <Card className="col-span-2 border-2 border-slate-200 shadow-sm">
+        <div ref={instrumentSummaryRef} className="col-span-3 space-y-6">
+          <div>
+            <Card className="border-2 border-slate-200 shadow-sm">
               <CardHeader className="bg-slate-50 border-b rounded-t-lg">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <FlaskConical className="size-5 text-slate-700" />
@@ -824,11 +868,119 @@ export function Stage1Instrumental() {
                   Quantitative measurement of five fundamental taste attributes
                 </p>
               </CardHeader>
-              <CardContent className="pt-6">
-                <ResponsiveContainer width="100%" height={380}>
+              <CardContent className="relative pt-2">
+                <div className="absolute right-4 top-4 z-10">
+                  <button
+                    type="button"
+                    onClick={() => setAromaOpen(open => !open)}
+                    className={`rounded-md border px-3 py-2 text-left text-xs shadow-sm transition-colors ${
+                      aromaFlaggedCompounds.length > 0
+                        ? 'border-rose-300 bg-rose-50 text-rose-900 hover:bg-rose-100'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                    aria-expanded={aromaOpen}
+                  >
+                    <span className="block font-bold">
+                      {aromaThresholdExceedances.length > 0
+                        ? `${aromaThresholdExceedances.length} threshold flag${aromaThresholdExceedances.length === 1 ? '' : 's'}`
+                        : selectedGCMSData.length > 0
+                          ? `${selectedGCMSData.length} compounds detected`
+                          : 'No aroma flags'}
+                    </span>
+                    <span className="block max-w-44 truncate font-medium">
+                      {primaryAromaCompound ? `${primaryAromaCompound.name} · ${primaryAromaCompound.aroma}` : 'GC-O clear'}
+                    </span>
+                  </button>
+                  {aromaOpen && (
+                    <div className="absolute right-0 mt-2 w-[48rem] max-w-[calc(100vw-24rem)] overflow-hidden rounded-lg border border-rose-200 bg-white shadow-xl">
+                      <div className="border-b border-rose-100 bg-rose-50 px-3 py-2">
+                        <p className="text-xs font-bold text-rose-950">Aroma compounds and threshold review</p>
+                        <p className="mt-0.5 text-[11px] text-rose-800">
+                          {aromaThresholdExceedances.length > 0
+                            ? 'Compounds at or above sensory threshold are flagged first.'
+                            : selectedGCMSData.length > 0
+                              ? 'Detected compounds are shown; no threshold exceedance is marked.'
+                              : 'No volatile off-notes detected.'}
+                        </p>
+                      </div>
+                      {aromaFlaggedCompounds.length > 0 ? (
+                        <>
+                          <div className="grid grid-cols-[1.5fr_2fr] gap-3 border-b border-slate-100 p-3">
+                            <div className="rounded-md border border-rose-100 bg-rose-50 px-3 py-2">
+                              <p className="text-[11px] font-semibold uppercase text-rose-700">Primary aroma note</p>
+                              <p className="mt-1 truncate text-sm font-bold text-rose-950">{primaryAromaCompound?.name ?? 'None'}</p>
+                              <p className="truncate text-xs text-rose-800">
+                                {primaryAromaCompound
+                                  ? `${primaryAromaCompound.aroma || 'Unspecified'} · ${primaryAromaCompound.concentration.toFixed(1)} ppm`
+                                  : 'No GC-O compound detected'}
+                              </p>
+                            </div>
+                            <div className="grid grid-cols-4 gap-2">
+                              <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2">
+                                <p className="text-[11px] font-semibold text-slate-500">Detected</p>
+                                <p className="text-lg font-bold text-slate-950">{selectedGCMSData.length}</p>
+                              </div>
+                              <div className="rounded-md border border-rose-200 bg-rose-50 px-2.5 py-2">
+                                <p className="text-[11px] font-semibold text-rose-700">Flags</p>
+                                <p className="text-lg font-bold text-rose-950">{aromaThresholdExceedances.length}</p>
+                              </div>
+                              <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2">
+                                <p className="text-[11px] font-semibold text-slate-500">Limits</p>
+                                <p className="text-lg font-bold text-slate-950">{aromaWithThreshold}</p>
+                              </div>
+                              <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2">
+                                <p className="text-[11px] font-semibold text-slate-500">Total</p>
+                                <p className="text-lg font-bold text-slate-950">{aromaTotalConcentration.toFixed(1)}</p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="max-h-80 overflow-y-auto">
+                            <div className="grid grid-cols-[minmax(10rem,1.35fr)_minmax(9rem,1fr)_5.5rem_5.5rem_4.75rem_5.75rem] gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase text-slate-500">
+                              <span>Compound</span>
+                              <span>Aroma note</span>
+                              <span className="text-right">Conc.</span>
+                              <span className="text-right">Threshold</span>
+                              <span className="text-right">Ratio</span>
+                              <span>Status</span>
+                            </div>
+                            {aromaFlaggedCompounds.map((compound, idx) => {
+                              const hasThreshold = compound.threshold > 0;
+                              const ratio = hasThreshold ? compound.concentration / compound.threshold : null;
+                              const aboveThreshold = ratio !== null && ratio >= 1;
+                              return (
+                                <div key={`${compound.name}-${idx}`} className="grid grid-cols-[minmax(10rem,1.35fr)_minmax(9rem,1fr)_5.5rem_5.5rem_4.75rem_5.75rem] gap-2 border-b border-slate-100 px-3 py-2.5 text-xs last:border-b-0">
+                                  <span className="min-w-0 truncate font-semibold text-slate-900">{compound.name}</span>
+                                  <span className="min-w-0 truncate text-slate-600">{compound.aroma || 'Unspecified'}</span>
+                                  <span className="text-right font-semibold text-slate-800">{compound.concentration.toFixed(1)} ppm</span>
+                                  <span className="text-right text-slate-600">{hasThreshold ? `${compound.threshold.toFixed(1)} ppm` : 'None'}</span>
+                                  <span className={`text-right font-semibold ${aboveThreshold ? 'text-rose-700' : 'text-slate-700'}`}>
+                                    {ratio !== null ? `${ratio.toFixed(1)}x` : '—'}
+                                  </span>
+                                  <span className={`rounded px-1.5 py-0.5 text-center text-[11px] font-semibold ${
+                                    aboveThreshold
+                                      ? 'bg-rose-100 text-rose-800'
+                                      : hasThreshold
+                                        ? 'bg-emerald-50 text-emerald-700'
+                                        : 'bg-slate-100 text-slate-600'
+                                  }`}>
+                                    {aboveThreshold ? 'Flag' : hasThreshold ? 'Below' : 'No limit'}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="px-3 py-4 text-xs text-slate-500">No aroma compounds need review for this sample.</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <ResponsiveContainer width="100%" height={470}>
                   <RadarChart
                     data={compareMode ? compareRadarChartData : radarData}
-                    margin={{ top: 30, right: 50, bottom: 30, left: 50 }}
+                    margin={{ top: 6, right: 20, bottom: 6, left: 20 }}
                   >
                     <PolarGrid stroke={CHART_CHROME.grid} strokeWidth={1} />
                     <PolarAngleAxis dataKey="taste" tick={{ fill: CHART_CHROME.axis, fontSize: 13, fontWeight: 500 }} />
@@ -884,7 +1036,7 @@ export function Stage1Instrumental() {
                   </RadarChart>
                 </ResponsiveContainer>
 
-                <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                <div className="mt-2 flex max-h-24 flex-wrap gap-2 overflow-y-auto pr-1 text-xs">
                   {compareMode && compareRadarSeries.length > 0 ? (
                     compareRadarSeries.map((series) => (
                       <div
@@ -896,58 +1048,21 @@ export function Stage1Instrumental() {
                         <span className="font-medium text-slate-700">{series.name}</span>
                       </div>
                     ))
-                  ) : (
-                    Array.from(new Map(displayedSamples.map(s => [s.category, getPointColor(s.type, s.category)]))).map(([cat, color]) => (
+                  ) : selectedSampleData ? (
+                    displayedSamples
+                      .filter(sample => sample.id === selectedSampleData.sampleId)
+                      .slice(0, 1)
+                      .map(sample => (
                       <div
-                        key={cat}
+                        key={sample.id}
                         className="flex items-center gap-2 rounded-md border px-3 py-2"
-                        style={{ borderColor: `${color}40`, background: `${color}12` }}
+                        style={{ borderColor: `${selectedColor}40`, background: `${selectedColor}12` }}
                       >
-                        <div className="h-3 w-3 rounded-full" style={{ background: color }} />
-                        <span className="font-medium text-slate-700">{cat}</span>
+                        <div className="h-3 w-3 rounded-full" style={{ background: selectedColor }} />
+                        <span className="font-medium text-slate-700">{sample.name}</span>
                       </div>
-                    ))
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-2 border-rose-300 shadow-sm">
-              <CardHeader className="bg-rose-50 border-b rounded-t-lg">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <FlaskConical className="size-5 text-rose-600" />
-                  Aroma Compound Detection
-                </CardTitle>
-                <p className="text-xs text-slate-700 mt-1">Volatile off-notes detected by GC-O</p>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <div className="space-y-2 max-h-[380px] overflow-y-auto pr-2">
-                  {selectedGCMSData.length > 0 ? (
-                    selectedGCMSData.map((compound, idx) => {
-                      return (
-                        <div
-                          key={`${compound.name}-${idx}`}
-                          className="p-2 rounded-lg border border-slate-200 bg-white text-xs"
-                        >
-                          <div className="font-semibold text-slate-900 mb-0.5">{compound.name}</div>
-                          <div className="text-slate-700 mb-0.5">{compound.aroma}</div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-700">
-                              {compound.concentration.toFixed(1)} ppm
-                            </span>
-                            {compound.threshold > 0 && (
-                              <span className="text-slate-500">↑ {compound.threshold}</span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-center py-8">
-                      <FlaskConical className="size-12 text-slate-300 mx-auto mb-2" />
-                      <p className="text-sm text-slate-500">No off-notes detected</p>
-                    </div>
-                  )}
+                      ))
+                  ) : null}
                 </div>
               </CardContent>
             </Card>
@@ -1013,6 +1128,14 @@ export function Stage1Instrumental() {
             const uniqueCategories = Array.from(
               new Map(pcaData.map(d => [d.category, { type: d.type, color: getPointColor(d.type, d.category) }]))
             );
+            const useTypeLegend = uniqueCategories.length > 6;
+            const legendEntries = useTypeLegend
+              ? Array.from(new Map(pcaData.map(point => [point.type, {
+                  label: formatFoodTypeLabel(point.type),
+                  color: getPointColor(point.type),
+                  count: pcaData.filter(candidate => candidate.type === point.type).length,
+                }])).values())
+              : uniqueCategories.map(([label, { color }]) => ({ label, color, count: null }));
             return (
               <>
                 <ResponsiveContainer width="100%" height={400}>
@@ -1051,23 +1174,37 @@ export function Stage1Instrumental() {
                     />
                     {uniqueTypes.map(type => (
                       <Scatter key={type} data={pcaData.filter(d => d.type === type)}>
-                        {pcaData.filter(d => d.type === type).map(entry => (
-                          <Cell key={`cell-${entry.id}`} fill={getPointColor(entry.type, entry.category)} />
-                        ))}
+                        {pcaData.filter(d => d.type === type).map(entry => {
+                          const selected = selectedSamples.includes(entry.sampleId);
+                          const color = useTypeLegend
+                            ? getPointColor(entry.type)
+                            : getPointColor(entry.type, entry.category);
+                          return (
+                            <Cell
+                              key={`cell-${entry.id}`}
+                              fill={color}
+                              fillOpacity={selected ? 1 : 0.68}
+                              stroke={selected ? '#0f172a' : '#ffffff'}
+                              strokeWidth={selected ? 2 : 1}
+                            />
+                          );
+                        })}
                       </Scatter>
                     ))}
                   </ScatterChart>
                 </ResponsiveContainer>
 
                 <div className="mt-6 flex flex-wrap gap-3 text-sm">
-                  {uniqueCategories.map(([cat, { color }]) => (
+                  {legendEntries.map(({ label, color, count }) => (
                     <div
-                      key={cat}
+                      key={label}
                       className="flex items-center gap-2 px-3 py-2 rounded-lg border"
                       style={{ borderColor: `${color}40`, background: `${color}12` }}
                     >
                       <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: color }} />
-                      <span className="font-semibold text-slate-700">{cat}</span>
+                      <span className="font-semibold text-slate-700">
+                        {label}{count !== null ? ` · ${count} samples` : ''}
+                      </span>
                     </div>
                   ))}
                 </div>

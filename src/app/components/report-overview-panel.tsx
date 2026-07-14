@@ -20,6 +20,7 @@ import type { EnhancedSensoryProfile } from '../data/enhanced-sensory';
 import type { LiveAggregation } from '../lib/use-survey-data';
 import type { SemanticTone } from '../lib/project-status';
 import { ReportSection, MetricTile, ScoreBars } from './commercialization-report-ui';
+import { CitationsList, TextWithLiteratureCitations, type CitationListItem } from './shared/citations-list';
 
 interface ReportOverviewPanelProps {
   snapshot: CommercializationReportSnapshot | null;
@@ -78,6 +79,13 @@ export function ReportOverviewPanel({
   exportError,
 }: ReportOverviewPanelProps) {
   const { projectId: routeProjectId } = useParams<{ projectId?: string }>();
+  const literatureCitations = snapshot?.literatureCitations ?? [];
+  const literatureCitationItems: CitationListItem[] = literatureCitations.map(citation => ({
+    id: citation.id,
+    title: citation.title,
+    excerpt: citation.excerpt,
+    sourcePath: citation.source,
+  }));
   const appendixIntensity = matchingLiveSensory && Object.keys(matchingLiveSensory.intensity).length > 0
     ? { scale: 5, entries: Object.entries(matchingLiveSensory.intensity).slice(0, 5).map(([label, value]) => ({ label, value: value as number, max: 5 })) }
     : !matchingLiveSensory && sensoryProfile
@@ -143,7 +151,7 @@ export function ReportOverviewPanel({
 
       {/* Executive Summary */}
       <ReportSection title="Executive Summary" icon={Target} tone={decisionTone}>
-        <p>{executiveSummary}</p>
+        <p><TextWithLiteratureCitations text={executiveSummary} citations={literatureCitations} /></p>
         <ul className="space-y-1.5 border-t border-slate-200 pt-3 text-xs">
           {executiveHighlights.map((item, i) => (
             <li key={i} className="flex items-start gap-2">
@@ -316,7 +324,7 @@ export function ReportOverviewPanel({
                 ))}
               </ul>
             )}
-            <p className="text-xs text-slate-500 pt-1">{whyLiked}</p>
+            <p className="text-xs text-slate-500 pt-1"><TextWithLiteratureCitations text={whyLiked} citations={literatureCitations} /></p>
           </>
         ) : (
           <p className="text-slate-500">
@@ -327,10 +335,19 @@ export function ReportOverviewPanel({
 
       {/* Commercialization Narrative */}
       <ReportSection title="Commercialization Narrative" icon={Lightbulb} tone="creative">
-        <p><strong className="text-slate-900">Why it resonates: </strong>{whyLiked}</p>
-        <p><strong className="text-slate-900">Launch recommendation: </strong>{launchRecommendation}</p>
+        <p><strong className="text-slate-900">Why it resonates: </strong><TextWithLiteratureCitations text={whyLiked} citations={literatureCitations} /></p>
+        <p><strong className="text-slate-900">Launch recommendation: </strong><TextWithLiteratureCitations text={launchRecommendation} citations={literatureCitations} /></p>
         {snapshot?.narrative.packagingRationale && (
-          <p><strong className="text-slate-900">Packaging rationale: </strong>{snapshot.narrative.packagingRationale}</p>
+          <p><strong className="text-slate-900">Packaging rationale: </strong><TextWithLiteratureCitations text={snapshot.narrative.packagingRationale} citations={literatureCitations} /></p>
+        )}
+        {literatureCitationItems.length > 0 && (
+          <div className="border-t border-slate-200 pt-3">
+            <CitationsList
+              items={literatureCitationItems}
+              emptyLabel="No literature citations for this report."
+              countLabel={`${literatureCitationItems.length} literature source${literatureCitationItems.length === 1 ? '' : 's'} cited`}
+            />
+          </div>
         )}
       </ReportSection>
 
@@ -348,7 +365,7 @@ export function ReportOverviewPanel({
         ) : (
           <p className="text-emerald-700">No outstanding risks were detected for this project.</p>
         )}
-        <p className="border-t border-slate-200 pt-3 text-xs text-slate-500">{claimCaution}</p>
+        <p className="border-t border-slate-200 pt-3 text-xs text-slate-500"><TextWithLiteratureCitations text={claimCaution} citations={literatureCitations} /></p>
       </ReportSection>
 
       {/* Recommended Next Steps */}

@@ -220,14 +220,15 @@ export function useInstrumentalChartViewModel({
   const selectedColor = getPointColor(selectedSampleInfo?.type, selectedSampleInfo?.category);
   const comparisonColors = ['#9333ea', '#ec4899'];
   const activeFoodTypeLabel = foodType === 'all' ? 'all sample types' : formatFoodTypeLabel(foodType);
+  const toFivePointTaste = (value: number) => Math.max(0, Math.min(5, value));
 
   const radarData = selectedSampleData
     ? [
-        { id: 'sourness', taste: 'Sourness', value: selectedSampleData.sourness, fullMark: 5 },
-        { id: 'bitterness', taste: 'Bitterness', value: selectedSampleData.bitterness, fullMark: 5 },
-        { id: 'saltiness', taste: 'Saltiness', value: selectedSampleData.saltiness, fullMark: 5 },
-        { id: 'umami', taste: 'Umami', value: selectedSampleData.umami, fullMark: 5 },
-        { id: 'sweetness', taste: 'Sweetness', value: selectedSampleData.sweetness, fullMark: 5 },
+        { id: 'sourness', taste: 'Sourness', value: toFivePointTaste(selectedSampleData.sourness), fullMark: 5 },
+        { id: 'bitterness', taste: 'Bitterness', value: toFivePointTaste(selectedSampleData.bitterness), fullMark: 5 },
+        { id: 'saltiness', taste: 'Saltiness', value: toFivePointTaste(selectedSampleData.saltiness), fullMark: 5 },
+        { id: 'umami', taste: 'Umami', value: toFivePointTaste(selectedSampleData.umami), fullMark: 5 },
+        { id: 'sweetness', taste: 'Sweetness', value: toFivePointTaste(selectedSampleData.sweetness), fullMark: 5 },
       ]
     : [];
 
@@ -242,11 +243,11 @@ export function useInstrumentalChartViewModel({
             color: comparisonColors[index % comparisonColors.length],
             dataKey: `sample_${index}`,
             values: {
-              Sourness: sample.sourness,
-              Bitterness: sample.bitterness,
-              Saltiness: sample.saltiness,
-              Umami: sample.umami,
-              Sweetness: sample.sweetness,
+              Sourness: toFivePointTaste(sample.sourness),
+              Bitterness: toFivePointTaste(sample.bitterness),
+              Saltiness: toFivePointTaste(sample.saltiness),
+              Umami: toFivePointTaste(sample.umami),
+              Sweetness: toFivePointTaste(sample.sweetness),
             },
           };
         })

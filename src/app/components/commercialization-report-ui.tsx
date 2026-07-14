@@ -106,7 +106,7 @@ export function ConfidenceBadge({ confidence }: { confidence: number }) {
  * score, and confidence — replaces the previous title + dashboard-tile header
  * so the report opens with a single scannable cover rather than a metrics grid.
  */
-export function ReportCoverHeader({ settings, sampleName, foodTypeLabel, decision, issfScore, confidence, decisionTone, timestamp, draftLabel }: {
+export function ReportCoverHeader({ settings, sampleName, foodTypeLabel, decision, issfScore, confidence, decisionTone, timestamp, draftLabel, actions }: {
   settings?: WorkspaceSettings | null;
   sampleName: string;
   foodTypeLabel: string;
@@ -116,31 +116,37 @@ export function ReportCoverHeader({ settings, sampleName, foodTypeLabel, decisio
   decisionTone: SemanticTone;
   timestamp: string;
   draftLabel?: string;
+  actions?: React.ReactNode;
 }) {
   const orgName = settings?.organizationName || DEFAULT_REPORT_ORGANIZATION_NAME;
   return (
-    <div
-      className="break-inside-avoid overflow-hidden rounded-lg border border-slate-200 bg-white px-6 py-5"
+    <header
+      className="break-inside-avoid border-y border-slate-200 bg-white px-1 py-5"
       style={settings?.accentColor ? { borderColor: settings.accentColor } : undefined}
     >
-      <div className="flex items-center gap-3">
-        {settings?.logoUrl ? (
-          <img src={settings.logoUrl} alt={`${orgName} logo`} className="h-7 w-auto object-contain" />
-        ) : orgName === DEFAULT_REPORT_ORGANIZATION_NAME ? (
-          <NfiBrandLockup markSize={28} textClassName="text-slate-700 [&_div]:text-[11px]" />
-        ) : null}
-        {(settings?.logoUrl || orgName !== DEFAULT_REPORT_ORGANIZATION_NAME) && (
-          <span className="text-sm font-semibold text-slate-500">{orgName}</span>
-        )}
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3">
+            {settings?.logoUrl ? (
+              <img src={settings.logoUrl} alt={`${orgName} logo`} className="h-7 w-auto object-contain" />
+            ) : orgName === DEFAULT_REPORT_ORGANIZATION_NAME ? (
+              <NfiBrandLockup markSize={28} textClassName="text-slate-700 [&_div]:text-[11px]" />
+            ) : null}
+            {(settings?.logoUrl || orgName !== DEFAULT_REPORT_ORGANIZATION_NAME) && (
+              <span className="text-sm font-semibold text-slate-500">{orgName}</span>
+            )}
+          </div>
+          <h1 className="mt-3 text-2xl font-bold text-slate-900">Commercialization report</h1>
+          <p className="mt-1 text-sm text-slate-600">{sampleName} · {foodTypeLabel}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <ProjectStatusBadge label={`${decision} · ISSF ${issfScore.toFixed(0)}`} tone={decisionTone} />
+            <ConfidenceBadge confidence={confidence} />
+            {draftLabel && <ProjectStatusBadge label={draftLabel} tone="info" />}
+            <span className="text-xs text-slate-500">Decision dated {new Date(timestamp).toLocaleDateString()}</span>
+          </div>
+        </div>
+        {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
       </div>
-      <h1 className="mt-3 text-2xl font-bold text-slate-900">Commercialization Report</h1>
-      <p className="mt-1 text-sm text-slate-500">{sampleName} · {foodTypeLabel}</p>
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <ProjectStatusBadge label={`${decision} · ISSF ${issfScore.toFixed(0)}`} tone={decisionTone} />
-        <ConfidenceBadge confidence={confidence} />
-        {draftLabel && <ProjectStatusBadge label={draftLabel} tone="info" />}
-        <span className="text-xs text-slate-500">{new Date(timestamp).toLocaleDateString()}</span>
-      </div>
-    </div>
+    </header>
   );
 }

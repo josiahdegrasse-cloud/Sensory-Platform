@@ -3,9 +3,11 @@ import {
   buildTailoredConceptQuestions,
   defaultConceptPanelistIds,
   preferredConceptImageIndex,
+  publicConceptName,
 } from './smart-defaults';
 import type { ConceptDraft } from './types';
 import { EMPTY_VARIANT_DIMENSIONS } from './types';
+import { AI_QUESTION_TEMPLATES } from './questions-data';
 
 const draft: ConceptDraft = {
   name: 'Everyday Melt',
@@ -42,9 +44,40 @@ describe('concept workflow smart defaults', () => {
 
     expect(questions.length).toBeGreaterThanOrEqual(5);
     expect(questions.some(question => question.text.includes('Everyday Melt'))).toBe(true);
+    expect(questions.some(question => /claim|claimed|pack claim|benefits and claims/i.test(question.text))).toBe(false);
     expect(questions.some(question => question.category === 'purchase')).toBe(true);
     expect(questions.some(question => question.category === 'attributes')).toBe(true);
     expect(questions.every(question => question.text.trim().length > 0)).toBe(true);
+  });
+
+  it('keeps fallback templates clear of claim-specific wording', () => {
+    expect(AI_QUESTION_TEMPLATES.some(question => /claim|claimed|pack claim/i.test(question.text))).toBe(false);
+  });
+
+  it('normalizes the public concept name from the editable concept draft', () => {
+    expect(publicConceptName({ name: '  Golden Slice Pack  ' })).toBe('Golden Slice Pack');
+    expect(publicConceptName({ name: '' })).toBe('this product');
+  });
+
+  it('uses the current concept page name in generated survey copy', () => {
+    const questions = buildTailoredConceptQuestions({
+      ...draft,
+      name: 'Golden Slice Pack',
+    });
+
+    expect(questions.some(question => question.text.includes('Golden Slice Pack'))).toBe(true);
+    expect(questions.some(question => question.text.includes('Everyday Melt'))).toBe(false);
+  });
+
+  it('requires the image-choice question only when multiple selected visuals exist', () => {
+    const twoImageQuestions = buildTailoredConceptQuestions(draft);
+    const oneImageQuestions = buildTailoredConceptQuestions({
+      ...draft,
+      marketingImages: ['https://example.com/front.png'],
+    });
+
+    expect(twoImageQuestions.find(question => question.type === 'image_choice')).toMatchObject({ required: true });
+    expect(oneImageQuestions.find(question => question.type === 'image_choice')?.required ?? false).toBe(false);
   });
 
   it('assigns only active panelists by default', () => {

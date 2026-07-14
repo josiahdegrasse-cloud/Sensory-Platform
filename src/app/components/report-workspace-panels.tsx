@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Download, FilePlus2, FileText } from 'lucide-react';
+import { Link } from 'react-router';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
@@ -65,10 +66,10 @@ export function ReportNarrativePanel({
   };
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
+    <div className="rounded-lg border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4">
         <div>
-          <h2 className="font-semibold text-slate-900">Narrative editor</h2>
+          <h2 className="font-semibold text-slate-900">Edit report content</h2>
           <p className="mt-1 text-sm text-slate-500">
             Changes create a new draft version. Approved versions remain unchanged for traceability.
           </p>
@@ -137,7 +138,7 @@ export function ReportPdfPreviewPanel({ input }: { input: CommercializationRepor
   }, [input]);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
         <div>
           <h2 className="font-semibold text-slate-900">PDF preview</h2>
@@ -165,20 +166,22 @@ export function ReportPdfPreviewPanel({ input }: { input: CommercializationRepor
 export function ReportVersionsPanel({
   reports,
   selectedId,
+  reportHref = reportId => `/report?report=${encodeURIComponent(reportId)}`,
 }: {
   reports: CommercializationReportRecord[];
   selectedId: string;
+  reportHref?: (reportId: string) => string;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-5 py-4">
         <h2 className="font-semibold text-slate-900">Version history</h2>
-        <p className="text-sm text-slate-500">Each saved narrative revision remains available as an immutable snapshot.</p>
+        <p className="text-sm text-slate-500">Each saved report version remains available as an immutable snapshot.</p>
       </div>
       {reports.map(report => (
-        <a
+        <Link
           key={report.id}
-          href={`/report?report=${report.id}`}
+          to={reportHref(report.id)}
           className={`flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4 last:border-b-0 hover:bg-slate-50 ${selectedId === report.id ? 'bg-slate-50' : ''}`}
         >
           <div className="flex min-w-0 items-center gap-3">
@@ -195,7 +198,7 @@ export function ReportVersionsPanel({
             tone={report.status === 'approved' ? 'success' : report.status === 'review' ? 'warning' : report.status === 'archived' ? 'neutral' : 'info'}
             showIcon={false}
           />
-        </a>
+        </Link>
       ))}
     </div>
   );

@@ -41,6 +41,8 @@ describe('panelist kit data access', () => {
         handling_instructions: 'Keep chilled.',
         recipient_name: 'Avery Panelist',
         recipient_email: 'avery@example.com',
+        recipient_address: '12 Market Street\nLeeds LS1 1AA',
+        claimed_by: 'panelist-1',
         created_at: '2026-06-28T12:00:00.000Z',
       }],
       error: null,
@@ -51,8 +53,9 @@ describe('panelist kit data access', () => {
       kitCount: 1,
       responseDeadline: '2026-07-01',
       handlingInstructions: 'Keep chilled.',
-      recipients: [{ name: 'Avery Panelist', email: 'avery@example.com' }],
+      recipients: [{ name: 'Avery Panelist', email: 'avery@example.com', address: '12 Market Street\nLeeds LS1 1AA' }],
       assignedProductIds: ['product-1', 'product-2'],
+      panelistIds: ['panelist-1'],
     })).resolves.toEqual([expect.objectContaining({
       id: 'kit-1',
       token: 'secret-token',
@@ -64,13 +67,16 @@ describe('panelist kit data access', () => {
       handlingInstructions: 'Keep chilled.',
       recipientName: 'Avery Panelist',
       recipientEmail: 'avery@example.com',
+      recipientAddress: '12 Market Street\nLeeds LS1 1AA',
+      assignedPanelistId: 'panelist-1',
     })]);
 
     expect(dbMocks.rpc).toHaveBeenCalledWith('generate_panelist_kits', expect.objectContaining({
       target_product_id: 'product-1',
       kit_count: 1,
-      p_recipients: [{ name: 'Avery Panelist', email: 'avery@example.com' }],
+      p_recipients: [{ name: 'Avery Panelist', email: 'avery@example.com', address: '12 Market Street\nLeeds LS1 1AA' }],
       p_assigned_product_ids: ['product-1', 'product-2'],
+      p_panelist_ids: ['panelist-1'],
     }));
   });
 
@@ -161,6 +167,7 @@ describe('panelist kit data access', () => {
         handling_instructions: 'Keep chilled.',
         recipient_name: 'Avery Panelist',
         recipient_email: 'avery@example.com',
+        recipient_address: '12 Market Street\nLeeds LS1 1AA',
         printed_at: '2026-06-28T12:00:00.000Z',
         packed_at: '2026-06-28T13:00:00.000Z',
         shipped_at: '2026-06-28T14:00:00.000Z',
@@ -192,6 +199,7 @@ describe('panelist kit data access', () => {
       trackingNumber: 'TRACK-1',
       issueStatus: 'open',
       reminderCount: 2,
+      recipientAddress: '12 Market Street\nLeeds LS1 1AA',
     })]);
   });
 

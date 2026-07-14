@@ -24,9 +24,29 @@ The product is a project-first workflow for food innovation evidence: Data -> St
 
 - Product pages use restrained surfaces, compact headers, and dense but scannable panels.
 - Cards are for individual records, repeated items, modals, and framed tools. Do not nest cards.
+- All non-circular corners use the same 8px radius across controls, cards, panels, menus, and
+  dialogs. Standard radius utilities from `rounded-xs` through `rounded-2xl` intentionally resolve
+  to that one value. Status badges and selection chips also use the 8px radius. Use `rounded-full`
+  only for true circles, avatars, indicator dots, and progress tracks; do not introduce arbitrary
+  radius values.
 - Primary actions use the same button vocabulary across pages. Link-based actions should use `Button asChild`.
 - Loading states should use row or panel skeletons. Avoid replacing action labels with indefinite “Checking...” across a whole list.
 - Sticky action bars must stay in the document flow and reserve their own space. Do not use fixed footers that cover form validation or required fields.
+
+## Study Method Colors
+
+Within the Studies workspace only, color provides a stable method taxonomy and is always paired
+with a distinct icon and written label; users must never need color alone to identify a study.
+
+- Blue = product sensory profiling: analytical measurement of one product through CATA,
+  intensity, liking, and emotional response.
+- Purple = triangle and multi-sample discrimination: comparison between coded samples and
+  detection of difference. Purple keeps this method distinct from GO/TWEAK/STOP status colors.
+- Teal = concept testing: exploratory, market-facing validation of positioning, imagery, claims,
+  pricing, and purchase intent.
+
+These hues identify study methodology, not lifecycle state. Draft, active, closed, archived,
+blocked, and completed must continue to use the shared status vocabulary regardless of study type.
 
 ## Evidence And Governance
 

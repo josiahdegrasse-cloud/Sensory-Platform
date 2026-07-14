@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import {
   AlertCircle, BarChart3, ChevronDown, Download, Layers, Megaphone, MessageCircle, Users,
 } from 'lucide-react';
@@ -23,6 +24,7 @@ import {
   filterProjectProducts,
 } from '../lib/insights';
 import { useProjectStatus } from '../lib/use-project-status';
+import { assessSampleWorkflow, summarizeProjectReadiness } from '../lib/workflow-readiness';
 import { useSurveyData } from '../lib/use-survey-data';
 import { formatFoodTypeLabel } from '../lib/food-intelligence';
 import { buildAllDataCSVRows, buildSampleCSVRows, downloadCsv } from '../utils/survey-csv-export';
@@ -31,8 +33,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { ProjectHeader } from './project-header';
 import { StageEmptyState } from './stage-empty-state';
+import { ProjectReadinessSetupCard } from './project-readiness-setup-card';
 import {
   InsightsSectionHeader,
   RawDataAppendix,
@@ -47,6 +49,13 @@ import {
 } from './insights-prototype-workspace';
 import { TEMPORARY_CHEESE_PRODUCT } from '../data/demo/temporary-cheese-demo';
 import { WorkflowPageHeader } from './workflow-page-header';
+
+const INTENSITY_CHART_MAX = 5;
+
+function toFivePointIntensity(value: number, sourceScale: 5 | 10) {
+  const normalized = sourceScale === 10 ? value / 2 : value;
+  return Math.max(0, Math.min(INTENSITY_CHART_MAX, normalized));
+}
 
 function buildImportedProfiles(dataset: ReturnType<typeof useInstrumentalDataset>['data']): EnhancedSensoryProfile[] {
   return (dataset?.eTongueData ?? []).map(sample => {
@@ -114,26 +123,50 @@ export function SurveyAnalysis() {
     () => filterProjectProducts(products, projectSampleIds, foodType, importBatchId, selectedProjectId),
     [products, projectSampleIds, foodType, importBatchId, selectedProjectId],
   );
+  // Same per-sample rollup Decision uses, so both pages agree on "where are
+  // we" instead of Insights staying silent while Decision says something else.
+  const insightsReadinessItems = useMemo(() => (
+    projectInstrumentSamples.map(sample => assessSampleWorkflow({
+      sample,
+      product: projectProducts.find(product => product.sourceSampleId === sample.sampleId),
+      responseCount: liveAggregations.find(item => item.sourceSampleId === sample.sampleId)?.n ?? 0,
+      minimumResponses,
+      hasGcms: (instrumentalDataset?.gcmsData[sample.sampleId]?.length ?? 0) > 0,
+      hasComposition: Boolean(instrumentalDataset?.compositionData[sample.sampleId]),
+    }))
+  ), [instrumentalDataset, liveAggregations, minimumResponses, projectInstrumentSamples, projectProducts]);
+  const projectReadiness = useMemo(() => summarizeProjectReadiness(insightsReadinessItems), [insightsReadinessItems]);
   const importedProfiles = useMemo(() => buildImportedProfiles(instrumentalDataset), [instrumentalDataset]);
   const mergedProfiles = useMemo(() => mergeAnalysisProfiles(ENHANCED_SENSORY_DATA, importedProfiles), [importedProfiles]);
+  // A sample only earns a spot in the interactive view once it has real
+  // evidence — either baked-in reference/demo data, or at least one live
+  // response. Freshly imported machine samples with zero responses so far
+  // stay out of the chart UI (which would otherwise be blank) and show up in
+  // ProjectReadinessSetupCard's per-sample list instead, appearing here the
+  // moment their first response comes in.
+  const findLiveAggregationForSample = (sampleId: string, sampleName: string) => liveAggregations.find(aggregation =>
+    aggregation.sourceSampleId === sampleId ||
+    aggregation.productName.toLowerCase() === sampleName.toLowerCase() ||
+    aggregation.productName.toLowerCase().includes(`(${sampleId.toLowerCase()})`)
+  );
+  const hasEvidence = (profile: EnhancedSensoryProfile) =>
+    !projectSampleIds.has(profile.sampleId) // reference/demo profile, or out-of-project browsing
+    || Boolean(findLiveAggregationForSample(profile.sampleId, profile.sampleName));
   const projectSamples = useMemo(() => {
     if (projectInstrumentSamples.length > 0) {
-      return mergedProfiles.filter(profile => projectSampleIds.has(profile.sampleId));
+      return mergedProfiles.filter(profile => projectSampleIds.has(profile.sampleId) && hasEvidence(profile));
     }
     if (importBatchId) return [];
     return mergedProfiles.filter(profile => sampleMatchesFoodType(profile.sampleId, profile.sampleName) === foodType);
-  }, [projectInstrumentSamples.length, projectSampleIds, mergedProfiles, importBatchId, foodType]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectInstrumentSamples.length, projectSampleIds, mergedProfiles, importBatchId, foodType, liveAggregations]);
 
   const selectedSample = projectSamples.some(sample => sample.sampleId === requestedSample)
     ? requestedSample
     : projectSamples[0]?.sampleId ?? '';
   const selectedData = projectSamples.find(sample => sample.sampleId === selectedSample);
   const selectedInstrument = projectInstrumentSamples.find(sample => sample.sampleId === selectedSample);
-  const matchingLiveData = selectedData ? liveAggregations.find(aggregation =>
-    aggregation.sourceSampleId === selectedData.sampleId ||
-    aggregation.productName.toLowerCase() === selectedData.sampleName.toLowerCase() ||
-    aggregation.productName.toLowerCase().includes(`(${selectedData.sampleId.toLowerCase()})`)
-  ) : undefined;
+  const matchingLiveData = selectedData ? findLiveAggregationForSample(selectedData.sampleId, selectedData.sampleName) : undefined;
   const usingLiveData = Boolean(matchingLiveData);
   const usingTemporaryDemo = matchingLiveData?.productId === TEMPORARY_CHEESE_PRODUCT.id;
   const usingReferenceData = Boolean(selectedData && !selectedInstrument && !matchingLiveData);
@@ -169,9 +202,54 @@ export function SurveyAnalysis() {
 
   if (!selectedData) {
     const activeLabel = foodType === 'all' ? 'selected food types' : formatFoodTypeLabel(foodType);
+
+    // Samples were imported and are moving through the pipeline, just none
+    // have live evidence yet — show the same setup/status page Decision uses
+    // instead of a bare "nothing here" empty state (this only triggers when
+    // every imported sample still has zero responses; the moment any one of
+    // them gets a response it graduates into the interactive view above).
+    if (projectInstrumentSamples.length > 0) {
+      const awaitingResponses = projectReadiness.stage === 'awaiting-responses';
+      return (
+        <div className="space-y-6">
+          <WorkflowPageHeader
+            title="Insights"
+            description={`Interpret panel and instrumental evidence for ${activeLabel}.`}
+          />
+          <ProjectReadinessSetupCard
+            icon={BarChart3}
+            headline={awaitingResponses ? 'Questionnaires are live — waiting on panelist responses' : 'Create questionnaires from the imported data first'}
+            description={awaitingResponses
+              ? `${projectReadiness.withQuestionnaire} questionnaire${projectReadiness.withQuestionnaire === 1 ? '' : 's'} ${projectReadiness.withQuestionnaire === 1 ? 'has' : 'have'} been sent to panelists. Each sample's charts appear here automatically as soon as its first responses come in.`
+              : `${activeLabel} is in the platform. The next step is turning those imported machine samples into panelist questionnaires so Insights has evidence to interpret.`}
+            stats={[
+              { value: projectInstrumentSamples.length, label: 'machine samples imported' },
+              { value: projectReadiness.withQuestionnaire, label: 'questionnaires sent' },
+              { value: projectReadiness.totalResponses, label: 'responses collected' },
+            ]}
+            items={insightsReadinessItems}
+            minimumResponses={minimumResponses}
+            actions={awaitingResponses ? (
+              <Button asChild>
+                <Link to="/admin">Go to Studies</Link>
+              </Button>
+            ) : (
+              <>
+                <Button asChild>
+                  <Link to="/stage1">Create questionnaires</Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link to="/admin">Review questionnaire setup</Link>
+                </Button>
+              </>
+            )}
+          />
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-6">
-        <ProjectHeader />
         <WorkflowPageHeader
           title="Insights"
           description={`Interpret panel and instrumental evidence for ${activeLabel}.`}
@@ -195,8 +273,18 @@ export function SurveyAnalysis() {
         id: `cata-${attribute}`, attribute, count, percentage: (count / 14) * 100,
       })).sort((a, b) => b.count - a.count);
   const activeIntensity = matchingLiveData
-    ? Object.entries(matchingLiveData.intensity).map(([attribute, value]) => ({ id: `intensity-${attribute}`, attribute, value, fullMark: 5 }))
-    : Object.entries(selectedData.intensity).map(([attribute, value]) => ({ id: `intensity-${attribute}`, attribute, value, fullMark: 10 }));
+    ? Object.entries(matchingLiveData.intensity).map(([attribute, value]) => ({
+        id: `intensity-${attribute}`,
+        attribute,
+        value: toFivePointIntensity(value, 5),
+        fullMark: INTENSITY_CHART_MAX,
+      }))
+    : Object.entries(selectedData.intensity).map(([attribute, value]) => ({
+        id: `intensity-${attribute}`,
+        attribute,
+        value: toFivePointIntensity(value, 10),
+        fullMark: INTENSITY_CHART_MAX,
+      }));
   const activeHedonic = matchingLiveData
     ? ['overall', 'appearance', 'aroma', 'flavor', 'texture'].map(category => ({
         id: `hedonic-${category}`, category: category === 'flavor' ? 'Flavour' : category[0].toUpperCase() + category.slice(1),
@@ -244,11 +332,7 @@ export function SurveyAnalysis() {
   const showComparison = comparisonProfiles.length > 1 || multiSampleProducts.length > 0;
   const comments = matchingLiveData ? commentsByProduct[matchingLiveData.productId] ?? [] : [];
   const prototypeScores = projectSamples.map(sample => {
-    const live = liveAggregations.find(aggregation =>
-      aggregation.sourceSampleId === sample.sampleId ||
-      aggregation.productName.toLowerCase() === sample.sampleName.toLowerCase() ||
-      aggregation.productName.toLowerCase().includes(`(${sample.sampleId.toLowerCase()})`)
-    );
+    const live = findLiveAggregationForSample(sample.sampleId, sample.sampleName);
     return {
       sample,
       live,
@@ -328,8 +412,6 @@ export function SurveyAnalysis() {
 
   return (
     <div className="space-y-6">
-      <ProjectHeader />
-
       <WorkflowPageHeader
         title="Insights"
         description="Separate trained panel evidence from concept testing evidence so product performance and marketing appeal stay clear."
@@ -393,8 +475,25 @@ export function SurveyAnalysis() {
               overviewEvidence={overviewEvidence}
               likingContent={<HedonicTab activeHedonicData={activeHedonic} activeAvgHedonic={averageHedonic.toFixed(1)} activePanelistN={panelN} usingLiveData={usingLiveData} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}
               descriptorContent={<CATATab activeCataAttributes={activeCata} activePanelistN={panelN} usingLiveData={usingLiveData} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}
-              intensityContent={<IntensityTab activeIntensityData={activeIntensity} activePanelistN={panelN} usingLiveData={usingLiveData} intensityMax={usingLiveData ? 5 : 10} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}
+              intensityContent={<IntensityTab activeIntensityData={activeIntensity} activePanelistN={panelN} usingLiveData={usingLiveData} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}
               commentsContent={<CommentsTab usingLiveData={usingLiveData} matchingLiveData={matchingLiveData} commentsByProduct={commentsByProduct} />}
+              comparisonContent={showComparison && (
+                <section className="space-y-4">
+                  <InsightsSectionHeader id="sample-comparison" icon={Layers} title="Sample comparison" description="Compare only samples and multi-sample studies belonging to the active project." />
+                  {comparisonProfiles.length > 1 && (
+                    <AllSamplesComparisonView allSamplesHedonic={allSamplesHedonic} enhancedSensoryData={comparisonProfiles} usingLiveData={comparisonProfiles.every(sample => liveAggregations.some(aggregation => aggregation.sourceSampleId === sample.sampleId))} responseCount={liveResponseCount} />
+                  )}
+                  {multiSampleProducts.length > 0 && (
+                    <MultiSampleAnalysis
+                      multiSampleResponses={multiSampleResponses}
+                      multiSampleProducts={multiSampleProducts}
+                      selectedMultiProduct={activeMultiSampleProduct}
+                      setSelectedMultiProduct={setSelectedMultiProduct}
+                      minimumResponses={minimumResponses}
+                    />
+                  )}
+                </section>
+              )}
             />
           </section>
         </TabsContent>
@@ -432,24 +531,6 @@ export function SurveyAnalysis() {
           <ChevronDown className="size-4 shrink-0 text-slate-500" aria-hidden />
         </summary>
         <div className="space-y-8 border-t border-slate-200 p-5">
-      {showComparison && (
-        <section className="space-y-4">
-          <InsightsSectionHeader id="sample-comparison" icon={Layers} title="Sample comparison" description="Compare only samples and multi-sample studies belonging to the active project." />
-          {comparisonProfiles.length > 1 && (
-            <AllSamplesComparisonView allSamplesHedonic={allSamplesHedonic} enhancedSensoryData={comparisonProfiles} usingLiveData={comparisonProfiles.every(sample => liveAggregations.some(aggregation => aggregation.sourceSampleId === sample.sampleId))} responseCount={liveResponseCount} />
-          )}
-          {multiSampleProducts.length > 0 && (
-            <MultiSampleAnalysis
-              multiSampleResponses={multiSampleResponses}
-              multiSampleProducts={multiSampleProducts}
-              selectedMultiProduct={activeMultiSampleProduct}
-              setSelectedMultiProduct={setSelectedMultiProduct}
-              minimumResponses={minimumResponses}
-            />
-          )}
-        </section>
-      )}
-
       <section className="space-y-4">
         <InsightsSectionHeader id="comments-themes" icon={MessageCircle} title="Comments and themes" description="Raw panelist language remains visible alongside clear response coverage." />
         <CommentsTab usingLiveData={usingLiveData} matchingLiveData={matchingLiveData} commentsByProduct={commentsByProduct} />

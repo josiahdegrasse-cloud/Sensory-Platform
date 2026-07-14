@@ -1,12 +1,14 @@
 import type { CommercializationReportSnapshot } from '../commercialization-report';
 import type { WrittenReportResult } from './types';
 import type { ReportSectionDrafts } from './agent-types';
+import { containsInternalWritingInstructions } from '../report-evaluator';
 
 function sectionText(draft: WrittenReportResult | undefined, patterns: RegExp[]): string {
   const sections = draft?.pages.flatMap(page => page.sections) ?? [];
-  return sections.find(section =>
+  const body = sections.find(section =>
     patterns.some(pattern => pattern.test(`${section.sectionId} ${section.heading} ${section.body}`)),
   )?.body.trim() ?? '';
+  return containsInternalWritingInstructions(body) ? '' : body;
 }
 
 export function mapWrittenDraftToSections(

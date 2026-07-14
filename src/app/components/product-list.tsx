@@ -21,7 +21,7 @@ export function ProductListPanel({
   listLabel?: string;
 }) {
   return (
-    <aside className={cn('self-start overflow-hidden rounded-lg border border-slate-200 bg-white', className)}>
+    <aside className={cn('flex flex-col self-start overflow-hidden rounded-lg border border-slate-200 bg-white', className)}>
       <div className="border-b border-slate-200 px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -32,7 +32,7 @@ export function ProductListPanel({
         </div>
         {controls && <div className="mt-3 space-y-2">{controls}</div>}
       </div>
-      <div aria-label={listLabel ?? title} className="space-y-1 p-2">
+      <div aria-label={listLabel ?? title} className="min-h-0 flex-1 space-y-1 p-2">
         {children}
       </div>
       {footer && <div className="border-t border-slate-200 bg-slate-50 px-4 py-3">{footer}</div>}

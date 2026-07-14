@@ -14,13 +14,24 @@ export const GREEN: Rgb = [5, 150, 105];
 export const AMBER: Rgb = [180, 83, 9];
 export const ROSE: Rgb = [190, 18, 60];
 
-// "Editorial sage" template — cream/sage masthead palette.
-export const CREAM: Rgb = [247, 244, 236];
-export const CREAM_LINE: Rgb = [237, 232, 220];
-export const SAGE: Rgb = [124, 154, 137];
-export const SAGE_DARK: Rgb = [82, 108, 95];
-export const CHARCOAL: Rgb = [42, 53, 48];
-export const BODY_SAGE: Rgb = [101, 117, 108];
+// The legacy template key is retained for saved reports, but now renders the
+// NFI house style established by its authored food-industry publications.
+export const NFI_CORAL: Rgb = [124, 154, 137];
+export const NFI_CORAL_DARK: Rgb = [82, 108, 95];
+export const NFI_AQUA: Rgb = [170, 192, 180];
+export const NFI_AQUA_DARK: Rgb = [82, 108, 95];
+export const NFI_AQUA_SOFT: Rgb = [238, 243, 240];
+export const NFI_INK: Rgb = [42, 53, 48];
+export const NFI_MUTED: Rgb = [101, 117, 108];
+export const NFI_SURFACE: Rgb = [247, 244, 236];
+export const NFI_LINE: Rgb = [237, 232, 220];
+
+export const CREAM: Rgb = NFI_SURFACE;
+export const CREAM_LINE: Rgb = NFI_LINE;
+export const SAGE: Rgb = NFI_CORAL;
+export const SAGE_DARK: Rgb = NFI_CORAL_DARK;
+export const CHARCOAL: Rgb = NFI_INK;
+export const BODY_SAGE: Rgb = NFI_MUTED;
 
 /** Shared layout/branding context passed to every PDF section renderer. */
 export interface PdfContext {
@@ -92,7 +103,7 @@ export function setText(doc: PdfDocument, color: Rgb, size: number, weight: 'nor
 
 export function setDisplayText(doc: PdfDocument, color: Rgb, size: number, weight: 'normal' | 'bold' = 'bold') {
   doc.setTextColor(...color);
-  doc.setFont('times', weight);
+  doc.setFont('helvetica', weight);
   doc.setFontSize(size);
 }
 
@@ -151,6 +162,10 @@ function pageHeader(ctx: PdfContext) {
   if (template === 'editorial-sage') {
     doc.setFillColor(...CREAM);
     doc.rect(0, 0, width, height, 'F');
+    doc.setFillColor(...NFI_CORAL);
+    doc.rect(0, 0, width * 0.78, 4, 'F');
+    doc.setFillColor(...NFI_AQUA);
+    doc.rect(width * 0.78, 0, width * 0.22, 4, 'F');
   }
   setText(doc, primary, 7.5, 'bold');
   doc.text(organizationName, margin, 26);
@@ -166,6 +181,77 @@ export function addContentPage(ctx: PdfContext) {
   ctx.doc.addPage();
   pageHeader(ctx);
   return 64;
+}
+
+/** Consistent conclusion-led heading used by the eight-page client report. */
+export function reportPageHeading(
+  ctx: PdfContext,
+  page: number,
+  section: string,
+  title: string,
+  purpose: string,
+) {
+  const { doc, width, margin, contentWidth, primary, template } = ctx;
+  const brandTemplate = template === 'editorial-sage';
+  const brandAccent = brandTemplate ? NFI_CORAL : ctx.accent;
+  const sectionTone = brandTemplate ? NFI_AQUA_DARK : ctx.accent;
+  const purposeTone = brandTemplate ? NFI_MUTED : SLATE_500;
+
+  setDisplayText(doc, lighten(brandAccent, 0.88), 46, 'bold');
+  doc.text(String(page).padStart(2, '0'), width - margin, 92, { align: 'right' });
+  setText(doc, sectionTone, 8, 'bold');
+  doc.text(`PAGE ${page} · ${section.toUpperCase()}`, margin, 68);
+
+  let titleSize = 24;
+  setDisplayText(doc, primary, titleSize, 'bold');
+  while (doc.getTextWidth(title) > contentWidth - 52 && titleSize > 14) {
+    titleSize -= 1;
+    setDisplayText(doc, primary, titleSize, 'bold');
+  }
+  doc.text(title, margin, 99);
+  const bottom = paragraph(doc, purpose, margin, 122, Math.min(contentWidth, 450), {
+    color: purposeTone,
+    size: 9,
+    lineHeight: 13,
+  });
+
+  doc.setDrawColor(...brandAccent);
+  doc.setLineWidth(3);
+  doc.line(margin, bottom + 8, margin + 48, bottom + 8);
+  doc.setDrawColor(...(brandTemplate ? NFI_AQUA : ctx.accent));
+  doc.line(margin + 54, bottom + 8, margin + 78, bottom + 8);
+  doc.setDrawColor(...(brandTemplate ? NFI_LINE : SLATE_200));
+  doc.setLineWidth(0.6);
+  doc.line(margin + 86, bottom + 8, width - margin, bottom + 8);
+  return bottom + 30;
+}
+
+/** A concise authored interpretation band, distinct from measured evidence. */
+export function nfiViewBand(
+  ctx: PdfContext,
+  y: number,
+  label: string,
+  text: string,
+  height = 58,
+) {
+  const { doc, margin, contentWidth, template } = ctx;
+  const fill = template === 'editorial-sage' ? NFI_AQUA_SOFT : lighten(ctx.accent, 0.91);
+  const labelTone = template === 'editorial-sage' ? NFI_CORAL_DARK : ctx.accent;
+  const textTone = template === 'editorial-sage' ? NFI_INK : SLATE_950;
+  doc.setFillColor(...fill);
+  doc.rect(margin, y, contentWidth, height, 'F');
+  doc.setDrawColor(...(template === 'editorial-sage' ? NFI_AQUA : ctx.accent));
+  doc.setLineWidth(1.2);
+  doc.line(margin, y, margin + contentWidth, y);
+  setText(doc, labelTone, 6.6, 'bold');
+  doc.text(`NFI VIEW · ${label.toUpperCase()}`, margin + 14, y + 19);
+  paragraph(doc, text, margin + 14, y + 38, contentWidth - 28, {
+    color: textTone,
+    size: 7.7,
+    weight: 'bold',
+    lineHeight: 9.8,
+  });
+  return y + height;
 }
 
 /**
@@ -201,24 +287,23 @@ export function chapterBanner(ctx: PdfContext, chapter: string, title: string, y
  * Branded footer applied to every page with a quiet publication-style folio.
  */
 export function renderFooter(ctx: PdfContext, page: number, reportFooter?: string) {
-  const { doc, width, height, margin, primary, accent, template, documentWarning } = ctx;
+  const { doc, width, height, margin, primary, template, documentWarning } = ctx;
   if (documentWarning) {
     setText(doc, AMBER, 6.5, 'bold');
     const warning = doc.splitTextToSize(documentWarning, width - margin * 2 - 42) as string[];
     doc.text(warning.slice(0, 1), margin, height - 34);
   }
   if (template === 'editorial-sage') {
-    setText(doc, BODY_SAGE, 7);
-    doc.text(reportFooter || 'Confidential commercialization report', margin, height - 19);
-    const label = String(page).padStart(2, '0');
-    const pillWidth = 30;
-    const pillHeight = 17;
-    const pillX = width - margin - pillWidth;
-    const pillY = height - 28;
-    doc.setFillColor(...accent);
-    doc.roundedRect(pillX, pillY, pillWidth, pillHeight, pillHeight / 2, pillHeight / 2, 'F');
-    setText(doc, CREAM, 8, 'bold');
-    doc.text(label, pillX + pillWidth / 2, pillY + 12, { align: 'center' });
+    doc.setDrawColor(...NFI_LINE);
+    doc.setLineWidth(0.5);
+    doc.line(margin, height - 28, width - margin, height - 28);
+    setText(doc, NFI_MUTED, 7);
+    doc.text(reportFooter || `Prepared by ${ctx.organizationName} · Confidential commercialization report`, margin, height - 14);
+    doc.setDrawColor(...NFI_AQUA);
+    doc.setLineWidth(2.2);
+    doc.line(width - margin - 45, height - 15, width - margin - 24, height - 15);
+    setText(doc, NFI_CORAL_DARK, 8, 'bold');
+    doc.text(String(page).padStart(2, '0'), width - margin, height - 13, { align: 'right' });
     return;
   }
   doc.setDrawColor(...SLATE_200);

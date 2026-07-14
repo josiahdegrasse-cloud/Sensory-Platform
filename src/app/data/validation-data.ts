@@ -1,6 +1,6 @@
 // Parallel Validation Study: 14 semi-trained panelists + 8 trained panel comparison
 // Study design: ISSF review 4.5 & Technical Review Feb 2026
-// Target: 95% similarity (r ≥ 0.91) achievable
+// Reference comparison for transparent demo evaluation; not external validation.
 
 export interface ValidationRecord {
   sampleId: string;
@@ -13,22 +13,23 @@ export interface ValidationRecord {
   delta: number; // absolute difference
 }
 
-// Current 14-sample validation set (expanded from pilot)
+// NFI-GST-2.1 evaluation snapshot against the original 14 trained-panel
+// references. This is demo/reference evidence, not an external validation set.
 export const VALIDATION_DATASET: ValidationRecord[] = [
-  { sampleId: "S1", issfScore: 73.7, trainedPanelScore: 79, issfDecision: "GO", trainedPanelDecision: "GO", agreement: true, category: "Coconut-based", delta: 5.3 },
-  { sampleId: "S2", issfScore: 65.2, trainedPanelScore: 72, issfDecision: "TWEAK", trainedPanelDecision: "GO", agreement: false, category: "Coconut-based", delta: 6.8 },
-  { sampleId: "S3", issfScore: 34.8, trainedPanelScore: 38, issfDecision: "STOP", trainedPanelDecision: "STOP", agreement: true, category: "Coconut-based", delta: 3.2 },
-  { sampleId: "S4", issfScore: 76.3, trainedPanelScore: 81, issfDecision: "GO", trainedPanelDecision: "GO", agreement: true, category: "Coconut-based", delta: 4.7 },
-  { sampleId: "S5", issfScore: 79.1, trainedPanelScore: 83, issfDecision: "GO", trainedPanelDecision: "GO", agreement: true, category: "Cashew-based", delta: 3.9 },
-  { sampleId: "S6", issfScore: 72.9, trainedPanelScore: 78, issfDecision: "GO", trainedPanelDecision: "GO", agreement: true, category: "Cashew-based", delta: 5.1 },
-  { sampleId: "S7", issfScore: 63.8, trainedPanelScore: 68, issfDecision: "TWEAK", trainedPanelDecision: "TWEAK", agreement: true, category: "Cashew-based", delta: 4.2 },
-  { sampleId: "S8", issfScore: 83.2, trainedPanelScore: 86, issfDecision: "GO", trainedPanelDecision: "GO", agreement: true, category: "Cashew-based", delta: 2.8 },
-  { sampleId: "S9", issfScore: 67.2, trainedPanelScore: 73, issfDecision: "TWEAK", trainedPanelDecision: "GO", agreement: false, category: "Mixed base", delta: 5.8 },
-  { sampleId: "S10", issfScore: 71.1, trainedPanelScore: 76, issfDecision: "GO", trainedPanelDecision: "GO", agreement: true, category: "Mixed base", delta: 4.9 },
-  { sampleId: "S11", issfScore: 64.4, trainedPanelScore: 70, issfDecision: "TWEAK", trainedPanelDecision: "TWEAK", agreement: true, category: "Mixed base", delta: 5.6 },
-  { sampleId: "S12", issfScore: 89.1, trainedPanelScore: 91, issfDecision: "GO", trainedPanelDecision: "GO", agreement: true, category: "Mixed base", delta: 1.9 },
-  { sampleId: "D1", issfScore: 94.2, trainedPanelScore: 95, issfDecision: "GO", trainedPanelDecision: "GO", agreement: true, category: "Dairy", delta: 0.8 },
-  { sampleId: "D2", issfScore: 91.8, trainedPanelScore: 93, issfDecision: "GO", trainedPanelDecision: "GO", agreement: true, category: "Dairy", delta: 1.2 },
+  { sampleId: "S1", issfScore: 71.29, trainedPanelScore: 79, issfDecision: "TWEAK", trainedPanelDecision: "GO", agreement: false, category: "Coconut-based", delta: 7.71 },
+  { sampleId: "S2", issfScore: 60.32, trainedPanelScore: 72, issfDecision: "TWEAK", trainedPanelDecision: "GO", agreement: false, category: "Coconut-based", delta: 11.68 },
+  { sampleId: "S3", issfScore: 0, trainedPanelScore: 38, issfDecision: "STOP", trainedPanelDecision: "STOP", agreement: true, category: "Coconut-based", delta: 38 },
+  { sampleId: "S4", issfScore: 85.71, trainedPanelScore: 81, issfDecision: "GO", trainedPanelDecision: "GO", agreement: true, category: "Coconut-based", delta: 4.71 },
+  { sampleId: "S5", issfScore: 78.7, trainedPanelScore: 83, issfDecision: "GO", trainedPanelDecision: "GO", agreement: true, category: "Cashew-based", delta: 4.3 },
+  { sampleId: "S6", issfScore: 73.73, trainedPanelScore: 78, issfDecision: "TWEAK", trainedPanelDecision: "GO", agreement: false, category: "Cashew-based", delta: 4.27 },
+  { sampleId: "S7", issfScore: 54.68, trainedPanelScore: 68, issfDecision: "TWEAK", trainedPanelDecision: "TWEAK", agreement: true, category: "Cashew-based", delta: 13.32 },
+  { sampleId: "S8", issfScore: 84.38, trainedPanelScore: 86, issfDecision: "GO", trainedPanelDecision: "GO", agreement: true, category: "Cashew-based", delta: 1.62 },
+  { sampleId: "S9", issfScore: 63.11, trainedPanelScore: 73, issfDecision: "TWEAK", trainedPanelDecision: "GO", agreement: false, category: "Mixed base", delta: 9.89 },
+  { sampleId: "S10", issfScore: 69.19, trainedPanelScore: 76, issfDecision: "TWEAK", trainedPanelDecision: "GO", agreement: false, category: "Mixed base", delta: 6.81 },
+  { sampleId: "S11", issfScore: 56.34, trainedPanelScore: 70, issfDecision: "TWEAK", trainedPanelDecision: "TWEAK", agreement: true, category: "Mixed base", delta: 13.66 },
+  { sampleId: "S12", issfScore: 84.86, trainedPanelScore: 91, issfDecision: "GO", trainedPanelDecision: "GO", agreement: true, category: "Mixed base", delta: 6.14 },
+  { sampleId: "D1", issfScore: 90.18, trainedPanelScore: 95, issfDecision: "GO", trainedPanelDecision: "GO", agreement: true, category: "Dairy", delta: 4.82 },
+  { sampleId: "D2", issfScore: 87.11, trainedPanelScore: 93, issfDecision: "GO", trainedPanelDecision: "GO", agreement: true, category: "Dairy", delta: 5.89 },
 ];
 
 // Panelist calibration tracking (14 semi-trained, 2×90min HFD training)
@@ -142,19 +143,20 @@ export const INTER_RATER_STATS = {
   olfactometryPanelAgreement: 0.88, // Odour perception vs. GC-O
 };
 
-// Method comparison statistics (target: 95% similarity)
+// Current NFI-GST-2.1 demo/reference comparison. Recalculate whenever the
+// method version or validation snapshot changes.
 export const METHOD_COMPARISON = {
-  pearsonR: 0.91, // Correlation between ISSF and Trained Panel scores (achieved target)
-  rSquared: 0.83, // Variance explained
-  rmse: 4.8, // Root mean square error
-  mae: 3.7, // Mean absolute error
-  sensitivity: 0.92, // True positive rate (correctly identified GO)
-  specificity: 1.00, // True negative rate (correctly identified STOP)
-  ppv: 1.00, // Positive predictive value
-  npv: 0.67, // Negative predictive value
-  accuracy: 0.86, // Overall agreement (12/14)
-  f1Score: 0.96,
-  avgDelta: 4.2, // Average absolute difference
+  pearsonR: 0.977,
+  rSquared: 0.955,
+  rmse: 12.83,
+  mae: 9.49,
+  sensitivity: 0.545,
+  specificity: 1.00,
+  ppv: 1.00,
+  npv: 0.375,
+  accuracy: 0.643, // Exact three-class agreement (9/14)
+  f1Score: 0.706,
+  avgDelta: 9.49,
 };
 
 // Cost savings analysis (small/medium company use case)
@@ -176,27 +178,27 @@ export const USE_CASE_BOUNDARIES = {
     title: "✅ USE ISSF SCREENING FOR:",
     criteria: [
       "Early screening & rapid iteration (6–7 samples max per session)",
-      "Products with ISSF confidence score ≥70%",
+      "Products with ISSF evidence-strength index ≥70%",
       "Clear GC-O defects (odour intensity ≥3 on off-notes)",
       "Go/No-Go decisions on prototypes",
       "Budget-conscious early development phases",
       "Rapid iteration cycles (<1 week turnaround)",
       "Twice-per-month evaluation cadence",
     ],
-    historicalAccuracy: "86% agreement with trained panel (n=14, r=0.91)"
+    historicalAccuracy: "64% exact agreement with trained panel in the NFI-GST-2.1 demo reference set (9/14; r=0.977)"
   },
   requireTrainedPanel: {
     title: "⚠️ ALWAYS USE TRAINED PANEL FOR:",
     criteria: [
       "Final product validation before market launch",
       "Regulatory claims requiring sensory support",
-      "Products with ISSF confidence score <70%",
+      "Products with ISSF evidence-strength index <70%",
       "Conflicting signals (high e-tongue, low hedonic)",
       "Premium positioning requiring expert verification",
       "GC-O odour intensity ≥4 (critical defect escalation)",
       "Subtle reformulations requiring expert discrimination",
     ],
-    historicalAccuracy: "2 escalations in 14 samples (S2, S9)"
+    historicalAccuracy: "5 conservative non-GO calls against trained-panel GO references in the current 14-sample demo set"
   }
 };
 

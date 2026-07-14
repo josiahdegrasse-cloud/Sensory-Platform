@@ -203,16 +203,16 @@ interface IntensityTabProps {
   activeIntensityData: IntensityDatum[];
   activePanelistN: number;
   usingLiveData: boolean;
-  intensityMax: number;
   activeSampleId: string;
   activeSampleName: string;
 }
+
+const INTENSITY_SCALE_MAX = 5;
 
 export function IntensityTab({
   activeIntensityData,
   activePanelistN,
   usingLiveData,
-  intensityMax,
   activeSampleId,
   activeSampleName,
 }: IntensityTabProps) {
@@ -222,12 +222,12 @@ export function IntensityTab({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="size-5 text-blue-600" />
-              Sensory intensity ratings ({usingLiveData ? '1–5' : '0–10'} scale)
+              Sensory intensity ratings (0–5 scale)
             </CardTitle>
             <DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={activePanelistN} />
           </div>
           <p className="text-sm text-slate-700">
-            Mean intensity scores from {activePanelistN} {usingLiveData ? 'panelists (live)' : 'semi-trained panelists'}
+            Mean intensity scores from {activePanelistN} {usingLiveData ? 'panelists (live)' : 'semi-trained panelists'} on a fixed 0–5 frame.
           </p>
           <SampleContext name={activeSampleName} id={activeSampleId} />
         </CardHeader>
@@ -238,7 +238,7 @@ export function IntensityTab({
                 <RadarChart data={activeIntensityData}>
                   <PolarGrid />
                   <PolarAngleAxis dataKey="attribute" />
-                  <PolarRadiusAxis angle={90} domain={[0, intensityMax]} />
+                  <PolarRadiusAxis angle={90} domain={[0, INTENSITY_SCALE_MAX]} tickCount={6} />
                   <Radar
                     name="Intensity"
                     dataKey="value"
@@ -253,21 +253,21 @@ export function IntensityTab({
             <div className="space-y-3">
               {activeIntensityData.map(({ attribute, value }) => {
                 const label = attribute.replace(/([A-Z])/g, ' $1').trim();
-                const hi = usingLiveData ? 3.5 : 7;
-                const mid = usingLiveData ? 2 : 4;
+                const hi = 3.5;
+                const mid = 2;
                 const color = value >= hi ? "emerald" : value >= mid ? "blue" : "slate";
                 return (
                   <div key={attribute} className="space-y-1">
                     <div className="flex items-center justify-between text-sm">
                       <span className="capitalize font-medium text-slate-700">{label}</span>
                       <Badge className={`bg-${color}-600 text-white`}>
-                        {value.toFixed(1)}/{intensityMax}
+                        {value.toFixed(1)}/{INTENSITY_SCALE_MAX}
                       </Badge>
                     </div>
                     <div className="w-full bg-slate-200 rounded-full h-3">
                       <div
                         className={`bg-${color}-600 h-3 rounded-full transition-all`}
-                        style={{ width: `${(value / intensityMax) * 100}%` }}
+                        style={{ width: `${(value / INTENSITY_SCALE_MAX) * 100}%` }}
                       ></div>
                     </div>
                   </div>
@@ -380,7 +380,7 @@ export function HedonicTab({
                 : 'Reference/demo liking scores are shown for method orientation only.'}
           </p>
 
-          <div className="mt-6 grid grid-cols-4 gap-4">
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
             {activeHedonicData.map(item => {
               const color = item.score >= 7 ? "emerald" : item.score >= 5 ? "amber" : "rose";
               const interpretation =
@@ -389,7 +389,7 @@ export function HedonicTab({
                 "Disliked";
 
               return (
-                <div key={item.category} className={`p-4 bg-${color}-50 rounded-lg border border-${color}-200`}>
+                <div key={item.category} className={`min-w-0 rounded-lg border border-${color}-200 bg-${color}-50 p-3`}>
                   <div className={`text-xs text-${color}-700 mb-1`}>{item.category}</div>
                   <div className={`text-3xl font-bold text-${color}-900`}>{item.score.toFixed(1)}</div>
                   <div className={`text-xs text-${color}-600 mt-1`}>{interpretation}</div>

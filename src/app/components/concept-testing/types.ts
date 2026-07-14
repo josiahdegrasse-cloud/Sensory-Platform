@@ -2,19 +2,18 @@
 
 export type QuestionType = 'scale' | 'multiple_choice' | 'open_text' | 'ranking' | 'image_choice';
 
-/** Structured positioning dimensions for a concept. Each dimension is a
- * controlled enum so results can be compared across concepts and correlated
- * with consumer outcomes. All fields are nullable — dimensions are optional
- * but strongly encouraged for causal interpretation. */
+/** Structured positioning dimensions for a concept. Known values are suggested
+ * presets for cross-concept comparison; custom strings from "Other" are allowed
+ * when a concept needs a more specific positioning cue. */
 export interface VariantDimensions {
-  positioning:       'premium' | 'accessible'                                                        | null;
-  visualComplexity:  'minimal' | 'expressive'                                                        | null;
-  appeal:            'health'  | 'indulgent'                                                          | null;
-  channel:           'retail'  | 'lifestyle'                                                          | null;
-  packagingFormat:   'pouch' | 'block' | 'jar' | 'can' | 'bottle' | 'sleeve' | 'tray' | 'tube'      | null;
-  brandColorScheme:  'earthy' | 'vibrant' | 'minimalist' | 'luxury' | 'bold' | 'pastel'              | null;
-  targetDemographic: 'young_active' | 'family' | 'professional' | 'senior' | 'health_seeker'         | null;
-  pricePositioning:  'budget' | 'mainstream' | 'premium' | 'ultra_premium'                           | null;
+  positioning:       string | null;
+  visualComplexity:  string | null;
+  appeal:            string | null;
+  channel:           string | null;
+  packagingFormat:   string | null;
+  brandColorScheme:  string | null;
+  targetDemographic: string | null;
+  pricePositioning:  string | null;
 }
 
 export const EMPTY_VARIANT_DIMENSIONS: VariantDimensions = {
@@ -102,7 +101,7 @@ export interface ConceptDraft {
   brandReference: ConceptBrandReference | null;
 }
 
-export type WizardStep = 'concept' | 'visuals' | 'survey' | 'panel' | 'review' | 'launched';
+export type WizardStep = 'concept' | 'survey' | 'panel' | 'review' | 'launched';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

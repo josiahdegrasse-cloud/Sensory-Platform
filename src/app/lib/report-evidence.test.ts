@@ -64,4 +64,13 @@ describe('Evidence Bundle builder', () => {
     expect(bundle.missingData.some(issue => issue.id === 'missing.s4.gcms')).toBe(true);
     expect(bundle.deterministicConfidence).not.toBe('high');
   });
+
+  it('normalizes displayed confidence weights to 100 percent', () => {
+    const sample = ENHANCED_SENSORY_DATA.find(item => item.sampleId === 'S2')!;
+    const bundle = buildEvidenceBundleFromProfiles({ ...baseInput, projectId: 'S2', profiles: [sample] });
+    const rows = bundle.sensoryProfile!.confidenceCalculation;
+
+    expect(rows.reduce((sum, row) => sum + row.weightPct, 0)).toBeCloseTo(100, 8);
+    rows.forEach(row => expect(row.contribution).toBeCloseTo(row.score * row.weightPct / 100, 8));
+  });
 });

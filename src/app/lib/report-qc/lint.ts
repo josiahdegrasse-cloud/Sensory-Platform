@@ -4,6 +4,8 @@
 // duplicated paragraphs. Deterministic — operates on the rendered section text.
 // ════════════════════════════════════════════════════════════════════════════
 
+import { scanClientFacingText } from '../evidence-assist/policy';
+
 export interface LintFinding {
   code: string;
   message: string;
@@ -23,7 +25,13 @@ const RAW_SYSTEM_PATTERNS: Array<{ code: string; re: RegExp }> = [
 const VAGUE_PRAISE_RE = /\b(strong|credible|market[- ]ready|consumer[- ]approved|world[- ]class|exceptional|outstanding)\b/i;
 const EVIDENCE_MARKER_RE = /\b(\d{1,3}\/100|\d{1,3}%|n\s*=\s*\d+|ISSF|threshold|score)\b/i;
 
-const KNOWN_ACRONYMS = new Set(['ISSF', 'GO', 'STOP', 'AI', 'R&D', 'NFI', 'CATA', 'GST', 'PDF', 'ID', 'GC', 'GCMS', 'ADVANCE', 'CONDITIONAL', 'PILOT', 'VALIDATION']);
+const KNOWN_ACRONYMS = new Set([
+  'ISSF', 'GO', 'STOP', 'AI', 'R&D', 'NFI', 'CATA', 'GST', 'PDF', 'ID', 'GC', 'GCMS',
+  'HACCP',
+  // Uppercase report-status vocabulary is presentation copy, not an acronym.
+  'PRODUCT', 'DECISION', 'READINESS', 'CONCLUSION',
+  'ADVANCE', 'CONDITIONAL', 'PILOT', 'VALIDATION',
+]);
 
 export function lintText(label: string, text: string): LintFinding[] {
   const findings: LintFinding[] = [];
@@ -33,6 +41,12 @@ export function lintText(label: string, text: string): LintFinding[] {
   for (const { code, re } of RAW_SYSTEM_PATTERNS) {
     const match = trimmed.match(re);
     if (match) findings.push({ code, message: `${label}: raw system phrase "${match[0]}".`, excerpt: match[0] });
+  }
+
+  for (const finding of scanClientFacingText(trimmed)) {
+    if (!findings.some(existing => existing.code === finding.code && existing.excerpt === finding.excerpt)) {
+      findings.push(finding);
+    }
   }
 
   // Vague praise without any nearby evidence marker in the same section.

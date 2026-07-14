@@ -183,12 +183,6 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
   const enoughResponses = projectProducts.length > 0 && projectProducts.every(product =>
     (input.responseCountsBySampleId[product.sourceSampleId ?? ''] ?? 0) >= input.minimumResponses
   );
-  const responseWarnings = projectProducts
-    .filter(product => {
-      const n = input.responseCountsBySampleId[product.sourceSampleId ?? ''] ?? 0;
-      return n > 0 && n < input.minimumResponses;
-    })
-    .map(product => `${product.name} has a low response count. The target is ${input.minimumResponses} responses before decision review; continue collecting panelist responses.`);
   const responsesStatus: WorkflowStageStatus = activeStudies.length === 0
     ? 'blocked'
     : enoughResponses
@@ -200,7 +194,7 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
     id: 'responses',
     status: responsesStatus,
     blockers: activeStudies.length === 0 ? ['Launch a valid study before collecting responses. Panelists need an active study route before response progress can begin.'] : [],
-    warnings: responseWarnings,
+    warnings: [],
     completedItems: responseCompleted > 0 ? [`${responseCompleted}/${responseTarget} target responses collected`] : [],
     nextActionLabel: enoughResponses ? 'View response progress' : 'Collect responses',
     nextActionRoute: routeFor('responses'),
@@ -238,7 +232,7 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
       ? 'ready'
       : 'blocked';
   const decisionWarnings = latestDecision && latestDecision.confidence < 70
-    ? [`Decision confidence is ${latestDecision.confidence}%. Treat this decision as cautious guidance and review the underlying evidence before downstream work.`]
+    ? [`Evidence strength is ${latestDecision.confidence}/100. Treat this decision as cautious guidance and review the underlying evidence before downstream work.`]
     : [];
   const decisionStage = enforceNoReadyWithBlockers(stage({
     id: 'decision',

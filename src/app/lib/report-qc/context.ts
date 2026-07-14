@@ -186,8 +186,12 @@ function buildGates(
       id: 'consumer.concept-validation',
       category: 'consumer',
       label: 'Target-consumer concept validation',
-      status: responseCount > 0 ? 'pass' : 'pending',
-      detail: responseCount > 0 ? `${responseCount} concept responses collected.` : 'No concept responses collected (n=0).',
+      status: responseCount >= 30 ? 'pass' : 'pending',
+      detail: responseCount >= 30
+        ? `${responseCount} concept responses collected; minimum interpretation threshold met.`
+        : responseCount > 0
+          ? `${responseCount} concept response${responseCount === 1 ? '' : 's'} collected; too few to interpret (minimum n=30).`
+          : 'No concept responses collected (n=0).',
     },
     {
       id: 'claims.legal-approval',
@@ -256,7 +260,11 @@ function buildConditions(dimensions: DimensionEvidence[], responseCount: number,
   for (const dim of weak) {
     conditions.push(`Bring ${dim.label} to >=${readiness}/100 at pilot scale and revalidate.`);
   }
-  if (responseCount === 0) conditions.push('Collect target-consumer concept evidence before any consumer or market claim.');
+  if (responseCount < 30) {
+    conditions.push(responseCount === 0
+      ? 'Collect target-consumer concept evidence before any consumer or market claim.'
+      : `Expand the concept test from n=${responseCount} to at least n=30 before interpreting descriptors, purchase intent, or market response.`);
+  }
   conditions.push('Obtain claims/legal approval before external distribution.');
   return conditions;
 }
@@ -406,13 +414,16 @@ function buildActions(
     }));
   }
   const prescription = decision.prescriptions[0];
+  const textureValidated = Number(snapshot.decision.dimensions.texture) >= readiness;
   return [
     {
-      workstream: 'Texture optimization',
+      workstream: textureValidated ? 'Texture scale-up confirmation' : 'Texture optimization',
       owner: 'Not assigned — readiness gap',
       dueDate: null,
       unscheduled: true,
-      requiredAction: prescription?.action ?? 'Run a focused texture optimization and repeat validation.',
+      requiredAction: textureValidated
+        ? 'Confirm the validated texture profile at pilot scale and through the intended chilled shelf-life window.'
+        : prescription?.action ?? 'Run a focused texture optimization and repeat validation.',
       completionEvidence: 'Pilot-scale sensory retest',
       passingThreshold: `Texture score >=${readiness}/100, no critical gate failures, sensory panel n>=18`,
       nextGate: 'Pilot validation',
@@ -451,15 +462,15 @@ function buildConceptStrategy(
   if (profile) {
     const hypothesis = profile.conceptHypothesis;
     return {
-      hypothesisOnly: responseCount === 0,
+      hypothesisOnly: responseCount < 30,
       positioning: `Hypothesis - ${hypothesis.positioning}`,
       targetSegment: hypothesis.targetSegment,
       consumerNeed: hypothesis.consumerNeed,
       usageOccasion: hypothesis.usageOccasion,
       productPromise: hypothesis.productPromise,
       reasonsToBelieve: hypothesis.reasonsToBelieve,
-      priceHypothesis: responseCount === 0
-        ? `Hypothesis — ${hypothesis.priceHypothesis} Validation required; no willingness-to-pay evidence has been collected.`
+      priceHypothesis: responseCount < 30
+        ? `Hypothesis — ${hypothesis.priceHypothesis} Validation required; the current concept sample is too small to interpret.`
         : hypothesis.priceHypothesis,
       packagingHypothesis: hypothesis.packagingHypothesis,
       unknowns: profile.claimsBoundary.prohibitedUntilValidated,
@@ -471,23 +482,57 @@ function buildConceptStrategy(
     };
   }
   const concept = snapshot.concept;
-  const hypothesisLabel = responseCount === 0 ? 'Hypothesis — ' : '';
+  const hypothesisLabel = responseCount < 30 ? 'Hypothesis — ' : '';
   const target = concept.targetMarket?.trim();
+  const identity = productIdentity(snapshot);
   return {
-    hypothesisOnly: responseCount === 0,
-    positioning: `${hypothesisLabel}For flexitarian buyers seeking a familiar plant-based cheddar for everyday cooking, ${concept.name || snapshot.product.sampleName} proposes recognizable cheddar-category sensory cues from a coconut-based format; the reason to believe is the trained sensory profile, not consumer validation.`,
-    targetSegment: `${hypothesisLabel}${target ? `${target} flexitarian shoppers` : 'Flexitarian shoppers'} who buy plant-based alternatives but prioritize familiar cheddar cues and cooking versatility.`,
-    consumerNeed: `${hypothesisLabel}A plant-based cheese option that feels familiar enough for routine cooking without implying validated consumer preference.`,
-    usageOccasion: `${hypothesisLabel}Everyday melting, sandwiches, and simple cooked meals; validate the most relevant occasion in concept testing.`,
-    productPromise: `${hypothesisLabel}${concept.keyBenefits || 'Familiar cheddar-category character in a coconut-based format.'}`,
-    reasonsToBelieve: ['Sensory screening outcome GO at the documented ISSF score.', 'High panel agreement on cheddar-category descriptors.'],
+    hypothesisOnly: responseCount < 30,
+    positioning: `${hypothesisLabel}${concept.name || snapshot.product.sampleName} is positioned as ${identity.category}, built around ${identity.positiveCues}; this is a concept hypothesis until broader target-consumer validation is complete.`,
+    targetSegment: `${hypothesisLabel}${target || 'Plant-based cheese shoppers'} seeking ${identity.useBenefit}.`,
+    consumerNeed: `${hypothesisLabel}${identity.consumerNeed}`,
+    usageOccasion: `${hypothesisLabel}${identity.usageOccasions}; validate the priority occasion in concept testing.`,
+    productPromise: `${hypothesisLabel}${concept.keyBenefits || identity.productPromise}`,
+    reasonsToBelieve: ['Sensory screening outcome GO at the documented ISSF score.', `The recorded sensory profile supports ${identity.positiveCues}.`],
     priceHypothesis: `${hypothesisLabel}${concept.pricePoint || 'Test an explicit price range against category alternatives.'}`,
     packagingHypothesis: concept.packagingImageUrl
-      ? `${hypothesisLabel}Use the directional visual to communicate plant-based cheddar clearly while avoiding any implication that texture performance or claims are finalized.`
-      : `${hypothesisLabel}Develop a directional visual that communicates plant-based cheddar and everyday use without overpromising texture.`,
+      ? `${hypothesisLabel}Use the directional visual to communicate ${identity.category} and ${identity.usageOccasions} clearly without implying that performance or claims are finalized.`
+      : `${hypothesisLabel}Develop a directional visual that communicates ${identity.category} and ${identity.usageOccasions} without overpromising performance.`,
     unknowns: ['Consumer preference', 'Purchase intent', 'Price acceptance', 'Representativeness'],
-    conceptTestObjective: 'Validate preference, descriptor comprehension, and price acceptance with the target consumer.',
+    conceptTestObjective: `Validate recognition of ${identity.category}, ${identity.positiveCues}, usage relevance, preference, and price acceptance with the target consumer.`,
     prohibitedClaims: ['consumer preference', 'purchase demand', 'market readiness', 'representative acceptance'],
     visualProvenance: concept.packagingImageAiGenerated ? 'AI-generated directional visual; not final artwork.' : 'No concept visual attached.',
+  };
+}
+
+function productIdentity(snapshot: CommercializationReportSnapshot) {
+  const text = `${snapshot.product.sampleName} ${snapshot.product.foodType} ${snapshot.concept.name}`.toLowerCase();
+  if (text.includes('cream cheese')) {
+    const base = text.includes('cashew') ? 'cashew-based ' : 'plant-based ';
+    return {
+      category: `${base}soft cream cheese alternative`,
+      positiveCues: 'smooth, creamy, spreadable texture and mild cheese character',
+      useBenefit: 'a familiar chilled spread with a smooth, mild profile',
+      consumerNeed: 'A plant-based soft cheese alternative that spreads cleanly and feels familiar in chilled use.',
+      usageOccasions: 'bagels, crackers, dips, and other chilled spread occasions',
+      productPromise: 'Smooth, creamy, spreadable performance with mild cheese character.',
+    };
+  }
+  if (text.includes('cheddar')) {
+    return {
+      category: 'plant-based cheddar alternative',
+      positiveCues: 'recognizable cheddar-category character and controlled texture',
+      useBenefit: 'familiar cheddar cues and everyday cooking versatility',
+      consumerNeed: 'A plant-based cheddar alternative that feels familiar in routine cooking occasions.',
+      usageOccasions: 'melting, sandwiches, and simple cooked meals',
+      productPromise: 'Recognizable cheddar-category character in a versatile plant-based format.',
+    };
+  }
+  return {
+    category: snapshot.product.foodType || 'the intended food category',
+    positiveCues: 'the strongest validated sensory cues',
+    useBenefit: 'a credible category experience for everyday use',
+    consumerNeed: 'A product that delivers a recognizable category experience without unsupported performance claims.',
+    usageOccasions: 'the intended everyday use occasions',
+    productPromise: 'A category-recognizable product experience grounded in the validated sensory profile.',
   };
 }

@@ -6,7 +6,7 @@ import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
 import { Progress } from './ui/progress';
 import { useAuth } from '../contexts/auth-context';
-import { ESSENSE25_EMOTIONS, getDefaultCataAttributes, type Product } from '../data/survey-domain';
+import { SURVEY_EMOTIONS, getDefaultCataAttributes, type Product } from '../data/survey-domain';
 import { fetchProduct, fetchLatestUserResponse, insertResponse, markPanelistKitSubmitted } from '../lib/database';
 import { CATA_DEFINITIONS, INTENSITY_DEFINITIONS, HEDONIC_DEFINITIONS, EMOTION_DEFINITIONS } from '../data/attribute-definitions';
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Edit2 } from 'lucide-react';
@@ -76,7 +76,7 @@ export function QuestionnaireForm() {
   const cataAttributes = product?.customAttributes || getDefaultCataAttributes(product?.category ?? '');
   // Intensity only shows attributes the panelist selected in CATA
   const intensityAttributes = formData.selectedCata.length > 0 ? formData.selectedCata : [];
-  const emotionAttributes = [...ESSENSE25_EMOTIONS.positive, ...ESSENSE25_EMOTIONS.negative];
+  const emotionAttributes = [...SURVEY_EMOTIONS.positive, ...SURVEY_EMOTIONS.negative];
   const totalSteps = 5;
 
   // Load product from Supabase
@@ -572,7 +572,7 @@ export function QuestionnaireForm() {
               <div>
                 <h4 className="font-bold text-emerald-700 mb-4">Positive Emotions</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {ESSENSE25_EMOTIONS.positive.map(emotion => (
+                  {SURVEY_EMOTIONS.positive.map(emotion => (
                     <div key={emotion} className="space-y-1">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm">
@@ -604,7 +604,7 @@ export function QuestionnaireForm() {
               <div>
                 <h4 className="font-bold text-rose-700 mb-4">Negative Emotions</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {ESSENSE25_EMOTIONS.negative.map(emotion => (
+                  {SURVEY_EMOTIONS.negative.map(emotion => (
                     <div key={emotion} className="space-y-1">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm">
@@ -744,7 +744,7 @@ export function QuestionnaireForm() {
                 <div>
                   <p className="text-xs font-bold text-emerald-700 mb-2">Positive Emotions:</p>
                   <div className="flex flex-wrap gap-2">
-                    {ESSENSE25_EMOTIONS.positive
+                    {SURVEY_EMOTIONS.positive
                       .map(emotion => (
                         <span key={emotion} className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-xs">
                           {emotion} ({formData.emotions[emotion] ?? SLIDER_MIDPOINT})
@@ -755,7 +755,7 @@ export function QuestionnaireForm() {
                 <div>
                   <p className="text-xs font-bold text-rose-700 mb-2">Negative Emotions:</p>
                   <div className="flex flex-wrap gap-2">
-                    {ESSENSE25_EMOTIONS.negative
+                    {SURVEY_EMOTIONS.negative
                       .map(emotion => (
                         <span key={emotion} className="px-2 py-1 bg-rose-100 text-rose-700 rounded text-xs">
                           {emotion} ({formData.emotions[emotion] ?? SLIDER_MIDPOINT})

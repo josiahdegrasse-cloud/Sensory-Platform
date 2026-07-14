@@ -38,10 +38,15 @@ export function stageDecisionCode(input: StageInputs): StageDecisionCode {
   if (input.sensoryOutcome === 'INSUFFICIENT_DATA' || input.sensoryOutcome === 'STOP') {
     return 'HOLD_FOR_EVIDENCE';
   }
-  // A failing sensory dimension is the binding constraint — pilot reformulation
-  // and revalidation come before any consumer or commercial step.
-  if (input.weakestDimensionScore < input.readinessThreshold) return 'ADVANCE_TO_PILOT_VALIDATION';
-  if (input.responseCount === 0) return 'ADVANCE_TO_CONCEPT_VALIDATION';
+  // Product readiness and claims readiness are separate. Consumer, packaging,
+  // claims, and document-approval gates can limit external claims, but they do
+  // not downgrade a sensory GO or block launch preparation.
+  const failedProductGate = input.gates.some(gate =>
+    (gate.category === 'sensory' || gate.category === 'product') && gate.status === 'fail'
+  );
+  if (input.weakestDimensionScore < input.readinessThreshold || failedProductGate) {
+    return 'ADVANCE_TO_PILOT_VALIDATION';
+  }
   const allGatesPass = input.gates.length > 0 && input.gates.every(g => g.status === 'pass');
   if (allGatesPass && input.approvalStatus === 'approved') return 'APPROVED_FOR_LAUNCH';
   return 'ADVANCE_TO_COMMERCIAL_PREPARATION';
@@ -103,7 +108,7 @@ const STAGE_DECISION_TEXT: Record<StageDecisionCode, string> = {
   ADVANCE_TO_REFORMULATION: 'Advance to reformulation, conditional on closing open sensory items',
   ADVANCE_TO_PILOT_VALIDATION: 'Advance to pilot-scale validation, conditional on closing open items',
   ADVANCE_TO_CONCEPT_VALIDATION: 'Advance to target-consumer concept validation, conditional on closing open items',
-  ADVANCE_TO_COMMERCIAL_PREPARATION: 'Advance to commercial preparation, conditional on closing open items',
+  ADVANCE_TO_COMMERCIAL_PREPARATION: 'GO - Launch preparation approved',
   APPROVED_FOR_LAUNCH: 'Approved for market launch',
 };
 
@@ -127,7 +132,12 @@ export function stageHeadline(code: StageDecisionCode, sensoryOutcome: SensoryOu
     case 'ADVANCE_TO_CONCEPT_VALIDATION':
       return { reportType: 'Development Advancement Report', badge: 'CONDITIONAL', headline: 'ADVANCE TO CONCEPT VALIDATION — CONDITIONAL', subheading: notLaunch };
     case 'ADVANCE_TO_COMMERCIAL_PREPARATION':
-      return { reportType: 'Commercial Readiness Report', badge: 'CONDITIONAL', headline: 'ADVANCE TO COMMERCIAL PREPARATION — CONDITIONAL', subheading: notLaunch };
+      return {
+        reportType: 'Commercial Readiness Report',
+        badge: 'GO',
+        headline: 'PRODUCT DECISION: GO',
+        subheading: 'Product-screening evidence supports launch preparation. Claims readiness is assessed separately.',
+      };
     case 'ADVANCE_TO_PILOT_VALIDATION':
     default:
       return {

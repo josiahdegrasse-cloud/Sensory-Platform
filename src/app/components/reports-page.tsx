@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { workflowStagePath } from '../lib/project-journey-routes';
 import {
-  AlertTriangle, Archive, ChevronDown, Download, FileText, FolderOpen, Search,
+  AlertTriangle, Archive, Download, FileText, FolderOpen, Search,
   ShieldCheck, Sparkles, Undo2,
 } from 'lucide-react';
 import { Badge } from './ui/badge';
@@ -126,69 +126,6 @@ function ReadinessBadges({
   );
 }
 
-function VersionStack({ entry }: { entry: ReportLibraryEntry }) {
-  if (entry.versions.length <= 1) return null;
-  return (
-    <details className="mt-4 rounded-lg border border-slate-200 bg-slate-50">
-      <summary className="cursor-pointer list-none px-3 py-2 text-xs font-semibold text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-        {entry.versions.length} saved versions
-      </summary>
-      <div className="divide-y divide-slate-100 border-t border-slate-200">
-        {entry.versions.map(version => (
-          <div key={version.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs">
-            <span className="font-medium text-slate-700">Version {version.version} · {statusLabel[version.status]}</span>
-            <span className="text-slate-500">{new Date(version.updatedAt).toLocaleString()}</span>
-          </div>
-        ))}
-      </div>
-    </details>
-  );
-}
-
-const evidenceLabels: Record<keyof ReportReadiness['evidenceProvenance'], string> = {
-  sensory: 'Sensory',
-  instrumental: 'Instrumental',
-  concept: 'Concept',
-  purchaseIntent: 'Purchase intent',
-};
-
-const evidenceClassName: Record<ReportReadiness['evidenceProvenance'][keyof ReportReadiness['evidenceProvenance']], string> = {
-  live: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  reference: 'border-orange-200 bg-orange-50 text-orange-700',
-  none: 'border-slate-200 bg-slate-50 text-slate-500',
-};
-
-function EvidenceLedger({ entry }: { entry: ReportLibraryEntry }) {
-  const liveCount = Object.values(entry.evidenceProvenance).filter(value => value === 'live').length;
-  const referenceCount = Object.values(entry.evidenceProvenance).filter(value => value === 'reference').length;
-  return (
-    <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50">
-      <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs font-semibold text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-        <span className="flex items-center gap-1.5">
-          Evidence ledger
-          <ChevronDown className="size-3.5 text-slate-500" aria-hidden />
-        </span>
-        <span className="font-normal text-slate-500">
-          {liveCount} live · {referenceCount} reference · {releaseCopy[entry.releaseStatus].label}
-        </span>
-      </summary>
-      <div className="border-t border-slate-200 p-3">
-        <p className="text-[11px] text-slate-500">{releaseCopy[entry.releaseStatus].detail}</p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          {(Object.entries(entry.evidenceProvenance) as Array<[keyof ReportReadiness['evidenceProvenance'], ReportReadiness['evidenceProvenance'][keyof ReportReadiness['evidenceProvenance']]]>).map(([key, value]) => (
-            <div key={key} className="rounded-md border border-slate-200 bg-white px-3 py-2">
-              <p className="text-[11px] font-medium text-slate-500">{evidenceLabels[key]}</p>
-              <Badge variant="outline" className={`mt-1 ${evidenceClassName[value]}`}>
-                {value === 'live' ? 'Live' : value === 'reference' ? 'Reference/demo' : 'None'}
-              </Badge>
-            </div>
-          ))}
-        </div>
-      </div>
-    </details>
-  );
-}
-
 export function ReportsPage() {
   const { user } = useAuth();
   const { projectId: routeProjectId } = useParams<{ projectId?: string }>();
@@ -297,9 +234,9 @@ export function ReportsPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <WorkflowPageHeader
-        title="Report Vault"
-        description="One row per client deliverable, with versions, approval state, evidence provenance, and export readiness kept together."
-        actions={<Button asChild><Link to={workflowStagePath('decision', routeProjectId)}><Sparkles className="size-4" />Build report</Link></Button>}
+        title="Reports"
+        description="Open a deliverable, complete its release review, and export the approved client PDF."
+        actions={<Button asChild><Link to={workflowStagePath('report', routeProjectId, '?create=1')}><Sparkles className="size-4" />New report</Link></Button>}
       />
 
       <div className="flex flex-col gap-3 lg:flex-row">
@@ -338,10 +275,10 @@ export function ReportsPage() {
 
       {isLoading ? (
         <div className="space-y-3">
-          {[0, 1, 2].map(item => <div key={item} className="h-32 animate-pulse rounded-xl border border-slate-200 bg-white" />)}
+          {[0, 1, 2].map(item => <div key={item} className="h-32 animate-pulse rounded-lg border border-slate-200 bg-white" />)}
         </div>
       ) : visibleEntries.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-14 text-center">
+        <div className="rounded-lg border border-dashed border-slate-200 bg-white px-6 py-14 text-center">
           <FolderOpen className="mx-auto size-9 text-slate-500" />
           <h2 className="mt-3 text-lg font-semibold text-slate-900">No reports match this view</h2>
           <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
@@ -349,7 +286,7 @@ export function ReportsPage() {
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
           {visibleEntries.map((entry, index) => (
             <article key={entry.key} className={`p-4 sm:p-5 ${index > 0 ? 'border-t border-slate-200' : ''}`}>
               <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
@@ -380,12 +317,17 @@ export function ReportsPage() {
                 </div>
 
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap lg:justify-end">
-                  <Button size="sm" variant="outline" asChild>
+                  <Button size="sm" asChild>
                     <Link
-                      to={`/report?report=${entry.latest.id}`}
+                      to={workflowStagePath('report', routeProjectId, `?report=${entry.latest.id}`)}
                       onClick={() => setSelection(entry.foodType, null)}
                     >
-                      <FolderOpen className="size-4" />Open report
+                      <FolderOpen className="size-4" />
+                      {entry.latest.status === 'review'
+                        ? 'Review report'
+                        : entry.releaseStatus === 'blocked' || entry.releaseStatus === 'demonstration_only'
+                          ? 'Resolve blockers'
+                          : 'Open report'}
                     </Link>
                   </Button>
                   {entry.exportReady ? (
@@ -397,34 +339,15 @@ export function ReportsPage() {
                     >
                       <Download className="size-4" />{exportingId === entry.latest.id ? 'Preparing…' : 'Download PDF'}
                     </Button>
-                  ) : !readinessLoading[entry.latest.id] && (
-                    <Button size="sm" variant="outline" asChild>
-                      <Link
-                        to={`/report?report=${entry.latest.id}`}
-                        onClick={() => setSelection(entry.foodType, null)}
-                      >
-                        {entry.blockers.length ? 'Needs Review' : 'Open to Export'}
-                      </Link>
-                    </Button>
-                  )}
-                  {entry.latest.status === 'review' && (
-                    <Button size="sm" asChild>
-                      <Link
-                        to={`/report?report=${entry.latest.id}`}
-                        onClick={() => setSelection(entry.foodType, null)}
-                      >
-                        Review report
-                      </Link>
-                    </Button>
-                  )}
+                  ) : null}
                   {entry.latest.status === 'approved' && (
                     <Button size="sm" variant="outline" disabled={updateStatus.isPending} onClick={() => changeStatus(entry.latest, 'draft')}>
                       <Undo2 className="size-4" />Reopen
                     </Button>
                   )}
                   {entry.latest.status !== 'archived' ? (
-                    <Button size="sm" variant="ghost" disabled={updateStatus.isPending} onClick={() => changeStatus(entry.latest, 'archived')} title="Archive latest version" className="hidden sm:inline-flex">
-                      <Archive className="size-4" />Archive
+                    <Button size="icon" variant="ghost" disabled={updateStatus.isPending} onClick={() => changeStatus(entry.latest, 'archived')} title="Archive latest version" aria-label="Archive latest version">
+                      <Archive className="size-4" />
                     </Button>
                   ) : (
                     <Button size="sm" variant="ghost" disabled={updateStatus.isPending} onClick={() => changeStatus(entry.latest, 'draft')} className="hidden sm:inline-flex">
@@ -439,8 +362,6 @@ export function ReportsPage() {
                   Approved deliverable{entry.latest.approvedAt ? ` on ${new Date(entry.latest.approvedAt).toLocaleDateString()}` : ''}
                 </div>
               )}
-              <EvidenceLedger entry={entry} />
-              <VersionStack entry={entry} />
             </article>
           ))}
         </div>

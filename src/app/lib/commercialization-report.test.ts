@@ -4,6 +4,7 @@ import {
   getDecisionQualifier,
   getEvidenceStrength,
   getEvidenceStrengthNote,
+  rebuildDecisionForCommercialization,
   resolveReportLogoUrl,
   summarizeConceptResponses,
 } from './commercialization-report';
@@ -66,5 +67,43 @@ describe('commercialization report evidence', () => {
     expect(resolveReportLogoUrl('Client Foods')).toBeNull();
     expect(resolveReportLogoUrl('Client Foods', 'https://example.com/logo.png'))
       .toBe('https://example.com/logo.png');
+  });
+
+  it('rebuilds report decision detail from the confirmed record and current evidence', () => {
+    const decision = rebuildDecisionForCommercialization({
+      id: 'decision-1',
+      timestamp: '2026-07-11T12:00:00.000Z',
+      sampleId: 'sample-1',
+      sampleName: 'Cashew Cream Cheese v2.0',
+      decision: 'GO',
+      issfScore: 78.7,
+      confidence: 82,
+      user: 'Reviewer',
+      note: '',
+      methodVersion: 'NFI-GST-2.0',
+      decisionFingerprint: 'ABC123',
+    }, {
+      sampleSummaries: [{ sampleId: 'sample-1', riskLevel: 'medium' }],
+      categoryResults: [
+        { sampleId: 'sample-1', category: 'hedonic', score: 81 },
+        { sampleId: 'sample-1', category: 'texture', score: 72 },
+        { sampleId: 'sample-1', category: 'cata', score: 84 },
+        { sampleId: 'sample-1', category: 'emotional', score: 76 },
+      ],
+      criticalAttributeResults: [{
+        sampleId: 'sample-1', id: 'texture', label: 'Texture stability',
+        status: 'watch', detail: 'Confirm stability at scale.', impact: -4,
+      }],
+      decisionReasons: ['Sensory evidence supports controlled advancement.'],
+    } as never);
+
+    expect(decision).toMatchObject({
+      decision: 'GO',
+      dimensionScores: { hedonic: 81, texture: 72, cata: 84, emotional: 76 },
+      riskLevel: 'medium',
+      decisionFingerprint: 'ABC123',
+    });
+    expect(decision?.prescriptions[0]).toMatchObject({ target: 'Texture stability', expectedLift: 4 });
+    expect(decision?.recommendation).toContain('controlled advancement');
   });
 });

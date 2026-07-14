@@ -5,6 +5,7 @@ import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { ProjectStatusBadge } from './project-status-badge';
+import { ProjectWorkflowPath } from './project-workflow-path';
 import { useRenameProject, useUpdateImportBatchName } from '../lib/hooks';
 import type { ProjectStatusSummary } from '../lib/project-status';
 
@@ -141,39 +142,22 @@ export function ProjectCard({ projectId, realProjectId, status, projectPath, onO
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-4">
+        <section className="border-y border-slate-200 py-4" aria-label="Project progress">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Project path</p>
+              <p className="mt-0.5 text-xs text-slate-500">From evidence intake to a client-ready report.</p>
+            </div>
+            <p className="shrink-0 text-xs font-semibold text-slate-500">{progressText}</p>
+          </div>
+          <ProjectWorkflowPath stages={status.stages} onNavigate={onOpen} />
+        </section>
+
+        <div className="grid gap-4 sm:grid-cols-2">
           <section className="space-y-2">
-            <p className="text-xs font-semibold text-slate-500">Status</p>
+            <p className="text-xs font-semibold text-slate-500">Current position</p>
             <p className="text-sm font-semibold text-slate-900">{status.statusLabel}</p>
             <p className="text-xs leading-5 text-slate-500">{activeStage?.detail}</p>
-          </section>
-
-          <section className="space-y-2 md:col-span-2">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold text-slate-500">Progress</p>
-              <p className="text-xs font-semibold text-slate-500">{progressText}</p>
-            </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-slate-50">
-              <div
-                className="h-full rounded-full bg-slate-900 transition-all"
-                style={{ width: `${(completeStages / status.stages.length) * 100}%` }}
-              />
-            </div>
-            <div className="grid gap-1.5 sm:grid-cols-2">
-              {status.stages.map(stage => (
-                <div key={stage.id} className="flex items-center gap-2 text-xs">
-                  <span className={`size-2 rounded-full ${
-                    stage.state === 'complete' ? 'bg-emerald-500'
-                    : stage.state === 'current' ? 'bg-blue-600'
-                    : stage.state === 'needs-review' ? 'bg-amber-500'
-                    : 'bg-slate-200'
-                  }`} aria-hidden />
-                  <span className={stage.state === 'current' || stage.state === 'needs-review' ? 'font-semibold text-slate-900' : 'text-slate-500'}>
-                    {stage.label}
-                  </span>
-                </div>
-              ))}
-            </div>
           </section>
 
           <section className="space-y-2">

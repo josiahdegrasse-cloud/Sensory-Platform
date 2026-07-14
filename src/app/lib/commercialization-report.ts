@@ -1,5 +1,8 @@
 import type { ConceptQuestion, ConceptResponse, ConceptTest, DecisionRecord } from './database';
 import type { GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
+import type { LiteratureCitation } from './report-agents/types';
+import type { ReportSafeEvidenceCard } from './evidence-assist';
+import type { EvidenceBundle } from './report-evidence-types';
 import { NFI_LOGO_URL, NFI_ORGANIZATION_NAME } from './nfi-brand';
 
 /** Default platform branding shown when no client/tenant profile is configured. */
@@ -89,6 +92,12 @@ export interface CommercializationReportSnapshot {
     }>;
     artifacts: Record<string, unknown>;
   };
+  // Populated when the Report Release Review orchestrator ran with real
+  // literature grounding. Must be carried through explicitly when saving —
+  // see report-agent-review-panel.tsx's revisedSnapshot.
+  literatureCitations?: LiteratureCitation[];
+  /** Safe Evidence Assist guidance persisted with this report version. */
+  evidenceCards?: ReportSafeEvidenceCard[];
   generatedAt: string;
 }
 
@@ -224,6 +233,68 @@ export function summarizeConceptResponses(
   };
 }
 
+/**
+ * Rehydrates the decision detail needed by report generation from durable
+ * records. Decision confirmation stores the audit identity and headline
+ * scores; the evidence bundle stores the dimension and gate calculations.
+ * Keeping this bridge here lets the report workspace work after a refresh
+ * without copying transient state out of the Decision page.
+ */
+export function rebuildDecisionForCommercialization(
+  record: DecisionRecord,
+  bundle: EvidenceBundle,
+): GoStopTweakDecision | null {
+  if (record.decision !== 'GO') return null;
+
+  const categories = bundle.categoryResults.filter(result => result.sampleId === record.sampleId);
+  const scoreFor = (category: keyof GoStopTweakDecision['dimensionScores']) =>
+    categories.find(result => result.category === category)?.score ?? record.issfScore;
+  const sample = bundle.sampleSummaries.find(summary => summary.sampleId === record.sampleId);
+  const gates = bundle.criticalAttributeResults
+    .filter(result => result.sampleId === record.sampleId)
+    .map(result => ({
+      id: result.id,
+      label: result.label,
+      status: result.status,
+      detail: result.detail,
+      impact: result.impact,
+    }));
+  const watchPoints = gates
+    .filter(gate => gate.status === 'watch' || gate.status === 'fail')
+    .map((gate, index) => ({
+      priority: index + 1,
+      target: gate.label,
+      action: gate.detail,
+      expectedLift: Math.max(0, Math.abs(gate.impact)),
+    }));
+  const recommendation = record.note.trim()
+    || bundle.decisionReasons.join(' ')
+    || `Advance ${record.sampleName} into controlled commercialization preparation.`;
+
+  return {
+    sampleId: record.sampleId,
+    sampleName: record.sampleName,
+    issfScore: record.issfScore,
+    confidenceScore: record.confidence,
+    decision: 'GO',
+    decisionStatus: 'ready',
+    blockingReasons: [],
+    recommendation,
+    riskLevel: sample?.riskLevel ?? (gates.some(gate => gate.status === 'fail') ? 'high' : gates.some(gate => gate.status === 'watch') ? 'medium' : 'low'),
+    details: bundle.decisionReasons,
+    dimensionScores: {
+      hedonic: scoreFor('hedonic'),
+      texture: scoreFor('texture'),
+      cata: scoreFor('cata'),
+      emotional: scoreFor('emotional'),
+    },
+    gates,
+    prescriptions: watchPoints,
+    decisionFingerprint: record.decisionFingerprint,
+    methodVersion: record.methodVersion,
+  };
+}
+
 export function buildCommercializationSnapshot(input: {
   decisionRecord: DecisionRecord;
   liveDecision: GoStopTweakDecision;
@@ -282,14 +353,14 @@ export function buildCommercializationSnapshot(input: {
     },
     evidence,
     narrative: {
-      executiveSummary: `${input.liveDecision.sampleName} has a confirmed GO recommendation from the saved decision model, with an ISSF score of ${input.liveDecision.issfScore.toFixed(1)}. The linked ${input.concept.name} concept was evaluated by ${evidence.responseCount} panelist${evidence.responseCount === 1 ? '' : 's'}. ${getEvidenceStrengthNote(evidence.responseCount)}`,
+      executiveSummary: `${input.liveDecision.sampleName} has a confirmed GO recommendation, with an ISSF score of ${input.liveDecision.issfScore.toFixed(1)}. The linked ${input.concept.name} concept was evaluated by ${evidence.responseCount} panelist${evidence.responseCount === 1 ? '' : 's'}. ${getEvidenceStrengthNote(evidence.responseCount)}`,
       whyLiked: likedSignals.length
-        ? `The strongest available signals are ${likedSignals.join(', ')}. These findings combine the saved sensory decision dimensions with language selected during concept evaluation.`
+        ? `The strongest available signals are ${likedSignals.join(', ')}. These findings combine the confirmed sensory dimensions with language selected during concept evaluation.`
         : `The formulation achieved a GO decision through its sensory performance. Additional concept responses will strengthen the consumer-language evidence.`,
       packagingRationale: input.packagingImageUrl
         ? `The selected packaging expresses the current concept positioning for ${input.concept.targetMarket || 'the target market'} and is the recommended lead visual for the next review round.`
         : 'A packaging visual must be selected before this report can be approved.',
-      launchRecommendation: `Advance ${input.liveDecision.sampleName} and the selected packaging into buyer review. This recommendation is tied to the saved decision record for this product, while broader concept validation continues.`,
+      launchRecommendation: `Advance ${input.liveDecision.sampleName} and the selected packaging into buyer review. This recommendation is tied to the confirmed GO decision for this product, while broader concept validation continues.`,
       claimCaution: `${getEvidenceStrengthNote(evidence.responseCount)} Broader consumer, nutrition, or commercial claims require representative validation and legal review.`,
     },
     generatedAt: new Date().toISOString(),

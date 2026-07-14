@@ -4,6 +4,21 @@
 export interface EnhancedSensoryProfile {
   sampleId: string;
   sampleName: string;
+
+  /**
+   * Curated reference profiles predate explicit evidence provenance and omit
+   * this block, which preserves their existing demo behaviour. Live/imported
+   * profiles populate it so placeholder values are never mistaken for real
+   * measurements by the decision engine.
+   */
+  evidence?: {
+    provenance: 'imported' | 'reference';
+    measuredTaste: Array<keyof EnhancedSensoryProfile['taste']>;
+    measuredHedonic: Array<keyof EnhancedSensoryProfile['hedonic']>;
+    compositionMeasured: boolean;
+    aromaMethod: 'gc-o' | 'gc-ms' | 'not_measured';
+    instrumentQcMeasured: boolean;
+  };
   
   // TS-5000Z E-Tongue (9 dimensions, 2:5 dilution, 40°C, 7000rpm)
   taste: {

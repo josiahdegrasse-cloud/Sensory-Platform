@@ -97,7 +97,7 @@ export function ReportPreviewCard({ status, className }: { status: ProjectStatus
 
         {canOpen ? (
           <Link
-            to="/report"
+            to="/report?create=1"
             className={`flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-colors hover:opacity-90 ${toneSolidClasses(config.tone === 'neutral' ? 'info' : config.tone)}`}
           >
             {config.cta} <ArrowRight className="size-3.5" />

@@ -70,7 +70,11 @@ export function buildMethodology(input: {
     storedIssf: input.storedIssf,
     confidenceBasis: input.confidenceBasis,
     confidenceCalculation: input.confidenceCalculation,
-    conditionalReason: `${input.weakestDimensionLabel} (${Math.round(input.weakestScore)}/100) is below the ${input.thresholds.readiness}/100 readiness line. A sub-readiness critical dimension caps the outcome at conditional advancement: the sensory screening supports continued development, but not unrestricted GO or launch.`,
+    conditionalReason: input.weakestScore < input.thresholds.readiness
+      ? `${input.weakestDimensionLabel} (${Math.round(input.weakestScore)}/100) is below the ${input.thresholds.readiness}/100 readiness line. A sub-readiness critical dimension caps the outcome at conditional advancement: the sensory screening supports continued development, but not unrestricted GO or launch.`
+      : input.weakestScore < input.thresholds.go
+        ? `${input.weakestDimensionLabel} (${Math.round(input.weakestScore)}/100) is above the ${input.thresholds.readiness}/100 minimum readiness line but below the preferred GO target of ${input.thresholds.go}/100. It remains the lowest dimension and should be monitored while the separate concept, claims, and approval gates are completed.`
+        : `All recorded sensory dimensions meet the ${input.thresholds.go}/100 GO target. The product GO supports launch preparation; concept, claims, packaging, and approval gates separately control which external claims are supportable.`,
   };
 }
 

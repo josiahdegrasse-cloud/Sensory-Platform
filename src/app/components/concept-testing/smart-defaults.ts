@@ -4,10 +4,14 @@ import type { ConceptDraft, Question } from './types';
 import { AI_QUESTION_TEMPLATES as QUESTION_TEMPLATES } from './questions-data';
 import { selectBalancedQuestions } from './survey-utils';
 
+export function publicConceptName(draft: Pick<ConceptDraft, 'name'>) {
+  return draft.name.trim() || 'this product';
+}
+
 export function buildTailoredConceptQuestions(draft: ConceptDraft): Question[] {
   const detection = detectFoodType(draft.category, draft.name, draft.description);
   const profile = getFoodTypeProfile(detection.slug);
-  const productName = draft.name.trim() || 'this product';
+  const productName = publicConceptName(draft);
   const category = draft.category.trim() || detection.label.toLowerCase();
   const benefits = draft.keyBenefits
     .split(/[,\n]+/)
@@ -21,14 +25,14 @@ export function buildTailoredConceptQuestions(draft: ConceptDraft): Question[] {
     { id: 'q_tailored_appeal_1', text: `How appealing is the ${productName} concept overall?`, type: 'scale', required: true, category: 'appeal' },
     { id: 'q_tailored_appeal_2', text: `How interested would you be in trying this ${category}?`, type: 'scale', required: true, category: 'appeal' },
     { id: 'q_tailored_uniqueness', text: 'How different does this concept feel from products you already see in stores?', type: 'scale', required: true, category: 'appeal' },
-    { id: 'q_tailored_believable', text: 'How believable are the product benefits and claims?', type: 'scale', required: true, category: 'appeal' },
+    { id: 'q_tailored_believable', text: `How believable does ${productName} feel based on the concept and visuals?`, type: 'scale', required: true, category: 'appeal' },
     { id: 'q_tailored_purchase_1', text: `How likely would you be to buy ${productName} if it tasted as described?`, type: 'scale', required: true, category: 'purchase' },
     { id: 'q_tailored_purchase_2', text: 'Where would you most expect to buy this product?', type: 'multiple_choice', options: ['Grocery store', 'Club store', 'Specialty store', 'Online', 'Restaurant or foodservice'], required: false, category: 'purchase' },
     { id: 'q_tailored_price_1', text: draft.pricePoint ? `How acceptable is the expected price of ${draft.pricePoint}?` : 'How important would price be in your decision to buy this product?', type: 'scale', required: true, category: 'price' },
     { id: 'q_tailored_price_2', text: 'What would make the product feel worth paying more for?', type: 'open_text', required: false, category: 'price' },
     { id: 'q_tailored_usage_1', text: 'How often could you imagine using or eating this product?', type: 'scale', required: true, category: 'usage' },
     { id: 'q_tailored_usage_2', text: 'Which occasion best fits this product?', type: 'multiple_choice', options: ['Everyday meals', 'Snacking', 'Entertaining', 'Fitness or nutrition', 'Family meals', 'Special treat'], required: false, category: 'usage' },
-    { id: 'q_tailored_image_best', text: 'Which of these concept visuals is most appealing to you?', type: 'image_choice', required: draft.marketingImages.filter(u => u.trim()).length > 1, category: 'appeal' },
+    { id: 'q_tailored_image_best', text: `Which ${productName} visual is most appealing to you?`, type: 'image_choice', required: draft.marketingImages.filter(u => u.trim()).length > 1, category: 'appeal' },
     { id: 'q_tailored_image_why', text: 'What made that visual stand out to you?', type: 'open_text', required: false, category: 'appeal' },
     { id: 'q_tailored_fit_1', text: `How well does this concept fit the ${detection.label.toLowerCase()} category?`, type: 'scale', required: true, category: 'attributes' },
     ...successMarkers.map((marker, index) => ({

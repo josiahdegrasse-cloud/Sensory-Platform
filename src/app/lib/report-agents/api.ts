@@ -1,11 +1,10 @@
-import { edgeFunctionErrorMessage } from '../db/shared';
-import { supabase } from '../supabase';
 import type {
   ReportAgentOutputMap,
   ReportAgentRole,
   ReportAgentRunner,
   ReportAgentTask,
 } from './types';
+import { ragFetch } from '../rag-client';
 
 export interface ReportAgentResponse<R extends ReportAgentRole> {
   taskId: string;
@@ -50,7 +49,18 @@ export interface ReportAgentUsage {
   totalTokens: number;
 }
 
+export function isOllamaReportAgentModel(model: string): boolean {
+  return /^ollama:/i.test(model);
+}
+
+export function isLocalGenerativeReportAgentModel(model: string): boolean {
+  return /^(?:ollama|llama_cpp):/i.test(model);
+}
+
 const MODEL_PRICING_PER_MILLION: Record<string, { input: number; output: number }> = {
+  local_deterministic_agent: { input: 0, output: 0 },
+  local_deterministic_ollama_unavailable: { input: 0, output: 0 },
+  'ollama:llama3.2:3b': { input: 0, output: 0 },
   'gpt-5.5': { input: 5, output: 30 },
   'gpt-5.4': { input: 2.5, output: 15 },
   'gpt-5.4-mini': { input: 0.75, output: 4.5 },
@@ -61,6 +71,7 @@ const MODEL_PRICING_PER_MILLION: Record<string, { input: number; output: number 
 
 export function estimateReportAgentCost(usage: ReportAgentUsage[]): number {
   return usage.reduce((sum, item) => {
+    if (/^(local_|ollama:|llama_cpp:)/i.test(item.model)) return sum;
     const pricing = MODEL_PRICING_PER_MILLION[item.model] ?? MODEL_PRICING_PER_MILLION['gpt-5.4'];
     return sum
       + item.inputTokens / 1_000_000 * pricing.input
@@ -80,7 +91,7 @@ export function createMeteredReportAgentRunner(): {
         task: ReportAgentTask<R>,
         _serverIgnoredOptions: { systemInstruction: string; temperature: number },
       ): Promise<ReportAgentOutputMap[R]> {
-        const response = await runReportAgent(task);
+        const response = await runReportAgent(task, _serverIgnoredOptions);
         usage.push({
           role: task.role,
           model: response.model,
@@ -96,29 +107,35 @@ export function createMeteredReportAgentRunner(): {
 
 export async function runReportAgent<R extends ReportAgentRole>(
   task: ReportAgentTask<R>,
+  options?: { systemInstruction?: string; temperature?: number },
 ): Promise<ReportAgentResponse<R>> {
-  const { data, error } = await supabase.functions.invoke('run-report-agent', {
-    body: {
+  const response = await ragFetch('/api/report-agent', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
       taskId: task.taskId,
       role: task.role,
       reportContextHash: task.reportContextHash,
       iteration: task.iteration,
       reviewMode: task.reviewMode ?? 'full',
       packet: task.packet,
-    },
+      systemInstruction: options?.systemInstruction ?? '',
+      temperature: options?.temperature ?? 0.2,
+    }),
   });
-  if (error) {
-    throw new Error(await edgeFunctionErrorMessage(error, `${task.role} invocation failed.`));
-  }
+  if (!response.ok) throw new Error(`${task.role} local report agent failed (${response.status}).`);
+  const data = await response.json();
   return parseResponse(task, data);
 }
 
 export const reportAgentRunner: ReportAgentRunner = {
   async run<R extends ReportAgentRole>(
     task: ReportAgentTask<R>,
-    _serverIgnoredOptions: { systemInstruction: string; temperature: number },
+    options: { systemInstruction: string; temperature: number },
   ): Promise<ReportAgentOutputMap[R]> {
-    const response = await runReportAgent(task);
+    const response = await runReportAgent(task, options);
     return response.output;
   },
 };

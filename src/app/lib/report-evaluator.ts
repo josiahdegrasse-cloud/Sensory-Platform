@@ -30,6 +30,11 @@ const HEDGE_RE = /\b(depending on the food type|various factors|in general|may o
 const DEMOGRAPHIC_RE = /\b(\d{2}\s*[-–]\s*\d{2})\b|\b(?:aged?|ages)\s+\d{2}\b/i;
 const PRICE_RE = /(?:[$£€]\s?\d|\b\d+(?:\.\d{2})?\s?(?:USD|GBP|EUR|dollars|pounds|euros)\b)/i;
 const NOT_DETERMINED_RE = /\bnot yet determined|requires (?:segmented|broader|further) (?:panel )?data|requires validation\b/i;
+const PROMPT_LEAK_RE = /\b(?:approved claim language|evidence base|evidence bundle|cite (?:the|each)|revision required|guidance:)\b/i;
+
+export function containsInternalWritingInstructions(text: string): boolean {
+  return PROMPT_LEAK_RE.test(text);
+}
 
 // Removes inline [evidence:<id>] provenance tokens for human-facing display.
 // The tokens are required while the evaluator validates citations, but must
@@ -97,6 +102,9 @@ export function evaluateNarrative(input: {
       && cited.length === 0 && !NOT_DETERMINED_RE.test(text)) {
       issues.push(`${section.title}: states a demographic or price claim without supporting evidence or a "not yet determined" qualifier.`);
     }
+    if (text && containsInternalWritingInstructions(text)) {
+      issues.push(`${section.title}: contains internal writing instructions instead of client-ready report prose.`);
+    }
 
     return {
       key: section.key,
@@ -116,7 +124,8 @@ export function evaluateNarrative(input: {
   const hardFail = sectionEvals.some(section =>
     section.unknownEvidenceIds.length > 0
     || section.outOfScopeEvidenceIds.length > 0
-    || section.contradiction);
+    || section.contradiction
+    || section.issues.some(issue => issue.includes('internal writing instructions')));
   const score = Math.max(0, 100 - issues.length * 15);
   return {
     score,

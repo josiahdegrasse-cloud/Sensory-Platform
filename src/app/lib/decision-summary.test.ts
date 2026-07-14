@@ -27,6 +27,11 @@ describe('decision summary', () => {
     expect(summary.nextStep).toContain('adjustment plan');
   });
 
+  it('treats review-range evidence as moderate confidence instead of low confidence', () => {
+    const summary = buildDecisionSummary({ ...decision, confidenceScore: 67 });
+    expect(summary.confidence).toBe('Moderate');
+  });
+
   it('formats a structured tweak plan without schema changes', () => {
     expect(formatDecisionNote({
       outcome: 'TWEAK',

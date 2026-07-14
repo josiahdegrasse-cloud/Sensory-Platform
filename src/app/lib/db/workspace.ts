@@ -119,6 +119,7 @@ export interface DecisionRecord {
   note: string;
   methodVersion: string;
   decisionFingerprint: string;
+  projectId?: string | null;
   /** Set when this decision was made after a retest triggered by a prior TWEAK/STOP. */
   parentDecisionId?: string | null;
 }
@@ -538,6 +539,7 @@ export async function fetchDecisionRecords(limit = 200): Promise<DecisionRecord[
     note: (row.note as string) ?? '',
     methodVersion: row.method_version as string,
     decisionFingerprint: row.decision_fingerprint as string,
+    projectId: (row.project_id as string) ?? null,
     parentDecisionId: (row.parent_decision_id as string) ?? null,
   }));
 }
@@ -552,6 +554,7 @@ export async function insertDecisionRecord(input: {
   methodVersion: string;
   decisionFingerprint: string;
   createdBy: string;
+  projectId?: string | null;
   /** ID of the TWEAK/STOP decision that triggered the retest leading to this one. */
   parentDecisionId?: string | null;
 }): Promise<string | null> {
@@ -565,6 +568,7 @@ export async function insertDecisionRecord(input: {
     method_version: input.methodVersion,
     decision_fingerprint: input.decisionFingerprint,
     created_by: input.createdBy,
+    project_id: input.projectId ?? null,
     parent_decision_id: input.parentDecisionId ?? null,
   }).select('id').single();
   if (error) throw dbError(error);

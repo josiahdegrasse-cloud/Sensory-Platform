@@ -1,39 +1,15 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Bot, CheckCircle2, CircleDollarSign, ShieldAlert } from 'lucide-react';
-import type { CommercializationReportRecord } from '../lib/database';
-import type { CommercializationReportSnapshot } from '../lib/commercialization-report';
-import {
-  createMeteredReportAgentRunner,
-  estimateReportAgentCost,
-  hashReportContext,
-  runCommercializationReportOrchestrator,
-  REPORT_AGENT_WORKFLOW_STEPS,
-  type ReportAgentMode,
-  type ReportOrchestratorResult,
-} from '../lib/report-agents';
+import { Bot, CheckCircle2, Clock3, ShieldAlert } from 'lucide-react';
+import { hashReportContext } from '../lib/report-agents';
 import type { CommercializationReportPdfInput } from '../utils/commercialization-report-export';
-import { useCreateCommercializationReport } from '../lib/hooks';
-import { Button } from './ui/button';
 
 export function ReportAgentReviewPanel({
-  report,
   input,
 }: {
-  report: CommercializationReportRecord;
   input: CommercializationReportPdfInput & { reportContext: NonNullable<CommercializationReportPdfInput['reportContext']> };
 }) {
-  const createReport = useCreateCommercializationReport();
-  const [runningMode, setRunningMode] = useState<ReportAgentMode | null>(null);
-  const [error, setError] = useState('');
-  const [result, setResult] = useState<ReportOrchestratorResult | null>(null);
-  const [cost, setCost] = useState<number | null>(null);
-  const [savedVersion, setSavedVersion] = useState<number | null>(null);
-
-  // Whether the saved agent review is stale relative to the current report
-  // context. Derived from an async hash of the context (react-query owns the
-  // async work) rather than mirrored into state via an effect.
-  const previousHash = input.snapshot.agentReview?.reportContextHash;
+  const review = input.snapshot.agentReview;
+  const previousHash = review?.reportContextHash;
   const { data: currentHash } = useQuery({
     queryKey: ['report-context-hash', input.reportContext],
     queryFn: () => hashReportContext(input.reportContext),
@@ -41,193 +17,95 @@ export function ReportAgentReviewPanel({
   });
   const contextChanged = Boolean(previousHash) && currentHash !== undefined && previousHash !== currentHash;
 
-  const runReview = async (mode: ReportAgentMode) => {
-    setRunningMode(mode);
-    setError('');
-    setResult(null);
-    setCost(null);
-    setSavedVersion(null);
-    const metered = createMeteredReportAgentRunner();
-    try {
-      const currentHash = await hashReportContext(input.reportContext);
-      const previousHash = input.snapshot.agentReview?.reportContextHash ?? null;
-      const changed = Boolean(previousHash && previousHash !== currentHash);
+  if (!review) {
+    return (
+      <section className="rounded-lg border border-amber-200 bg-amber-50 p-5">
+        <div className="flex items-start gap-3">
+          <ShieldAlert className="mt-0.5 size-5 shrink-0 text-amber-700" />
+          <div>
+            <h2 className="font-semibold text-amber-950">No agent generation record</h2>
+            <p className="mt-1 text-sm text-amber-900">
+              This older version was not created by the complete Ollama workflow. Use New version in the report header to generate a replacement.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
-      const orchestrated = await runCommercializationReportOrchestrator({
-        mode,
-        reportInput: input,
-        runner: metered.runner,
-        previousContextHash: previousHash,
-      });
-      const estimatedCostUsd = estimateReportAgentCost(metered.usage);
-      const enriched: ReportOrchestratorResult = {
-        ...orchestrated,
-        metadata: {
-          ...orchestrated.metadata,
-          estimatedCost: estimatedCostUsd,
-          modelUsage: metered.usage,
-          contextChanged: changed,
-        },
-      };
-      setResult(enriched);
-      setCost(estimatedCostUsd);
-
-      const revisedSnapshot: CommercializationReportSnapshot = {
-        ...enriched.snapshot,
-        agentReview: {
-          mode,
-          runTimestamp: enriched.generatedAt,
-          reportContextHash: enriched.reportContextHash,
-          status: enriched.status,
-          exportStatus: enriched.status,
-          qualityScore: enriched.qc.qualityScore,
-          agentsRun: enriched.metadata.agentsRun,
-          criticalBlockers: enriched.qc.criticalBlockers,
-          warnings: enriched.qc.warnings,
-          polishSuggestions: enriched.qc.polishSuggestions,
-          evidenceAudit: enriched.evidenceAudit as unknown as Record<string, unknown>,
-          modelUsage: metered.usage,
-          estimatedCostUsd,
-          usage: metered.usage.map(item => ({
-            role: item.role,
-            model: item.model,
-            inputTokens: item.inputTokens,
-            outputTokens: item.outputTokens,
-          })),
-          artifacts: enriched as unknown as Record<string, unknown>,
-        },
-      };
-      const saved = await createReport.mutateAsync({
-        decisionRecordId: report.decisionRecordId,
-        conceptTestId: report.conceptTestId,
-        packagingImageId: report.packagingImageId,
-        title: report.title,
-        reportSnapshot: revisedSnapshot as unknown as Record<string, unknown>,
-        evidenceBundleId: report.evidenceBundleId,
-      });
-      setSavedVersion(saved.version);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'The orchestrated report workflow could not be completed.');
-    } finally {
-      setRunningMode(null);
-    }
-  };
-
-  const releaseTone = result?.status === 'passed'
+  const status = review.status ?? 'partial';
+  const completeWorkflow = review.mode === 'full_release_review' || review.mode === 'full';
+  const statusClass = status === 'passed'
     ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-    : result?.status === 'blocked'
+    : status === 'blocked'
       ? 'border-rose-200 bg-rose-50 text-rose-900'
       : 'border-amber-200 bg-amber-50 text-amber-900';
-
-  const completedAgents = new Set(result?.metadata.agentsRun ?? []);
+  const runTimestamp = review.runTimestamp ?? review.runAt;
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5">
+    <section className="rounded-lg border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="max-w-2xl">
+        <div>
           <div className="flex items-center gap-2">
-            <Bot className="size-5 text-slate-700" aria-hidden />
-            <h2 className="font-semibold text-slate-900">Report Release Review</h2>
+            <Bot className="size-5 text-slate-700" />
+            <h2 className="font-semibold text-slate-900">Ollama generation record</h2>
           </div>
-          <p className="mt-1 text-sm text-slate-700">
-            Specialist reviewers audit evidence, science, consumer insight, claims, writing, layout, and release risk before deterministic QC decides what is safe to save, approve, and export.
-          </p>
-          <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
-            <CircleDollarSign className="size-3.5" aria-hidden />
-            Internal Draft: approximately $0.08-$0.30. Release Review: approximately $0.40-$1.25.
-            Deterministic evidence remains the source of truth.
+          <p className="mt-1 text-sm text-slate-600">
+            {completeWorkflow
+              ? 'The complete document was generated through the specialist agent workflow and deterministic release QC.'
+              : 'This legacy version used the earlier partial drafting workflow. Generate a new version to run the complete specialist workflow.'}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={() => runReview('full_release_review')} disabled={Boolean(runningMode) || createReport.isPending}>
-            <ShieldAlert className="size-4" aria-hidden />
-            {runningMode === 'full_release_review' ? 'Running release review…' : 'Run Release Review'}
-          </Button>
-          <Button variant="outline" onClick={() => runReview('quick_draft')} disabled={Boolean(runningMode) || createReport.isPending}>
-            <Bot className="size-4" aria-hidden />
-            {runningMode === 'quick_draft' ? 'Drafting…' : 'Create Internal Draft'}
-          </Button>
+        <div className={`rounded-md border px-3 py-2 text-sm font-semibold capitalize ${statusClass}`}>
+          {status.replace(/_/g, ' ')} · {review.qualityScore ?? 0}/100
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 border-y border-slate-200 py-4 sm:grid-cols-3">
+        <div>
+          <p className="text-xs text-slate-500">Specialist stages</p>
+          <p className="mt-1 font-semibold text-slate-900">{review.agentsRun?.length ?? 0}</p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-500">Verified literature sources</p>
+          <p className="mt-1 font-semibold text-slate-900">{input.snapshot.literatureCitations?.length ?? 0}</p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-500">Generated</p>
+          <p className="mt-1 flex items-center gap-1.5 font-semibold text-slate-900">
+            <Clock3 className="size-4 text-slate-500" />
+            {runTimestamp ? new Date(runTimestamp).toLocaleString() : 'Timestamp unavailable'}
+          </p>
         </div>
       </div>
 
       {contextChanged && (
-        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          New project evidence or metadata is available since this report version was created. Generate a new draft version to include updated evidence.
+        <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          New project evidence is available. Use New version in the report header to regenerate the complete document.
         </div>
       )}
 
-      {(runningMode || result) && (
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-          {REPORT_AGENT_WORKFLOW_STEPS.map(([key, label]) => {
-            const done = key === 'deterministic_qc'
-              ? Boolean(result)
-              : completedAgents.has(key as never);
-            const stepToneClass = done
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-              : runningMode
-                ? 'border-blue-200 bg-blue-50 text-blue-800'
-                : 'border-slate-200 bg-slate-50 text-slate-500';
-            return (
-              <div key={key} className={`rounded-lg border px-3 py-2 text-xs ${stepToneClass}`}>
-                <div className="font-semibold">{label}</div>
-                <div>{done ? 'Complete' : runningMode ? 'Queued / running' : 'Waiting'}</div>
-              </div>
-            );
-          })}
+      {!completeWorkflow && !contextChanged && (
+        <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Use Generate new version in the report header to replace this legacy draft with a complete agent-generated document.
         </div>
       )}
 
-      {runningMode && (
-        <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-          {runningMode === 'quick_draft'
-            ? 'The release system is running a lower-cost internal draft with evidence, consumer, claims, writing, and editorial checks. Keep this page open.'
-            : 'The release system is running the full specialist review across evidence, calculations, sensory science, instrumental science, consumer insight, claims, writing, layout, red-team, conflicts, final judgment, and deterministic QC. Keep this page open.'}
+      {(review.criticalBlockers?.length ?? 0) > 0 && (
+        <div className="mt-4">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-rose-900">
+            <ShieldAlert className="size-4" />Release blockers
+          </h3>
+          <ul className="mt-2 space-y-1 text-sm text-rose-800">
+            {review.criticalBlockers?.slice(0, 5).map(blocker => <li key={blocker}>- {blocker}</li>)}
+          </ul>
         </div>
       )}
-      {error && (
-        <div className="mt-4 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-          <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-          {error}
-        </div>
-      )}
-      {result && (
-        <div className={`mt-4 rounded-lg border px-4 py-3 ${releaseTone}`}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="size-4" aria-hidden />
-              <span className="text-sm font-semibold">
-                Release review result: {result.status.replace(/_/g, ' ')}
-              </span>
-            </div>
-            <span className="text-xs font-semibold">
-              Quality {result.qc.qualityScore}/100
-              {cost !== null ? ` · API cost $${cost.toFixed(2)}` : ''}
-            </span>
-          </div>
-          <p className="mt-1 text-xs">
-            {result.metadata.agentsRun.length} specialist stages coordinated
-            {savedVersion ? ` · generated draft applied and saved as version ${savedVersion}` : ' · no revised version was saved'}
-            {result.metadata.retries ? ` · ${result.metadata.retries} repair/retry pass${result.metadata.retries === 1 ? '' : 'es'}` : ''}
-          </p>
-          <div className="mt-3 grid gap-3 md:grid-cols-4">
-            <div><strong>{result.evidenceAudit.supportedClaims.length}</strong><span className="ml-1 text-xs">supported claims</span></div>
-            <div><strong>{result.evidenceAudit.directionalClaims.length}</strong><span className="ml-1 text-xs">directional claims</span></div>
-            <div><strong>{result.evidenceAudit.unsupportedClaims.length}</strong><span className="ml-1 text-xs">unsupported claims</span></div>
-            <div><strong>{result.evidenceAudit.missingEvidence.length}</strong><span className="ml-1 text-xs">missing evidence notes</span></div>
-          </div>
-          {result.qc.criticalBlockers.length > 0 && (
-            <ul className="mt-3 space-y-1 text-xs">
-              {result.qc.criticalBlockers.slice(0, 5).map(blocker => (
-                <li key={blocker}>• {blocker}</li>
-              ))}
-            </ul>
-          )}
-          {result.qc.criticalBlockers.length === 0 && result.qc.warnings.length > 0 && (
-            <p className="mt-2 text-xs">
-              Warnings remain. The draft is saved for internal review, but approval/export still depends on deterministic QC and approval gates.
-            </p>
-          )}
-        </div>
+
+      {(review.criticalBlockers?.length ?? 0) === 0 && (
+        <p className="mt-4 flex items-center gap-2 text-sm text-emerald-700">
+          <CheckCircle2 className="size-4" />No agent-reported critical blockers remain on this saved version.
+        </p>
       )}
     </section>
   );

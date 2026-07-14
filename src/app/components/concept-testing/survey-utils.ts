@@ -1,7 +1,7 @@
 import type { Question } from './types';
 
 const CATEGORY_TARGETS: Record<Question['category'], number> = {
-  appeal: 4,
+  appeal: 5,
   purchase: 3,
   price: 2,
   usage: 2,

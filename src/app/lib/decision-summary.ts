@@ -32,7 +32,7 @@ const OUTCOME_COPY: Record<DecisionOutcome, Pick<DecisionSummary, 'definition' |
 
 function confidenceLabel(score: number): DecisionConfidence {
   if (score >= 85) return 'High';
-  if (score >= 70) return 'Moderate';
+  if (score >= 60) return 'Moderate';
   return 'Low';
 }
 
@@ -53,24 +53,32 @@ export function buildDecisionSummary(decision: GoStopTweakDecision): DecisionSum
   return {
     outcome: decision.decision,
     headline: decision.recommendation,
-    definition: OUTCOME_COPY[decision.decision].definition,
+    definition: decision.decisionStatus === 'hold'
+      ? 'The evidence is not valid or complete enough to confirm an outcome.'
+      : OUTCOME_COPY[decision.decision].definition,
     confidence: confidenceLabel(decision.confidenceScore),
     reasons: [...new Set(reasons)].slice(0, 3),
     risk: failedGate?.detail
       ?? watchedGate?.detail
       ?? `${decision.riskLevel[0].toUpperCase()}${decision.riskLevel.slice(1)} implementation risk based on the current evidence.`,
-    nextStep: OUTCOME_COPY[decision.decision].nextStep,
+    nextStep: decision.decisionStatus === 'hold'
+      ? 'Resolve the evidence blockers and rerun the decision before confirmation.'
+      : OUTCOME_COPY[decision.decision].nextStep,
   };
 }
 
 export function formatDecisionNote(input: {
   outcome: DecisionOutcome;
+  modelOutcome?: DecisionOutcome;
   note: string;
   issue: string;
   adjustment: string;
   retest: boolean;
 }) {
   const lines: string[] = [];
+  if (input.modelOutcome && input.outcome !== input.modelOutcome) {
+    lines.push(`Conservative override: ${input.modelOutcome} -> ${input.outcome}`);
+  }
   if (input.outcome === 'TWEAK') {
     if (input.issue.trim()) lines.push(`Issue: ${input.issue.trim()}`);
     if (input.adjustment.trim()) lines.push(`Adjustment: ${input.adjustment.trim()}`);

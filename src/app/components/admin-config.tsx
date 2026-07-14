@@ -39,6 +39,7 @@ import {
 } from '../lib/studies';
 import { generateBlindCode, isValidBlindCode, withBlindSampleCodes } from '../lib/blind-study';
 import { WorkflowPageHeader } from './workflow-page-header';
+import { PanelistInviteForm } from './panelist-invite-form';
 
 type AdminTab = 'products' | 'panelists' | 'imports';
 type StudyStatusFilter = 'all' | StudyLifecycleStatus;
@@ -62,6 +63,8 @@ function getStudyTypeMeta(type: StudyType): {
   actionClassName: string;
   icon: React.ElementType;
 } {
+  // Study-method colors are a local taxonomy, not status colors. The mapping is
+  // documented in DESIGN.md and must always be paired with an icon and label.
   if (type === 'multi_sample') {
     return {
       label: 'Triangle Test',
@@ -101,7 +104,13 @@ function getStudyTypeMeta(type: StudyType): {
   };
 }
 
-export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'responses' | 'admin' }) {
+export function AdminConfig({
+  mode = 'studies',
+  secondaryNavigation,
+}: {
+  mode?: 'studies' | 'responses' | 'admin';
+  secondaryNavigation?: React.ReactNode;
+}) {
   const isResponsesMode = mode === 'responses';
   const [activeTab, setActiveTab] = useState<AdminTab>('products');
   const { data: products = [] } = useProducts();
@@ -607,6 +616,8 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
           : 'Create, configure, launch, and review product sensory studies and triangle tests.'}
       />
 
+      {secondaryNavigation}
+
       {tabs.length > 1 && (
         <div className="flex items-center border-b border-slate-200 gap-1">
           {tabs.map(tab => {
@@ -825,7 +836,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                     {blockerPreview.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-1.5">
                         {blockerPreview.map(blocker => (
-                          <span key={blocker.id} className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                          <span key={blocker.id} className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${
                             blocker.severity === 'blocker'
                               ? 'bg-rose-50 text-rose-700 ring-1 ring-rose-200'
                               : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
@@ -834,7 +845,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
                           </span>
                         ))}
                         {study.blockers.length > blockerPreview.length && (
-                          <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-500">+{study.blockers.length - blockerPreview.length} more</span>
+                          <span className="rounded-md bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-500">+{study.blockers.length - blockerPreview.length} more</span>
                         )}
                       </div>
                     )}
@@ -925,6 +936,7 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
 
       <SurveyConfigurationSheet
         product={selectedProductRecord}
+        shipOutProjectId={selectedProjectId}
         panelists={activePanelists}
         standardAttributes={selectedProductStdAttrs}
         customAttributes={customAttributes}
@@ -956,6 +968,8 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
       {/* ── Panelists tab ── */}
       {activeTab === 'panelists' && <>
 
+      <PanelistInviteForm />
+
       {panelists.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-slate-500">
@@ -968,14 +982,16 @@ export function AdminConfig({ mode = 'studies' }: { mode?: 'studies' | 'response
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <Users className="size-4 text-slate-500" />
-              Panelist IDs
+              Panelist accounts
             </CardTitle>
+            <p className="text-sm text-slate-600">Completed accounts can be selected when preparing box QR sheets. Invited accounts remain pending until the panelist adds delivery details.</p>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
               {panelists.map(p => (
-                <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
-                  <span className="text-sm font-medium text-slate-700">{p.name}</span>
+                <div key={p.id} className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 sm:w-auto">
+                  <span className="min-w-0 break-all text-sm font-medium text-slate-700">{p.name}</span>
+                  <Badge variant="outline" className={p.profileCompletedAt ? 'border-emerald-300 text-emerald-700' : 'border-amber-300 text-amber-800'}>{p.profileCompletedAt ? 'Ready' : 'Invite pending'}</Badge>
                   {editingPanelistId === p.id ? (
                     <div className="flex gap-1">
                       {/* eslint-disable-next-line jsx-a11y/no-autofocus -- inline edit field appears on user action; focusing it is the expected behaviour */}

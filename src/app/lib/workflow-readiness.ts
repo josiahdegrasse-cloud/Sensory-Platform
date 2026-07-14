@@ -84,6 +84,40 @@ export function assessSampleWorkflow(input: {
   };
 }
 
+export type ProjectReadinessStage = 'no-samples' | 'no-questionnaires' | 'awaiting-responses' | 'ready';
+
+export interface ProjectReadinessSummary {
+  totalSamples: number;
+  /** Samples that already have a questionnaire (product) created. */
+  withQuestionnaire: number;
+  /** Sum of completed responses across every sample — one row per panelist submission. */
+  totalResponses: number;
+  /** Samples that have cleared the minimum-responses threshold. */
+  readyCount: number;
+  stage: ProjectReadinessStage;
+}
+
+/**
+ * Rolls per-sample workflow readiness up into one "where are we" state so
+ * Decision and Insights can both show an accurate process indicator instead
+ * of a static "create questionnaires" message that goes stale the moment
+ * questionnaires actually exist and are just waiting on responses.
+ */
+export function summarizeProjectReadiness(items: SampleWorkflowReadiness[]): ProjectReadinessSummary {
+  const totalSamples = items.length;
+  const withQuestionnaire = items.filter(item =>
+    item.stages.find(stage => stage.id === 'questionnaire')?.state === 'complete'
+  ).length;
+  const totalResponses = items.reduce((sum, item) => sum + item.responseCount, 0);
+  const readyCount = items.filter(item => item.decisionReady).length;
+  const stage: ProjectReadinessStage =
+    totalSamples === 0 ? 'no-samples'
+      : withQuestionnaire === 0 ? 'no-questionnaires'
+        : readyCount > 0 ? 'ready'
+          : 'awaiting-responses';
+  return { totalSamples, withQuestionnaire, totalResponses, readyCount, stage };
+}
+
 export function findDataIntegrityIssues(input: {
   dataset?: InstrumentalDataset;
   products: Product[];

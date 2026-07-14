@@ -9,15 +9,15 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-slate-900 text-white hover:bg-slate-800 hover:shadow-sm motion-safe:hover:-translate-y-px active:translate-y-0 active:shadow-none",
+        default: "bg-slate-900 text-white hover:bg-slate-700 hover:shadow-sm motion-safe:hover:-translate-y-px active:bg-slate-950 active:translate-y-0 active:shadow-none",
         destructive:
-          "bg-destructive text-white hover:bg-destructive/90 hover:shadow-sm motion-safe:hover:-translate-y-px active:translate-y-0 active:shadow-none focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+          "bg-destructive text-white hover:brightness-90 hover:shadow-sm motion-safe:hover:-translate-y-px active:brightness-75 active:translate-y-0 active:shadow-none focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
         outline:
-          "border border-slate-200 bg-white text-slate-700 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900 hover:shadow-sm motion-safe:hover:-translate-y-px active:translate-y-0 active:shadow-none dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
+          "border border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-100 hover:text-slate-950 hover:shadow-sm motion-safe:hover:-translate-y-px active:bg-slate-200 active:translate-y-0 active:shadow-none dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80 hover:shadow-sm motion-safe:hover:-translate-y-px active:translate-y-0 active:shadow-none",
+          "bg-secondary text-secondary-foreground hover:bg-slate-300 hover:shadow-sm motion-safe:hover:-translate-y-px active:bg-slate-400 active:translate-y-0 active:shadow-none",
         ghost:
-          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
+          "hover:bg-slate-200 hover:text-slate-950 active:bg-slate-300 dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {

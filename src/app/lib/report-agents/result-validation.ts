@@ -14,6 +14,12 @@ const PROTECTED_OUTPUT_KEYS = new Set([
   'sampleSize',
   'gateOutcome',
   'rawEvidence',
+  'rawChunk',
+  'sourcePath',
+  'retrievedExcerpt',
+  'internalNotes',
+  'chunkId',
+  'retrievalScore',
 ]);
 
 const REQUIRED_ARRAYS: Partial<Record<ReportAgentRole, string[]>> = {

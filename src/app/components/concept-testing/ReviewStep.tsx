@@ -102,17 +102,28 @@ const DIM_LABELS: Record<string, string> = {
 };
 
 const OPTION_LABELS: Record<string, string> = {
-  premium: 'Premium', accessible: 'Accessible',
-  minimal: 'Minimal', expressive: 'Expressive',
-  health: 'Health-focused', indulgent: 'Indulgent',
-  retail: 'Retail shelf', lifestyle: 'Lifestyle / DTC',
+  premium: 'Premium', accessible: 'Accessible', value: 'Value', craft: 'Craft',
+  functional: 'Functional', playful: 'Playful', heritage: 'Heritage', disruptive: 'Disruptive',
+  minimal: 'Minimal', expressive: 'Expressive', ingredient_led: 'Ingredient-led',
+  clinical: 'Clinical', editorial: 'Editorial', abundant: 'Abundant',
+  health: 'Health-focused', indulgent: 'Indulgent', taste_first: 'Taste-first',
+  convenience: 'Convenience', sustainable: 'Sustainable', family_friendly: 'Family-friendly',
+  adventurous: 'Adventurous',
+  retail: 'Retail shelf', lifestyle: 'Lifestyle / DTC', ecommerce: 'Ecommerce',
+  foodservice: 'Foodservice', buyer_deck: 'Buyer deck', club_store: 'Club store',
   young_active: 'Young & Active', family: 'Family', professional: 'Professional',
-  senior: 'Senior', health_seeker: 'Health-seeker',
+  senior: 'Senior', health_seeker: 'Health-seeker', parent: 'Parent', kid: 'Kid',
+  flexitarian: 'Flexitarian', foodie: 'Foodie', budget_shopper: 'Budget shopper',
+  retail_buyer: 'Retail buyer',
   budget: 'Budget', mainstream: 'Mainstream', ultra_premium: 'Ultra-premium',
+  trial_size: 'Trial size', bulk_value: 'Bulk value',
   earthy: 'Earthy', vibrant: 'Vibrant', minimalist: 'Minimalist',
-  luxury: 'Luxury', bold: 'Bold', pastel: 'Pastel',
+  luxury: 'Luxury', bold: 'Bold', pastel: 'Pastel', fresh: 'Fresh',
+  warm: 'Warm', cool: 'Cool', monochrome: 'Monochrome', natural: 'Natural',
   pouch: 'Pouch', block: 'Block', jar: 'Jar', can: 'Can',
   bottle: 'Bottle', sleeve: 'Sleeve', tray: 'Tray', tube: 'Tube',
+  carton: 'Carton', box: 'Box', cup: 'Cup', wrapper: 'Wrapper',
+  multipack: 'Multipack', sachet: 'Sachet',
 };
 
 function visualStatusClasses(status: string | undefined) {
@@ -137,7 +148,6 @@ export function ReviewStep({
   assignedPanelistIds,
   requireApprovedVisuals,
   onEditConcept,
-  onEditVisuals,
   onEditSurvey,
   onEditPanel,
 }: {
@@ -148,7 +158,6 @@ export function ReviewStep({
   assignedPanelistIds: string[];
   requireApprovedVisuals: boolean;
   onEditConcept: () => void;
-  onEditVisuals: () => void;
   onEditSurvey: () => void;
   onEditPanel: () => void;
 }) {
@@ -197,10 +206,10 @@ export function ReviewStep({
                       <span className="text-sm text-amber-950"><strong>{item.label}:</strong> {item.detail}</span>
                       <button
                         type="button"
-                        onClick={item.fixStep === 'concept' ? onEditConcept : item.fixStep === 'visuals' ? onEditVisuals : item.fixStep === 'panel' ? onEditPanel : onEditSurvey}
+                        onClick={item.fixStep === 'panel' ? onEditPanel : item.fixStep === 'survey' ? onEditSurvey : onEditConcept}
                         className="shrink-0 text-left text-xs font-semibold text-blue-700 hover:text-blue-900"
                       >
-                        Edit {item.fixStep === 'concept' ? 'concept' : item.fixStep === 'visuals' ? 'visuals' : item.fixStep === 'panel' ? 'panel' : 'survey'}
+                        Edit {item.fixStep === 'panel' ? 'panel' : item.fixStep === 'survey' ? 'survey' : 'concept'}
                       </button>
                     </li>
                   ))}

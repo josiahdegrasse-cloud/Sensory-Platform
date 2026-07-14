@@ -1,19 +1,19 @@
 import { useMemo, useState } from 'react';
 import QRCode from 'react-qr-code';
-import { AlertTriangle, CheckCircle2, ClipboardCheck, Download, FileCheck2, Package, PackageCheck, Printer, QrCode, RefreshCw, Send, ShieldCheck, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ClipboardCheck, Download, MoreHorizontal, Package, PackageCheck, Printer, QrCode, RefreshCw, Search, Send, ShieldCheck, X, XCircle } from 'lucide-react';
 import type { Product } from '../data/survey-domain';
-import type { GeneratedPanelistKit, PanelistKitRecord } from '../lib/database';
+import { panelistShippingAddress, type GeneratedPanelistKit, type PanelistInfo, type PanelistKitRecord } from '../lib/database';
 import {
   useCreateReplacementPanelistKit,
-  useActiveProducts,
   useGeneratePanelistKits,
+  usePanelists,
   usePanelistKits,
   useRecordPanelistKitReminder,
   useUpdatePanelistKitFulfillment,
   useVoidPanelistKit,
 } from '../lib/hooks';
 import { getBlindStudyDisplayName } from '../lib/blind-study';
-import { analyzePackList, recipientInputs, taskSummariesForIds, type BoxTaskSummary } from '../lib/panelist-box-workflow';
+import { taskSummariesForIds, type BoxTaskSummary } from '../lib/panelist-box-workflow';
 import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -21,32 +21,23 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
+import { PanelistInviteForm } from './panelist-invite-form';
 
-function defaultInstructions(product: Product) {
-  const sampleName = product.blinded
-    ? 'the coded food samples'
-    : product.name;
+function defaultInstructions() {
   return [
-    `Keep ${sampleName} and any other samples in this box stored as instructed until you are ready to taste.`,
-    'Scan the QR code once to create or sign in to your panelist account.',
-    'After sign-up, your account will show every tasting task assigned from this box.',
-    'Complete each task only when you are ready to taste that sample.',
-    'Do not taste if you have any allergy or safety concern.',
+    'Keep everything sealed and stored exactly as labelled until you are ready.',
+    'Scan the QR code, sign in, and match each task to the code on the item before opening it.',
+    'Complete one task at a time. Do not use anything damaged or connected to an allergy or safety concern.',
   ].join('\n');
 }
 
-function joinUrl(token: string) {
+function panelistSiteUrl() {
   const origin = typeof window !== 'undefined'
     ? window.location.origin
     : (import.meta.env.VITE_APP_URL ?? '');
-  return `${origin}/join/${token}`;
-}
-
-function manualJoinUrl(manualCode: string) {
-  const origin = typeof window !== 'undefined'
-    ? window.location.origin
-    : (import.meta.env.VITE_APP_URL ?? '');
-  return `${origin}/join?code=${encodeURIComponent(manualCode)}`;
+  return `${origin}/panelist`;
 }
 
 function statusClass(status: PanelistKitRecord['calculatedStatus']) {
@@ -81,6 +72,7 @@ function downloadKitsCsv(product: Product, kits: PanelistKitRecord[], taskOption
     'Sample code',
     'Recipient name',
     'Recipient email',
+    'Delivery address',
     'Assigned task count',
     'Completed task count',
     'Assigned tasks',
@@ -102,6 +94,7 @@ function downloadKitsCsv(product: Product, kits: PanelistKitRecord[], taskOption
     kit.sampleCode,
     kit.recipientName,
     kit.recipientEmail,
+    kit.recipientAddress,
     kit.assignedProductCount,
     kit.completedProductCount,
     taskSummariesForIds(taskOptions, kit.assignedProductIds, product).map(task => task.label).join('; '),
@@ -127,13 +120,33 @@ function downloadKitsCsv(product: Product, kits: PanelistKitRecord[], taskOption
   URL.revokeObjectURL(url);
 }
 
+function downloadPackingSheet(product: Product, kits: GeneratedPanelistKit[], taskOptions: Product[]) {
+  const headers = ['Packed', 'Box code', 'Recipient name', 'Recipient email', 'Delivery address', 'Assigned tasks'];
+  const rows = kits.map(kit => [
+    '',
+    kit.kitCode,
+    kit.recipientName,
+    kit.recipientEmail,
+    kit.recipientAddress,
+    taskSummariesForIds(taskOptions, kit.assignedProductIds, product).map(task => task.label).join('; '),
+  ]);
+  const csv = [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${product.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'panelist-boxes'}-packing-sheet.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function KitInsertCard({ kit, product, instructions, assignedTasks }: {
   kit: GeneratedPanelistKit;
   product: Product;
   instructions: string;
   assignedTasks: BoxTaskSummary[];
 }) {
-  const url = joinUrl(kit.token);
+  const url = panelistSiteUrl();
   const displayName = product.blinded ? 'Coded at-home tasting box' : `${product.name} tasting box`;
   const recipientLabel = kit.recipientName ?? 'Panelist';
 
@@ -148,6 +161,7 @@ function KitInsertCard({ kit, product, instructions, assignedTasks }: {
             For: <span className="font-bold text-slate-900">{recipientLabel}</span>
             {kit.recipientEmail && <span className="ml-2 text-xs text-slate-500">{kit.recipientEmail}</span>}
           </p>
+          {kit.recipientAddress && <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">{kit.recipientAddress}</p>}
         </div>
         <div className="rounded-md border border-slate-200 px-3 py-2 text-right">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Box code</p>
@@ -155,22 +169,21 @@ function KitInsertCard({ kit, product, instructions, assignedTasks }: {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-5 sm:grid-cols-[180px_1fr]">
-        <div className="space-y-2">
-          <div className="rounded-lg border border-slate-200 bg-white p-3">
-            <QRCode value={url} size={150} level="M" />
+      <div className="mt-5 grid gap-6 sm:grid-cols-[210px_1fr]">
+        <div className="space-y-3">
+          <div className="rounded-lg border border-slate-300 bg-white p-4 text-center">
+            <p className="mb-3 text-base font-bold text-slate-900">Scan to begin</p>
+            <QRCode value={url} size={176} level="M" className="mx-auto" />
           </div>
-          <p className="break-all text-[11px] leading-4 text-slate-500">{url}</p>
+          <p className="text-center text-xs leading-5 text-slate-600">This QR opens the secure panelist site. Sign in with the account created from your email invitation.</p>
         </div>
         <div className="space-y-4">
           <div>
             <h3 className="text-sm font-bold text-slate-900">What to do</h3>
             <ol className="mt-2 space-y-2 text-sm leading-5 text-slate-700">
-              <li>1. Keep the food sealed until you are ready to taste.</li>
-              <li>2. Scan this QR code once with your phone camera.</li>
-              <li>3. Create your panelist account or sign in.</li>
-              <li>4. Confirm this box code in the app.</li>
-              <li>5. Open your task list and complete the assigned tastings.</li>
+              <li><strong className="text-slate-900">1.</strong> Keep everything sealed and stored exactly as labelled.</li>
+              <li><strong className="text-slate-900">2.</strong> Scan the QR code and create an account or sign in.</li>
+              <li><strong className="text-slate-900">3.</strong> Match each task to its item code, then complete one task at a time.</li>
             </ol>
           </div>
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
@@ -178,7 +191,7 @@ function KitInsertCard({ kit, product, instructions, assignedTasks }: {
             <ul className="mt-2 space-y-1 text-sm leading-5 text-slate-700">
               {assignedTasks.map((task, index) => (
                 <li key={task.id}>
-                  {index + 1}. {task.label} - {task.sampleCue}
+                  {index + 1}. <strong className="text-slate-900">{task.label}</strong> — {task.sampleCue} · {task.estimate}
                 </li>
               ))}
             </ul>
@@ -198,13 +211,7 @@ function KitInsertCard({ kit, product, instructions, assignedTasks }: {
                 <span className="text-sm font-bold text-slate-900">{new Date(kit.responseDeadline).toLocaleDateString()}</span>
               </div>
             )}
-            {kit.manualCode && (
-              <div className="rounded-md border border-slate-200 px-3 py-2 sm:col-span-2">
-                <span className="block font-semibold text-slate-500">Manual fallback code</span>
-                <span className="font-mono text-sm font-bold text-slate-900">{kit.manualCode}</span>
-                <span className="mt-1 block text-[12px] leading-5 text-slate-700">If the QR will not scan, go to {manualJoinUrl(kit.manualCode)} or enter this code on the join screen.</span>
-              </div>
-            )}
+            <p className="text-[11px] leading-5 text-slate-600 sm:col-span-2">Panelist site: {url}</p>
           </div>
         </div>
       </div>
@@ -217,20 +224,66 @@ function KitInsertCard({ kit, product, instructions, assignedTasks }: {
   );
 }
 
-export function PanelistKitInserts({ product }: { product: Product }) {
-  const { data: existingKits = [], isLoading } = usePanelistKits(product.id);
-  const { data: activeProducts = [] } = useActiveProducts();
+function BatchPackingSheet({ product, kits, taskOptions }: {
+  product: Product;
+  kits: GeneratedPanelistKit[];
+  taskOptions: Product[];
+}) {
+  return (
+    <section className="kit-manifest-page rounded-lg border border-slate-200 bg-white p-6 text-slate-900">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">New Food Innovation</p>
+      <div className="mt-1 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold">Batch packing sheet</h2>
+          <p className="mt-1 text-sm text-slate-600">{product.name} · {kits.length} box{kits.length === 1 ? '' : 'es'}</p>
+        </div>
+        <p className="text-xs text-slate-500">Printed {new Date().toLocaleDateString()}</p>
+      </div>
+      <p className="mt-4 rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-700">Pack one row at a time. Match the box code to its insert, confirm the recipient details, then tick the row when sealed.</p>
+      <div className="mt-4 overflow-hidden rounded-md border border-slate-300">
+        <table className="w-full border-collapse text-left text-xs">
+          <thead className="bg-slate-100 text-slate-700">
+            <tr><th className="p-2 font-bold">Done</th><th className="p-2 font-bold">Box</th><th className="p-2 font-bold">Recipient</th><th className="p-2 font-bold">Delivery address</th><th className="p-2 font-bold">Tasks</th></tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200">
+            {kits.map(kit => (
+              <tr key={kit.id} className="align-top">
+                <td className="p-2 text-lg">□</td>
+                <td className="p-2 font-mono font-bold">{kit.kitCode}</td>
+                <td className="p-2"><strong className="block">{kit.recipientName ?? 'Unassigned'}</strong><span className="text-slate-500">{kit.recipientEmail ?? '—'}</span></td>
+                <td className="whitespace-pre-line p-2 leading-5">{kit.recipientAddress ?? '—'}</td>
+                <td className="p-2 leading-5">{taskSummariesForIds(taskOptions, kit.assignedProductIds, product).map(task => task.label).join(', ')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+export function PanelistKitInserts({
+  product,
+  availableProducts,
+  standalone = false,
+}: {
+  product: Product;
+  availableProducts: Product[];
+  standalone?: boolean;
+}) {
+  const { data: existingKits = [] } = usePanelistKits(product.id);
+  const { data: panelists = [], isLoading: panelistsLoading } = usePanelists();
   const generateKits = useGeneratePanelistKits();
   const updateFulfillment = useUpdatePanelistKitFulfillment(product.id);
   const recordReminder = useRecordPanelistKitReminder(product.id);
   const voidKit = useVoidPanelistKit(product.id);
   const createReplacement = useCreateReplacementPanelistKit(product.id);
-  const [kitCount, setKitCount] = useState(12);
   const [responseDeadline, setResponseDeadline] = useState('');
-  const [expiresAt, setExpiresAt] = useState('');
-  const [instructions, setInstructions] = useState(() => defaultInstructions(product));
-  const [recipientText, setRecipientText] = useState('');
+  const [instructions, setInstructions] = useState(defaultInstructions);
+  const [selectedPanelistIds, setSelectedPanelistIds] = useState<string[]>([]);
+  const [panelistSearch, setPanelistSearch] = useState('');
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([product.id]);
+  const [taskToAdd, setTaskToAdd] = useState('');
   const [generatedKits, setGeneratedKits] = useState<GeneratedPanelistKit[]>([]);
   const [error, setError] = useState('');
   const [actionMessage, setActionMessage] = useState('');
@@ -241,29 +294,35 @@ export function PanelistKitInserts({ product }: { product: Product }) {
   const [replacementReason, setReplacementReason] = useState('');
   const [voidingKit, setVoidingKit] = useState<PanelistKitRecord | null>(null);
   const [voidReason, setVoidReason] = useState('');
-  const packList = useMemo(() => analyzePackList(recipientText), [recipientText]);
-  const recipients = useMemo(() => recipientInputs(packList.recipients), [packList.recipients]);
-  const effectiveKitCount = recipients.length > 0 ? recipients.length : kitCount;
+  const eligiblePanelists = useMemo(() => panelists.filter(panelist => panelist.status === 'active' && panelist.profileCompletedAt), [panelists]);
+  const pendingPanelists = panelists.filter(panelist => panelist.status === 'active' && !panelist.profileCompletedAt);
+  const visiblePanelists = useMemo(() => {
+    const query = panelistSearch.trim().toLowerCase();
+    if (!query) return eligiblePanelists;
+    return eligiblePanelists.filter(panelist => [panelist.name, panelist.email, panelist.postalCode].some(value => value?.toLowerCase().includes(query)));
+  }, [eligiblePanelists, panelistSearch]);
+  const selectedPanelists = useMemo(() => selectedPanelistIds.map(id => eligiblePanelists.find(panelist => panelist.id === id)).filter((panelist): panelist is PanelistInfo => Boolean(panelist)), [eligiblePanelists, selectedPanelistIds]);
+  const effectiveKitCount = selectedPanelists.length;
   const taskOptions = useMemo(() => {
-    const currentIncluded = activeProducts.some(item => item.id === product.id)
-      ? activeProducts
-      : [product, ...activeProducts];
+    const currentIncluded = availableProducts.some(item => item.id === product.id)
+      ? availableProducts
+      : [product, ...availableProducts];
     return currentIncluded.filter(item => item.status === 'active');
-  }, [activeProducts, product]);
+  }, [availableProducts, product]);
   const selectedTaskSummaries = useMemo(
     () => taskSummariesForIds(taskOptions, selectedProductIds, product),
     [product, selectedProductIds, taskOptions],
   );
+  const unselectedTaskOptions = taskOptions.filter(task => !selectedProductIds.includes(task.id));
   const reviewSignature = JSON.stringify({
     effectiveKitCount,
-    expiresAt,
     instructions,
-    recipientText,
+    selectedPanelistIds,
     responseDeadline,
     selectedProductIds,
   });
   const reviewConfirmed = confirmedReviewSignature === reviewSignature;
-  const canGenerate = reviewConfirmed && !packList.hasErrors && selectedProductIds.length > 0 && instructions.trim().length > 0 && effectiveKitCount > 0 && !generateKits.isPending;
+  const canGenerate = reviewConfirmed && selectedProductIds.length > 0 && instructions.trim().length > 0 && effectiveKitCount > 0 && !generateKits.isPending;
 
   const statusCounts = useMemo(() => existingKits.reduce<Record<string, number>>((acc, kit) => {
     acc[kit.calculatedStatus] = (acc[kit.calculatedStatus] ?? 0) + 1;
@@ -282,10 +341,11 @@ export function PanelistKitInserts({ product }: { product: Product }) {
         productId: product.id,
         kitCount: effectiveKitCount,
         responseDeadline: responseDeadline || null,
-        expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+        expiresAt: null,
         handlingInstructions: instructions,
-        recipients,
+        recipients: [],
         assignedProductIds: selectedProductIds.length ? selectedProductIds : [product.id],
+        panelistIds: selectedPanelistIds,
       });
       setGeneratedKits(kits);
     } catch (err) {
@@ -293,13 +353,18 @@ export function PanelistKitInserts({ product }: { product: Product }) {
     }
   };
 
-  const toggleSelectedProduct = (productId: string, checked: boolean) => {
-    setSelectedProductIds(previous => {
-      const next = checked
-        ? Array.from(new Set([...previous, productId]))
-        : previous.filter(id => id !== productId);
-      return next.length > 0 ? next : [product.id];
-    });
+  const addSelectedProduct = (productId: string) => {
+    setSelectedProductIds(previous => Array.from(new Set([...previous, productId])));
+    setTaskToAdd('');
+  };
+
+  const removeSelectedProduct = (productId: string) => {
+    if (productId === product.id) return;
+    setSelectedProductIds(previous => previous.filter(id => id !== productId));
+  };
+
+  const togglePanelist = (panelistId: string) => {
+    setSelectedPanelistIds(previous => previous.includes(panelistId) ? previous.filter(id => id !== panelistId) : [...previous, panelistId]);
   };
 
   const handleFulfillment = async (kit: PanelistKitRecord, status: 'printed' | 'packed' | 'shipped', trackingNumber?: string | null) => {
@@ -370,7 +435,10 @@ export function PanelistKitInserts({ product }: { product: Product }) {
     setActionMessage('');
     try {
       const replacements = await createReplacement.mutateAsync({ kitId: replacementKit.id, reason });
-      setGeneratedKits(previous => [...replacements, ...previous]);
+      setGeneratedKits(previous => [
+        ...replacements.map(kit => ({ ...kit, recipientAddress: replacementKit.recipientAddress, assignedPanelistId: replacementKit.claimedBy })),
+        ...previous,
+      ]);
       setActionMessage(`Replacement created for ${replacementKit.recipientName ?? replacementKit.kitCode}. Print the new insert before leaving this screen.`);
       setReplacementKit(null);
     } catch (err) {
@@ -379,23 +447,15 @@ export function PanelistKitInserts({ product }: { product: Product }) {
   };
 
   return (
-    <section className="space-y-4 border-t border-slate-200 pt-5" aria-labelledby="kit-inserts-heading">
+    <section className={standalone ? 'space-y-4' : 'space-y-4 border-t border-slate-200 pt-5'} aria-labelledby="kit-inserts-heading">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h3 id="kit-inserts-heading" className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-            <QrCode className="size-4 text-slate-700" aria-hidden />
-            Box QR codes and package inserts
+        <div className="max-w-2xl">
+          <h3 id="kit-inserts-heading" className="flex items-center gap-2 text-lg font-bold text-slate-900">
+            <QrCode className="size-5 text-slate-700" aria-hidden />
+            {standalone ? 'Prepare the next box batch' : 'Box QR codes and package inserts'}
           </h3>
-          <p className="mt-1 text-sm text-slate-700">
-            Generate one QR-coded box pass per panelist. The QR takes them through sign-up, claims the box, and opens their account with the selected tasting tasks waiting.
-          </p>
+          <p className="mt-1 text-sm leading-6 text-slate-600">Invite panelists first, select the completed accounts for this batch, verify the contents, then print every insert together.</p>
         </div>
-        {generatedKits.length > 0 && (
-          <Button type="button" size="sm" variant="outline" onClick={() => window.print()}>
-            <Printer className="size-3.5" aria-hidden />
-            Print inserts
-          </Button>
-        )}
         {existingKits.length > 0 && (
           <Button type="button" size="sm" variant="outline" onClick={() => downloadKitsCsv(product, existingKits, taskOptions)}>
             <Download className="size-3.5" aria-hidden />
@@ -404,138 +464,93 @@ export function PanelistKitInserts({ product }: { product: Product }) {
         )}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="kit-count">Number of kits</Label>
-          <Input
-            id="kit-count"
-            type="number"
-            min={1}
-            max={250}
-            value={kitCount}
-            disabled={recipients.length > 0}
-            onChange={event => setKitCount(Math.min(250, Math.max(1, Number(event.target.value) || 1)))}
-          />
-          {recipients.length > 0 && <p className="text-xs text-slate-500">Using {recipients.length} recipient name{recipients.length === 1 ? '' : 's'} from the pack list.</p>}
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="response-deadline">Response deadline</Label>
-          <Input id="response-deadline" type="date" value={responseDeadline} onChange={event => setResponseDeadline(event.target.value)} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="qr-expires-at">QR expires</Label>
-          <Input id="qr-expires-at" type="datetime-local" value={expiresAt} onChange={event => setExpiresAt(event.target.value)} />
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="kit-recipients">Pack list names</Label>
-        <Textarea
-          id="kit-recipients"
-          value={recipientText}
-          onChange={event => setRecipientText(event.target.value)}
-          placeholder={'One per line, for example:\nAvery Johnson, avery@example.com\nMina Patel <mina@example.com>\nChris Wong'}
-          className="min-h-28 bg-white text-sm leading-5"
-        />
-        <p className="text-xs text-slate-500">
-          Optional but recommended. Names print on the inserts and help packing, tracking, and handoff.
-        </p>
-        {packList.issues.length > 0 && (
-          <div className="space-y-1 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs">
-            {packList.issues.map(issue => (
-              <p key={issue.message} className={issue.severity === 'error' ? 'text-rose-700' : 'text-amber-700'}>
-                {issue.severity === 'error' ? 'Fix: ' : 'Check: '}{issue.message}
-              </p>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        <Label>Tasting tasks included in this box</Label>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {taskOptions.map(task => (
-            <label key={task.id} className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                aria-label={`Include ${getBlindStudyDisplayName(task)} in this box`}
-                checked={selectedProductIds.includes(task.id)}
-                onChange={event => toggleSelectedProduct(task.id, event.target.checked)}
-                className="mt-1 accent-slate-900"
-              />
-              <span className="min-w-0">
-                <span className="block font-semibold text-slate-900">{getBlindStudyDisplayName(task)}</span>
-                <span className="block text-xs text-slate-500">{task.isMultiSample ? 'Multi-sample comparison' : 'Single product evaluation'}</span>
-              </span>
-            </label>
-          ))}
-        </div>
-        <p className="text-xs text-slate-500">
-          Select every food evaluation represented by the physical samples in this shipment. Panelists scan once and see these tasks on their dashboard.
-        </p>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="handling-instructions">Package handling instructions</Label>
-        <Textarea
-          id="handling-instructions"
-          value={instructions}
-          onChange={event => setInstructions(event.target.value)}
-          className="min-h-28 bg-white text-sm leading-5"
-        />
-      </div>
-
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <section className="grid gap-4 border-b border-slate-200 p-4 lg:grid-cols-[180px_1fr]" aria-labelledby="box-recipients-heading">
           <div>
-            <h4 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-              <FileCheck2 className="size-4 text-slate-700" aria-hidden />
-              Review before generating
-            </h4>
-            <p className="mt-1 text-xs leading-5 text-slate-700">
-              Use this as the packing checkpoint. The QR passes should only be generated once these details match the physical boxes.
-            </p>
+            <div className="flex items-center gap-2">
+              <span className="flex size-7 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">1</span>
+              <h4 id="box-recipients-heading" className="text-sm font-bold text-slate-900">Recipients</h4>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-slate-500">Named boxes are easier to pack, recover, and follow up.</p>
           </div>
-          <Badge variant="outline" className={packList.hasErrors ? 'border-rose-300 text-rose-700' : 'border-emerald-300 text-emerald-700'}>
-            {packList.hasErrors ? 'Needs fixes' : 'Ready to review'}
-          </Badge>
-        </div>
-        <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-md border border-slate-200 bg-white p-3">
-            <span className="block text-xs font-semibold text-slate-500">Boxes in next batch</span>
-            <span className="mt-1 block text-lg font-bold text-slate-900">{effectiveKitCount}</span>
+          <div className="space-y-4">
+            <PanelistInviteForm compact />
+            <div className="border-t border-slate-200 pt-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div><p className="text-sm font-semibold text-slate-950">Choose panelist accounts</p><p className="mt-0.5 text-xs text-slate-600">One box is created for every selected account. Delivery details come from the panelist’s completed profile.</p></div>
+                <div className="flex gap-2"><Button type="button" size="sm" variant="ghost" onClick={() => setSelectedPanelistIds(eligiblePanelists.map(panelist => panelist.id))} disabled={eligiblePanelists.length === 0}>Select all</Button><Button type="button" size="sm" variant="ghost" onClick={() => setSelectedPanelistIds([])} disabled={selectedPanelistIds.length === 0}>Clear</Button></div>
+              </div>
+              <div className="relative mt-3"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" aria-hidden /><Input value={panelistSearch} onChange={event => setPanelistSearch(event.target.value)} placeholder="Search by name, email, or postcode" className="pl-9" aria-label="Search panelist accounts" /></div>
+            </div>
+            <div className="overflow-hidden rounded-lg border border-slate-200">
+              {panelistsLoading ? <p className="p-5 text-sm text-slate-600">Loading panelist accounts…</p> : visiblePanelists.length === 0 ? <div className="p-5"><p className="text-sm font-semibold text-slate-900">No ready panelist accounts found</p><p className="mt-1 text-xs leading-5 text-slate-600">Send an invite above. The account becomes selectable after the panelist adds their name and delivery details.</p></div> : <ul className="divide-y divide-slate-200">{visiblePanelists.map(panelist => {
+                const selected = selectedPanelistIds.includes(panelist.id);
+                return <li key={panelist.id}><label aria-label={`Select ${panelist.name}`} className={`flex cursor-pointer items-start gap-3 p-3 transition-colors ${selected ? 'bg-slate-100' : 'bg-white hover:bg-slate-50'}`}><input type="checkbox" checked={selected} onChange={() => togglePanelist(panelist.id)} className="mt-1 size-4 accent-slate-900" /><span className="min-w-0 flex-1"><span className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"><strong className="text-sm text-slate-950">{panelist.name}</strong><span className="truncate text-xs text-slate-600">{panelist.email}</span></span><span className="mt-1 block whitespace-pre-line text-xs leading-5 text-slate-500">{panelistShippingAddress(panelist)}</span></span></label></li>;
+              })}</ul>}
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs"><span className="text-slate-600">{pendingPanelists.length > 0 ? `${pendingPanelists.length} invited panelist${pendingPanelists.length === 1 ? '' : 's'} still finishing account setup.` : 'Only active accounts with complete delivery details are shown.'}</span><strong className={selectedPanelists.length ? 'text-emerald-700' : 'text-slate-600'}>{selectedPanelists.length} selected</strong></div>
           </div>
-          <div className="rounded-md border border-slate-200 bg-white p-3">
-            <span className="block text-xs font-semibold text-slate-500">Named recipients</span>
-            <span className="mt-1 block text-lg font-bold text-slate-900">{recipients.length || 'None'}</span>
+        </section>
+
+        <section className="grid gap-4 border-b border-slate-200 p-4 lg:grid-cols-[180px_1fr]" aria-labelledby="box-contents-heading">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="flex size-7 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">2</span>
+              <h4 id="box-contents-heading" className="text-sm font-bold text-slate-900">Box contents</h4>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-slate-500">Every task must have its matching physical sample in each box.</p>
           </div>
-          <div className="rounded-md border border-slate-200 bg-white p-3">
-            <span className="block text-xs font-semibold text-slate-500">Tasks per box</span>
-            <span className="mt-1 block text-lg font-bold text-slate-900">{selectedTaskSummaries.length}</span>
+          <div className="overflow-hidden rounded-lg border border-slate-200">
+            <ul className="divide-y divide-slate-100">
+              {selectedTaskSummaries.map(task => (
+                <li key={task.id} className="flex items-center justify-between gap-3 px-3 py-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5"><span className="truncate text-sm font-semibold text-slate-900">{task.label}</span>{task.id === product.id && <Badge variant="outline" className="border-slate-300 text-[10px] text-slate-600">Primary</Badge>}</div>
+                    <p className="mt-0.5 text-xs text-slate-500">{task.sampleCue} · {task.estimate}</p>
+                  </div>
+                  {task.id !== product.id && <button type="button" onClick={() => removeSelectedProduct(task.id)} className="rounded-md p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400" aria-label={`Remove ${task.label} from this box`}><X className="size-4" aria-hidden /></button>}
+                </li>
+              ))}
+            </ul>
+            {unselectedTaskOptions.length > 0 && (
+              <div className="border-t border-slate-200 bg-slate-50 p-2.5">
+                <Select value={taskToAdd} onValueChange={addSelectedProduct}><SelectTrigger className="bg-white" aria-label="Add another project task"><SelectValue placeholder="Add another project task…" /></SelectTrigger><SelectContent>{unselectedTaskOptions.map(task => <SelectItem key={task.id} value={task.id}>{getBlindStudyDisplayName(task)}</SelectItem>)}</SelectContent></Select>
+              </div>
+            )}
           </div>
-          <div className="rounded-md border border-slate-200 bg-white p-3">
-            <span className="block text-xs font-semibold text-slate-500">Deadline</span>
-            <span className="mt-1 block text-sm font-bold text-slate-900">{responseDeadline ? new Date(responseDeadline).toLocaleDateString() : 'Not set'}</span>
+        </section>
+
+        <section className="grid gap-4 border-b border-slate-200 p-4 lg:grid-cols-[180px_1fr]" aria-labelledby="box-timing-heading">
+          <div>
+            <div className="flex items-center gap-2"><span className="flex size-7 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">3</span><h4 id="box-timing-heading" className="text-sm font-bold text-slate-900">Timing & handling</h4></div>
+            <p className="mt-2 text-xs leading-5 text-slate-500">Give panelists one clear deadline and only the handling details they need.</p>
           </div>
-        </div>
-        <div className="mt-3 rounded-md border border-slate-200 bg-white p-3">
-          <span className="block text-xs font-semibold text-slate-500">Task/sample match</span>
-          <ul className="mt-2 space-y-1 text-sm text-slate-700">
-            {selectedTaskSummaries.map((task, index) => (
-              <li key={task.id}>{index + 1}. {task.label} - {task.sampleCue} - {task.estimate}</li>
-            ))}
-          </ul>
-        </div>
-        <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-700">
-          <input
-            type="checkbox"
-            checked={reviewConfirmed}
-            onChange={event => setConfirmedReviewSignature(event.target.checked ? reviewSignature : '')}
-            disabled={packList.hasErrors}
-            className="mt-1 accent-slate-900"
-          />
-          <span>I reviewed the pack list, tasks, deadline, and handling instructions against the physical boxes.</span>
-        </label>
+          <div className="space-y-4">
+            <div className="max-w-sm space-y-1.5"><Label htmlFor="response-deadline">Complete tastings by</Label><Input id="response-deadline" type="date" value={responseDeadline} onChange={event => setResponseDeadline(event.target.value)} /></div>
+            <div className="space-y-1.5"><Label htmlFor="handling-instructions">Storage and safety instructions</Label><Textarea id="handling-instructions" value={instructions} onChange={event => setInstructions(event.target.value)} className="min-h-24 bg-white text-sm leading-5" /></div>
+            <p className="rounded-md bg-slate-50 px-3 py-2.5 text-xs leading-5 text-slate-600">The printed QR always opens the panelist site. Study availability is controlled by account assignment and the completion deadline above.</p>
+          </div>
+        </section>
+
+        <section className="grid gap-4 bg-slate-50 p-4 lg:grid-cols-[180px_1fr]" aria-labelledby="box-review-heading">
+          <div>
+            <div className="flex items-center gap-2"><span className="flex size-7 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">4</span><h4 id="box-review-heading" className="text-sm font-bold text-slate-900">Final check</h4></div>
+            <p className="mt-2 text-xs leading-5 text-slate-500">Match this summary to the boxes in front of you.</p>
+          </div>
+          <div className="space-y-3">
+            <div className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white px-3">
+              <div className="flex items-center justify-between gap-4 py-2.5 text-sm"><span className="text-slate-600">Next batch</span><strong className="text-slate-900">{effectiveKitCount} assigned box{effectiveKitCount === 1 ? '' : 'es'}</strong></div>
+              <div className="flex items-center justify-between gap-4 py-2.5 text-sm"><span className="text-slate-600">In every box</span><strong className="text-right text-slate-900">{selectedTaskSummaries.length} task{selectedTaskSummaries.length === 1 ? '' : 's'}</strong></div>
+              <div className="flex items-center justify-between gap-4 py-2.5 text-sm"><span className="text-slate-600">Deadline</span><strong className="text-slate-900">{responseDeadline ? new Date(responseDeadline).toLocaleDateString() : 'Not set'}</strong></div>
+            </div>
+            <ul className="space-y-1 text-xs leading-5 text-slate-600">{selectedTaskSummaries.map((task, index) => <li key={task.id}><strong className="text-slate-900">{index + 1}. {task.label}</strong> — {task.sampleCue}</li>)}</ul>
+            <label className="flex cursor-pointer items-start gap-3 rounded-md border border-slate-300 bg-white p-3 text-sm text-slate-700">
+              <input type="checkbox" checked={reviewConfirmed} onChange={event => setConfirmedReviewSignature(event.target.checked ? reviewSignature : '')} disabled={effectiveKitCount === 0} className="mt-1 size-4 accent-slate-900" />
+              <span><strong className="block text-slate-900">Pack list checked against the physical boxes</strong>The recipients, samples, deadline, and handling notes above are correct.</span>
+            </label>
+            {selectedPanelists.length === 0 && <p className="text-sm font-medium text-amber-800">Select at least one completed panelist account to generate this batch.</p>}
+          </div>
+        </section>
       </div>
 
       {error && (
@@ -549,114 +564,59 @@ export function PanelistKitInserts({ product }: { product: Product }) {
         </Alert>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
         <Button type="button" onClick={handleGenerate} disabled={!canGenerate} className="bg-slate-900 hover:bg-slate-800">
           {generateKits.isPending ? <RefreshCw className="size-4 animate-spin" aria-hidden /> : <Package className="size-4" aria-hidden />}
           {generateKits.isPending ? 'Generating...' : 'Generate box passes'}
         </Button>
-        <span className="text-xs text-slate-500">
-          {isLoading ? 'Loading box status...' : `${existingKits.length} box pass${existingKits.length === 1 ? '' : 'es'} generated - ${selectedProductIds.length} task${selectedProductIds.length === 1 ? '' : 's'} per box - next batch ${effectiveKitCount}`}
-        </span>
-        {Object.entries(statusCounts).map(([status, count]) => (
-          <Badge key={status} variant="outline" className={statusClass(status as PanelistKitRecord['calculatedStatus'])}>
-            {count} {status}
-          </Badge>
-        ))}
+        <span className="text-xs leading-5 text-slate-500">Creates {effectiveKitCount || 0} assigned box{effectiveKitCount === 1 ? '' : 'es'} and adds the selected tasks to each panelist account.</span>
       </div>
 
-      {generatedKits.length > 0 && (
-        <Alert className="border-emerald-300 bg-emerald-50">
-          <CheckCircle2 className="size-4 text-emerald-600" aria-hidden />
-          <AlertDescription className="text-emerald-800">
-            Generated {generatedKits.length} box pass{generatedKits.length === 1 ? '' : 'es'}. Print or save this page now; the secure QR token cannot be recovered later.
-          </AlertDescription>
-        </Alert>
-      )}
+      {generatedKits.length > 0 && <section className="rounded-lg border border-emerald-300 bg-emerald-50 p-4" aria-labelledby="generated-boxes-heading"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-700" aria-hidden /><div><h4 id="generated-boxes-heading" className="font-bold text-emerald-950">The complete batch is ready</h4><p className="mt-0.5 text-sm text-emerald-900">Print one packing sheet followed by every account QR insert, or download the recipient sheet for your shipping workflow.</p></div></div><div className="flex flex-col gap-2 sm:flex-row"><Button type="button" variant="outline" onClick={() => downloadPackingSheet(product, generatedKits, taskOptions)} className="border-emerald-700 bg-white text-emerald-900 hover:bg-emerald-100"><Download className="size-4" aria-hidden />Download packing sheet</Button><Button type="button" onClick={() => window.print()} className="bg-emerald-800 text-white hover:bg-emerald-900"><Printer className="size-4" aria-hidden />Print / save full batch</Button></div></div></section>}
+
+      {generatedKits.length > 0 && <div className="kit-print-area grid gap-4"><BatchPackingSheet product={product} kits={generatedKits} taskOptions={taskOptions} />{generatedKits.map(kit => <KitInsertCard key={kit.id} kit={kit} product={product} instructions={instructions} assignedTasks={taskSummariesForIds(taskOptions, kit.assignedProductIds, product)} />)}</div>}
 
       {existingKits.length > 0 && (
-        <div className="overflow-hidden rounded-lg border border-slate-200">
-          <div className="hidden grid-cols-[1.2fr_1.1fr_1fr_1fr_1.4fr] gap-2 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500 lg:grid">
-            <span>Box</span>
-            <span>Recipient</span>
-            <span>Status</span>
-            <span>Fielding</span>
-            <span>Actions</span>
+        <section className="overflow-hidden rounded-lg border border-slate-200 bg-white" aria-labelledby="fielding-heading">
+          <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h4 id="fielding-heading" className="text-sm font-bold text-slate-900">Fielding</h4>
+              <p className="mt-0.5 text-xs text-slate-500">Each row shows the next physical handoff. More actions stay available when needed.</p>
+            </div>
+            <div className="flex flex-wrap gap-1.5">{Object.entries(statusCounts).map(([status, count]) => <Badge key={status} variant="outline" className={statusClass(status as PanelistKitRecord['calculatedStatus'])}>{count} {status}</Badge>)}</div>
           </div>
-          <div className="max-h-80 divide-y divide-slate-100 overflow-y-auto bg-white">
+          <div className="divide-y divide-slate-100">
             {existingKits.map(kit => (
-              <div key={kit.id} className="grid gap-3 px-3 py-3 text-sm lg:grid-cols-[1.2fr_1.1fr_1fr_1fr_1.4fr] lg:items-center">
-                <div className="min-w-0">
-                  <span className="block font-mono font-semibold text-slate-900">{kit.kitCode}</span>
-                  <span className="mt-0.5 block text-xs text-slate-500">
-                    {kit.assignedProductCount} task{kit.assignedProductCount === 1 ? '' : 's'}
-                    {kit.manualCode ? ` · ${kit.manualCode}` : ''}
-                  </span>
-                  <span className="mt-1 block truncate text-[11px] text-slate-500">
-                    {taskSummariesForIds(taskOptions, kit.assignedProductIds, product).map(task => task.label).join(', ')}
-                  </span>
-                  {kit.replacementForKitId && <span className="mt-1 block text-[11px] font-semibold uppercase tracking-wide text-amber-700">Replacement box</span>}
+              <article key={kit.id} className="p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2"><span className="font-mono text-sm font-bold text-slate-900">{kit.kitCode}</span><Badge variant="outline" className={statusClass(kit.calculatedStatus)}>{kit.calculatedStatus}</Badge>{kit.issueStatus !== 'none' && <Badge variant="outline" className={issueClass(kit.issueStatus)}><AlertTriangle className="size-3" aria-hidden />{kit.issueStatus}</Badge>}{kit.replacementForKitId && <Badge variant="outline" className="border-amber-300 text-amber-800">Replacement</Badge>}</div>
+                    <p className="mt-1 text-sm font-semibold text-slate-800">{kit.recipientName ?? 'Legacy unassigned box'}{kit.claimedPanelistName && kit.claimedPanelistName !== kit.recipientName ? <span className="font-normal text-slate-500"> · account {kit.claimedPanelistName}</span> : null}</p>
+                    {(kit.recipientEmail || kit.recipientAddress) && <div className="mt-2 grid gap-2 text-xs text-slate-600 sm:grid-cols-2"><div><span className="block font-semibold text-slate-500">Email</span>{kit.recipientEmail ?? '—'}</div><div><span className="block font-semibold text-slate-500">Delivery address</span><span className="whitespace-pre-line leading-5">{kit.recipientAddress ?? '—'}</span></div></div>}
+                    <p className="mt-1 text-xs leading-5 text-slate-500">{taskSummariesForIds(taskOptions, kit.assignedProductIds, product).map(task => task.label).join(', ')}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {!kit.printedAt ? <Button type="button" size="sm" onClick={() => handleFulfillment(kit, 'printed')} disabled={updateFulfillment.isPending || kit.calculatedStatus === 'void' || kit.calculatedStatus === 'submitted'} className="bg-slate-900 hover:bg-slate-800"><Printer className="size-3.5" aria-hidden />Mark printed</Button>
+                      : !kit.packedAt ? <Button type="button" size="sm" onClick={() => handleFulfillment(kit, 'packed')} disabled={updateFulfillment.isPending || kit.calculatedStatus === 'void' || kit.calculatedStatus === 'submitted'} className="bg-slate-900 hover:bg-slate-800"><PackageCheck className="size-3.5" aria-hidden />Mark packed</Button>
+                      : !kit.shippedAt ? <Button type="button" size="sm" onClick={() => openShippingDialog(kit)} disabled={updateFulfillment.isPending || kit.calculatedStatus === 'void' || kit.calculatedStatus === 'submitted'} className="bg-slate-900 hover:bg-slate-800"><Send className="size-3.5" aria-hidden />Mark shipped</Button>
+                      : kit.claimedBy && kit.calculatedStatus !== 'submitted' && kit.calculatedStatus !== 'void' ? <Button type="button" size="sm" variant="outline" onClick={() => handleReminder(kit)} disabled={recordReminder.isPending}><ClipboardCheck className="size-3.5" aria-hidden />Log follow-up</Button>
+                      : null}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild><Button type="button" size="icon" variant="outline" aria-label={`More actions for ${kit.kitCode}`}><MoreHorizontal className="size-4" aria-hidden /></Button></DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        {kit.claimedBy && <DropdownMenuItem onSelect={() => handleReminder(kit)} disabled={recordReminder.isPending || kit.calculatedStatus === 'submitted' || kit.calculatedStatus === 'void'}><ClipboardCheck />Log follow-up</DropdownMenuItem>}
+                        <DropdownMenuItem onSelect={() => openReplacementDialog(kit)} disabled={createReplacement.isPending || kit.calculatedStatus === 'void' || kit.calculatedStatus === 'submitted'}><RefreshCw />Create replacement</DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem variant="destructive" onSelect={() => openVoidDialog(kit)} disabled={voidKit.isPending || kit.calculatedStatus === 'void' || kit.calculatedStatus === 'submitted'}><XCircle />Void box pass</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <span className="block truncate text-xs font-semibold text-slate-700">{kit.recipientName ?? 'Unassigned'}</span>
-                  {kit.recipientEmail && <span className="block truncate text-[11px] text-slate-500">{kit.recipientEmail}</span>}
-                  <span className="mt-1 block truncate text-[11px] text-slate-500">{kit.claimedPanelistName ? `Claimed by ${kit.claimedPanelistName}` : 'Unclaimed'}</span>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <Badge variant="outline" className={statusClass(kit.calculatedStatus)}>{kit.calculatedStatus}</Badge>
-                  {kit.issueStatus !== 'none' && (
-                    <Badge variant="outline" className={issueClass(kit.issueStatus)}>
-                      <AlertTriangle className="size-3" aria-hidden />
-                      {kit.issueStatus}
-                    </Badge>
-                  )}
-                  {kit.issueType && <span className="basis-full text-[11px] text-slate-500">{kit.issueType.replace(/_/g, ' ')}</span>}
-                </div>
-                <div className="grid grid-cols-2 gap-1 text-[11px] text-slate-500">
-                  <span>Printed: <strong className="text-slate-700">{formatShortDate(kit.printedAt)}</strong></span>
-                  <span>Packed: <strong className="text-slate-700">{formatShortDate(kit.packedAt)}</strong></span>
-                  <span>Shipped: <strong className="text-slate-700">{formatShortDate(kit.shippedAt)}</strong></span>
-                  <span>Follow-ups: <strong className="text-slate-700">{kit.reminderCount}</strong></span>
-                  <span className="col-span-2">Completed: <strong className="text-slate-700">{kit.completedProductCount}/{kit.assignedProductCount}</strong></span>
-                  {kit.trackingNumber && <span className="col-span-2 truncate">Tracking: <strong className="text-slate-700">{kit.trackingNumber}</strong></span>}
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <Button type="button" size="sm" variant="outline" onClick={() => handleFulfillment(kit, 'printed')} disabled={updateFulfillment.isPending || kit.calculatedStatus === 'void' || kit.calculatedStatus === 'submitted'}>
-                    <Printer className="size-3.5" aria-hidden />
-                    Printed
-                  </Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => handleFulfillment(kit, 'packed')} disabled={updateFulfillment.isPending || kit.calculatedStatus === 'void' || kit.calculatedStatus === 'submitted'}>
-                    <PackageCheck className="size-3.5" aria-hidden />
-                    Packed
-                  </Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => openShippingDialog(kit)} disabled={updateFulfillment.isPending || kit.calculatedStatus === 'void' || kit.calculatedStatus === 'submitted'}>
-                    <Send className="size-3.5" aria-hidden />
-                    Shipped
-                  </Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => handleReminder(kit)} disabled={recordReminder.isPending || !kit.claimedBy || kit.calculatedStatus === 'submitted' || kit.calculatedStatus === 'void'}>
-                    <ClipboardCheck className="size-3.5" aria-hidden />
-                    Log follow-up
-                  </Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => openReplacementDialog(kit)} disabled={createReplacement.isPending || kit.calculatedStatus === 'void' || kit.calculatedStatus === 'submitted'}>
-                    <RefreshCw className="size-3.5" aria-hidden />
-                    Replace
-                  </Button>
-                  <Button type="button" size="sm" variant="ghost" onClick={() => openVoidDialog(kit)} disabled={voidKit.isPending || kit.calculatedStatus === 'void' || kit.calculatedStatus === 'submitted'} className="text-rose-700 hover:text-rose-800">
-                    <XCircle className="size-3.5" aria-hidden />
-                    Void
-                  </Button>
-                </div>
-              </div>
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 pt-3 text-xs text-slate-500"><span>Printed <strong className="text-slate-700">{formatShortDate(kit.printedAt)}</strong></span><span>Packed <strong className="text-slate-700">{formatShortDate(kit.packedAt)}</strong></span><span>Shipped <strong className="text-slate-700">{formatShortDate(kit.shippedAt)}</strong></span><span>Completed <strong className="text-slate-700">{kit.completedProductCount}/{kit.assignedProductCount}</strong></span>{kit.trackingNumber && <span>Tracking <strong className="text-slate-700">{kit.trackingNumber}</strong></span>}{kit.issueType && <span className="text-rose-700">Issue: {kit.issueType.replace(/_/g, ' ')}</span>}</div>
+              </article>
             ))}
           </div>
-        </div>
-      )}
-
-      {generatedKits.length > 0 && (
-        <div className="kit-print-area grid gap-4">
-          {generatedKits.map(kit => (
-            <KitInsertCard key={kit.id} kit={kit} product={product} instructions={instructions} assignedTasks={taskSummariesForIds(taskOptions, kit.assignedProductIds, product)} />
-          ))}
-        </div>
+        </section>
       )}
 
       <Dialog open={!!shippingKit} onOpenChange={open => !open && setShippingKit(null)}>
@@ -685,7 +645,7 @@ export function PanelistKitInserts({ product }: { product: Product }) {
           <DialogHeader>
             <DialogTitle>Create replacement box</DialogTitle>
             <DialogDescription>
-              A new QR token will be generated. Print the replacement insert before leaving this screen.
+              A replacement box record and account QR insert will be created for the same panelist.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">

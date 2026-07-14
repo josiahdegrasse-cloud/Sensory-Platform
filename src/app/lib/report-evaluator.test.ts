@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ENHANCED_SENSORY_DATA } from '../data/enhanced-sensory';
 import { buildEvidenceBundleFromProfiles } from './report-evidence';
 import { buildReportPlan } from './report-plan';
-import { evaluateNarrative, stripEvidenceCitations } from './report-evaluator';
+import { containsInternalWritingInstructions, evaluateNarrative, stripEvidenceCitations } from './report-evaluator';
 
 function planFor(sampleId: string) {
   const profile = ENHANCED_SENSORY_DATA.find(item => item.sampleId === sampleId)!;
@@ -74,6 +74,23 @@ describe('evaluateNarrative', () => {
     sections[packaging.key] = 'Targets consumers aged 25-35 who want convenience.';
     const evaluation = evaluateNarrative({ plan, sections, bundle });
     expect(evaluation.issues.some(i => /demographic or price claim/.test(i))).toBe(true);
+  });
+
+  it('rejects internal writing instructions that leak into report prose', () => {
+    const { bundle, plan } = planFor('S4');
+    const sections: Record<string, string> = {};
+    plan.sections.forEach(section => {
+      sections[section.key] = section.evidenceBacked && section.evidenceIds.length > 0
+        ? `Summary. [evidence:${section.evidenceIds[0]}]`
+        : 'Concept-driven packaging note.';
+    });
+    sections.packagingRationale = 'Approved claim language: use the evidence bundle as the source of truth.';
+
+    const evaluation = evaluateNarrative({ plan, sections, bundle });
+
+    expect(evaluation.passed).toBe(false);
+    expect(evaluation.issues.some(issue => /internal writing instructions/.test(issue))).toBe(true);
+    expect(containsInternalWritingInstructions(sections.packagingRationale)).toBe(true);
   });
 
   it('flags a launch claim that contradicts a STOP candidate decision', () => {

@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
 import { useAuth } from '../contexts/auth-context';
-import { ESSENSE25_EMOTIONS, getDefaultCataAttributes, type Product } from '../data/survey-domain';
+import { SURVEY_EMOTIONS, getDefaultCataAttributes, type Product } from '../data/survey-domain';
 import { fetchProduct, fetchLatestUserResponse, insertResponse, markPanelistKitSubmitted } from '../lib/database';
 import { CATA_DEFINITIONS, INTENSITY_DEFINITIONS, HEDONIC_DEFINITIONS, EMOTION_DEFINITIONS } from '../data/attribute-definitions';
 import { AlertCircle, CheckCircle2, ChevronRight } from 'lucide-react';
@@ -25,6 +25,7 @@ function sliderFill(value: number, min: number, max: number, color: string): Rea
 const SLIDER_MIN = 1;
 const SLIDER_MAX = 9;
 const SLIDER_MIDPOINT = 5;
+const PALATE_CLEANSE_SECONDS = 20;
 
 type Step = 'intro' | 'sample' | 'cleanse' | 'discrimination' | 'confirmation' | 'submitted';
 
@@ -92,7 +93,7 @@ export function MultiSampleQuestionnaire() {
   const [differentSample, setDifferentSample] = useState<string>('');
   
   // Palate cleanse countdown
-  const [cleanseCountdown, setCleanseCountdown] = useState(30);
+  const [cleanseCountdown, setCleanseCountdown] = useState(PALATE_CLEANSE_SECONDS);
   const cleanseIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -101,7 +102,7 @@ export function MultiSampleQuestionnaire() {
   useEffect(() => {
     if (currentStep !== 'cleanse') return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initialising an interval-timer countdown
-    setCleanseCountdown(30);
+    setCleanseCountdown(PALATE_CLEANSE_SECONDS);
     cleanseIntervalRef.current = setInterval(() => {
       setCleanseCountdown(prev => {
         if (prev <= 1) {
@@ -117,7 +118,7 @@ export function MultiSampleQuestionnaire() {
   const cataAttributes = product?.customAttributes || getDefaultCataAttributes(product?.category ?? '');
   // Intensity shows only what the panelist selected in CATA (same pattern as single-sample form)
   const intensityAttributes = selectedCata.length > 0 ? selectedCata : cataAttributes.slice(0, 8);
-  const emotionAttributes = [...ESSENSE25_EMOTIONS.positive, ...ESSENSE25_EMOTIONS.negative];
+  const emotionAttributes = [...SURVEY_EMOTIONS.positive, ...SURVEY_EMOTIONS.negative];
 
   useEffect(() => {
     if (!user?.id || !productId) return;
@@ -510,7 +511,7 @@ export function MultiSampleQuestionnaire() {
         {/* Emotions */}
         <Card>
           <CardHeader>
-            <CardTitle>4. Emotional Response (EsSense25)</CardTitle>
+            <CardTitle>4. Emotional Response</CardTitle>
             <p className="text-sm text-slate-700">
               Rate how strongly you feel each emotion when tasting this product. Hover for definitions.
             </p>
@@ -520,7 +521,7 @@ export function MultiSampleQuestionnaire() {
               <div>
                 <h4 className="font-bold text-emerald-700 mb-3">Positive Emotions</h4>
                 <div className="space-y-3">
-                  {ESSENSE25_EMOTIONS.positive.map(emotion => (
+                  {SURVEY_EMOTIONS.positive.map(emotion => (
                     <div key={emotion} className="space-y-1">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm">
@@ -550,7 +551,7 @@ export function MultiSampleQuestionnaire() {
               <div>
                 <h4 className="font-bold text-rose-700 mb-3">Negative Emotions</h4>
                 <div className="space-y-3">
-                  {ESSENSE25_EMOTIONS.negative.map(emotion => (
+                  {SURVEY_EMOTIONS.negative.map(emotion => (
                     <div key={emotion} className="space-y-1">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm">
@@ -608,7 +609,7 @@ export function MultiSampleQuestionnaire() {
           </CardHeader>
           <CardContent className="space-y-6 text-center">
             <p className="text-slate-700 text-base">
-              Take a sip of water and eat a plain cracker. Wait 30 seconds before continuing.
+              Take a sip of water and eat a plain cracker. Wait {PALATE_CLEANSE_SECONDS} seconds before continuing.
             </p>
             <div className="flex items-center justify-center">
               <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl font-bold border-4 ${cleanseBadgeClass}`}>

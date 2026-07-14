@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ENHANCED_SENSORY_DATA } from '../data/enhanced-sensory';
+import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from '../data/enhanced-sensory';
 import { calculateGoStopTweakDecision } from './go-stop-tweak-engine';
 
 const weights = { hedonic: 30, texture: 25, cata: 25, emotional: 15 };
@@ -14,7 +14,7 @@ describe('GO / STOP / TWEAK engine', () => {
     expect(decision.decision).toBe('STOP');
     expect(decision.issfScore).toBeLessThanOrEqual(54);
     expect(decision.gates.find(gate => gate.id === 'off-note')?.status).toBe('fail');
-    expect(decision.prescriptions[0]?.target).toBe('Aroma defect control');
+    expect(decision.prescriptions[0]?.target).toBe('Aroma balance control');
   });
 
   it('allows strong clean samples to advance only when all gates pass', () => {
@@ -26,7 +26,7 @@ describe('GO / STOP / TWEAK engine', () => {
     expect(decision.decision).toBe('GO');
     expect(decision.gates.every(gate => gate.status === 'pass')).toBe(true);
     expect(decision.confidenceScore).toBeGreaterThanOrEqual(72);
-    expect(decision.decisionFingerprint).toMatch(/^[A-F0-9]{8}$/);
+    expect(decision.decisionFingerprint).toMatch(/^[A-F0-9]{16}$/);
   });
 
   it('returns tweak prescriptions for acceptable but improvable samples', () => {
@@ -66,6 +66,33 @@ describe('GO / STOP / TWEAK engine', () => {
     expect(['GO', 'TWEAK', 'STOP']).toContain(decision.decision);
     expect(decision.issfScore).toBeGreaterThan(0);
     expect(decision.details.some(detail => detail.includes('Instrument signal'))).toBe(true);
+  });
+
+  it('explains a hard-gate STOP when the score itself is in the TWEAK band', () => {
+    const sample = ENHANCED_SENSORY_DATA.find(item => item.sampleId === 'S4');
+    expect(sample).toBeTruthy();
+
+    const decision = calculateGoStopTweakDecision({
+      ...sample!,
+      gcmsOlfactometry: [{
+        retentionTime: 18.4,
+        compound: 'Butyric acid',
+        nistProbability: 96,
+        peakArea: 385000,
+        odour: 'rancid',
+        odourIntensity: 4.2,
+        concentration: 12.4,
+        threshold: 8,
+      }],
+    }, weights, 'cheese', { stop: 45, go: 75 });
+
+    expect(decision.decision).toBe('STOP');
+    expect(decision.issfScore).toBeGreaterThanOrEqual(45);
+    expect(decision.issfScore).toBeLessThan(75);
+    expect(decision.recommendation).toContain('ISSF score sits in the TWEAK band');
+    expect(decision.recommendation).toContain('hard STOP gate');
+    expect(decision.prescriptions[0]?.action).toContain('preserving category character');
+    expect(decision.details.some(detail => detail.includes('hard gate overrides the score band'))).toBe(true);
   });
 });
 
@@ -118,7 +145,7 @@ describe('GO / STOP / TWEAK engine — invariants', () => {
   });
 });
 
-describe('GO / STOP / TWEAK engine — NFI-GST-2.0 evidence honesty', () => {
+describe('GO / STOP / TWEAK engine — NFI-GST-2.1 evidence honesty', () => {
   const sample = ENHANCED_SENSORY_DATA.find(item => item.sampleId === 'S4')!;
 
   it('CATA scoring is invariant to panel size at equal citation rates', () => {
@@ -168,5 +195,73 @@ describe('GO / STOP / TWEAK engine — NFI-GST-2.0 evidence honesty', () => {
     const withTexture = calculateGoStopTweakDecision(sample, weights, 'cheese');
     expect(Number.isFinite(withoutTexture.issfScore)).toBe(true);
     expect(withoutTexture.issfScore).not.toBe(withTexture.issfScore);
+  });
+
+  it('treats category-positive sourdough acidity as identity rather than an automatic defect', () => {
+    const sourdough = ENHANCED_SENSORY_DATA.find(item => item.sampleId === 'B1')!;
+    const decision = calculateGoStopTweakDecision(sourdough, weights, 'bread');
+    expect(decision.gates.find(gate => gate.id === 'off-note')?.status).toBe('pass');
+    expect(decision.decision).toBe('GO');
+  });
+
+  it('opens a review gate for GC-MS-only risk evidence without claiming a measured critical defect', () => {
+    const imported: EnhancedSensoryProfile = {
+      ...sample,
+      evidence: {
+        provenance: 'imported' as const,
+        measuredTaste: ['sourness', 'bitterness', 'umami', 'saltiness', 'sweetness'],
+        measuredHedonic: ['appearance', 'flavour', 'texture', 'overall'],
+        compositionMeasured: true,
+        aromaMethod: 'gc-ms' as const,
+        instrumentQcMeasured: false,
+      },
+      istdRecovery: null,
+      gcmsOlfactometry: [{
+        retentionTime: 1,
+        compound: 'Hexanal',
+        nistProbability: 0,
+        peakArea: 100,
+        odour: 'cardboard',
+        odourIntensity: 0,
+        concentration: 10,
+        threshold: 1,
+      }],
+    };
+    const decision = calculateGoStopTweakDecision(imported, weights, 'cheese');
+    expect(decision.gates.find(gate => gate.id === 'off-note')?.status).toBe('watch');
+    expect(decision.decision).toBe('TWEAK');
+    expect(decision.decisionStatus).toBe('ready');
+  });
+
+  it('places failed instrument QC on hold instead of declaring the product STOP', () => {
+    const decision = calculateGoStopTweakDecision({ ...sample, istdRecovery: 60 }, weights, 'cheese');
+    expect(decision.gates.find(gate => gate.id === 'qc')?.status).toBe('fail');
+    expect(decision.decisionStatus).toBe('hold');
+    expect(decision.decision).toBe('TWEAK');
+    expect(decision.recommendation).toContain('Hold the decision');
+  });
+
+  it('places imported evidence with missing hedonic measures on hold', () => {
+    const decision = calculateGoStopTweakDecision({
+      ...sample,
+      evidence: {
+        provenance: 'imported',
+        measuredTaste: ['sourness', 'bitterness', 'umami', 'saltiness', 'sweetness'],
+        measuredHedonic: ['overall'],
+        compositionMeasured: true,
+        aromaMethod: 'gc-o',
+        instrumentQcMeasured: true,
+      },
+    }, weights, 'cheese');
+    expect(decision.decisionStatus).toBe('hold');
+    expect(decision.blockingReasons?.[0]).toContain('Missing required hedonic measures');
+  });
+
+  it('fingerprints the full decision configuration, including thresholds and food type', () => {
+    const standard = calculateGoStopTweakDecision(sample, weights, 'cheese', { stop: 45, go: 75 });
+    const thresholdChange = calculateGoStopTweakDecision(sample, weights, 'cheese', { stop: 50, go: 80 });
+    const categoryChange = calculateGoStopTweakDecision(sample, weights, 'bread', { stop: 45, go: 75 });
+    expect(thresholdChange.decisionFingerprint).not.toBe(standard.decisionFingerprint);
+    expect(categoryChange.decisionFingerprint).not.toBe(standard.decisionFingerprint);
   });
 });

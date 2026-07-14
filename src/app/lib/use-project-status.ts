@@ -18,8 +18,8 @@ import type { ProjectWorkflowSummary, WorkflowStageStatus } from './workflow/wor
 import { workflowToneToSemanticTone } from './workflow/workflow-actions';
 
 /**
- * Bundles every query the canonical workflow evaluator needs so ProjectHeader,
- * the dashboard, and report pages derive status from one workflow model.
+ * Bundles every query the canonical workflow evaluator needs so the dashboard
+ * and report pages derive status from one workflow model.
  */
 function useProjectStatusInputs() {
   const { data: importBatches = [] } = useImportBatches();

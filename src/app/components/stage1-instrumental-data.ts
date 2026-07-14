@@ -301,18 +301,10 @@ export function inferCategory(sampleId: string, csvCategory?: string, type?: str
 
 export function getPointColor(type?: string, category?: string) {
   if (type === "dairy" || category === "Dairy") return STATUS.go;
-  if (type === "yogurt") {
-    const c = (category || "").toLowerCase();
-    if (c.includes("coconut")) return "#0ea5a4";
-    if (c.includes("oat")) return "#84cc16";
-    if (c.includes("skyr")) return "#2563eb";
-    if (c.includes("greek") || c.includes("strained")) return "#7c3aed";
-    if (c.includes("kefir") || c.includes("lemon")) return "#eab308";
-    if (c.includes("strawberry") || c.includes("fruit")) return "#e11d48";
-    if (c.includes("vanilla") || c.includes("protein")) return "#f97316";
-    if (c.includes("whole milk") || c.includes("plain")) return "#64748b";
-    return "#0891b2";
-  }
+  // Yogurt styles are sample identities, not semantic chart categories. A
+  // shared family color keeps large yogurt projects readable; selection and
+  // tooltips carry the individual sample identity.
+  if (type === "yogurt") return "#0f766e";
   if (type === "bread") {
     const c = (category || "").toLowerCase();
     if (c.includes("sourdough")) return "#d97706";

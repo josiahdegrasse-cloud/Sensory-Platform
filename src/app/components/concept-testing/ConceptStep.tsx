@@ -2,40 +2,324 @@ import { useState } from 'react';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
-import { ChevronDown, DollarSign, Eye, FolderKanban, Layers, Package, Palette, Star, Target } from 'lucide-react';
 import type { ConceptDraft, VariantDimensions } from './types';
-import { detectFoodType, getFoodTypeProfile } from '../../lib/food-intelligence';
 
-// ─── Dimension picker ─────────────────────────────────────────────────────────
+// ─── Shared section heading ───────────────────────────────────────────────────
 
-function DimPicker<T extends string>({
-  label, value, options, onChange,
+function SectionHeading({ title, description }: { title: string; description: string }) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      <p className="mt-1 text-xs text-slate-500">{description}</p>
+    </div>
+  );
+}
+
+interface QuickPreset {
+  label: string;
+  fields: Partial<Pick<ConceptDraft,
+    | 'description'
+  >> & { variantDimensions?: Partial<VariantDimensions> };
+}
+
+interface VariantDimensionGroup {
+  key: keyof VariantDimensions;
+  label: string;
+  options: { value: string; label: string }[];
+}
+
+const promisePresets: QuickPreset[] = [
+  {
+    label: 'Everyday swap',
+    fields: {
+      description: 'An easy everyday alternative with familiar flavor, reliable performance, and broad family appeal.',
+      variantDimensions: {
+        positioning: 'accessible',
+        appeal: 'health',
+        targetDemographic: 'family',
+        pricePositioning: 'mainstream',
+      },
+    },
+  },
+  {
+    label: 'Premium natural',
+    fields: {
+      description: 'A premium, ingredient-conscious product built around strong sensory quality and a more elevated eating occasion.',
+      variantDimensions: {
+        positioning: 'premium',
+        visualComplexity: 'minimal',
+        appeal: 'health',
+        brandColorScheme: 'earthy',
+        pricePositioning: 'premium',
+      },
+    },
+  },
+  {
+    label: 'Indulgent treat',
+    fields: {
+      description: 'A rich, satisfying concept that leads with appetite appeal, texture, and a treat-worthy sensory experience.',
+      variantDimensions: {
+        positioning: 'premium',
+        visualComplexity: 'expressive',
+        appeal: 'indulgent',
+        pricePositioning: 'premium',
+      },
+    },
+  },
+  {
+    label: 'Health-forward',
+    fields: {
+      description: 'A practical better-for-you concept that should feel fresh, credible, and easy to choose without making unsupported claims.',
+      variantDimensions: {
+        positioning: 'accessible',
+        visualComplexity: 'minimal',
+        appeal: 'health',
+        targetDemographic: 'health_seeker',
+        brandColorScheme: 'minimalist',
+      },
+    },
+  },
+  { label: 'Other', fields: { description: '' } },
+];
+
+const variantDimensionGroups: VariantDimensionGroup[] = [
+  {
+    key: 'positioning',
+    label: 'Position',
+    options: [
+      { value: 'premium', label: 'Premium' },
+      { value: 'accessible', label: 'Accessible' },
+      { value: 'value', label: 'Value' },
+      { value: 'craft', label: 'Craft' },
+      { value: 'functional', label: 'Functional' },
+      { value: 'playful', label: 'Playful' },
+      { value: 'heritage', label: 'Heritage' },
+      { value: 'disruptive', label: 'Disruptive' },
+    ],
+  },
+  {
+    key: 'visualComplexity',
+    label: 'Visual',
+    options: [
+      { value: 'minimal', label: 'Minimal' },
+      { value: 'expressive', label: 'Expressive' },
+      { value: 'ingredient_led', label: 'Ingredient-led' },
+      { value: 'clinical', label: 'Clinical' },
+      { value: 'editorial', label: 'Editorial' },
+      { value: 'abundant', label: 'Abundant' },
+    ],
+  },
+  {
+    key: 'appeal',
+    label: 'Appeal',
+    options: [
+      { value: 'health', label: 'Health' },
+      { value: 'indulgent', label: 'Indulgent' },
+      { value: 'taste_first', label: 'Taste-first' },
+      { value: 'convenience', label: 'Convenience' },
+      { value: 'sustainable', label: 'Sustainable' },
+      { value: 'family_friendly', label: 'Family-friendly' },
+      { value: 'adventurous', label: 'Adventurous' },
+    ],
+  },
+  {
+    key: 'channel',
+    label: 'Channel',
+    options: [
+      { value: 'retail', label: 'Retail' },
+      { value: 'lifestyle', label: 'Lifestyle' },
+      { value: 'ecommerce', label: 'Ecommerce' },
+      { value: 'foodservice', label: 'Foodservice' },
+      { value: 'buyer_deck', label: 'Buyer deck' },
+      { value: 'club_store', label: 'Club store' },
+    ],
+  },
+  {
+    key: 'packagingFormat',
+    label: 'Format',
+    options: [
+      { value: 'pouch', label: 'Pouch' },
+      { value: 'block', label: 'Block' },
+      { value: 'jar', label: 'Jar' },
+      { value: 'can', label: 'Can' },
+      { value: 'bottle', label: 'Bottle' },
+      { value: 'sleeve', label: 'Sleeve' },
+      { value: 'tray', label: 'Tray' },
+      { value: 'tube', label: 'Tube' },
+      { value: 'carton', label: 'Carton' },
+      { value: 'box', label: 'Box' },
+      { value: 'cup', label: 'Cup' },
+      { value: 'wrapper', label: 'Wrapper' },
+      { value: 'multipack', label: 'Multipack' },
+      { value: 'sachet', label: 'Sachet' },
+    ],
+  },
+  {
+    key: 'brandColorScheme',
+    label: 'Palette',
+    options: [
+      { value: 'earthy', label: 'Earthy' },
+      { value: 'vibrant', label: 'Vibrant' },
+      { value: 'minimalist', label: 'Minimalist' },
+      { value: 'luxury', label: 'Luxury' },
+      { value: 'bold', label: 'Bold' },
+      { value: 'pastel', label: 'Pastel' },
+      { value: 'fresh', label: 'Fresh' },
+      { value: 'warm', label: 'Warm' },
+      { value: 'cool', label: 'Cool' },
+      { value: 'monochrome', label: 'Mono' },
+      { value: 'natural', label: 'Natural' },
+    ],
+  },
+  {
+    key: 'targetDemographic',
+    label: 'Audience',
+    options: [
+      { value: 'young_active', label: 'Young active' },
+      { value: 'family', label: 'Family' },
+      { value: 'professional', label: 'Professional' },
+      { value: 'senior', label: 'Senior' },
+      { value: 'health_seeker', label: 'Health seeker' },
+      { value: 'parent', label: 'Parent' },
+      { value: 'kid', label: 'Kid' },
+      { value: 'flexitarian', label: 'Flexitarian' },
+      { value: 'foodie', label: 'Foodie' },
+      { value: 'budget_shopper', label: 'Budget shopper' },
+      { value: 'retail_buyer', label: 'Retail buyer' },
+    ],
+  },
+  {
+    key: 'pricePositioning',
+    label: 'Price',
+    options: [
+      { value: 'budget', label: 'Budget' },
+      { value: 'value', label: 'Value' },
+      { value: 'mainstream', label: 'Mainstream' },
+      { value: 'premium', label: 'Premium' },
+      { value: 'ultra_premium', label: 'Ultra-premium' },
+      { value: 'trial_size', label: 'Trial size' },
+      { value: 'bulk_value', label: 'Bulk value' },
+    ],
+  },
+];
+
+function PresetButtons({
+  label,
+  presets,
+  onApply,
 }: {
   label: string;
-  value: T | null;
-  options: { value: T; label: string }[];
-  onChange: (v: T | null) => void;
+  presets: QuickPreset[];
+  onApply: (preset: QuickPreset) => void;
 }) {
   return (
     <div className="space-y-1.5">
-      <p className="text-xs font-semibold text-slate-700">{label}</p>
+      <p className="text-[11px] font-semibold text-slate-600">{label}</p>
       <div className="flex flex-wrap gap-1.5">
-        {options.map(opt => {
-          const active = value === opt.value;
+        {presets.map(preset => (
+          <button
+            key={preset.label}
+            type="button"
+            onClick={() => onApply(preset)}
+            className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-800"
+          >
+            {preset.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PositioningTags({
+  draft,
+  onChange,
+}: {
+  draft: ConceptDraft;
+  onChange: (dimensions: VariantDimensions) => void;
+}) {
+  const [customOpen, setCustomOpen] = useState<Partial<Record<keyof VariantDimensions, boolean>>>({});
+
+  const setDimension = (key: keyof VariantDimensions, value: string | null) => {
+    onChange({ ...draft.variantDimensions, [key]: value } as VariantDimensions);
+  };
+
+  const openCustom = (key: keyof VariantDimensions) => {
+    setCustomOpen(prev => ({ ...prev, [key]: true }));
+  };
+
+  const closeCustom = (key: keyof VariantDimensions) => {
+    setCustomOpen(prev => ({ ...prev, [key]: false }));
+  };
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-[11px] font-semibold text-slate-600">Positioning tags</p>
+        <p className="mt-0.5 text-xs text-slate-500">Compact analytics metadata that also nudges the image prompt.</p>
+      </div>
+      <div className="grid gap-2 lg:grid-cols-2">
+        {variantDimensionGroups.map(group => {
+          const selected = draft.variantDimensions[group.key] as string | null;
+          const customSelected = Boolean(selected && !group.options.some(option => option.value === selected));
+          const showCustom = Boolean(customOpen[group.key] || customSelected);
           return (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => onChange(active ? null : opt.value)}
-              className={`rounded-full px-2.5 py-0.5 text-xs font-medium border transition-colors ${
-                active
-                  ? 'bg-blue-600 border-blue-600 text-white'
-                  : 'bg-white border-slate-200 text-slate-700 hover:border-blue-400 hover:text-blue-700'
-              }`}
-            >
-              {opt.label}
-            </button>
+            <div key={group.key} className="rounded-md border border-slate-200 bg-slate-50 p-2">
+              <p className="mb-1.5 text-[11px] font-semibold text-slate-600">{group.label}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {group.options.map(option => {
+                  const active = selected === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        setDimension(group.key, active ? null : option.value);
+                        closeCustom(group.key);
+                      }}
+                      className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+                        active
+                          ? 'border-blue-500 bg-blue-600 text-white'
+                          : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-800'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => openCustom(group.key)}
+                  className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+                    showCustom
+                      ? 'border-blue-500 bg-blue-50 text-blue-800'
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-800'
+                  }`}
+                >
+                  Other
+                </button>
+              </div>
+              {showCustom && (
+                <div className="mt-2 flex items-center gap-2">
+                  <Input
+                    value={customSelected ? selected ?? '' : ''}
+                    onChange={event => setDimension(group.key, event.target.value.trim() ? event.target.value : null)}
+                    placeholder={`Custom ${group.label.toLowerCase()}`}
+                    className="h-8 bg-white text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDimension(group.key, null);
+                      closeCustom(group.key);
+                    }}
+                    className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-100"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
@@ -44,27 +328,29 @@ function DimPicker<T extends string>({
 }
 
 export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: ConceptDraft) => void }) {
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [positioningOpen, setPositioningOpen] = useState(false);
-  const set = (field: keyof ConceptDraft) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    onChange({ ...draft, [field]: e.target.value });
-  const setDim = <K extends keyof VariantDimensions>(dim: K) => (value: VariantDimensions[K] | null) =>
-    onChange({ ...draft, variantDimensions: { ...draft.variantDimensions, [dim]: value } });
-  const detection = detectFoodType(draft.category, draft.name, draft.description);
-  const profile = getFoodTypeProfile(detection.slug);
+  const set = (field: keyof ConceptDraft) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    onChange({ ...draft, [field]: event.target.value });
+  const setVariantDimensions = (variantDimensions: VariantDimensions) => onChange({ ...draft, variantDimensions });
+  const applyPreset = (preset: QuickPreset) => {
+    const { variantDimensions, ...fields } = preset.fields;
+    onChange({
+      ...draft,
+      ...fields,
+      variantDimensions: variantDimensions
+        ? { ...draft.variantDimensions, ...variantDimensions }
+        : draft.variantDimensions,
+    });
+  };
 
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-semibold text-slate-900">Concept brief</h2>
-        <p className="text-slate-500 text-sm mt-1">Define what panelists will evaluate.</p>
+        <h2 className="text-xl font-semibold text-slate-900">Concept image brief</h2>
+        <p className="mt-1 text-sm text-slate-500">Only the inputs needed to generate credible concept visuals.</p>
       </div>
 
       <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
-        <div>
-          <h3 className="text-sm font-semibold text-slate-900">Product basics</h3>
-          <p className="mt-1 text-xs text-slate-500">These fields become the plain-language concept that consumers evaluate.</p>
-        </div>
+        <SectionHeading title="Image subject" description="The minimum identity and positioning the image generator needs." />
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="concept-product-name" className="font-medium">Product name <span className="text-rose-500">*</span></Label>
@@ -77,257 +363,19 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="concept-description" className="font-medium">Concept description <span className="text-rose-500">*</span></Label>
+          <Label htmlFor="concept-description" className="font-medium">Positioning promise <span className="text-rose-500">*</span></Label>
           <Textarea
             id="concept-description"
             value={draft.description}
             onChange={set('description')}
-            placeholder="Describe the product concept as consumers would read it: ingredients, format, occasion, and key claims."
-            rows={4}
+            placeholder="e.g. A dairy-free cheddar slice for everyday sandwiches and burgers, with familiar cheddar flavor and reliable melt."
+            rows={3}
             className="resize-none"
           />
         </div>
+        <PresetButtons label="Quick promise" presets={promisePresets} onApply={applyPreset} />
+        <PositioningTags draft={draft} onChange={setVariantDimensions} />
       </section>
-
-      <section className="space-y-4 rounded-lg border border-slate-200 bg-slate-50/50 p-4">
-        <div>
-          <h3 className="text-sm font-semibold text-slate-900">Visual brief</h3>
-          <p className="mt-1 text-xs leading-relaxed text-slate-500">
-            Give AI enough concrete product and package detail to create usable options.
-          </p>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="concept-product-appearance" className="flex items-center gap-1.5 font-medium">
-              <Eye className="size-3.5" /> Product appearance <span className="text-rose-500">*</span>
-            </Label>
-            <Textarea
-              id="concept-product-appearance"
-              value={draft.productAppearance}
-              onChange={set('productAppearance')}
-              placeholder="e.g. Pale cheddar-orange slices, rounded corners, smooth surface, realistic melt and stretch on toast"
-              rows={3}
-              className="resize-none bg-white"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="concept-package-format" className="flex items-center gap-1.5 font-medium">
-              <Package className="size-3.5" /> Package format <span className="text-rose-500">*</span>
-            </Label>
-            <Textarea
-              id="concept-package-format"
-              value={draft.packageFormat}
-              onChange={set('packageFormat')}
-              placeholder="e.g. 7 oz resealable pouch, clear product window, matte label, front-facing product name and plant-based cue"
-              rows={3}
-              className="resize-none bg-white"
-            />
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="concept-target-customer" className="flex items-center gap-1.5 font-medium">
-              <Target className="size-3.5" /> Target customer <span className="text-rose-500">*</span>
-            </Label>
-            <Input
-              id="concept-target-customer"
-              value={draft.targetMarket}
-              onChange={set('targetMarket')}
-              placeholder="e.g. Flexitarian parents seeking an easy dairy swap"
-              className="bg-white"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="concept-usage-occasion" className="font-medium">Usage occasion</Label>
-            <Input
-              id="concept-usage-occasion"
-              value={draft.targetOccasion}
-              onChange={set('targetOccasion')}
-              placeholder="e.g. Weeknight burgers, sandwiches, and family cooking"
-              className="bg-white"
-            />
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="concept-visual-setting" className="font-medium">Scene or setting</Label>
-            <Input
-              id="concept-visual-setting"
-              value={draft.visualSetting}
-              onChange={set('visualSetting')}
-              placeholder="e.g. Bright modern kitchen, warm natural daylight"
-              className="bg-white"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="concept-color-direction" className="flex items-center gap-1.5 font-medium"><Palette className="size-3.5" /> Color and materials</Label>
-            <Input
-              id="concept-color-direction"
-              value={draft.colorDirection}
-              onChange={set('colorDirection')}
-              placeholder="e.g. Sage green, charcoal type, matte paper texture"
-              className="bg-white"
-            />
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="concept-must-show" className="font-medium">Must-show elements</Label>
-          <Textarea
-            id="concept-must-show"
-            value={draft.mustShow}
-            onChange={set('mustShow')}
-            placeholder="e.g. Product name, melted serving suggestion, plant-based cue, resealable closure"
-            rows={2}
-            className="resize-none bg-white"
-          />
-          <p className="text-xs text-slate-500">Only include claims or badges that are approved for concept testing.</p>
-        </div>
-      </section>
-
-      <Collapsible open={positioningOpen} onOpenChange={setPositioningOpen} className="rounded-lg border border-slate-200 bg-slate-50/60">
-        <CollapsibleTrigger className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left">
-          <div>
-            <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
-              <Layers className="size-3.5" /> Optional positioning metadata
-            </h3>
-            <p className="mt-1 text-xs text-slate-500">
-              Use when you want to compare consumer response against positioning choices later.
-            </p>
-          </div>
-          <ChevronDown className={`size-4 shrink-0 text-slate-500 transition-transform ${positioningOpen ? 'rotate-180' : ''}`} />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="grid gap-4 border-t border-slate-200 px-4 py-4 sm:grid-cols-2">
-          <DimPicker
-            label="Brand positioning"
-            value={draft.variantDimensions?.positioning ?? null}
-            options={[{ value: 'premium', label: 'Premium' }, { value: 'accessible', label: 'Accessible' }]}
-            onChange={setDim('positioning')}
-          />
-          <DimPicker
-            label="Visual complexity"
-            value={draft.variantDimensions?.visualComplexity ?? null}
-            options={[{ value: 'minimal', label: 'Minimal' }, { value: 'expressive', label: 'Expressive' }]}
-            onChange={setDim('visualComplexity')}
-          />
-          <DimPicker
-            label="Consumer appeal"
-            value={draft.variantDimensions?.appeal ?? null}
-            options={[{ value: 'health', label: 'Health-focused' }, { value: 'indulgent', label: 'Indulgent' }]}
-            onChange={setDim('appeal')}
-          />
-          <DimPicker
-            label="Primary channel"
-            value={draft.variantDimensions?.channel ?? null}
-            options={[{ value: 'retail', label: 'Retail shelf' }, { value: 'lifestyle', label: 'Lifestyle / DTC' }]}
-            onChange={setDim('channel')}
-          />
-          <DimPicker
-            label="Packaging format"
-            value={draft.variantDimensions?.packagingFormat ?? null}
-            options={[
-              { value: 'pouch', label: 'Pouch' }, { value: 'block', label: 'Block' },
-              { value: 'jar', label: 'Jar' }, { value: 'can', label: 'Can' },
-              { value: 'bottle', label: 'Bottle' }, { value: 'sleeve', label: 'Sleeve' },
-              { value: 'tray', label: 'Tray' }, { value: 'tube', label: 'Tube' },
-            ]}
-            onChange={setDim('packagingFormat')}
-          />
-          <DimPicker
-            label="Brand colour scheme"
-            value={draft.variantDimensions?.brandColorScheme ?? null}
-            options={[
-              { value: 'earthy', label: 'Earthy' }, { value: 'vibrant', label: 'Vibrant' },
-              { value: 'minimalist', label: 'Minimalist' }, { value: 'luxury', label: 'Luxury' },
-              { value: 'bold', label: 'Bold' }, { value: 'pastel', label: 'Pastel' },
-            ]}
-            onChange={setDim('brandColorScheme')}
-          />
-          <DimPicker
-            label="Target demographic"
-            value={draft.variantDimensions?.targetDemographic ?? null}
-            options={[
-              { value: 'young_active', label: 'Young & Active' }, { value: 'family', label: 'Family' },
-              { value: 'professional', label: 'Professional' }, { value: 'senior', label: 'Senior' },
-              { value: 'health_seeker', label: 'Health-seeker' },
-            ]}
-            onChange={setDim('targetDemographic')}
-          />
-          <DimPicker
-            label="Price positioning"
-            value={draft.variantDimensions?.pricePositioning ?? null}
-            options={[
-              { value: 'budget', label: 'Budget' }, { value: 'mainstream', label: 'Mainstream' },
-              { value: 'premium', label: 'Premium' }, { value: 'ultra_premium', label: 'Ultra-premium' },
-            ]}
-            onChange={setDim('pricePositioning')}
-          />
-        </CollapsibleContent>
-      </Collapsible>
-
-      <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen} className="rounded-lg border border-slate-200">
-        <CollapsibleTrigger className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left">
-          <div>
-            <p className="text-sm font-semibold text-slate-900">Consumer promise and internal context</p>
-            <p className="mt-0.5 text-xs text-slate-500">Project, price, benefits, and R&D notes that support the brief.</p>
-          </div>
-          <ChevronDown className={`size-4 shrink-0 text-slate-500 transition-transform ${detailsOpen ? 'rotate-180' : ''}`} />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-4 border-t border-slate-200 px-4 py-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="concept-project-folder" className="flex items-center gap-1.5 font-medium"><FolderKanban className="size-3.5" /> Project folder</Label>
-            <Input id="concept-project-folder" value={draft.projectName} onChange={set('projectName')} placeholder="e.g. Project 1" />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="concept-price-point" className="flex items-center gap-1.5 font-medium"><DollarSign className="size-3.5" /> Expected price point</Label>
-            <Input id="concept-price-point" value={draft.pricePoint} onChange={set('pricePoint')} placeholder="e.g. $6.99 / 200g block" />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="concept-key-benefits" className="flex items-center gap-1.5 font-medium"><Star className="size-3.5" /> Key consumer benefits</Label>
-            <Textarea
-              id="concept-key-benefits"
-              value={draft.keyBenefits}
-              onChange={set('keyBenefits')}
-              placeholder="e.g. Melts like dairy, high-protein, allergen-free."
-              rows={2}
-              className="resize-none"
-            />
-            <div className="flex items-start justify-between gap-3 rounded-md bg-slate-50 px-3 py-2">
-              <p className="text-xs text-slate-700">
-                Suggested {detection.label.toLowerCase()} cues: {profile.successMarkers.slice(0, 4).join(', ')}
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  const additions = profile.successMarkers.slice(0, 4).join(', ');
-                  onChange({ ...draft, keyBenefits: [draft.keyBenefits, additions].filter(Boolean).join(draft.keyBenefits ? ', ' : '') });
-                }}
-                className="shrink-0 text-xs font-semibold text-blue-700 hover:text-blue-900"
-              >
-                Add cues
-              </button>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="concept-technical-challenges" className="flex items-center gap-1.5 font-medium"><Package className="size-3.5" /> Technical challenges / R&D notes</Label>
-            <Textarea
-              id="concept-technical-challenges"
-              value={draft.technicalChallenges}
-              onChange={set('technicalChallenges')}
-              placeholder="e.g. Melt properties, protein binding, shelf stability."
-              rows={2}
-              className="resize-none"
-            />
-            <p className="text-xs text-slate-500">Internal only.</p>
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { getBlindStudyCategoryLabel, getBlindStudyDisplayName } from './blind-st
 export interface PackListRecipient {
   name: string;
   email?: string;
+  address?: string;
   lineNumber: number;
 }
 
@@ -28,7 +29,18 @@ export interface BoxTaskSummary {
   route: string;
 }
 
+export type BoxRecipientMode = 'named' | 'unnamed';
+
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+
+export function normalizeBoxCode(value: string): string {
+  return value.trim().toUpperCase().replace(/\s+/g, '');
+}
+
+export function boxBatchSize(mode: BoxRecipientMode, recipientCount: number, requestedCount: number): number {
+  if (mode === 'named') return Math.max(0, recipientCount);
+  return Math.min(250, Math.max(1, Math.floor(requestedCount) || 1));
+}
 
 export function analyzePackList(input: string): PackListAnalysis {
   const issues: PackListIssue[] = [];
@@ -79,8 +91,12 @@ export function analyzePackList(input: string): PackListAnalysis {
   };
 }
 
-export function recipientInputs(recipients: PackListRecipient[]): Array<{ name: string; email?: string }> {
-  return recipients.map(({ name, email }) => ({ name, email }));
+export function recipientInputs(recipients: PackListRecipient[]): Array<{ name: string; email?: string; address?: string }> {
+  return recipients.map(({ name, email, address }) => ({
+    name,
+    ...(email ? { email } : {}),
+    ...(address ? { address } : {}),
+  }));
 }
 
 export function sampleCue(product: Product): string {

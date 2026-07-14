@@ -7,6 +7,7 @@ import { encodeBatchSelection, projectRoutePath } from "../lib/project-identity"
 import { useWorkspaceSettings } from "../lib/hooks";
 import { useProjectStatusList, type ProjectStatusListEntry } from "../lib/use-project-status";
 import { ProjectCard } from "./project-card";
+import { ProjectWorkflowPath } from "./project-workflow-path";
 import { NextActionCard } from "./next-action-card";
 import { ProjectStatusBadge, toneSolidClasses } from "./project-status-badge";
 import { StageEmptyState } from "./stage-empty-state";
@@ -59,7 +60,7 @@ function ProjectTable({ entries, onOpen }: {
           <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wide text-slate-500">
             <th className="px-3 py-2 font-semibold">Project</th>
             <th className="px-3 py-2 font-semibold">Category</th>
-            <th className="px-3 py-2 font-semibold">Workflow</th>
+            <th className="min-w-[30rem] px-3 py-2 font-semibold">Workflow</th>
             <th className="px-3 py-2 font-semibold">Decision</th>
             <th className="px-3 py-2 font-semibold">Responses</th>
             <th className="px-3 py-2 font-semibold">Report</th>
@@ -79,20 +80,7 @@ function ProjectTable({ entries, onOpen }: {
                 </td>
                 <td className="px-3 py-2.5 text-slate-500">{status.foodTypeLabel}</td>
                 <td className="px-3 py-2.5">
-                  <div className="flex items-center gap-1">
-                    {status.stages.map(stage => (
-                      <span
-                        key={stage.id}
-                        title={`${stage.label}: ${stage.detail}`}
-                        className={`size-2 rounded-full ${
-                          stage.state === 'complete' ? 'bg-emerald-500'
-                          : stage.state === 'current' ? 'bg-blue-600'
-                          : stage.state === 'needs-review' ? 'bg-amber-500'
-                          : 'bg-slate-200'
-                        }`}
-                      />
-                    ))}
-                  </div>
+                  <ProjectWorkflowPath stages={status.stages} compact onNavigate={() => onOpen(entry)} />
                 </td>
                 <td className="px-3 py-2.5">
                   <ProjectStatusBadge label={status.decisionStatus} tone={status.decisionTone} showIcon={false} />
@@ -154,7 +142,7 @@ function ActiveProjects() {
       {sorted.length > 8 ? (
         <ProjectTable entries={sorted} onOpen={open} />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2">
           {sorted.map(entry => (
             <ProjectCard
               key={entry.batch.id}

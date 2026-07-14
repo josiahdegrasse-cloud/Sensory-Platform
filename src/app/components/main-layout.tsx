@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
-import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Archive, Trash2, Undo2, ChevronDown, ChevronRight, Settings, AlertCircle, AlertTriangle, X, FileText, FolderKanban, Menu } from "lucide-react";
+import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Archive, Trash2, Undo2, ChevronDown, ChevronRight, Settings, AlertCircle, AlertTriangle, X, FileText, FolderKanban, Menu, BookOpenText } from "lucide-react";
 import { useAuth } from "../contexts/auth-context";
 import { useEffect, useMemo, useState } from "react";
 import { useFoodType } from "../contexts/food-type-context";
@@ -178,7 +178,7 @@ function CategorySidebar() {
 
   return (
     <aside
-      className="hidden w-52 shrink-0 self-start sticky top-[89px] xl:block"
+      className="hidden w-40 shrink-0 self-start sticky top-[89px] xl:block"
       style={{ minHeight: 'calc(100vh - 89px)' }}
     >
       {actionError && (
@@ -466,7 +466,7 @@ export function MainLayout() {
 
   const activeAdminNavPath = (pathname: string) => {
     const normalized = pathname.replace(/\/+$/, '') || '/';
-    const projectStep = normalized.match(/^\/project\/[^/]+(?:\/([^/]+))?$/)?.[1] ?? null;
+    const projectStep = normalized.match(/^\/project\/[^/]+(?:\/([^/]+))?(?:\/[^/]+)?$/)?.[1] ?? null;
 
     if (projectStep) {
       switch (projectStep) {
@@ -518,6 +518,7 @@ export function MainLayout() {
     { path: "/decision",       label: "Decision",  icon: GitMerge },
     { path: "/concept-testing", label: "Concept",  icon: Lightbulb },
     { path: "/reports",        label: "Report",    icon: FileText },
+    { path: "/literature",      label: "Literature", icon: BookOpenText },
   ];
   const navItems = user?.role === 'admin' ? getAdminNavItems() : getPanelistNavItems();
   const activeNavItem = navItems.find(item => isActive(item.path)) ?? navItems[0];
@@ -628,7 +629,7 @@ export function MainLayout() {
             </DropdownMenu>
           </div>
 
-          <div className="hidden items-center overflow-x-auto md:flex">
+          <nav aria-label="Main navigation" className="hidden w-full items-stretch overflow-x-auto md:flex">
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.path);
@@ -637,10 +638,10 @@ export function MainLayout() {
                   key={item.path}
                   to={user?.role === 'admin' ? adminNavTarget(item.path) : item.path}
                   aria-current={active ? 'page' : undefined}
-                  className={`flex shrink-0 items-center gap-1.5 border-b-2 border-transparent px-3 py-3 text-sm transition-colors sm:px-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/15 ${active ? 'font-semibold' : 'font-normal text-slate-500 hover:text-slate-700'}`}
+                  className={`flex min-h-12 min-w-24 flex-1 items-center justify-center gap-2 border-b-2 border-transparent px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-900/15 ${active ? 'font-semibold' : 'font-normal text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
                   style={active ? { color: 'var(--brand)', borderBottomColor: 'var(--brand)' } : undefined}
                 >
-                  {Icon && <Icon className="size-3.5" />}
+                  {Icon && <Icon className="size-4 shrink-0" />}
                   {item.label}
                   {item.path === '/stage1' && pendingImports.length > 0 && (
                     <span className="ml-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[11px] font-bold leading-none text-white">
@@ -650,12 +651,12 @@ export function MainLayout() {
                 </Link>
               );
             })}
-          </div>
+          </nav>
 
         </div>
       </header>
 
-      <div className="mx-auto flex max-w-[1600px] items-start gap-6 px-4 py-6 sm:px-6 lg:py-8">
+      <div className="mx-auto flex max-w-[1600px] items-start gap-4 px-4 py-6 sm:px-6 lg:py-8">
         {user?.role === 'admin' && <CategorySidebar />}
         <main className="flex-1 min-w-0">
           {user?.role === 'panelist' && (workspaceSettings?.requirePanelistConsent ?? true) && !user.consentAcceptedAt ? <ConsentGate /> : <Outlet />}

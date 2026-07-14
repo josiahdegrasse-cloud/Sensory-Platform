@@ -5,15 +5,18 @@ import type {
   AgentOutput,
   ReportAgentMode,
   ReportOrchestratorResult,
+  ReportSectionDrafts,
 } from './agent-types';
-import type { ReportAgentRole, ReportOrchestrationArtifacts } from './types';
+import type { LiteratureCitation, ReportAgentRole, ReportOrchestrationArtifacts } from './types';
 import {
   applyOrchestratedNarrative,
   buildNarrativeFromSections,
   mapWrittenDraftToSections,
 } from './agent-section-map';
 import { mergeAgentAndDeterministicQc } from './agent-qc';
+import { sanitizeLiteratureCitations } from './literature-citation-guard';
 import type { GeneratedSections } from '../report-qc';
+import { assertReportWriterInputSafe, type ReportSafeEvidenceCard } from '../evidence-assist';
 
 const ROLE_TO_AGENT: Partial<Record<ReportAgentRole, AgentOutput['agentName']>> = {
   evidence_auditor: 'evidence_auditor',
@@ -58,6 +61,45 @@ function normalizeAgentOutputs(artifacts: ReportOrchestrationArtifacts): AgentOu
   });
 }
 
+// Deduped union of literatureCitations from the three roles that can
+// legitimately carry them. Reads the field directly rather than routing
+// through mapWrittenDraftToSections's regex matcher, which is unreliable
+// for section content that regex doesn't happen to match.
+function collectLiteratureCitations(artifacts: ReportOrchestrationArtifacts): LiteratureCitation[] {
+  const byId = new Map<string, LiteratureCitation>();
+  const sources: Array<LiteratureCitation[] | undefined> = [
+    artifacts.outputs.professional_report_writer?.literatureCitations,
+    artifacts.outputs.sensory_science_reviewer?.literatureCitations,
+    artifacts.outputs.instrumental_science_reviewer?.literatureCitations,
+  ];
+  for (const list of sources) {
+    for (const item of list ?? []) {
+      if (item.id) byId.set(item.id, item);
+    }
+  }
+  return [...byId.values()];
+}
+
+function collectEvidenceCards(artifacts: ReportOrchestrationArtifacts): ReportSafeEvidenceCard[] {
+  const cards = artifacts.outputs.professional_report_writer?.evidenceCards ?? [];
+  assertReportWriterInputSafe({ evidenceCards: cards });
+  return cards;
+}
+
+// Defense-in-depth: re-verify every [lit:Lx] token against the citations
+// this client actually received, mirroring report-evaluator.ts's handling
+// of internal [evidence:id] tokens.
+function sanitizeSectionDrafts(sections: Partial<ReportSectionDrafts>, knownIds: Set<string>): Partial<ReportSectionDrafts> {
+  const sanitized: Partial<ReportSectionDrafts> = { ...sections };
+  for (const key of Object.keys(sanitized) as Array<keyof ReportSectionDrafts>) {
+    const value = sanitized[key];
+    if (typeof value === 'string') {
+      sanitized[key] = sanitizeLiteratureCitations(value, knownIds);
+    }
+  }
+  return sanitized;
+}
+
 export function normalizeOrchestrationResult(input: {
   mode: ReportAgentMode;
   ctx: ReportContext;
@@ -70,7 +112,13 @@ export function normalizeOrchestrationResult(input: {
 }): ReportOrchestratorResult {
   const allClaims = input.ctx.claims.map(claim => normalizeClaimRecord(claim, input.ctx));
   const split = splitClaims(allClaims);
-  const sections = mapWrittenDraftToSections(input.artifacts.finalDraft, input.snapshot);
+  const literatureCitations = collectLiteratureCitations(input.artifacts);
+  const evidenceCards = collectEvidenceCards(input.artifacts);
+  const knownLiteratureIds = new Set(literatureCitations.map(item => item.id));
+  const sections = sanitizeSectionDrafts(
+    mapWrittenDraftToSections(input.artifacts.finalDraft, input.snapshot),
+    knownLiteratureIds,
+  );
   const narrative = buildNarrativeFromSections(sections, input.snapshot);
   const { qc } = mergeAgentAndDeterministicQc({
     ctx: input.ctx,
@@ -94,12 +142,14 @@ export function normalizeOrchestrationResult(input: {
     agentOutputs: normalizeAgentOutputs(input.artifacts),
     qc,
     metadata: {
-      agentsRun: [...new Set(normalizeAgentOutputs(input.artifacts).map(output => output.agentName))],
+      agentsRun: [...new Set(input.artifacts.state.completedAgents.map(role => ROLE_TO_AGENT[role as ReportAgentRole] ?? 'orchestrator'))],
       retries: input.artifacts.repairHistory.length,
       estimatedCost: input.estimatedCost,
       modelUsage: input.modelUsage,
       contextChanged: input.contextChanged,
     },
+    literatureCitations,
+    evidenceCards,
     snapshot: applyOrchestratedNarrative(input.snapshot, narrative),
   };
 }

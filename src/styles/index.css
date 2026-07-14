@@ -26,6 +26,18 @@
     page-break-after: always;
   }
 
+  .kit-manifest-page {
+    break-after: page;
+    border-radius: 0;
+    box-shadow: none;
+    page-break-after: always;
+  }
+
+  .kit-insert-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
   @page {
     margin: 0.5in;
   }

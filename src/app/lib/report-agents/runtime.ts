@@ -10,13 +10,15 @@ import type {
   ReportRenderResult,
   WrittenReportResult,
 } from './types';
+import { containsInternalWritingInstructions } from '../report-evaluator';
 
 function sectionText(draft: WrittenReportResult, patterns: RegExp[]): string {
   const sections = draft.pages.flatMap(page => page.sections);
   const match = sections.find(section =>
     patterns.some(pattern => pattern.test(`${section.sectionId} ${section.heading}`)),
   );
-  return match?.body.trim() ?? '';
+  const body = match?.body.trim() ?? '';
+  return containsInternalWritingInstructions(body) ? '' : body;
 }
 
 export function applyAgentDraftToSnapshot(

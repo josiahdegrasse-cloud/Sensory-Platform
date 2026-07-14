@@ -1,7 +1,7 @@
 /**
  * The single parser/encoder for the FoodTypeContext `subCategory` selection
  * string (`batch:<id>`). Replaces the previously-duplicated inline
- * `subCategory.startsWith('batch:')` logic across main-layout, project-header,
+ * `subCategory.startsWith('batch:')` logic across the main layout and
  * stage4-enhanced, admin-config, stage1-instrumental, etc.
  */
 export function parseBatchSelection(subCategory: string | null | undefined): string | null {

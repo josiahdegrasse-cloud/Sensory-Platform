@@ -4,18 +4,35 @@ import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import {
   ChevronRight, ChevronLeft, Send, CheckCircle2,
-  AlertTriangle, Gauge, Circle,
+  AlertTriangle, Gauge, Circle, Sparkles,
 } from 'lucide-react';
 import { insertConceptTest } from '../lib/database';
-import { detectFoodType } from '../lib/food-intelligence';
+import type { DecisionRecord } from '../lib/database';
+import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from '../data/enhanced-sensory';
+import { detectFoodType, formatFoodTypeLabel, getFoodTypeProfile } from '../lib/food-intelligence';
+import { sampleMatchesFoodType, useFoodType } from '../contexts/food-type-context';
 import { workflowStagePath } from '../lib/project-journey-routes';
+import {
+  buildEvidencePositioningPromise,
+  buildInstrumentEvidenceSummary,
+  buildPanelEvidenceSummary,
+  strongestHedonicSignals,
+  topSuccessfulPanelSignals,
+} from '../lib/concept-positioning-promise';
+import {
+  buildImportedSensoryProfiles,
+  findSensoryEvidenceProfile,
+} from '../lib/sensory-evidence-profile';
 import { useAuth } from '../contexts/auth-context';
 import {
   useConceptGenerationSettings,
   useConceptLabDiagnostics,
+  useDecisionRecords,
+  useInstrumentalDataset,
   usePanelists,
   useWorkspaceSettings,
 } from '../lib/hooks';
+import { useSurveyData } from '../lib/use-survey-data';
 import type { ConceptDraft, Question, WizardStep } from './concept-testing/types';
 import { EMPTY_VARIANT_DIMENSIONS } from './concept-testing/types';
 import type { AIReviewState } from './ai-review-card';
@@ -26,7 +43,6 @@ import { PanelStep } from './concept-testing/PanelStep';
 import { ReviewStep } from './concept-testing/ReviewStep';
 import { getConceptReadiness } from './concept-testing/concept-readiness';
 import { buildTailoredConceptQuestions, defaultConceptPanelistIds } from './concept-testing/smart-defaults';
-import { ProjectHeader } from './project-header';
 import { WorkflowPageHeader } from './workflow-page-header';
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
@@ -70,6 +86,7 @@ interface StoredConceptDraft {
   segments: string[];
   assignedPanelistIds: string[];
   sourceDecision?: SourceDecisionSeed | null;
+  conceptSourceChosen?: boolean;
   savedAt: string;
 }
 
@@ -79,11 +96,97 @@ interface SourceDecisionSeed {
   issfScore: number;
   confidence: number;
   timestamp: string;
+  likedSignals?: string[];
+}
+
+interface ConceptSeed {
+  name?: string;
+  category?: string;
+  description?: string;
+  productAppearance?: string;
+  packageFormat?: string;
+  targetMarket?: string;
+  targetOccasion?: string;
+  visualSetting?: string;
+  colorDirection?: string;
+  mustShow?: string;
+  keyBenefits?: string;
+  technicalChallenges?: string;
+  sourceDecision?: SourceDecisionSeed;
+}
+
+function conceptSeedFromDecisionRecord(
+  record: DecisionRecord,
+  promptStyle: string,
+  activeFoodType: string,
+  evidenceProfile?: EnhancedSensoryProfile,
+): { draft: ConceptDraft; seed: ConceptSeed } {
+  const detected = detectFoodType(record.sampleName, record.note);
+  const evidenceFoodType = evidenceProfile ? sampleMatchesFoodType(evidenceProfile.sampleId, evidenceProfile.sampleName) : detected.slug;
+  const foodTypeSlug = activeFoodType !== 'all' ? activeFoodType : evidenceFoodType;
+  const category = activeFoodType !== 'all'
+    ? formatFoodTypeLabel(activeFoodType)
+    : evidenceProfile
+      ? formatFoodTypeLabel(evidenceFoodType)
+      : detected.label;
+  const profile = getFoodTypeProfile(foodTypeSlug);
+  const likedSignals = evidenceProfile
+    ? [...topSuccessfulPanelSignals(evidenceProfile, foodTypeSlug), ...strongestHedonicSignals(evidenceProfile)]
+    : profile.successMarkers.slice(0, 4);
+  const strengths = likedSignals.join(', ');
+  const seed: ConceptSeed = {
+    name: record.sampleName,
+    category,
+    description: buildEvidencePositioningPromise({
+      category,
+      sourceSampleName: record.sampleName,
+      sensoryStrengths: likedSignals,
+      panelEvidence: evidenceProfile ? buildPanelEvidenceSummary(evidenceProfile, foodTypeSlug) : [],
+      instrumentEvidence: evidenceProfile ? buildInstrumentEvidenceSummary(evidenceProfile) : [],
+      issfScore: record.issfScore,
+      confidence: record.confidence,
+      decisionRationale: record.note,
+    }),
+    productAppearance: `Show ${record.sampleName} as a believable ${category.toLowerCase()} product with appetizing texture and clear cues for ${strengths}.`,
+    packageFormat: 'Retail-ready pack with clear product name, category recognition, and a believable serving suggestion.',
+    targetMarket: `Shoppers looking for ${category.toLowerCase()} with validated sensory appeal.`,
+    targetOccasion: 'Everyday use occasion where the validated sensory strengths are easy to understand.',
+    visualSetting: 'Clean retail or kitchen setting that makes the product quality easy to judge.',
+    colorDirection: 'Use a commercial palette that supports the strongest liked sensory cues without overclaiming.',
+    mustShow: `Product name, category cue, serving suggestion, and visual support for ${strengths}.`,
+    keyBenefits: strengths,
+    technicalChallenges: record.note,
+    sourceDecision: {
+      id: record.id,
+      sampleName: record.sampleName,
+      issfScore: record.issfScore,
+      confidence: record.confidence,
+      timestamp: record.timestamp,
+      likedSignals,
+    },
+  };
+  return {
+    seed,
+    draft: {
+      ...makeEmptyDraft(promptStyle),
+      name: seed.name ?? '',
+      category: seed.category ?? '',
+      description: seed.description ?? '',
+      productAppearance: seed.productAppearance ?? '',
+      packageFormat: seed.packageFormat ?? '',
+      targetMarket: seed.targetMarket ?? '',
+      targetOccasion: seed.targetOccasion ?? '',
+      visualSetting: seed.visualSetting ?? '',
+      colorDirection: seed.colorDirection ?? '',
+      mustShow: seed.mustShow ?? '',
+      keyBenefits: seed.keyBenefits ?? '',
+      technicalChallenges: seed.technicalChallenges ?? '',
+    },
+  };
 }
 
 const STEP_LABELS: Record<WizardStep, string> = {
-  concept: 'Brief',
-  visuals: 'Visuals',
+  concept: 'Brief & visuals',
   survey: 'Survey',
   panel: 'Panel',
   review: 'Launch',
@@ -96,6 +199,7 @@ export function ConceptTesting() {
   const navigate = useNavigate();
   const location = useLocation();
   const { projectId: routeProjectId } = useParams<{ projectId?: string }>();
+  const { foodType } = useFoodType();
   const { user } = useAuth();
   // Scope the autosaved draft per user + project so drafts never leak across
   // projects or between users sharing a browser.
@@ -114,12 +218,27 @@ export function ConceptTesting() {
   const [draftNotice, setDraftNotice] = useState('');
   const [saveState, setSaveState] = useState<'idle' | 'saved'>('idle');
   const [sourceDecision, setSourceDecision] = useState<SourceDecisionSeed | null>(null);
+  const [conceptSourceChosen, setConceptSourceChosen] = useState(false);
   const { data: settings } = useConceptGenerationSettings();
   const { data: workspaceSettings } = useWorkspaceSettings();
   const { data: diagnostics } = useConceptLabDiagnostics();
+  const { data: decisionRecords = [] } = useDecisionRecords();
+  const { data: instrumentalDataset } = useInstrumentalDataset(user?.role === 'admin');
+  const { liveAggregations } = useSurveyData();
   const smartDefaultsApplied = useRef(false);
+  const minimumResponses = workspaceSettings?.decisionMinResponses ?? 12;
 
-  const STEPS: Exclude<WizardStep, 'launched'>[] = ['concept', 'visuals', 'survey', 'panel', 'review'];
+  const evidenceProfiles = useMemo(() => {
+    const referenceIds = new Set(ENHANCED_SENSORY_DATA.map(profile => profile.sampleId));
+    const importedProfiles = buildImportedSensoryProfiles(
+      instrumentalDataset,
+      liveAggregations,
+      { minimumResponses, excludeSampleIds: referenceIds },
+    );
+    return [...ENHANCED_SENSORY_DATA, ...importedProfiles];
+  }, [instrumentalDataset, liveAggregations, minimumResponses]);
+
+  const STEPS: Exclude<WizardStep, 'launched'>[] = ['concept', 'survey', 'panel', 'review'];
   const activeWizardStep: Exclude<WizardStep, 'launched'> = step === 'launched' ? 'review' : step;
   const stepIndex = STEPS.indexOf(activeWizardStep);
 
@@ -134,7 +253,6 @@ export function ConceptTesting() {
   });
   const launchReady = readinessItems.every(item => item.ready);
   const conceptStepReady = readinessItems.filter(item => item.fixStep === 'concept').every(item => item.ready);
-  const visualsStepReady = readinessItems.filter(item => item.fixStep === 'visuals').every(item => item.ready);
   const surveyStepReady = readinessItems.filter(item => item.fixStep === 'survey').every(item => item.ready);
   const panelStepReady = readinessItems.filter(item => item.fixStep === 'panel').every(item => item.ready);
   const setupWarnings = diagnostics?.messages ?? [];
@@ -148,12 +266,7 @@ export function ConceptTesting() {
 
   useEffect(() => {
     const seed = (location.state as {
-      conceptSeed?: {
-        name?: string;
-        category?: string;
-        description?: string;
-        sourceDecision?: SourceDecisionSeed;
-      };
+      conceptSeed?: ConceptSeed;
     } | null)?.conceptSeed;
     if (seed?.name) {
       const emptyDraft = makeEmptyDraft(settings?.promptStyle ?? 'balanced');
@@ -162,6 +275,15 @@ export function ConceptTesting() {
         name: seed.name.trim(),
         category: seed.category?.trim() || emptyDraft.category,
         description: seed.description?.trim() || emptyDraft.description,
+        productAppearance: seed.productAppearance?.trim() || emptyDraft.productAppearance,
+        packageFormat: seed.packageFormat?.trim() || emptyDraft.packageFormat,
+        targetMarket: seed.targetMarket?.trim() || emptyDraft.targetMarket,
+        targetOccasion: seed.targetOccasion?.trim() || emptyDraft.targetOccasion,
+        visualSetting: seed.visualSetting?.trim() || emptyDraft.visualSetting,
+        colorDirection: seed.colorDirection?.trim() || emptyDraft.colorDirection,
+        mustShow: seed.mustShow?.trim() || emptyDraft.mustShow,
+        keyBenefits: seed.keyBenefits?.trim() || emptyDraft.keyBenefits,
+        technicalChallenges: seed.technicalChallenges?.trim() || emptyDraft.technicalChallenges,
       };
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time seed from route state on mount
       setDraft(seededDraft);
@@ -170,8 +292,13 @@ export function ConceptTesting() {
       setSegments([]);
       setAssignedPanelistIds([]);
       setSourceDecision(seed.sourceDecision ?? null);
+      setConceptSourceChosen(true);
       smartDefaultsApplied.current = false;
-      setDraftNotice(`Started from the confirmed GO decision for "${seed.name}". A draft survey and panel defaults are ready for review.`);
+      setDraftNotice(
+        seed.sourceDecision?.likedSignals?.length
+          ? `Started from the confirmed GO decision for "${seed.name}" and prefilled image cues from panel strengths: ${seed.sourceDecision.likedSignals.slice(0, 4).join(', ')}.`
+          : `Started from the confirmed GO decision for "${seed.name}". A draft survey and panel defaults are ready for review.`
+      );
       localStorage.removeItem(draftStorageKey);
       return;
     }
@@ -188,6 +315,7 @@ export function ConceptTesting() {
           setAssignedPanelistIds(saved.assignedPanelistIds ?? []);
           setPanelSize(saved.panelSize ?? 50);
           setSourceDecision(saved.sourceDecision ?? null);
+          setConceptSourceChosen(saved.conceptSourceChosen ?? true);
           smartDefaultsApplied.current = true;
           setDraftNotice(`Draft restored from ${new Date(saved.savedAt).toLocaleString()}.`);
           return;
@@ -225,13 +353,14 @@ export function ConceptTesting() {
         segments,
         assignedPanelistIds,
         sourceDecision,
+        conceptSourceChosen,
         savedAt: new Date().toISOString(),
       };
       localStorage.setItem(draftStorageKey, JSON.stringify(payload));
       setSaveState('saved');
     }, 400);
     return () => window.clearTimeout(timeout);
-  }, [assignedPanelistIds, draft, draftHasWork, draftStorageKey, panelSize, questions, questionsReviewState, segments, sourceDecision, step]);
+  }, [assignedPanelistIds, conceptSourceChosen, draft, draftHasWork, draftStorageKey, panelSize, questions, questionsReviewState, segments, sourceDecision, step]);
 
   const resetForm = () => {
     setStep('concept');
@@ -245,8 +374,56 @@ export function ConceptTesting() {
     setDraftNotice('');
     setSaveState('idle');
     setSourceDecision(null);
+    setConceptSourceChosen(false);
     smartDefaultsApplied.current = false;
-    localStorage.removeItem(DRAFT_STORAGE_KEY);
+    localStorage.removeItem(draftStorageKey);
+  };
+
+  const confirmedGoDecisions = useMemo(
+    () => decisionRecords.filter(record => record.decision === 'GO').slice(0, 6),
+    [decisionRecords],
+  );
+
+  const startFromDecision = (record: DecisionRecord) => {
+    const evidenceProfile = findSensoryEvidenceProfile(evidenceProfiles, {
+      sampleId: record.sampleId,
+      sampleName: record.sampleName,
+    });
+    const { draft: seededDraft, seed } = conceptSeedFromDecisionRecord(
+      record,
+      settings?.promptStyle ?? 'balanced',
+      foodType,
+      evidenceProfile,
+    );
+    setStep('concept');
+    setDraft(seededDraft);
+    setQuestions(buildTailoredConceptQuestions(seededDraft));
+    setQuestionsReviewState('draft');
+    setSegments([]);
+    setAssignedPanelistIds([]);
+    setSourceDecision(seed.sourceDecision ?? null);
+    setConceptSourceChosen(true);
+    smartDefaultsApplied.current = false;
+    setDraftNotice(
+      seed.sourceDecision?.likedSignals?.length
+        ? `Started from the confirmed GO decision for "${record.sampleName}" and prefilled image cues: ${seed.sourceDecision.likedSignals.join(', ')}.`
+        : `Started from the confirmed GO decision for "${record.sampleName}".`
+    );
+    localStorage.removeItem(draftStorageKey);
+  };
+
+  const startFromScratch = () => {
+    setStep('concept');
+    setDraft(makeEmptyDraft(settings?.promptStyle ?? 'balanced'));
+    setQuestions([]);
+    setQuestionsReviewState('none');
+    setSegments([]);
+    setAssignedPanelistIds([]);
+    setSourceDecision(null);
+    setConceptSourceChosen(true);
+    smartDefaultsApplied.current = false;
+    setDraftNotice('Started a concept image without a source decision. Add the product type and positioning so the image generator has enough context.');
+    localStorage.removeItem(draftStorageKey);
   };
 
   const handleLaunch = async () => {
@@ -324,7 +501,7 @@ export function ConceptTesting() {
           </Button>
           <Button
             className="bg-emerald-600 hover:bg-emerald-700 text-white"
-            onClick={() => navigate(workflowStagePath('decision', routeProjectId), { state: { openReport: true } })}
+            onClick={() => navigate(workflowStagePath('report', routeProjectId, '?create=1'))}
           >
             Prepare commercialization report
           </Button>
@@ -342,23 +519,21 @@ export function ConceptTesting() {
 
   const currentStepReady = step === 'concept'
     ? conceptStepReady
-    : step === 'visuals'
-      ? visualsStepReady
-      : step === 'survey'
-        ? surveyStepReady
-        : step === 'panel'
-          ? panelStepReady
-          : launchReady;
+    : step === 'survey'
+      ? surveyStepReady
+      : step === 'panel'
+        ? panelStepReady
+        : launchReady;
   const currentBlockers = readinessItems.filter(item => !item.ready && (
     step === 'review' || item.fixStep === step
   ));
   const blockerMessage = currentBlockers[0]?.detail ?? '';
   const nextStep = STEPS[stepIndex + 1];
   const nextActionLabel = nextStep ? `Continue to ${STEP_LABELS[nextStep]}` : 'Continue';
+  const conceptWorkspaceStarted = conceptSourceChosen || Boolean(sourceDecision) || Boolean(draftHasWork);
 
   return (
     <div className="space-y-6 pb-8">
-      <ProjectHeader />
       <WorkflowPageHeader
         title="Concept Lab"
         description="Prepare one consumer concept test for launch."
@@ -386,17 +561,73 @@ export function ConceptTesting() {
         </div>
       )}
 
-      {sourceDecision && (
+      {!conceptWorkspaceStarted && (
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Start the concept image from evidence</h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+                Pick a confirmed GO item so the image brief inherits the food type, score context, and sensory cues, or start without a decision when you are exploring a new image direction.
+              </p>
+            </div>
+            <Button type="button" variant="outline" onClick={startFromScratch} className="shrink-0">
+              <Sparkles className="size-4" />
+              Start without decision
+            </Button>
+          </div>
+
+          {confirmedGoDecisions.length > 0 ? (
+            <div className="mt-5 grid gap-2 lg:grid-cols-2">
+              {confirmedGoDecisions.map(record => (
+                <button
+                  key={record.id}
+                  type="button"
+                  onClick={() => startFromDecision(record)}
+                  className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-left transition-colors hover:border-emerald-300 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900">{record.sampleName}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        ISSF {record.issfScore.toFixed(0)} · {record.confidence.toFixed(0)}% confidence · {new Date(record.timestamp).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-emerald-700 px-2 py-0.5 text-[11px] font-semibold text-white">GO</span>
+                  </div>
+                  {record.note.trim() && (
+                    <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-600">{record.note}</p>
+                  )}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-5 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-600">
+              No confirmed GO decisions yet. You can still start without a decision, but confirming a Decision item first will give image generation better food and panel context.
+            </div>
+          )}
+        </section>
+      )}
+
+      {conceptWorkspaceStarted && sourceDecision && (
         <div className="flex flex-col gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-700" />
             <div>
               <p className="text-sm font-semibold text-emerald-950">
-                Generated from a validated sample: {sourceDecision.sampleName}
+                Concept is linked to validated GO evidence
               </p>
-              <p className="mt-1 text-xs text-emerald-800">
-                This concept is built on a sample that earned a confirmed <strong>GO</strong> decision —
-                ISSF {sourceDecision.issfScore.toFixed(0)} at {sourceDecision.confidence.toFixed(0)}% confidence
+              <dl className="mt-2 grid gap-2 text-xs text-emerald-900 sm:grid-cols-2">
+                <div>
+                  <dt className="font-semibold text-emerald-700">Source sample</dt>
+                  <dd className="mt-0.5">{sourceDecision.sampleName}</dd>
+                </div>
+                <div>
+                  <dt className="font-semibold text-emerald-700">Panelist-facing concept</dt>
+                  <dd className="mt-0.5">{draft.name.trim() || 'Untitled concept'}</dd>
+                </div>
+              </dl>
+              <p className="mt-2 text-xs text-emerald-800">
+                Confirmed GO: ISSF {sourceDecision.issfScore.toFixed(0)} at {sourceDecision.confidence.toFixed(0)}% confidence
                 on {new Date(sourceDecision.timestamp).toLocaleDateString()}.
               </p>
             </div>
@@ -410,139 +641,142 @@ export function ConceptTesting() {
         </div>
       )}
 
-      <nav aria-label="Concept test progress" className="flex gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-white p-1">
-        {STEPS.map((s, i) => {
-          const done = i < stepIndex;
-          const active = s === step;
-          return (
-            <button
-              key={s}
-              type="button"
-              onClick={() => i <= stepIndex && setStep(s)}
-              disabled={i > stepIndex}
-              aria-current={active ? 'step' : undefined}
-              className={`flex min-w-fit items-center gap-1.5 rounded-md px-3 py-2 text-left text-xs font-semibold transition-colors ${
-                active
-                  ? 'bg-slate-900 text-white'
-                  : done
-                    ? 'text-emerald-800 hover:bg-emerald-50'
-                    : 'text-slate-500 hover:bg-slate-50 disabled:hover:bg-transparent'
-              }`}
-            >
-              {done ? <CheckCircle2 className="size-3.5 shrink-0" /> : <Circle className="size-3.5 shrink-0" />}
-              <span><span className="hidden sm:inline">{i + 1}. </span>{STEP_LABELS[s]}</span>
-            </button>
-          );
-        })}
-      </nav>
-
-      <Card className="border border-slate-200 shadow-none">
-        <CardContent className="space-y-8 py-6">
-          {step === 'concept' && (
-            <ConceptStep draft={draft} onChange={setDraft} />
-          )}
-          {step === 'visuals' && (
-            <ImagesStep
-              draft={draft}
-              onChange={setDraft}
-              settings={settings}
-              requireApproval={requireApprovedVisuals}
-            />
-          )}
-          {step === 'survey' && (
-            <QuestionsStep
-              draft={draft}
-              questions={questions}
-              onChange={setQuestions}
-              reviewState={questionsReviewState}
-              onReviewStateChange={setQuestionsReviewState}
-            />
-          )}
-          {step === 'panel' && (
-            <PanelStep
-              panelSize={panelSize}
-              setPanelSize={setPanelSize}
-              targetSegments={segments}
-              setTargetSegments={setSegments}
-              assignedPanelistIds={assignedPanelistIds}
-              setAssignedPanelistIds={setAssignedPanelistIds}
-            />
-          )}
-          {step === 'review' && (
-            <ReviewStep
-              draft={draft}
-              questions={questions}
-              panelSize={panelSize}
-              segments={segments}
-              assignedPanelistIds={assignedPanelistIds}
-              requireApprovedVisuals={requireApprovedVisuals}
-              onEditConcept={() => setStep('concept')}
-              onEditVisuals={() => setStep('visuals')}
-              onEditSurvey={() => setStep('survey')}
-              onEditPanel={() => setStep('panel')}
-            />
-          )}
-        </CardContent>
-      </Card>
-
-      {launchError && (
-        <p className="text-sm text-rose-600 font-medium text-center">{launchError}</p>
-      )}
-
-      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm md:sticky md:bottom-4 md:z-20 md:bg-white/95 md:backdrop-blur">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Button
-            variant="outline"
-            onClick={() => {
-              const previous = STEPS[stepIndex - 1];
-              if (previous) setStep(previous);
-            }}
-            disabled={stepIndex === 0}
-            className="gap-1.5 sm:w-auto"
-          >
-            <ChevronLeft className="size-4" /> Back
-          </Button>
-
-          <div className="flex min-w-0 flex-col gap-1 sm:items-end">
-            {step === 'review' ? (
-              <Button
-                onClick={handleLaunch}
-                disabled={launching || !launchReady}
-                className="gap-2 bg-emerald-600 px-8 text-white hover:bg-emerald-700"
-              >
-                <Send className="size-4" />
-                {launching ? 'Launching…' : 'Launch concept test'}
-              </Button>
-            ) : (
-              <>
-                <Button
-                  onClick={() => {
-                    if (nextStep) setStep(nextStep);
-                  }}
-                  disabled={!currentStepReady}
-                  className="gap-1.5 bg-blue-600 text-white hover:bg-blue-700"
+      {conceptWorkspaceStarted && (
+        <>
+          <nav aria-label="Concept test progress" className="flex gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-white p-1">
+            {STEPS.map((s, i) => {
+              const done = i < stepIndex;
+              const active = s === step;
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => i <= stepIndex && setStep(s)}
+                  disabled={i > stepIndex}
+                  aria-current={active ? 'step' : undefined}
+                  className={`flex min-w-fit items-center gap-1.5 rounded-md px-3 py-2 text-left text-xs font-semibold transition-colors ${
+                    active
+                      ? 'bg-slate-900 text-white'
+                      : done
+                        ? 'text-emerald-800 hover:bg-emerald-50'
+                        : 'text-slate-500 hover:bg-slate-50 disabled:hover:bg-transparent'
+                  }`}
                 >
-                  {nextActionLabel} <ChevronRight className="size-4" />
-                </Button>
-                {!currentStepReady && blockerMessage && (
-                  <div className="flex max-w-md flex-col gap-1 text-xs text-amber-700 sm:items-end sm:text-right">
-                    <p>{blockerMessage}</p>
-                    {currentBlockers[0] && (
-                      <button
-                        type="button"
-                        onClick={() => setStep(currentBlockers[0].fixStep)}
-                        className="font-semibold text-blue-700 hover:text-blue-900"
-                      >
-                        Fix {currentBlockers[0].label.toLowerCase()}
-                      </button>
+                  {done ? <CheckCircle2 className="size-3.5 shrink-0" /> : <Circle className="size-3.5 shrink-0" />}
+                  <span><span className="hidden sm:inline">{i + 1}. </span>{STEP_LABELS[s]}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          <Card className="border border-slate-200 shadow-none">
+            <CardContent className="space-y-8 py-6">
+              {step === 'concept' && (
+                <>
+                  <ConceptStep draft={draft} onChange={setDraft} />
+                  <ImagesStep
+                    draft={draft}
+                    onChange={setDraft}
+                    settings={settings}
+                    requireApproval={requireApprovedVisuals}
+                  />
+                </>
+              )}
+              {step === 'survey' && (
+                <QuestionsStep
+                  draft={draft}
+                  questions={questions}
+                  onChange={setQuestions}
+                  reviewState={questionsReviewState}
+                  onReviewStateChange={setQuestionsReviewState}
+                />
+              )}
+              {step === 'panel' && (
+                <PanelStep
+                  panelSize={panelSize}
+                  setPanelSize={setPanelSize}
+                  targetSegments={segments}
+                  setTargetSegments={setSegments}
+                  assignedPanelistIds={assignedPanelistIds}
+                  setAssignedPanelistIds={setAssignedPanelistIds}
+                />
+              )}
+              {step === 'review' && (
+                <ReviewStep
+                  draft={draft}
+                  questions={questions}
+                  panelSize={panelSize}
+                  segments={segments}
+                  assignedPanelistIds={assignedPanelistIds}
+                  requireApprovedVisuals={requireApprovedVisuals}
+                  onEditConcept={() => setStep('concept')}
+                  onEditSurvey={() => setStep('survey')}
+                  onEditPanel={() => setStep('panel')}
+                />
+              )}
+            </CardContent>
+          </Card>
+
+          {launchError && (
+            <p className="text-sm text-rose-600 font-medium text-center">{launchError}</p>
+          )}
+
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm md:sticky md:bottom-4 md:z-20 md:bg-white/95 md:backdrop-blur">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const previous = STEPS[stepIndex - 1];
+                  if (previous) setStep(previous);
+                }}
+                disabled={stepIndex === 0}
+                className="gap-1.5 sm:w-auto"
+              >
+                <ChevronLeft className="size-4" /> Back
+              </Button>
+
+              <div className="flex min-w-0 flex-col gap-1 sm:items-end">
+                {step === 'review' ? (
+                  <Button
+                    onClick={handleLaunch}
+                    disabled={launching || !launchReady}
+                    className="gap-2 bg-emerald-600 px-8 text-white hover:bg-emerald-700"
+                  >
+                    <Send className="size-4" />
+                    {launching ? 'Launching…' : 'Launch concept test'}
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      onClick={() => {
+                        if (nextStep) setStep(nextStep);
+                      }}
+                      disabled={!currentStepReady}
+                      className="gap-1.5 bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                      {nextActionLabel} <ChevronRight className="size-4" />
+                    </Button>
+                    {!currentStepReady && blockerMessage && (
+                      <div className="flex max-w-md flex-col gap-1 text-xs text-amber-700 sm:items-end sm:text-right">
+                        <p>{blockerMessage}</p>
+                        {currentBlockers[0] && (
+                          <button
+                            type="button"
+                            onClick={() => setStep(currentBlockers[0].fixStep)}
+                            className="font-semibold text-blue-700 hover:text-blue-900"
+                          >
+                            Fix {currentBlockers[0].label.toLowerCase()}
+                          </button>
+                        )}
+                      </div>
                     )}
-                  </div>
+                  </>
                 )}
-              </>
-            )}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }

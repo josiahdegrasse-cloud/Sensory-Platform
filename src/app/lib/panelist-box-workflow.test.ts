@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Product } from '../data/survey-domain';
-import { analyzePackList, recipientInputs, sampleCue, taskSummariesForIds } from './panelist-box-workflow';
+import { analyzePackList, boxBatchSize, normalizeBoxCode, recipientInputs, sampleCue, taskSummariesForIds } from './panelist-box-workflow';
 
 const baseProduct: Product = {
   id: 'product-1',
@@ -11,6 +11,17 @@ const baseProduct: Product = {
 };
 
 describe('panelist box workflow helpers', () => {
+  it('normalizes fallback codes for phone entry', () => {
+    expect(normalizeBoxCode(' nfi-8f2k 1a3b ')).toBe('NFI-8F2K1A3B');
+  });
+
+  it('uses recipient rows for named batches and clamps unassigned batches', () => {
+    expect(boxBatchSize('named', 8, 12)).toBe(8);
+    expect(boxBatchSize('named', 0, 12)).toBe(0);
+    expect(boxBatchSize('unnamed', 8, 300)).toBe(250);
+    expect(boxBatchSize('unnamed', 0, 0)).toBe(1);
+  });
+
   it('parses pack-list names and emails with validation issues', () => {
     const analysis = analyzePackList([
       'Avery Johnson, avery@example.com',

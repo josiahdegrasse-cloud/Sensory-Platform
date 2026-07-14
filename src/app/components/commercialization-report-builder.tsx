@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, FileCheck2, FileText, PackageCheck, Sparkles } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Bot, CheckCircle2, PackageCheck, ShieldCheck, Sparkles } from 'lucide-react';
 import type { GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
 import {
   buildCommercializationSnapshot,
-  getEvidenceStrength,
-  type CommercializationReportSnapshot,
-  DEFAULT_REPORT_ORGANIZATION_NAME, DEFAULT_REPORT_WORKSPACE_NAME,
+  DEFAULT_REPORT_ORGANIZATION_NAME,
+  DEFAULT_REPORT_WORKSPACE_NAME,
   resolveReportLogoUrl,
+  type CommercializationReportSnapshot,
 } from '../lib/commercialization-report';
 import {
   useAdminConceptTests,
@@ -14,26 +14,23 @@ import {
   useConceptTestResponses,
   useCreateCommercializationReport,
   useDecisionRecords,
-  useGenerateReportNarrative,
   useProjectEvidenceBundle,
   useSaveEvidenceBundle,
-  useUpdateCommercializationReportStatus,
 } from '../lib/hooks';
-import { buildReportPlan } from '../lib/report-plan';
-import { evaluateNarrative, stripEvidenceCitations, type NarrativeEvaluation } from '../lib/report-evaluator';
-import { canApproveReport, isReportStale } from '../lib/report-quality';
-import { ReportQualityPanel } from './report-quality-panel';
-import { useEvidenceBundles } from '../lib/hooks';
 import { updateConceptImageReviewStatus, type WorkspaceSettings } from '../lib/database';
-import { downloadCommercializationReportPdf } from '../utils/commercialization-report-export';
-import { buildReportContext, type SensoryAugmentation, type ApprovalStatus } from '../lib/report-qc';
+import { buildReportContext, type SensoryAugmentation } from '../lib/report-qc';
+import {
+  createMeteredReportAgentRunner,
+  estimateReportAgentCost,
+  hasGeneratedReportDraft,
+  runCommercializationReportOrchestrator,
+} from '../lib/report-agents';
 import { getConceptImageMode } from '../../../supabase/functions/_shared/concept-image-catalog.ts';
 import { preferredConceptImageIndex } from './concept-testing/smart-defaults';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Textarea } from './ui/textarea';
 
 export function CommercializationReportBuilder({
   decision,
@@ -41,265 +38,101 @@ export function CommercializationReportBuilder({
   userId,
   settings,
   initiallyOpen = false,
+  triggerLabel = 'Build report',
+  onSaved,
 }: {
   decision: GoStopTweakDecision;
   foodType: string;
   userId?: string;
   settings?: WorkspaceSettings;
   initiallyOpen?: boolean;
+  triggerLabel?: string;
+  onSaved?: (reportId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [conceptId, setConceptId] = useState('');
-  // Explicit image choice; falls back to the concept's preferred image below.
   const [imageIndexOverride, setImageIndex] = useState<number | null>(null);
-  const [snapshot, setSnapshot] = useState<CommercializationReportSnapshot | null>(null);
-  const [savedReportId, setSavedReportId] = useState('');
-  const [savedVersion, setSavedVersion] = useState(1);
-  const [savedStatus, setSavedStatus] = useState('draft');
+  const [generating, setGenerating] = useState(false);
+  const [generationStatus, setGenerationStatus] = useState('');
   const [error, setError] = useState('');
+
   const { data: decisions = [] } = useDecisionRecords();
   const { data: concepts = [] } = useAdminConceptTests();
+  const { data: reports = [] } = useCommercializationReports();
   const matchingConcepts = useMemo(() => concepts.filter(concept =>
-    concept.foodTypeSlug === foodType || concept.category.toLowerCase().includes(foodType.toLowerCase())
+    concept.foodTypeSlug === foodType || concept.category.toLowerCase().includes(foodType.toLowerCase()),
   ), [concepts, foodType]);
-  // Auto-select the first matching concept until the user picks one explicitly.
   const effectiveConceptId = conceptId || matchingConcepts[0]?.id || '';
+  const selectedConcept = matchingConcepts.find(concept => concept.id === effectiveConceptId);
   const responsesQuery = useConceptTestResponses(effectiveConceptId);
   const responses = useMemo(() => responsesQuery.data ?? [], [responsesQuery.data]);
-  const { data: reports = [] } = useCommercializationReports();
-  const createReport = useCreateCommercializationReport();
-  const updateStatus = useUpdateCommercializationReportStatus();
-  const saveBundle = useSaveEvidenceBundle();
-  const generateNarrative = useGenerateReportNarrative();
-  const [aiEval, setAiEval] = useState<NarrativeEvaluation | null>(null);
-  const [aiError, setAiError] = useState('');
-  // Deterministic evidence bundle for the GO sample — drives the data-evidence
-  // panel and is persisted + linked to the report on save.
   const evidenceQuery = useProjectEvidenceBundle(decision.sampleId, userId, open);
   const evidenceBundle = evidenceQuery.data ?? null;
-  const { data: savedBundles = [] } = useEvidenceBundles(decision.sampleId);
-
-  // AI narrative (beta): evidence-constrained generation with one bounded revision
-  // pass. The deterministic narrative remains the default/fallback.
-  const generateAiNarrative = async () => {
-    if (!evidenceBundle || !snapshot) return;
-    setAiError('');
-    setAiEval(null);
-    const plan = buildReportPlan(evidenceBundle);
-    const evidence = evidenceBundle.evidence.map(record => ({
-      id: record.id, title: record.title, description: record.description,
-    }));
-    const request = {
-      plan: {
-        headline: plan.headline,
-        candidateDecision: plan.candidateDecision,
-        confidence: plan.confidence,
-        sections: plan.sections.map(section => ({
-          key: section.key,
-          title: section.title,
-          guidance: section.guidance,
-          evidenceIds: section.evidenceIds,
-          evidenceBacked: section.evidenceBacked,
-          claimStatements: section.claims.map(claim => claim.statement),
-        })),
-      },
-      evidence,
-    };
-    try {
-      let result = await generateNarrative.mutateAsync(request);
-      let evaluation = evaluateNarrative({ plan, sections: result.sections, bundle: evidenceBundle });
-      // One bounded revision pass when the first draft fails the quality gate.
-      if (!evaluation.passed && evaluation.issues.length > 0) {
-        result = await generateNarrative.mutateAsync({ ...request, revisionIssues: evaluation.issues });
-        evaluation = evaluateNarrative({ plan, sections: result.sections, bundle: evidenceBundle });
-      }
-      // Merge non-empty AI sections into the editable narrative.
-      setSnapshot(current => {
-        if (!current) return current;
-        const narrative = { ...current.narrative };
-        (Object.keys(narrative) as (keyof typeof narrative)[]).forEach(key => {
-          const text = result.sections[key];
-          // Evaluation has already run on the cited text; strip the inline
-          // [evidence:<id>] tokens so the editor and saved report read cleanly.
-          if (typeof text === 'string' && text.trim()) narrative[key] = stripEvidenceCitations(text);
-        });
-        return { ...current, narrative };
-      });
-      setAiEval(evaluation);
-    } catch (reason) {
-      setAiError(reason instanceof Error ? reason.message : 'AI narrative generation failed.');
-    }
-  };
+  const createReport = useCreateCommercializationReport();
+  const saveBundle = useSaveEvidenceBundle();
 
   const confirmedGo = decisions.find(record =>
     record.sampleId === decision.sampleId
     && record.decision === 'GO'
-    && record.decisionFingerprint === decision.decisionFingerprint
+    && record.decisionFingerprint === decision.decisionFingerprint,
   );
-  const selectedConcept = matchingConcepts.find(concept => concept.id === effectiveConceptId);
   const imageIndex = imageIndexOverride
     ?? (selectedConcept ? preferredConceptImageIndex(selectedConcept.imageMeta, selectedConcept.imageUrls.length) : 0);
-  const selectedReport = reports.find(report => report.id === savedReportId);
-  const reportVersions = reports.filter(report =>
-    report.decisionRecordId === confirmedGo?.id && report.conceptTestId === effectiveConceptId
+  const canOpen = decision.decision === 'GO' && Boolean(confirmedGo);
+  const canGenerate = Boolean(
+    confirmedGo
+    && selectedConcept
+    && selectedConcept.imageUrls.length > 0
+    && responsesQuery.isSuccess
+    && evidenceBundle
+    && userId,
   );
-  const canOpen = decision.decision === 'GO' && !!confirmedGo;
-  // Staleness: the bundle linked to the saved report vs the current data fingerprint.
-  const linkedBundle = selectedReport?.evidenceBundleId
-    ? savedBundles.find(bundle => bundle.id === selectedReport.evidenceBundleId)
-    : null;
-  const reportStale = isReportStale(linkedBundle?.sourceDataVersion, evidenceBundle?.sourceDataVersion);
-  const approvalGate = canApproveReport({
-    hasEvidenceBundle: !!evidenceBundle,
-    candidateDecision: evidenceBundle?.deterministicCandidateDecision,
-    evaluation: aiEval,
-  });
 
-  // Auto-open once the report becomes eligible when the caller requested it.
-  // Legitimate sync to async readiness — `canOpen` flips true only when the
-  // decision records load, which a render-time derivation can't observe without
-  // reshuffling several data hooks for no behavioural gain.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot auto-open on async eligibility
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot open after async decision eligibility resolves
     if (initiallyOpen && canOpen) setOpen(true);
   }, [canOpen, initiallyOpen]);
 
-  const buildDraft = useCallback(() => {
-    if (!confirmedGo || !selectedConcept) return;
-    const packagingImageUrl = selectedConcept.imageUrls[imageIndex] ?? '';
-    const packagingImageId = selectedConcept.imageIds?.[imageIndex] ?? null;
+  const nextVersion = selectedConcept && confirmedGo
+    ? Math.max(0, ...reports
+        .filter(report => report.decisionRecordId === confirmedGo.id && report.conceptTestId === selectedConcept.id)
+        .map(report => report.version)) + 1
+    : 1;
+
+  const buildDraft = (): CommercializationReportSnapshot | null => {
+    if (!confirmedGo || !selectedConcept) return null;
     return buildCommercializationSnapshot({
       decisionRecord: confirmedGo,
       liveDecision: decision,
       concept: selectedConcept,
       responses,
       foodType,
-      packagingImageId,
-      packagingImageUrl,
+      packagingImageId: selectedConcept.imageIds?.[imageIndex] ?? null,
+      packagingImageUrl: selectedConcept.imageUrls[imageIndex] ?? '',
       packagingImageMeta: selectedConcept.imageMeta?.[imageIndex] ?? null,
     });
-  }, [confirmedGo, decision, foodType, imageIndex, responses, selectedConcept]);
-
-  const generate = () => {
-    const draft = buildDraft();
-    if (!draft) return;
-    setSnapshot(draft);
-    setSavedReportId('');
-    setSavedVersion(1);
-    setSavedStatus('draft');
-    setError('');
   };
 
-  // Build the first editable draft once the dialog is open and responses have
-  // loaded. The snapshot is user-editable afterwards (narrative edits, AI merge),
-  // so it must live in state — this is initialization on async readiness, not a
-  // pure derivation.
-  useEffect(() => {
-    if (!open || snapshot || !responsesQuery.isSuccess || !selectedConcept || selectedConcept.imageUrls.length === 0) return;
-    const draft = buildDraft();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- initialize editable draft on async readiness
-    if (draft) setSnapshot(draft);
-  }, [buildDraft, open, responsesQuery.isSuccess, selectedConcept, snapshot]);
-
-  const updateNarrative = (key: keyof CommercializationReportSnapshot['narrative'], value: string) => {
-    setSnapshot(current => current ? {
-      ...current,
-      narrative: { ...current.narrative, [key]: value },
-    } : current);
-  };
-
-  const saveDraft = async () => {
-    if (!snapshot || !confirmedGo || !selectedConcept || !userId) return;
-    try {
-      // Persist the deterministic evidence bundle (idempotent server-side) and
-      // link it to the report. Non-fatal: a bundle failure must not block saving.
-      let evidenceBundleId: string | null = null;
-      if (evidenceBundle) {
-        try {
-          const savedBundle = await saveBundle.mutateAsync({
-            projectId: evidenceBundle.projectId,
-            schemaVersion: evidenceBundle.schemaVersion,
-            sourceDataVersion: evidenceBundle.sourceDataVersion,
-            payload: evidenceBundle as unknown as Record<string, unknown>,
-          });
-          evidenceBundleId = savedBundle.id;
-        } catch {
-          evidenceBundleId = null;
-        }
-      }
-      const report = await createReport.mutateAsync({
-        decisionRecordId: confirmedGo.id,
-        conceptTestId: selectedConcept.id,
-        packagingImageId: snapshot.concept.packagingImageId,
-        title: (settings?.defaultReportTitle || '{sample} commercialization report')
-          .replace(/\{sample\}/g, decision.sampleName),
-        reportSnapshot: snapshot as unknown as Record<string, unknown>,
-        evidenceBundleId,
-      });
-      setSavedReportId(report.id);
-      setSavedVersion(report.version);
-      setSavedStatus(report.status);
-      if (snapshot.concept.packagingImageId) {
-        // Using an image in a saved report promotes it to approved; the report
-        // itself is already saved, so a status failure should not block here.
-        await updateConceptImageReviewStatus([snapshot.concept.packagingImageId], 'approved').catch(() => {});
-      }
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to save the report.');
-    }
-  };
-
-  const submitForReview = async () => {
-    if (!savedReportId || !userId) return;
-    try {
-      await updateStatus.mutateAsync({ id: savedReportId, status: 'review', actorId: userId });
-      setSavedStatus('review');
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to submit for review.');
-    }
-  };
-
-  const approve = async () => {
-    if (!savedReportId || !userId) return;
-    if (!approvalGate.allowed) {
-      setError(approvalGate.reason ?? 'This report cannot be approved yet.');
-      return;
-    }
-    try {
-      await updateStatus.mutateAsync({ id: savedReportId, status: 'approved', actorId: userId });
-      setSavedStatus('approved');
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to approve the report.');
-    }
-  };
-
-  // Maps the saved report status to the typed QC approval status.
-  const toApprovalStatus = (status: string): ApprovalStatus =>
-    status === 'approved' ? 'approved' : status === 'review' ? 'in_review' : status === 'rejected' ? 'rejected' : 'draft';
-
-  // Assembles the stage-aware QC context from the snapshot + decision + the
-  // evidence bundle's underlying sensory measures. Drives the stage headline,
-  // real evidence dashboard, and export gate.
-  const buildExportContext = () => {
-    if (!snapshot || !evidenceBundle) return undefined;
-    const sp = evidenceBundle.sensoryProfile ?? null;
+  const buildContext = (snapshot: CommercializationReportSnapshot) => {
+    if (!evidenceBundle) return null;
+    const sensory = evidenceBundle.sensoryProfile ?? null;
     const augmentation: SensoryAugmentation = {
-      panelSize: sp?.panelSize ?? null,
+      panelSize: sensory?.panelSize ?? null,
       sourceEvidenceIds: evidenceBundle.evidence.map(record => record.id),
-      intensity: sp?.intensity,
-      foodTypeSlug: sp?.foodTypeSlug ?? foodType,
-      instrumentalFindings: sp?.instrumentalFindings,
-      instrumentSignal: sp?.instrumentSignal,
-      gatePenalty: sp?.gatePenalty,
-      confidenceCalculation: sp?.confidenceCalculation,
-      sensoryDescriptors: (sp?.descriptors ?? []).map(d => ({
-        descriptor: d.descriptor,
-        count: d.count,
-        sampleSize: sp?.panelSize ?? 0,
-        percentage: sp?.panelSize ? (d.count / sp.panelSize) * 100 : 0,
+      intensity: sensory?.intensity,
+      foodTypeSlug: sensory?.foodTypeSlug ?? foodType,
+      instrumentalFindings: sensory?.instrumentalFindings,
+      instrumentSignal: sensory?.instrumentSignal,
+      gatePenalty: sensory?.gatePenalty,
+      confidenceCalculation: sensory?.confidenceCalculation,
+      sensoryDescriptors: (sensory?.descriptors ?? []).map(descriptor => ({
+        descriptor: descriptor.descriptor,
+        count: descriptor.count,
+        sampleSize: sensory?.panelSize ?? 0,
+        percentage: sensory?.panelSize ? descriptor.count / sensory.panelSize * 100 : 0,
       })),
       dimensions: Object.fromEntries(
-        Object.entries(sp?.dimensionMeasures ?? {}).map(([key, measures]) => [
+        Object.entries(sensory?.dimensionMeasures ?? {}).map(([key, measures]) => [
           key,
           { measures, agreement: null, benchmark: null },
         ]),
@@ -308,36 +141,112 @@ export function CommercializationReportBuilder({
     return buildReportContext({
       snapshot,
       decision,
-      approvalStatus: toApprovalStatus(selectedReport?.status ?? savedStatus),
-      reportVersion: selectedReport?.version ?? savedVersion,
+      approvalStatus: 'draft',
+      reportVersion: nextVersion,
       readinessThreshold: 60,
       augmentation,
       commercialProfile: evidenceBundle.commercialProfile,
     });
   };
 
-  const downloadPdf = async () => {
-    if (!snapshot) return;
+  const generateCompleteReport = async () => {
+    if (!confirmedGo || !selectedConcept || !evidenceBundle || !userId) return;
+    const draft = buildDraft();
+    if (!draft) return;
+    const reportContext = buildContext(draft);
+    if (!reportContext) return;
+
+    setGenerating(true);
     setError('');
+    setGenerationStatus('NFI is bringing together the product, sensory, instrumental, concept, and scientific evidence for your complete report...');
+    const metered = createMeteredReportAgentRunner();
     try {
-      await downloadCommercializationReportPdf({
-        snapshot,
-        organizationName: settings?.organizationName ?? DEFAULT_REPORT_ORGANIZATION_NAME,
-        workspaceName: settings?.workspaceName ?? DEFAULT_REPORT_WORKSPACE_NAME,
-        reportFooter: settings?.reportFooter,
-        version: selectedReport?.version ?? savedVersion,
-        status: selectedReport?.status ?? savedStatus,
-        logoUrl: resolveReportLogoUrl(
-          settings?.organizationName ?? DEFAULT_REPORT_ORGANIZATION_NAME,
-          settings?.logoUrl,
-        ),
-        primaryColor: settings?.primaryColor,
-        accentColor: settings?.accentColor,
-        reportTemplate: settings?.reportTemplate,
-        reportContext: buildExportContext(),
+      const orchestrated = await runCommercializationReportOrchestrator({
+        mode: 'full_release_review',
+        reportInput: {
+          snapshot: draft,
+          organizationName: settings?.organizationName ?? DEFAULT_REPORT_ORGANIZATION_NAME,
+          workspaceName: settings?.workspaceName ?? DEFAULT_REPORT_WORKSPACE_NAME,
+          reportFooter: settings?.reportFooter,
+          version: nextVersion,
+          status: 'draft',
+          logoUrl: resolveReportLogoUrl(
+            settings?.organizationName ?? DEFAULT_REPORT_ORGANIZATION_NAME,
+            settings?.logoUrl,
+          ),
+          primaryColor: settings?.primaryColor,
+          accentColor: settings?.accentColor,
+          reportTemplate: settings?.reportTemplate,
+          reportContext,
+        },
+        runner: metered.runner,
       });
+      if (!hasGeneratedReportDraft(orchestrated)) {
+        throw new Error(orchestrated.qc.criticalBlockers[0] ?? 'The agent workflow stopped before the document could be drafted.');
+      }
+      const estimatedCostUsd = estimateReportAgentCost(metered.usage);
+      const reportSnapshot: CommercializationReportSnapshot = {
+        ...orchestrated.snapshot,
+        literatureCitations: orchestrated.literatureCitations,
+        evidenceCards: orchestrated.evidenceCards,
+        agentReview: {
+          mode: 'full_release_review',
+          runTimestamp: orchestrated.generatedAt,
+          reportContextHash: orchestrated.reportContextHash,
+          status: orchestrated.status,
+          exportStatus: orchestrated.status,
+          qualityScore: orchestrated.qc.qualityScore,
+          agentsRun: orchestrated.metadata.agentsRun,
+          criticalBlockers: orchestrated.qc.criticalBlockers,
+          warnings: orchestrated.qc.warnings,
+          polishSuggestions: orchestrated.qc.polishSuggestions,
+          evidenceAudit: orchestrated.evidenceAudit as unknown as Record<string, unknown>,
+          modelUsage: metered.usage,
+          estimatedCostUsd,
+          usage: metered.usage.map(item => ({
+            role: item.role,
+            model: item.model,
+            inputTokens: item.inputTokens,
+            outputTokens: item.outputTokens,
+          })),
+          artifacts: orchestrated as unknown as Record<string, unknown>,
+        },
+      };
+
+      setGenerationStatus('NFI is finalizing and saving the complete report...');
+      let evidenceBundleId: string | null = null;
+      try {
+        const savedBundle = await saveBundle.mutateAsync({
+          projectId: evidenceBundle.projectId,
+          schemaVersion: evidenceBundle.schemaVersion,
+          sourceDataVersion: evidenceBundle.sourceDataVersion,
+          payload: evidenceBundle as unknown as Record<string, unknown>,
+        });
+        evidenceBundleId = savedBundle.id;
+      } catch {
+        evidenceBundleId = null;
+      }
+
+      const report = await createReport.mutateAsync({
+        decisionRecordId: confirmedGo.id,
+        conceptTestId: selectedConcept.id,
+        packagingImageId: reportSnapshot.concept.packagingImageId,
+        title: (settings?.defaultReportTitle || '{sample} commercialization report')
+          .replace(/\{sample\}/g, decision.sampleName),
+        reportSnapshot: reportSnapshot as unknown as Record<string, unknown>,
+        evidenceBundleId,
+      });
+      if (reportSnapshot.concept.packagingImageId) {
+        await updateConceptImageReviewStatus([reportSnapshot.concept.packagingImageId], 'approved').catch(() => {});
+      }
+      setGenerationStatus('Complete. Opening the report...');
+      setOpen(false);
+      onSaved?.(report.id);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to export the report.');
+      setError(reason instanceof Error ? reason.message : 'The report workflow could not create the document.');
+      setGenerationStatus('');
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -347,210 +256,114 @@ export function CommercializationReportBuilder({
         variant="outline"
         size="sm"
         disabled={!canOpen}
-        title={canOpen ? 'Build commercialization report' : 'Confirm this GO decision before building a report'}
+        title={canOpen ? 'Generate commercialization report' : 'Confirm this GO decision before building a report'}
         onClick={() => setOpen(true)}
       >
         <PackageCheck className="size-4" />
-        Build launch report
+        {triggerLabel}
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="h-[min(94vh,920px)] !w-[calc(100vw-2rem)] !max-w-[1440px] sm:!max-w-[1440px] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0">
+      <Dialog open={open} onOpenChange={value => !generating && setOpen(value)}>
+        <DialogContent className="!w-[calc(100vw-2rem)] !max-w-5xl overflow-hidden p-0 sm:!max-w-5xl">
           <DialogHeader className="border-b border-slate-200 px-6 py-5 pr-14">
-            <DialogTitle className="text-xl text-slate-900">Commercialization report</DialogTitle>
+            <DialogTitle className="text-xl text-slate-900">Generate complete report</DialogTitle>
             <DialogDescription className="max-w-3xl">
-              Select the concept and packaging, review the evidence narrative, then save and export the client-ready report.
+              Choose the concept and packaging direction. NFI will bring together the available evidence, draft and review the report, run quality checks, and save the complete document.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid min-h-0 overflow-y-auto lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)] lg:overflow-hidden">
-            <aside className="space-y-5 border-b border-slate-200 bg-slate-50/70 p-6 lg:overflow-y-auto lg:border-r lg:border-b-0">
+          <div className="grid max-h-[min(78vh,760px)] overflow-y-auto lg:grid-cols-[360px_minmax(0,1fr)]">
+            <aside className="space-y-5 border-b border-slate-200 bg-slate-50 p-6 lg:border-b-0 lg:border-r">
               <div>
                 <Label>Concept study</Label>
-                <Select value={effectiveConceptId} onValueChange={value => { setConceptId(value); setImageIndex(0); setSnapshot(null); }}>
+                <Select value={effectiveConceptId} onValueChange={value => { setConceptId(value); setImageIndex(null); }}>
                   <SelectTrigger className="mt-1"><SelectValue placeholder="Select concept" /></SelectTrigger>
                   <SelectContent>
                     {matchingConcepts.map(concept => <SelectItem key={concept.id} value={concept.id}>{concept.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 {matchingConcepts.length === 0 && (
-                  <p className="mt-2 text-xs text-amber-700">Launch a matching {foodType} concept study before building this report.</p>
+                  <p className="mt-2 text-xs text-amber-700">A matching {foodType} concept is required.</p>
                 )}
               </div>
-              {selectedConcept && (
-                <>
-                  <div>
-                    <Label>Packaging direction</Label>
-                    <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(132px,1fr))] gap-3">
-                      {selectedConcept.imageUrls.map((url, index) => {
-                        const meta = selectedConcept.imageMeta?.[index];
-                        return (
-                          <button
-                            type="button"
-                            key={`${url}-${index}`}
-                            onClick={() => { setImageIndex(index); setSnapshot(null); }}
-                            className={`overflow-hidden rounded-md border-2 text-left ${index === imageIndex ? 'border-blue-600' : 'border-slate-200'}`}
-                          >
-                            <div className="relative">
-                              <img
-                                src={url}
-                                alt={meta ? `${getConceptImageMode(meta.mode).label} option ${index + 1}` : `Packaging option ${index + 1}`}
-                                className="aspect-square w-full object-cover"
-                              />
-                              {meta?.reviewStatus === 'approved' && (
-                                <span className="absolute top-1 right-1 rounded bg-emerald-600 px-1 py-0.5 text-[9px] font-bold text-white">APPROVED</span>
-                              )}
-                            </div>
-                            {meta && (
-                              <div className="truncate bg-white px-1.5 py-1 text-[11px] font-medium text-slate-500">
-                                {getConceptImageMode(meta.mode).label} · AI draft
-                              </div>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-                    <strong className="text-slate-900">{responses.length}</strong> concept response{responses.length === 1 ? '' : 's'} will be included.
-                  </div>
-                  {reportVersions.length > 0 && (
-                    <div>
-                      <Label>Saved versions</Label>
-                      <div className="mt-2 space-y-1">
-                        {reportVersions.map(report => (
-                          <button
-                            type="button"
-                            key={report.id}
-                            onClick={() => {
-                              const stored = report.reportSnapshot as unknown as CommercializationReportSnapshot;
-                              const currentImageIndex = selectedConcept.imageIds?.findIndex(id => id === stored.concept.packagingImageId) ?? -1;
-                              setSnapshot({
-                                ...stored,
-                                concept: {
-                                  ...stored.concept,
-                                  packagingImageUrl: currentImageIndex >= 0
-                                    ? selectedConcept.imageUrls[currentImageIndex] ?? stored.concept.packagingImageUrl
-                                    : stored.concept.packagingImageUrl,
-                                },
-                              });
-                              setSavedReportId(report.id);
-                              setSavedVersion(report.version);
-                              setSavedStatus(report.status);
-                            }}
-                            className="flex w-full items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-left text-xs hover:bg-slate-50"
-                          >
-                            <span className="font-semibold text-slate-700">Version {report.version}</span>
-                            <span className="capitalize text-slate-500">{report.status}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-              <Button onClick={generate} disabled={!selectedConcept || selectedConcept.imageUrls.length === 0} className="h-10 w-full">
-                <Sparkles className="size-4" />Generate evidence draft
-              </Button>
-            </aside>
 
-            <section className="min-h-0 space-y-5 p-6 lg:overflow-y-auto">
-              {!snapshot ? (
-                <div className="flex h-full min-h-[420px] items-center justify-center rounded-lg border border-dashed border-slate-200 bg-white px-6 text-center">
-                  <div className="max-w-sm">
-                    <FileText className="mx-auto size-8 text-slate-500" />
-                    <p className="mt-3 font-semibold text-slate-900">Select the approved packaging</p>
-                    <p className="mt-1 text-sm text-slate-500">The report will combine the confirmed GO evidence with the linked concept panel results.</p>
+              {selectedConcept && (
+                <div>
+                  <Label>Packaging direction</Label>
+                  <div className="mt-2 grid grid-cols-2 gap-3">
+                    {selectedConcept.imageUrls.map((url, index) => {
+                      const meta = selectedConcept.imageMeta?.[index];
+                      return (
+                        <button
+                          type="button"
+                          key={`${url}-${index}`}
+                          onClick={() => setImageIndex(index)}
+                          className={`overflow-hidden rounded-md border-2 text-left ${index === imageIndex ? 'border-blue-600' : 'border-slate-200'}`}
+                        >
+                          <img
+                            src={url}
+                            alt={meta ? `${getConceptImageMode(meta.mode).label} option ${index + 1}` : `Packaging option ${index + 1}`}
+                            className="aspect-square w-full object-cover"
+                          />
+                          <div className="truncate bg-white px-2 py-1.5 text-[11px] font-medium text-slate-600">
+                            {meta ? getConceptImageMode(meta.mode).label : `Option ${index + 1}`}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
-                    {[
-                      ['Decision', snapshot.decision.outcome],
-                      ['ISSF score', snapshot.decision.issfScore.toFixed(1)],
-                      ['Concept panel', String(snapshot.evidence.responseCount)],
-                      ['Evidence strength', getEvidenceStrength(snapshot.evidence.responseCount)],
-                    ].map(([label, value]) => (
-                      <div key={label} className="rounded-md border border-slate-200 bg-white p-4">
-                        <div className="text-xs text-slate-500">{label}</div>
-                        <div className="mt-1 text-lg font-bold text-slate-900">{value}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <ReportQualityPanel bundle={evidenceBundle} evaluation={aiEval} stale={reportStale} />
-                  <div className="flex flex-wrap items-center gap-3 rounded-md border border-slate-200 bg-white p-3">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!evidenceBundle || generateNarrative.isPending}
-                      onClick={generateAiNarrative}
-                      title={evidenceBundle ? 'Draft the narrative from the evidence bundle with AI' : 'No evidence bundle available for this sample'}
-                    >
-                      <Sparkles className="size-4" />
-                      {generateNarrative.isPending ? 'Drafting…' : 'Quick AI draft (optional)'}
-                    </Button>
-                    <span className="text-xs text-slate-500">
-                      Optional fast first pass. After you save, use “Write report (full multi-agent)” on the report page to rewrite it to a professional standard.
-                    </span>
-                    {aiEval && (
-                      <span className={`text-xs font-semibold ${aiEval.passed ? 'text-emerald-700' : 'text-amber-700'}`}>
-                        Quality {aiEval.score}/100 · {aiEval.passed ? 'passed' : 'needs review'}
-                      </span>
-                    )}
-                  </div>
-                  {aiError && <p className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700">{aiError}</p>}
-                  {aiEval && aiEval.issues.length > 0 && (
-                    <ul className="space-y-0.5 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                      {aiEval.issues.slice(0, 5).map((issue, index) => <li key={index}>• {issue}</li>)}
-                    </ul>
-                  )}
-                  <div className="grid gap-4 xl:grid-cols-2">
-                    {([
-                      ['executiveSummary', 'Executive recommendation', 'xl:col-span-2 min-h-28'],
-                      ['whyLiked', 'Why panelists liked it', 'min-h-32'],
-                      ['packagingRationale', 'Packaging rationale', 'min-h-32'],
-                      ['launchRecommendation', 'Launch recommendation', 'min-h-32'],
-                      ['claimCaution', 'Claims and limitations', 'min-h-32'],
-                    ] as const).map(([key, label, heightClass]) => (
-                      <div key={key}>
-                        <Label>{label}</Label>
-                        <Textarea
-                          // Evidence tokens (s4, issf, cata, quality-warning…) aren't
-                          // dictionary words; spellcheck underlines them as false errors.
-                          spellCheck={false}
-                          className={`mt-1 resize-y leading-6 ${heightClass}`}
-                          value={snapshot.narrative[key]}
-                          onChange={event => updateNarrative(key, event.target.value)}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  {error && <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
-                  <div className="sticky bottom-0 -mx-6 flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur-sm">
-                    <Button variant="outline" onClick={saveDraft} disabled={createReport.isPending}>
-                      <FileCheck2 className="size-4" />{createReport.isPending ? 'Saving...' : 'Save new version'}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={submitForReview}
-                      disabled={!savedReportId || savedStatus !== 'draft' || updateStatus.isPending}
-                    >
-                      <FileText className="size-4" />Submit for review
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={approve}
-                      disabled={!savedReportId || savedStatus === 'approved' || !approvalGate.allowed}
-                      title={approvalGate.allowed ? 'Approve this report' : (approvalGate.reason ?? '')}
-                    >
-                      <CheckCircle2 className="size-4" />Approve report
-                    </Button>
-                    <Button disabled={!savedReportId} onClick={downloadPdf}>
-                      <FileText className="size-4" />Download branded PDF
-                    </Button>
-                  </div>
-                </>
               )}
+            </aside>
+
+            <section className="flex min-h-[460px] flex-col p-6">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-md border border-slate-200 p-4">
+                  <ShieldCheck className="size-4 text-emerald-600" />
+                  <p className="mt-3 text-xs text-slate-500">Decision</p>
+                  <p className="mt-1 font-semibold text-slate-900">GO · ISSF {decision.issfScore.toFixed(1)}</p>
+                </div>
+                <div className="rounded-md border border-slate-200 p-4">
+                  <CheckCircle2 className="size-4 text-emerald-600" />
+                  <p className="mt-3 text-xs text-slate-500">Evidence</p>
+                  <p className="mt-1 font-semibold text-slate-900">{evidenceQuery.isLoading ? 'Loading...' : evidenceBundle ? 'Ready' : 'Unavailable'}</p>
+                </div>
+                <div className="rounded-md border border-slate-200 p-4">
+                  <Bot className="size-4 text-blue-600" />
+                  <p className="mt-3 text-xs text-slate-500">Concept responses</p>
+                  <p className="mt-1 font-semibold text-slate-900">{responses.length}</p>
+                </div>
+              </div>
+
+              <div className="mt-6 border-y border-slate-200 py-5">
+                <h3 className="font-semibold text-slate-900">Complete agent workflow</h3>
+                <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+                  <p>Evidence and calculation audit</p>
+                  <p>Sensory and instrumental review</p>
+                  <p>Consumer and claims review</p>
+                  <p>Professional writing and RAG citations</p>
+                  <p>Editorial and visual quality review</p>
+                  <p>Deterministic release QC</p>
+                </div>
+              </div>
+
+              {generationStatus && (
+                <div className="mt-5 rounded-md border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+                  {generationStatus}
+                </div>
+              )}
+              {error && <p role="alert" className="mt-5 rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</p>}
+
+              <div className="mt-auto pt-6">
+                <Button className="h-11 w-full" disabled={!canGenerate || generating} onClick={() => void generateCompleteReport()}>
+                  <Sparkles className="size-4" />
+                  {generating ? 'Generating complete report...' : 'Generate complete report'}
+                </Button>
+                {!canGenerate && !generating && (
+                  <p className="mt-2 text-center text-xs text-slate-500">
+                    Select a concept and packaging direction and wait for the current evidence to load.
+                  </p>
+                )}
+              </div>
             </section>
           </div>
         </DialogContent>

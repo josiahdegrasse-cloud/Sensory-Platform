@@ -416,13 +416,26 @@ const DIM_LABELS: Record<string, string> = {
   targetDemographic: 'Target demographic', pricePositioning: 'Price positioning',
 };
 const OPTION_LABELS: Record<string, string> = {
-  premium: 'Premium', accessible: 'Accessible', minimal: 'Minimal', expressive: 'Expressive',
-  health: 'Health-focused', indulgent: 'Indulgent', retail: 'Retail shelf', lifestyle: 'Lifestyle / DTC',
+  premium: 'Premium', accessible: 'Accessible', value: 'Value', craft: 'Craft',
+  functional: 'Functional', playful: 'Playful', heritage: 'Heritage', disruptive: 'Disruptive',
+  minimal: 'Minimal', expressive: 'Expressive', ingredient_led: 'Ingredient-led',
+  clinical: 'Clinical', editorial: 'Editorial', abundant: 'Abundant',
+  health: 'Health-focused', indulgent: 'Indulgent', taste_first: 'Taste-first',
+  convenience: 'Convenience', sustainable: 'Sustainable', family_friendly: 'Family-friendly',
+  adventurous: 'Adventurous',
+  retail: 'Retail shelf', lifestyle: 'Lifestyle / DTC', ecommerce: 'Ecommerce',
+  foodservice: 'Foodservice', buyer_deck: 'Buyer deck', club_store: 'Club store',
   young_active: 'Young & Active', family: 'Family', professional: 'Professional', senior: 'Senior',
-  health_seeker: 'Health-seeker', budget: 'Budget', mainstream: 'Mainstream',
-  ultra_premium: 'Ultra-premium', earthy: 'Earthy', vibrant: 'Vibrant', minimalist: 'Minimalist',
-  luxury: 'Luxury', bold: 'Bold', pastel: 'Pastel', pouch: 'Pouch', block: 'Block',
-  jar: 'Jar', can: 'Can', bottle: 'Bottle', sleeve: 'Sleeve', tray: 'Tray', tube: 'Tube',
+  health_seeker: 'Health-seeker', parent: 'Parent', kid: 'Kid', flexitarian: 'Flexitarian',
+  foodie: 'Foodie', budget_shopper: 'Budget shopper', retail_buyer: 'Retail buyer',
+  budget: 'Budget', mainstream: 'Mainstream', ultra_premium: 'Ultra-premium',
+  trial_size: 'Trial size', bulk_value: 'Bulk value',
+  earthy: 'Earthy', vibrant: 'Vibrant', minimalist: 'Minimalist',
+  luxury: 'Luxury', bold: 'Bold', pastel: 'Pastel', fresh: 'Fresh',
+  warm: 'Warm', cool: 'Cool', monochrome: 'Monochrome', natural: 'Natural',
+  pouch: 'Pouch', block: 'Block', jar: 'Jar', can: 'Can', bottle: 'Bottle',
+  sleeve: 'Sleeve', tray: 'Tray', tube: 'Tube', carton: 'Carton', box: 'Box',
+  cup: 'Cup', wrapper: 'Wrapper', multipack: 'Multipack', sachet: 'Sachet',
 };
 
 function PositioningAnalysisCard({

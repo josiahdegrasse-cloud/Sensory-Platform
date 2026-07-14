@@ -274,6 +274,7 @@ describe('project workflow evaluator', () => {
     expect(stage('studies', summary).status).toBe('complete');
     expect(stage('responses', summary).status).toBe('in_progress');
     expect(stage('responses', summary).detail).toContain('8/12');
+    expect(stage('responses', summary).warnings).toEqual([]);
   });
 
   it('marks insights ready and decision ready when response target is met', () => {
