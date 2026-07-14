@@ -12,7 +12,13 @@ coverage
 output
 tmp
 tests
-supabase
+supabase/.temp
+supabase/migrations
+supabase/functions/*
+!supabase/functions/_shared/
+supabase/functions/_shared/*
+!supabase/functions/_shared/concept-image-catalog.ts
+!supabase/functions/_shared/concept-image-prompt.ts
 .env*
 DEMO_CREDENTIALS.local.md
 *.pdf
