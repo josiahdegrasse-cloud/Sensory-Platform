@@ -413,54 +413,6 @@ export function SurveyAnalysis() {
       signalTone: isLeader ? 'success' : responseCount < minimumResponses ? 'warning' : 'neutral',
     };
   });
-  const overviewEvidence = [
-    {
-      kind: 'panel' as const,
-      label: 'Panel response record',
-      source: usingLiveData ? 'Live questionnaire submissions' : 'No live questionnaire source',
-      value: usingLiveData ? `${liveResponseCount} completed evaluation${liveResponseCount === 1 ? '' : 's'}` : 'No live evaluations',
-      detail: usingLiveData
-        ? `Responses are linked directly to ${selectedData.sampleName} (${selectedData.sampleId}).`
-        : 'The displayed profile is not backed by responses collected for this project.',
-      supports: 'The response base for liking, descriptor, and intensity observations.',
-      status: usingLiveData ? (liveResponseCount >= minimumResponses ? 'recorded' as const : 'partial' as const) : 'missing' as const,
-    },
-    {
-      kind: 'liking' as const,
-      label: 'Liking observation',
-      source: '9-point hedonic questionnaire',
-      value: usingLiveData ? `${(matchingLiveData?.hedonic.overall ?? selectedData.hedonic.overall).toFixed(1)}/9 overall liking` : 'No live liking score',
-      detail: usingLiveData ? keyStrength : 'No live panel preference has been established for this prototype.',
-      supports: 'Observed acceptance for this food sample; it does not establish commercialization readiness.',
-      status: usingLiveData ? 'recorded' as const : 'missing' as const,
-    },
-    {
-      kind: 'descriptors' as const,
-      label: 'Sensory identity',
-      source: 'Panelist-selected CATA descriptors',
-      value: usingLiveData && activeCata[0]
-        ? `${activeCata[0].attribute} · ${activeCata[0].count}/${panelN}`
-        : 'No live descriptor pattern',
-      detail: usingLiveData && activeCata[0]
-        ? `${activeCata[0].percentage.toFixed(0)}% of the recorded panel selected this descriptor.`
-        : 'A descriptor pattern will appear when panel responses are available.',
-      supports: 'The most consistently recognized sensory characteristic of this sample.',
-      status: usingLiveData && activeCata[0] ? 'recorded' as const : 'missing' as const,
-    },
-    {
-      kind: 'instrumental' as const,
-      label: 'Instrumental data',
-      source: 'Imported project measurements',
-      value: `${datasetsPresent}/3 sources linked`,
-      detail: [
-        selectedInstrument ? 'E-tongue' : null,
-        selectedGcms.length > 0 ? 'GC-MS' : null,
-        selectedComposition ? 'Composition' : null,
-      ].filter(Boolean).join(', ') || 'No instrumental source is linked to this sample.',
-      supports: 'Objective product measurements that can be compared with the panel observations.',
-      status: datasetsPresent === 3 ? 'recorded' as const : datasetsPresent > 0 ? 'partial' as const : 'missing' as const,
-    },
-  ];
   const exportSampleCSV = () => {
     downloadCsv(
       buildSampleCSVRows(selectedData, selectedSample, usingLiveData, activeEmotions),
@@ -474,8 +426,8 @@ export function SurveyAnalysis() {
   return (
     <div className="space-y-6">
       <WorkflowPageHeader
-        title="Product evidence"
-        description="See what the project proves, what it does not prove, and the next evidence gate for each prototype."
+        title="Prototype results"
+        description="Compare each prototype’s sensory performance and open the next workflow step when needed."
         actions={(
           <span className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-500">
           {projectSamples.length} prototype{projectSamples.length === 1 ? '' : 's'} · {prototypeOptions.reduce((total, prototype) => total + prototype.responseCount, 0)} live response{prototypeOptions.reduce((total, prototype) => total + prototype.responseCount, 0) === 1 ? '' : 's'}
@@ -530,7 +482,6 @@ export function SurveyAnalysis() {
               summary={productEvidenceSummary}
               nextActionHref={nextActionHref}
               experimentHref={experimentHref}
-              overviewEvidence={overviewEvidence}
               likingContent={<HedonicTab activeHedonicData={activeHedonic} activeAvgHedonic={averageHedonic.toFixed(1)} activePanelistN={panelN} usingLiveData={usingLiveData} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}
               descriptorContent={<CATATab activeCataAttributes={activeCata} activePanelistN={panelN} usingLiveData={usingLiveData} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}
               intensityContent={<IntensityTab activeIntensityData={activeIntensity} activePanelistN={panelN} usingLiveData={usingLiveData} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}

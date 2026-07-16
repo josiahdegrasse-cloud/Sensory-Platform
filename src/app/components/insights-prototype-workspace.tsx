@@ -3,15 +3,7 @@ import { Link } from 'react-router';
 import {
   ArrowRight,
   Beaker,
-  CheckCircle2,
-  ChevronDown,
-  CircleHelp,
-  ClipboardCheck,
-  FlaskConical,
-  Heart,
   Search,
-  ShieldAlert,
-  Tags,
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { ProjectStatusBadge } from './project-status-badge';
@@ -48,16 +40,6 @@ export interface InsightsPrototypeOption {
   signalTone: 'success' | 'warning' | 'neutral';
 }
 
-interface EvidenceItem {
-  kind: 'panel' | 'liking' | 'descriptors' | 'instrumental';
-  label: string;
-  detail: string;
-  value: string;
-  source: string;
-  supports: string;
-  status: 'recorded' | 'partial' | 'missing';
-}
-
 export function InsightsPrototypeWorkspace({
   prototypes,
   selectedId,
@@ -69,7 +51,6 @@ export function InsightsPrototypeWorkspace({
   summary,
   nextActionHref,
   experimentHref,
-  overviewEvidence,
   likingContent,
   descriptorContent,
   intensityContent,
@@ -86,7 +67,6 @@ export function InsightsPrototypeWorkspace({
   summary: ProductEvidenceSummary;
   nextActionHref: string;
   experimentHref: string | null;
-  overviewEvidence: EvidenceItem[];
   likingContent: ReactNode;
   descriptorContent: ReactNode;
   intensityContent: ReactNode;
@@ -130,6 +110,9 @@ export function InsightsPrototypeWorkspace({
   const actionHref = summary.state.includes('experiment') || ['confirmation_required', 'capture_learning', 'learning_approved'].includes(summary.state)
     ? experimentHref ?? nextActionHref
     : nextActionHref;
+  const currentSignal = summary.state === 'decision_recorded'
+    ? summary.supports[0]
+    : summary.headline;
 
   return (
     <div className="grid gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
@@ -195,14 +178,14 @@ export function InsightsPrototypeWorkspace({
 
       <div className="min-w-0 space-y-4">
         <section className="border border-slate-200 bg-white">
-          <header className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
+          <header className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-xl font-bold text-slate-950">{selected.name}</h2>
                 <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">ID {selected.id}</span>
                 <DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={usingLiveData ? panelResponses : undefined} />
               </div>
-              <p className="mt-1 text-sm text-slate-600">Product evidence workspace</p>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">{currentSignal}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <ProjectStatusBadge label={summary.stateLabel} tone={STATE_TONE[summary.state]} />
@@ -210,158 +193,29 @@ export function InsightsPrototypeWorkspace({
             </div>
           </header>
 
-          <div className="grid gap-5 p-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(16rem,0.65fr)]">
-            <div>
-              <p className="text-xs font-semibold text-slate-500">What the evidence says now</p>
-              <h3 className="mt-1 text-lg font-bold leading-7 text-slate-950">{summary.headline}</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-700">{summary.detail}</p>
-            </div>
-            <dl className="grid grid-cols-3 divide-x divide-slate-200 border border-slate-200 bg-slate-50">
-              <EvidenceMetric label="Overall liking" value={selected.score > 0 ? `${selected.score.toFixed(1)}/9` : '—'} />
-              <EvidenceMetric label="Panel responses" value={String(panelResponses)} />
-              <EvidenceMetric label="Machine sources" value={`${instrumentSources}/3`} />
+          <div className="flex flex-col gap-4 border-t border-slate-200 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <dl className="flex flex-wrap items-center gap-x-6 gap-y-3">
+              <CompactMetric label="Overall liking" value={selected.score > 0 ? `${selected.score.toFixed(1)}/9` : '—'} />
+              <CompactMetric label="Panel responses" value={String(panelResponses)} />
+              <CompactMetric label="Machine sources" value={`${instrumentSources}/3`} />
             </dl>
-          </div>
-
-          <div className="grid border-t border-slate-200 lg:grid-cols-3">
-            <BoundaryColumn
-              icon={CheckCircle2}
-              title="Evidence supports"
-              items={summary.supports}
-              className="border-b border-slate-200 lg:border-b-0 lg:border-r"
-              iconClassName="text-emerald-700"
-            />
-            <BoundaryColumn
-              icon={ShieldAlert}
-              title="Evidence does not support"
-              items={summary.doesNotSupport}
-              className="border-b border-slate-200 lg:border-b-0 lg:border-r"
-              iconClassName="text-amber-700"
-            />
-            <div className="p-5">
-              <p className="text-xs font-semibold text-slate-500">Next gate</p>
-              <p className="mt-1 text-sm leading-6 text-slate-700">{summary.nextActionLabel}</p>
-              <Button asChild className="mt-4 w-full justify-between">
-                <Link to={actionHref}>
-                  {summary.nextActionLabel}
-                  <ArrowRight className="size-4" />
-                </Link>
-              </Button>
-            </div>
+            <Button asChild variant="outline" size="sm" className="shrink-0">
+              <Link to={actionHref}>
+                {summary.nextActionLabel}
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
           </div>
         </section>
 
-        <section aria-labelledby="evidence-record-heading" className="overflow-hidden border border-slate-200 bg-white">
-          <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h3 id="evidence-record-heading" className="text-sm font-bold text-slate-900">Proof of evidence</h3>
-              <p className="mt-0.5 max-w-2xl text-xs leading-5 text-slate-600">
-                Every conclusion above points back to a project-linked record for this exact sample.
-              </p>
-            </div>
-            <ProjectStatusBadge label={`${strength.level} evidence`} tone={STRENGTH_TONE[strength.level]} />
-          </div>
-          <div className="hidden grid-cols-[minmax(0,11rem)_minmax(0,1.5fr)_minmax(0,1fr)_auto] gap-4 border-b border-slate-200 bg-slate-50 px-5 py-2 text-[11px] font-semibold text-slate-500 md:grid">
-            <span>Evidence source</span>
-            <span>Observed in this sample</span>
-            <span>What it supports</span>
-            <span>Record</span>
-          </div>
-          <div className="divide-y divide-slate-200">
-            {overviewEvidence.map(item => <EvidenceRecordRow key={item.label} item={item} />)}
-          </div>
-          <div className="grid gap-1 border-t border-slate-200 bg-slate-50 px-5 py-3 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-4">
-            <p className="text-xs font-bold text-slate-700">Evidence use</p>
-            <p className="text-xs leading-5 text-slate-600">{strength.note}</p>
-          </div>
-        </section>
-
-        {(summary.formulation.current || summary.experiment) && (
-          <section className="border border-slate-200 bg-white">
-            <header className="border-b border-slate-200 px-5 py-4">
-              <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
-                <Beaker className="size-4" />
-                Formulation to performance
-              </h3>
-              <p className="mt-1 text-xs leading-5 text-slate-600">
-                Ingredient changes and measured performance remain separate until a controlled experiment links them.
-              </p>
-            </header>
-            <div className="grid lg:grid-cols-2">
-              <div className="border-b border-slate-200 p-5 lg:border-b-0 lg:border-r">
-                <p className="text-xs font-semibold text-slate-500">Formulation comparison</p>
-                {summary.formulation.current ? (
-                  <>
-                    <div className="mt-2 flex items-center gap-2 text-sm font-bold text-slate-900">
-                      {summary.formulation.previous ? `v${summary.formulation.previous.versionNumber}` : 'First recorded version'}
-                      <ArrowRight className="size-4 text-slate-400" />
-                      v{summary.formulation.current.versionNumber}
-                    </div>
-                    <ChangeList label="Added" items={summary.formulation.added} />
-                    <ChangeList label="Removed" items={summary.formulation.removed} />
-                    <ChangeList label="Reordered" items={summary.formulation.reordered} />
-                    {summary.formulation.added.length + summary.formulation.removed.length + summary.formulation.reordered.length === 0 && (
-                      <p className="mt-3 text-sm text-slate-600">No ingredient-list change is recorded between these versions.</p>
-                    )}
-                  </>
-                ) : (
-                  <p className="mt-2 text-sm text-slate-600">No formulation version is linked to this sample yet.</p>
-                )}
-              </div>
-              <div className="p-5">
-                <p className="text-xs font-semibold text-slate-500">Controlled performance evidence</p>
-                {summary.experiment ? (
-                  <>
-                    <p className="mt-2 text-sm font-bold text-slate-900">{summary.experiment.name}</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-700">{summary.experiment.result}</p>
-                    {experimentHref && (
-                      <Button asChild variant="outline" size="sm" className="mt-3">
-                        <Link to={experimentHref}>Open experiment <ArrowRight className="size-4" /></Link>
-                      </Button>
-                    )}
-                  </>
-                ) : (
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    No controlled experiment links the formulation change to a measured outcome. Treat the ingredient comparison as context, not causal proof.
-                  </p>
-                )}
-              </div>
-            </div>
-            {summary.experiment && (
-              <div className="border-t border-slate-200 bg-slate-50 px-5 py-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-xs font-semibold text-slate-500">Reusable learning</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-900">
-                      {summary.experiment.learningStatus === 'approved'
-                        ? summary.experiment.learningSummary
-                        : 'This result is not reusable across projects until its learning summary, applicability, and limitations are approved.'}
-                    </p>
-                    {summary.experiment.learningStatus === 'approved' && summary.experiment.learningLimitations.length > 0 && (
-                      <p className="mt-1 text-xs leading-5 text-slate-600">
-                        Limitations: {summary.experiment.learningLimitations.join('; ')}
-                      </p>
-                    )}
-                  </div>
-                  <ProjectStatusBadge
-                    label={summary.experiment.learningStatus === 'approved' ? 'Approved for reuse' : 'Not approved for reuse'}
-                    tone={summary.experiment.learningStatus === 'approved' ? 'success' : 'warning'}
-                  />
-                </div>
-              </div>
-            )}
-          </section>
-        )}
-
-        <details className="border border-slate-200 bg-white">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-bold text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500">
-            <span>
-              Explore sensory detail
-              <span className="ml-2 font-normal text-slate-500">Liking, descriptors, intensity, language, and sample comparisons</span>
-            </span>
-            <ChevronDown className="size-4 shrink-0 text-slate-500" aria-hidden />
-          </summary>
-          <div className="space-y-5 border-t border-slate-200 p-5">
+        <section className="border border-slate-200 bg-white" aria-labelledby="sensory-graphs-heading">
+          <header className="border-b border-slate-200 px-5 py-4">
+            <h3 id="sensory-graphs-heading" className="text-sm font-bold text-slate-900">Sensory results</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-600">
+              Liking, descriptors, intensity, panelist language, and comparisons for the selected prototype.
+            </p>
+          </header>
+          <div className="space-y-5 p-5">
             <div className="grid gap-4 2xl:grid-cols-2">
               <div className="min-w-0">{likingContent}</div>
               <div className="min-w-0">{descriptorContent}</div>
@@ -372,99 +226,42 @@ export function InsightsPrototypeWorkspace({
             </div>
             {comparisonContent}
           </div>
-        </details>
+        </section>
+
+        {summary.experiment && (
+          <section className="border border-slate-200 bg-white">
+            <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:justify-between">
+              <div className="max-w-3xl">
+                <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                <Beaker className="size-4" />
+                  Controlled experiment
+                </h3>
+                <p className="mt-2 text-sm font-semibold text-slate-900">{summary.experiment.name}</p>
+                <p className="mt-1 text-sm leading-6 text-slate-700">{summary.experiment.result}</p>
+                {summary.experiment.learningStatus === 'approved' && summary.experiment.learningSummary && (
+                  <p className="mt-2 text-xs leading-5 text-slate-600">
+                    Approved learning: {summary.experiment.learningSummary}
+                  </p>
+                )}
+              </div>
+              {experimentHref && (
+                <Button asChild variant="outline" size="sm" className="shrink-0">
+                  <Link to={experimentHref}>Open experiment <ArrowRight className="size-4" /></Link>
+                </Button>
+              )}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );
 }
 
-function BoundaryColumn({
-  icon: Icon,
-  title,
-  items,
-  className,
-  iconClassName,
-}: {
-  icon: typeof CheckCircle2;
-  title: string;
-  items: string[];
-  className?: string;
-  iconClassName: string;
-}) {
+function CompactMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className={`p-5 ${className ?? ''}`}>
-      <p className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-        <Icon className={`size-4 ${iconClassName}`} />
-        {title}
-      </p>
-      <ul className="mt-3 space-y-2 text-sm leading-5 text-slate-700">
-        {items.map(item => <li key={item} className="flex gap-2"><span className="text-slate-400">•</span><span>{item}</span></li>)}
-      </ul>
-    </div>
-  );
-}
-
-function ChangeList({ label, items }: { label: string; items: string[] }) {
-  if (items.length === 0) return null;
-  return (
-    <div className="mt-3 grid grid-cols-[5rem_minmax(0,1fr)] gap-2 text-xs">
-      <span className="font-semibold text-slate-500">{label}</span>
-      <span className="leading-5 text-slate-700">{items.join(', ')}</span>
-    </div>
-  );
-}
-
-const EVIDENCE_ICONS = {
-  panel: ClipboardCheck,
-  liking: Heart,
-  descriptors: Tags,
-  instrumental: FlaskConical,
-};
-
-function EvidenceRecordRow({ item }: { item: EvidenceItem }) {
-  const Icon = EVIDENCE_ICONS[item.kind];
-  const recorded = item.status === 'recorded';
-  const partial = item.status === 'partial';
-  const statusLabel = recorded ? 'Recorded' : partial ? 'Partial' : 'Not recorded';
-  const statusClasses = recorded
-    ? 'bg-emerald-50 text-emerald-800 ring-emerald-200'
-    : partial
-      ? 'bg-blue-50 text-blue-800 ring-blue-200'
-      : 'bg-slate-100 text-slate-700 ring-slate-200';
-  const StatusIcon = recorded ? CheckCircle2 : CircleHelp;
-
-  return (
-    <div className="grid gap-3 px-5 py-3 md:grid-cols-[minmax(0,11rem)_minmax(0,1.5fr)_minmax(0,1fr)_auto] md:items-start md:gap-4">
-      <div className="flex min-w-0 items-start gap-2.5">
-        <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-700">
-          <Icon className="size-4" aria-hidden />
-        </span>
-        <div className="min-w-0">
-          <p className="text-xs font-bold text-slate-900">{item.label}</p>
-          <p className="mt-0.5 text-[11px] leading-4 text-slate-500">{item.source}</p>
-        </div>
-      </div>
-      <div>
-        <p className="text-sm font-semibold text-slate-900">{item.value}</p>
-        <p className="mt-0.5 text-xs leading-5 text-slate-600">{item.detail}</p>
-      </div>
-      <div>
-        <p className="text-[11px] font-semibold text-slate-500 md:hidden">What it supports</p>
-        <p className="mt-0.5 text-xs leading-5 text-slate-700 md:mt-0">{item.supports}</p>
-      </div>
-      <span className={`inline-flex w-fit items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold ring-1 ring-inset ${statusClasses}`}>
-        <StatusIcon className="size-3" aria-hidden />
-        {statusLabel}
-      </span>
-    </div>
-  );
-}
-
-function EvidenceMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="p-3 text-center">
-      <dd className="text-base font-bold text-slate-900">{value}</dd>
-      <dt className="mt-0.5 text-[11px] text-slate-500">{label}</dt>
+    <div className="flex items-baseline gap-1.5">
+      <dd className="text-sm font-bold text-slate-900">{value}</dd>
+      <dt className="text-xs text-slate-500">{label}</dt>
     </div>
   );
 }
