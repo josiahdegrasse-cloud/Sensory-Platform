@@ -4,6 +4,7 @@ import {
   useCommercializationReports,
   useConceptResponseCounts,
   useDecisionRecords,
+  useEvidenceBundles,
   useImportBatches,
   useInstrumentalDataset,
   usePendingImports,
@@ -25,6 +26,7 @@ function useWorkflowInputs() {
   const { data: products = [] } = useProducts();
   const { data: workspaceSettings } = useWorkspaceSettings();
   const { data: decisionRecords = [] } = useDecisionRecords();
+  const { data: evidenceBundles = [] } = useEvidenceBundles();
   const { data: conceptTests = [] } = useAdminConceptTests();
   const { data: conceptResponseCounts = {} } = useConceptResponseCounts();
   const { data: commercializationReports = [] } = useCommercializationReports();
@@ -44,6 +46,7 @@ function useWorkflowInputs() {
     instrumentalDataset,
     products,
     decisionRecords,
+    evidenceBundles,
     conceptTests,
     conceptResponseCounts,
     commercializationReports,

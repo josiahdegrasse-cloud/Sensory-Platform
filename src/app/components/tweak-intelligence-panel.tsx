@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Link, useParams } from 'react-router';
 import { AlertCircle, FlaskConical, RefreshCw } from 'lucide-react';
 import type { EnhancedSensoryProfile } from '../data/enhanced-sensory';
 import {
@@ -7,7 +8,13 @@ import {
   type TweakDiagnosisResponse,
   type TweakEvidenceChain,
 } from '../lib/tweak-intelligence';
-import { useTweakDiagnosis } from '../lib/hooks';
+import {
+  useDecisionRecords,
+  useFormulationVersions,
+  useMarkDecisionResearchRefreshed,
+  useTweakDiagnosis,
+} from '../lib/hooks';
+import { decisionRecordMatchesEvidence } from '../lib/decision-governance';
 import type { GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
 import { CitationsList, type CitationListItem } from './shared/citations-list';
 import { Badge } from './ui/badge';
@@ -32,16 +39,53 @@ type DecisionConnection = {
   focusLabel: string;
 };
 
+function isTemporarilyHiddenConceptWarning(warning: string) {
+  return /concept evidence is n\s*=\s*0/i.test(warning)
+    && /consumer preference/i.test(warning)
+    && /packaging claims remain blocked/i.test(warning);
+}
+
 export function TweakIntelligencePanel({ decision, profile, foodType, goThreshold = 75, embedded = false }: Props) {
+  const { projectId } = useParams<{ projectId?: string }>();
+  const { data: formulationVersions = [] } = useFormulationVersions();
+  const { data: decisionRecords = [] } = useDecisionRecords();
+  const markResearchRefreshed = useMarkDecisionResearchRefreshed();
+  const persistedDecision = decisionRecords.find(record => decisionRecordMatchesEvidence(record, {
+    sampleId: decision.sampleId,
+    decisionFingerprint: decision.decisionFingerprint,
+    projectId: projectId ?? null,
+  })) ?? null;
+  const formulation = formulationVersions.find(version => (
+    version.sampleId === decision.sampleId && version.isCurrent && version.reviewStatus === 'reviewed'
+  )) ?? null;
   const request = useMemo(() => (
-    profile ? buildTweakDiagnosisRequest({ decision, profile, foodType }) : null
-  ), [decision, foodType, profile]);
+    profile ? buildTweakDiagnosisRequest({
+      decision,
+      profile,
+      foodType,
+      formulation,
+      projectId,
+      decisionRecordId: persistedDecision?.id,
+      evidenceBundleId: persistedDecision?.evidenceBundleId,
+      formulationVersionId: persistedDecision?.formulationVersionId,
+    }) : null
+  ), [decision, foodType, formulation, persistedDecision?.evidenceBundleId, persistedDecision?.formulationVersionId, persistedDecision?.id, profile, projectId]);
   const diagnosis = useTweakDiagnosis(request);
   const data = diagnosis.data;
+  const visibleWarnings = data?.warnings.filter(warning => !isTemporarilyHiddenConceptWarning(warning)) ?? [];
   const connection = profile ? buildDecisionConnection(decision) : null;
   const evidenceChain = useMemo(() => (
     profile ? buildTweakEvidenceChain({ decision, profile, foodType, goThreshold }) : null
   ), [decision, foodType, goThreshold, profile]);
+  const refreshResearch = async () => {
+    const result = await diagnosis.refetch();
+    if (result.data && persistedDecision?.id) {
+      await markResearchRefreshed.mutateAsync({
+        decisionRecordId: persistedDecision.id,
+        researchFingerprint: `${result.data.metadata.generatedAt}:${result.data.metadata.sourceCount}`,
+      });
+    }
+  };
 
   if (!profile || !request) {
     return (
@@ -61,7 +105,12 @@ export function TweakIntelligencePanel({ decision, profile, foodType, goThreshol
       <PanelHeader
         loading={diagnosis.isFetching}
         focusLabel={connection?.focusLabel ?? decision.decision}
-        onRefresh={() => void diagnosis.refetch()}
+        onRefresh={() => void refreshResearch()}
+        experimentPath={
+          projectId && persistedDecision && decision.decision !== 'GO'
+            ? `/project/${projectId}/decision/experiments?decision=${encodeURIComponent(persistedDecision.id)}`
+            : undefined
+        }
       />
 
       <div>
@@ -71,11 +120,11 @@ export function TweakIntelligencePanel({ decision, profile, foodType, goThreshol
           <LoadingState />
         ) : (
           <div className="divide-y divide-slate-200">
-            {data.warnings.length > 0 && (
+            {visibleWarnings.length > 0 && (
               <div className="bg-amber-50 px-5 py-4 text-sm text-amber-900">
                 <div className="flex gap-2">
                   <AlertCircle className="mt-0.5 size-4 shrink-0" />
-                  <p>{data.warnings[0]}</p>
+                  <p>{visibleWarnings[0]}</p>
                 </div>
               </div>
             )}
@@ -102,10 +151,12 @@ function PanelHeader({
   loading,
   focusLabel,
   onRefresh,
+  experimentPath,
 }: {
   loading: boolean;
   focusLabel: string;
   onRefresh: (() => void) | undefined;
+  experimentPath?: string;
 }) {
   return (
     <header className="border-b border-slate-200 bg-slate-50 px-4 py-2.5">
@@ -118,6 +169,14 @@ function PanelHeader({
           <p className="mt-0.5 text-xs text-slate-600">Separates measured evidence from literature-backed hypotheses for {focusLabel.toLowerCase()}.</p>
         </div>
         <div className="flex items-center gap-2">
+          {experimentPath && (
+            <Button asChild type="button" variant="outline" size="sm">
+              <Link to={experimentPath}>
+                <FlaskConical className="size-4" />
+                Build experiment
+              </Link>
+            </Button>
+          )}
           {onRefresh && (
             <Button type="button" variant="outline" size="sm" onClick={onRefresh} disabled={loading}>
               <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />

@@ -14,3 +14,4 @@ export * from './db/admin-access';
 export * from './db/workspace';
 export * from './db/concepts';
 export * from './db/notifications';
+export * from './db/experiments';

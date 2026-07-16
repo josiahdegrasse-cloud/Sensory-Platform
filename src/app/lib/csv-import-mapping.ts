@@ -1,6 +1,7 @@
 export const IMPORT_FIELDS = [
   { key: 'sampleId', label: 'Sample ID', required: true, aliases: ['sampleid', 'sample', 'id', 'samplecode'] },
   { key: 'sampleName', label: 'Sample name', aliases: ['samplename', 'name', 'productname'] },
+  { key: 'ingredientStatement', label: 'Ingredient statement', aliases: ['ingredientstatement', 'ingredientlist', 'ingredients'] },
   { key: 'foodType', label: 'Food type', aliases: ['foodtype', 'type', 'producttype'] },
   { key: 'category', label: 'Category', aliases: ['category', 'subcategory'] },
   { key: 'sourness', label: 'Sourness', aliases: ['sourness', 'sour', 'acid'] },

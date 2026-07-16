@@ -12,7 +12,7 @@ vi.mock('../supabase', () => ({
   },
 }));
 
-import { fetchImportBatches, insertInstrumentalImport } from './imports';
+import { fetchImportBatches, insertInstrumentalImport, updateIngredientStatement } from './imports';
 
 function queryResult(result: { data: unknown[] | null; error: { message: string } | null }) {
   return {
@@ -120,6 +120,13 @@ describe('fetchImportBatches', () => {
           }),
         };
       }
+      if (table === 'formulation_versions') {
+        return {
+          select: vi.fn(() => ({
+            order: vi.fn().mockResolvedValue({ data: [], error: null }),
+          })),
+        };
+      }
       throw new Error(`Unexpected table ${table}`);
     });
 
@@ -136,7 +143,20 @@ describe('fetchImportBatches', () => {
       compositionData: {
         A2: { protein: 3, fat: 12, moisture: 45, pH: 6.2, saltContent: 1.1, calciumMg: 40 },
       },
+      ingredientStatements: {
+        A1: { text: 'Water, cashew, cultures, salt', source: 'csv_import', updatedAt: null },
+      },
     });
+
+    expect(dbMocks.rpc).toHaveBeenCalledWith('set_formulation_profile', expect.objectContaining({
+      target_import_batch_id: 'batch-1',
+      target_sample_id: 'A1',
+      target_statement: 'Water, cashew, cultures, salt',
+      target_source: 'csv_import',
+      target_ingredients: expect.arrayContaining([
+        expect.objectContaining({ suppliedName: 'Water', position: 1 }),
+      ]),
+    }));
 
     expect(insertedRows).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -154,5 +174,28 @@ describe('fetchImportBatches', () => {
         status: 'active',
       }),
     ]));
+  });
+
+  it('saves a manual ingredient statement without normalizing its internal wording or order', async () => {
+    dbMocks.rpc.mockResolvedValue({ data: 'formulation-version-1', error: null });
+    dbMocks.from.mockReturnValue({
+      update: vi.fn(() => ({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      })),
+    });
+
+    await updateIngredientStatement({
+      importBatchId: 'batch-1',
+      sampleId: 'A1',
+      statement: '  Water, Pea Protein (12%), Salt; Cultures  ',
+    });
+
+    expect(dbMocks.rpc).toHaveBeenCalledWith('set_formulation_profile', expect.objectContaining({
+      target_statement: 'Water, Pea Protein (12%), Salt; Cultures',
+      target_source: 'manual',
+      target_ingredients: expect.arrayContaining([
+        expect.objectContaining({ suppliedName: 'Pea Protein (12%)', percentage: 12 }),
+      ]),
+    }));
   });
 });

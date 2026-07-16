@@ -11,7 +11,7 @@ import {
   fetchConceptTest, fetchConceptGenerationSettings, updateConceptGenerationSettings,
   fetchConceptImageUsage,
   fetchConceptImageGenerations, fetchConceptProjectSummaries, fetchConceptLabDiagnostics,
-  fetchFoodTypes, fetchInstrumentalDataset, fetchImportBatches,
+  fetchFoodTypes, fetchInstrumentalDataset, fetchFormulationVersions, fetchImportBatches,
   fetchProjects, createProject, renameProject, assignBatchToProject,
   fetchWorkspaceSettings, updateWorkspaceSettings, fetchAuditEvents,
   adoptConceptImageAsBrandKit, clearConceptBrandKit,
@@ -26,7 +26,7 @@ import {
   insertProduct, updateProduct, updateProductAssignments, deleteProduct,
   insertTemplate, deleteTemplate, updatePanelistId, updatePanelistTrainingLevel, updatePanelistStatus,
   insertConceptTest, updateConceptTestStatus, insertConceptResponse,
-  insertInstrumentalImport, archiveFoodTypeRecord, restoreFoodTypeRecord, deleteFoodTypeRecord, updateImportBatchStatus, updateImportBatchName, deleteImportBatch,
+  insertInstrumentalImport, archiveFoodTypeRecord, restoreFoodTypeRecord, deleteFoodTypeRecord, updateImportBatchStatus, updateImportBatchName, deleteImportBatch, updateIngredientStatement, reviewFormulationVersion,
   fetchPendingImports, dismissPendingImport, markPendingImportImported, uploadAndQueueImport,
   rejectPendingImport, listDriveFiles, importDriveFiles,
   type ConceptTest, type InstrumentalImportInput, type ConceptGenerationSettings,
@@ -34,6 +34,11 @@ import {
   type CommercializationReportRecord,
   type EvidenceBundleRecord,
   type PendingImportRecord,
+  fetchFormulationExperiments, createFormulationExperiment, updateFormulationExperimentDraft,
+  fetchApprovedFormulationLearnings,
+  addFormulationExperimentArm, deleteFormulationExperimentArm, lockFormulationExperiment,
+  advanceFormulationExperiment, recordFormulationEvaluation, fetchDecisionFreshness,
+  markDecisionResearchRefreshed, saveFormulationExperimentLearning,
 } from './database'
 import type { TrainingLevel } from '../utils/panelist-metrics'
 import type { Product } from './study-types'
@@ -88,6 +93,10 @@ export const queryKeys = {
   conceptLabDiagnostics: ['conceptLabDiagnostics'] as const,
   foodTypes: ['foodTypes'] as const,
   instrumentalDataset: ['instrumentalDataset'] as const,
+  formulationVersions: (projectId?: string) => ['formulationVersions', projectId ?? 'all'] as const,
+  formulationExperiments: (projectId: string) => ['formulationExperiments', projectId] as const,
+  approvedFormulationLearnings: ['approvedFormulationLearnings'] as const,
+  decisionFreshness: (decisionRecordId: string) => ['decisionFreshness', decisionRecordId] as const,
   importBatches: ['importBatches'] as const,
   projects: ['projects'] as const,
   workspaceSettings: ['workspaceSettings'] as const,
@@ -98,7 +107,26 @@ export const queryKeys = {
   ragStatus: ['ragStatus'] as const,
   libraryStatus: ['libraryStatus'] as const,
   libraryDocuments: ['libraryDocuments'] as const,
+  tweakDiagnoses: ['tweakDiagnosis'] as const,
   tweakDiagnosis: (request: TweakDiagnosisRequest) => ['tweakDiagnosis', tweakDiagnosisCacheKey(request)] as const,
+}
+
+// A diagnosis is immutable for its evidence fingerprint. New responses,
+// thresholds, or measurements produce a new key; this window keeps a warmed
+// result fresh for the rest of a normal working session.
+export const TWEAK_DIAGNOSIS_STALE_TIME_MS = 6 * 60 * 60 * 1000
+export const TWEAK_DIAGNOSIS_GC_TIME_MS = 12 * 60 * 60 * 1000
+
+export function tweakDiagnosisQueryOptions(request: TweakDiagnosisRequest) {
+  return {
+    queryKey: queryKeys.tweakDiagnosis(request),
+    queryFn: ({ signal }: { signal: AbortSignal }) => fetchTweakDiagnosis(request, signal),
+    retry: false,
+    staleTime: TWEAK_DIAGNOSIS_STALE_TIME_MS,
+    gcTime: TWEAK_DIAGNOSIS_GC_TIME_MS,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+  }
 }
 
 export function useProducts() {
@@ -300,6 +328,7 @@ export function useIngestLibrary() {
       qc.invalidateQueries({ queryKey: queryKeys.libraryStatus })
       qc.invalidateQueries({ queryKey: queryKeys.libraryDocuments })
       qc.invalidateQueries({ queryKey: queryKeys.ragStatus })
+      qc.invalidateQueries({ queryKey: queryKeys.tweakDiagnoses })
     },
   })
 }
@@ -311,19 +340,22 @@ export function useReviewLibraryDocument() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.libraryDocuments })
       qc.invalidateQueries({ queryKey: queryKeys.libraryStatus })
+      qc.invalidateQueries({ queryKey: queryKeys.tweakDiagnoses })
     },
   })
 }
 
 export function useTweakDiagnosis(request: TweakDiagnosisRequest | null) {
+  const options = request ? tweakDiagnosisQueryOptions(request) : null
   return useQuery({
-    queryKey: request ? queryKeys.tweakDiagnosis(request) : ['tweakDiagnosis', 'disabled'],
-    queryFn: () => fetchTweakDiagnosis(request!),
+    queryKey: options?.queryKey ?? ['tweakDiagnosis', 'disabled'],
+    queryFn: options?.queryFn ?? (() => Promise.reject(new Error('Tweak diagnosis request is not ready.'))),
     enabled: Boolean(request),
-    retry: false,
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnReconnect: 'always',
+    retry: options?.retry ?? false,
+    staleTime: options?.staleTime ?? TWEAK_DIAGNOSIS_STALE_TIME_MS,
+    gcTime: options?.gcTime ?? TWEAK_DIAGNOSIS_GC_TIME_MS,
+    refetchOnMount: options?.refetchOnMount ?? true,
+    refetchOnReconnect: options?.refetchOnReconnect ?? true,
   })
 }
 
@@ -416,7 +448,15 @@ export function useCreateCommercializationReport() {
 export function useSaveEvidenceBundle() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (input: { projectId: string; schemaVersion: string; sourceDataVersion: string; payload: Record<string, unknown> }) =>
+    mutationFn: (input: {
+      projectId: string
+      canonicalProjectId?: string | null
+      decisionRecordId?: string | null
+      formulationVersionId?: string | null
+      schemaVersion: string
+      sourceDataVersion: string
+      payload: Record<string, unknown>
+    }) =>
       saveEvidenceBundle(input),
     onSuccess: (bundle: EvidenceBundleRecord) => {
       qc.invalidateQueries({ queryKey: queryKeys.evidenceBundles(bundle.projectId) })
@@ -562,6 +602,130 @@ export function useInstrumentalDataset(enabled = true) {
     queryKey: queryKeys.instrumentalDataset,
     queryFn: fetchInstrumentalDataset,
     enabled,
+  })
+}
+
+export function useFormulationVersions(projectId?: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.formulationVersions(projectId),
+    queryFn: () => fetchFormulationVersions(projectId),
+    enabled,
+  })
+}
+
+export function useFormulationExperiments(projectId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.formulationExperiments(projectId ?? 'none'),
+    queryFn: () => fetchFormulationExperiments(projectId!),
+    enabled: Boolean(projectId),
+  })
+}
+
+export function useApprovedFormulationLearnings(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.approvedFormulationLearnings,
+    queryFn: fetchApprovedFormulationLearnings,
+    enabled,
+    staleTime: 15 * 60 * 1000,
+  })
+}
+
+export function useCreateFormulationExperiment(projectId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: createFormulationExperiment,
+    onSuccess: () => {
+      if (projectId) qc.invalidateQueries({ queryKey: queryKeys.formulationExperiments(projectId) })
+    },
+  })
+}
+
+export function useUpdateFormulationExperimentDraft(projectId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: updateFormulationExperimentDraft,
+    onSuccess: () => {
+      if (projectId) qc.invalidateQueries({ queryKey: queryKeys.formulationExperiments(projectId) })
+    },
+  })
+}
+
+export function useAddFormulationExperimentArm(projectId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: addFormulationExperimentArm,
+    onSuccess: () => {
+      if (projectId) qc.invalidateQueries({ queryKey: queryKeys.formulationExperiments(projectId) })
+    },
+  })
+}
+
+export function useDeleteFormulationExperimentArm(projectId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: deleteFormulationExperimentArm,
+    onSuccess: () => {
+      if (projectId) qc.invalidateQueries({ queryKey: queryKeys.formulationExperiments(projectId) })
+    },
+  })
+}
+
+export function useLockFormulationExperiment(projectId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: lockFormulationExperiment,
+    onSuccess: () => {
+      if (projectId) qc.invalidateQueries({ queryKey: queryKeys.formulationExperiments(projectId) })
+    },
+  })
+}
+
+export function useAdvanceFormulationExperiment(projectId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: advanceFormulationExperiment,
+    onSuccess: () => {
+      if (projectId) qc.invalidateQueries({ queryKey: queryKeys.formulationExperiments(projectId) })
+    },
+  })
+}
+
+export function useRecordFormulationEvaluation(projectId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: recordFormulationEvaluation,
+    onSuccess: () => {
+      if (projectId) qc.invalidateQueries({ queryKey: queryKeys.formulationExperiments(projectId) })
+    },
+  })
+}
+
+export function useSaveFormulationExperimentLearning(projectId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: saveFormulationExperimentLearning,
+    onSuccess: () => {
+      if (projectId) qc.invalidateQueries({ queryKey: queryKeys.formulationExperiments(projectId) })
+    },
+  })
+}
+
+export function useDecisionFreshness(decisionRecordId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.decisionFreshness(decisionRecordId ?? 'none'),
+    queryFn: () => fetchDecisionFreshness(decisionRecordId!),
+    enabled: Boolean(decisionRecordId),
+  })
+}
+
+export function useMarkDecisionResearchRefreshed() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: markDecisionResearchRefreshed,
+    onSuccess: (_result, input) => {
+      qc.invalidateQueries({ queryKey: queryKeys.decisionFreshness(input.decisionRecordId) })
+      qc.invalidateQueries({ queryKey: queryKeys.decisionRecords })
+    },
   })
 }
 
@@ -773,6 +937,28 @@ export function useInsertInstrumentalImport() {
       qc.invalidateQueries({ queryKey: queryKeys.foodTypes })
       qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
       qc.invalidateQueries({ queryKey: queryKeys.importBatches })
+    },
+  })
+}
+
+export function useUpdateIngredientStatement() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: updateIngredientStatement,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
+      qc.invalidateQueries({ queryKey: ['formulationVersions'] })
+    },
+  })
+}
+
+export function useReviewFormulationVersion() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: reviewFormulationVersion,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
+      qc.invalidateQueries({ queryKey: ['formulationVersions'] })
     },
   })
 }

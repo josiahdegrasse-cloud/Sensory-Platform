@@ -28,6 +28,8 @@ export interface EvidenceAssistProductContext {
   projectId: string;
   productId?: string;
   decisionId?: string;
+  evidenceBundleId?: string;
+  formulationVersionId?: string;
   productName: string;
   foodType: string;
   productCategory: string;

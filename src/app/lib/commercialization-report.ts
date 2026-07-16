@@ -62,6 +62,16 @@ export interface CommercializationReportSnapshot {
     packagingImageAiGenerated?: boolean;
   };
   evidence: ConceptEvidenceSummary;
+  formulation?: {
+    versionId: string;
+    versionNumber: number;
+    fingerprint: string;
+    reviewStatus: 'pending_review' | 'reviewed' | 'needs_revision';
+    exactStatement?: string;
+    reviewedIngredients: string[];
+    verifiedAllergens: string[];
+    readinessGaps: string[];
+  };
   narrative: {
     executiveSummary: string;
     whyLiked: string;

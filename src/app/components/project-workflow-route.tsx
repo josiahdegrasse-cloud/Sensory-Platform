@@ -18,6 +18,7 @@ import { Stage4Enhanced } from './stage4-enhanced';
 import { StudiesWorkspace } from './studies-workspace';
 import { ShipOutsWorkspace } from './ship-outs-workspace';
 import { SurveyAnalysis } from './survey-analysis';
+import { FormulationExperimentWorkspace } from './formulation-experiment-workspace';
 
 function LoadingProjectScope() {
   return (
@@ -47,7 +48,7 @@ function ProjectStepContent({ step, substep }: { step: ProjectJourneyStep; subst
     case 'insights':
       return <SurveyAnalysis />;
     case 'decision':
-      return <Stage4Enhanced />;
+      return substep === 'experiments' ? <FormulationExperimentWorkspace /> : <Stage4Enhanced />;
     case 'concept':
       return <ConceptTesting />;
     case 'report':
@@ -72,7 +73,13 @@ export function ProjectWorkflowRoute() {
 
   if (!projectId) return <Navigate to="/" replace />;
   if (!isProjectJourneyStep(journeyStep)) return <Navigate to={projectPath(projectId)} replace />;
-  if (substep && !(journeyStep === 'studies' && substep === 'ship-outs')) {
+  if (
+    substep
+    && !(
+      (journeyStep === 'studies' && substep === 'ship-outs')
+      || (journeyStep === 'decision' && substep === 'experiments')
+    )
+  ) {
     return <Navigate to={projectPath(projectId, journeyStep)} replace />;
   }
   if (journeyStep === 'responses') return <Navigate to={projectPath(projectId, 'studies')} replace />;

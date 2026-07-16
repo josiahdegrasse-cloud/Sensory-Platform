@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
 import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Archive, Trash2, Undo2, ChevronDown, ChevronRight, Settings, AlertCircle, AlertTriangle, X, FileText, FolderKanban, Menu, BookOpenText } from "lucide-react";
 import { useAuth } from "../contexts/auth-context";
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useFoodType } from "../contexts/food-type-context";
 import { parseBatchSelection, encodeBatchSelection } from "../lib/project-identity";
 import { useDeleteImportBatch, useImportBatches, usePendingImports, useUpdateImportBatchStatus, useWorkspaceSettings } from "../lib/hooks";
@@ -28,6 +28,10 @@ import {
 } from "./ui/dropdown-menu";
 import { NFI_BRAND_COLOR } from "../lib/nfi-brand";
 import { TenantOrNfiLogo } from "./nfi-brand";
+
+const DecisionRagPreloader = lazy(() => import('./decision-rag-preloader').then(module => ({
+  default: module.DecisionRagPreloader,
+})));
 
 const LEGACY_DEMO_IMPORT_CUTOFF = Date.parse('2026-06-16T03:35:41Z');
 
@@ -655,6 +659,12 @@ export function MainLayout() {
 
         </div>
       </header>
+
+      {user?.role === 'admin' && (
+        <Suspense fallback={null}>
+          <DecisionRagPreloader />
+        </Suspense>
+      )}
 
       <div className="mx-auto flex max-w-[1600px] items-start gap-4 px-4 py-6 sm:px-6 lg:py-8">
         {user?.role === 'admin' && <CategorySidebar />}

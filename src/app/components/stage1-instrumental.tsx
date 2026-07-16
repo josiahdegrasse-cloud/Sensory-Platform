@@ -6,9 +6,10 @@ import { useAuth } from "../contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { FlaskConical, AlertCircle, Upload, X, Check, BarChart3, ClipboardList, Lightbulb, ArrowRight } from "lucide-react";
+import { Textarea } from "./ui/textarea";
+import { FlaskConical, AlertCircle, Upload, X, Check, BarChart3, ClipboardList, Lightbulb, ArrowRight, Pencil, Save } from "lucide-react";
 import { formatFoodTypeLabel, slugifyFoodType } from "../lib/food-intelligence";
-import { useInsertInstrumentalImport, useInstrumentalDataset } from "../lib/hooks";
+import { useInsertInstrumentalImport, useInstrumentalDataset, useUpdateIngredientStatement } from "../lib/hooks";
 import { isMissingFoodImportSchema, downloadPendingImportFile, markPendingImportImported } from "../lib/database";
 import {
   ScatterChart,
@@ -42,6 +43,7 @@ import {
   useInstrumentalWorkspace,
 } from './stage1-instrumental-hooks';
 import { WorkflowPageHeader } from "./workflow-page-header";
+import { FormulationProfilePanel } from './formulation-profile-panel';
 
 
 export function Stage1Instrumental() {
@@ -64,6 +66,7 @@ export function Stage1Instrumental() {
   const { user } = useAuth();
   const instrumentalDatasetQuery = useInstrumentalDataset(user?.role === 'admin');
   const insertInstrumentalImport = useInsertInstrumentalImport();
+  const updateIngredientStatement = useUpdateIngredientStatement();
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<Record<string, string>[]>([]);
   const [showPreview, setShowPreview] = useState(false);
@@ -78,6 +81,8 @@ export function Stage1Instrumental() {
   const [isLoadingFromQueue, setIsLoadingFromQueue] = useState(!!pendingStoragePath);
   const [aromaOpen, setAromaOpen] = useState(false);
   const [instrumentSummaryHeight, setInstrumentSummaryHeight] = useState<number | null>(null);
+  const [editingIngredientSampleId, setEditingIngredientSampleId] = useState<string | null>(null);
+  const [ingredientDraft, setIngredientDraft] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const instrumentSummaryRef = useRef<HTMLDivElement>(null);
@@ -273,6 +278,7 @@ export function Stage1Instrumental() {
         eTongueData: importedETongue,
         gcmsData: parsed.gcmsData,
         compositionData: parsed.compositionData,
+        ingredientStatements: parsed.ingredientStatements,
         reformulationNotes: retestImport
           ? [retestImport.target, retestImport.action].filter(Boolean).join(' — ') || undefined
           : undefined,
@@ -384,6 +390,40 @@ export function Stage1Instrumental() {
   const primaryAromaCompound = [...aromaFlaggedCompounds].sort((a, b) => b.concentration - a.concentration)[0];
   const aromaTotalConcentration = selectedGCMSData.reduce((sum, compound) => sum + compound.concentration, 0);
   const aromaWithThreshold = selectedGCMSData.filter(compound => compound.threshold > 0).length;
+  const selectedIngredientStatement = selectedSampleData?.ingredientStatement;
+  const selectedIngredientBatchId = selectedSampleData?.importBatchId;
+  const selectedFormulationVersions = selectedSampleData
+    ? instrumentalDatasetQuery.data?.formulationVersions?.[selectedSampleData.sampleId] ?? []
+    : [];
+  const ingredientEditing = Boolean(selectedSampleData && editingIngredientSampleId === selectedSampleData.sampleId);
+
+  const beginIngredientEdit = () => {
+    if (!selectedSampleData) return;
+    updateIngredientStatement.reset();
+    setEditingIngredientSampleId(selectedSampleData.sampleId);
+    setIngredientDraft(selectedIngredientStatement?.text ?? '');
+  };
+
+  const cancelIngredientEdit = () => {
+    updateIngredientStatement.reset();
+    setEditingIngredientSampleId(null);
+    setIngredientDraft('');
+  };
+
+  const saveIngredientStatement = async () => {
+    if (!selectedSampleData || !selectedIngredientBatchId) return;
+    try {
+      await updateIngredientStatement.mutateAsync({
+        importBatchId: selectedIngredientBatchId,
+        sampleId: selectedSampleData.sampleId,
+        statement: ingredientDraft,
+      });
+      cancelIngredientEdit();
+    } catch {
+      // The mutation owns the visible error state; keep the editor open so the
+      // administrator does not lose the exact statement they entered.
+    }
+  };
 
   useEffect(() => {
     const element = instrumentSummaryRef.current;
@@ -837,6 +877,7 @@ export function Stage1Instrumental() {
                     )}
                     onClick={() => {
                       setAromaOpen(false);
+                      cancelIngredientEdit();
                       if (compareMode) {
                         if (isSelected) {
                           if (selectedSamples.length > 1)
@@ -1077,8 +1118,81 @@ export function Stage1Instrumental() {
               <p className="text-xs text-slate-700 mt-1">Proximate analysis and key chemical properties</p>
             </CardHeader>
             <CardContent className="pt-4">
+              <section className="mb-4 border-b border-slate-200 pb-4" aria-labelledby="ingredient-statement-heading">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 id="ingredient-statement-heading" className="text-sm font-bold text-slate-900">Ingredient statement</h3>
+                      {selectedIngredientStatement && (
+                        <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                          {selectedIngredientStatement.source === 'csv_import' ? 'Imported from CSV' : 'Entered manually'}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Exact supplied wording and ingredient order for {selectedSampleData?.sampleName || selectedSampleData?.sampleId || 'the selected product'}.
+                    </p>
+                  </div>
+                  {!ingredientEditing && selectedIngredientBatchId && (
+                    <Button type="button" variant="outline" size="sm" onClick={beginIngredientEdit}>
+                      <Pencil className="size-3.5" />
+                      {selectedIngredientStatement ? 'Edit ingredients' : 'Add ingredients'}
+                    </Button>
+                  )}
+                </div>
+
+                {ingredientEditing ? (
+                  <div className="mt-3 space-y-2">
+                    <Textarea
+                      value={ingredientDraft}
+                      onChange={event => setIngredientDraft(event.target.value)}
+                      placeholder="List ingredients exactly as supplied, in descending order by weight."
+                      maxLength={10000}
+                      rows={4}
+                      aria-label="Exact ingredient statement"
+                      className="min-h-24 bg-white leading-6"
+                    />
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-[11px] text-slate-500">Internal spacing and punctuation are preserved. Clearing this field marks the statement as not provided.</p>
+                      <div className="flex gap-2">
+                        <Button type="button" variant="outline" size="sm" onClick={cancelIngredientEdit} disabled={updateIngredientStatement.isPending}>
+                          Cancel
+                        </Button>
+                        <Button type="button" size="sm" onClick={() => void saveIngredientStatement()} disabled={updateIngredientStatement.isPending}>
+                          <Save className="size-3.5" />
+                          {updateIngredientStatement.isPending ? 'Saving' : 'Save ingredients'}
+                        </Button>
+                      </div>
+                    </div>
+                    {updateIngredientStatement.isError && (
+                      <p className="text-xs font-medium text-rose-700" role="alert">The ingredient statement could not be saved. Try again.</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-3">
+                    <p className={`whitespace-pre-wrap text-sm leading-6 ${selectedIngredientStatement ? 'text-slate-800' : 'italic text-slate-500'}`}>
+                      {selectedIngredientStatement?.text || 'No ingredient statement has been provided for this product.'}
+                    </p>
+                    {selectedIngredientStatement?.updatedAt && (
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        Updated {new Date(selectedIngredientStatement.updatedAt).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </section>
+
+              {selectedSampleData && selectedIngredientBatchId && selectedFormulationVersions.length > 0 && (
+                <FormulationProfilePanel
+                  key={selectedFormulationVersions.find(version => version.isCurrent)?.id ?? selectedSampleData.sampleId}
+                  importBatchId={selectedIngredientBatchId}
+                  sampleId={selectedSampleData.sampleId}
+                  versions={selectedFormulationVersions}
+                />
+              )}
+
               {selectedCompositionData && Object.keys(selectedCompositionData).length > 0 ? (
-                <div className="grid grid-cols-6 gap-4">
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
                   {[
                     { label: "Protein",  value: selectedCompositionData.protein?.toFixed(1),  unit: "%" },
                     { label: "Fat",      value: selectedCompositionData.fat?.toFixed(1),      unit: "%" },

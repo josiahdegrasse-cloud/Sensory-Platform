@@ -2,6 +2,7 @@ import type {
   CommercializationReportRecord,
   ConceptTest,
   DecisionRecord,
+  EvidenceBundleRecord,
   ImportBatchRecord,
   InstrumentalDataset,
 } from '../database';
@@ -80,6 +81,7 @@ export interface WorkflowEvaluatorInput {
   products: Product[];
   responseCountsBySampleId: Record<string, number>;
   decisionRecords: DecisionRecord[];
+  evidenceBundles?: EvidenceBundleRecord[];
   conceptTests: ConceptTest[];
   conceptResponseCounts?: Record<string, number>;
   commercializationReports: CommercializationReportRecord[];

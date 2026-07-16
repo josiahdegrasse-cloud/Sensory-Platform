@@ -55,6 +55,10 @@ export interface ConceptTest {
   variantDimensions?: Record<string, string | null>;
   /** The concept image locked as this concept's product design, if any. */
   brandReferenceImageId?: string | null;
+  projectId?: string | null;
+  formulationVersionId?: string | null;
+  decisionRecordId?: string | null;
+  evidenceBundleId?: string | null;
 }
 
 export interface ConceptResponse {
@@ -80,6 +84,8 @@ export interface CommercializationReportRecord {
   approvedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  formulationVersionId?: string | null;
+  canonicalProjectId?: string | null;
 }
 
 export interface EvidenceBundleRecord {
@@ -91,6 +97,10 @@ export interface EvidenceBundleRecord {
   payload: Record<string, unknown>;
   createdBy: string;
   createdAt: string;
+  canonicalProjectId?: string | null;
+  decisionRecordId?: string | null;
+  formulationVersionId?: string | null;
+  isCurrentProduct?: boolean;
 }
 
 export interface ConceptGenerationSettings {
@@ -189,6 +199,10 @@ function toConceptTest(row: Tables['concept_tests']['Row']): ConceptTest {
     variantDimensions: fromJson<Record<string, string | null>>(row.variant_dimensions) ?? {},
     // Cast: column may predate regenerated database.types.ts.
     brandReferenceImageId: ((row as Record<string, unknown>).brand_reference_image_id as string | null) ?? null,
+    projectId: row.project_id ?? null,
+    formulationVersionId: row.formulation_version_id ?? null,
+    decisionRecordId: row.decision_record_id ?? null,
+    evidenceBundleId: row.evidence_bundle_id ?? null,
   };
 }
 
@@ -260,6 +274,10 @@ export async function insertConceptTest(
     status: test.status,
     launched_at: test.status === 'active' ? new Date().toISOString() : null,
     variant_dimensions: test.variantDimensions ?? {},
+    project_id: test.projectId ?? null,
+    formulation_version_id: test.formulationVersionId ?? null,
+    decision_record_id: test.decisionRecordId ?? null,
+    evidence_bundle_id: test.evidenceBundleId ?? null,
   };
   // brand_reference_image_id lands with the concept_brand_kit migration;
   // retry without it on databases that have not applied it yet.
@@ -434,6 +452,8 @@ function toCommercializationReport(row: Tables['commercialization_reports']['Row
     approvedAt: row.approved_at ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
+    formulationVersionId: row.formulation_version_id ?? null,
+    canonicalProjectId: row.project_id ?? null,
   };
 }
 
@@ -447,6 +467,10 @@ function toEvidenceBundle(row: Tables['evidence_bundles']['Row']): EvidenceBundl
     payload: fromJson<Record<string, unknown>>(row.payload) ?? {},
     createdBy: row.created_by,
     createdAt: row.created_at as string,
+    canonicalProjectId: row.project_id ?? null,
+    decisionRecordId: row.decision_record_id ?? null,
+    formulationVersionId: row.formulation_version_id ?? null,
+    isCurrentProduct: row.is_current_product,
   };
 }
 
@@ -467,6 +491,7 @@ export async function createCommercializationReport(input: {
   title: string;
   reportSnapshot: Record<string, unknown>;
   evidenceBundleId?: string | null;
+  formulationVersionId?: string | null;
 }): Promise<CommercializationReportRecord> {
   const { data, error } = await supabase.rpc('create_commercialization_report', {
     target_decision_record_id: input.decisionRecordId,
@@ -476,23 +501,11 @@ export async function createCommercializationReport(input: {
     target_packaging_image_id: input.packagingImageId as string,
     target_title: input.title,
     target_report_snapshot: asJson(input.reportSnapshot),
+    target_evidence_bundle_id: input.evidenceBundleId ?? undefined,
+    target_formulation_version_id: input.formulationVersionId ?? undefined,
   });
   if (error) throw dbError(error);
-  const report = toCommercializationReport(data as Tables['commercialization_reports']['Row']);
-
-  // Link the evidence bundle backing this report. Done as a follow-up update
-  // (rather than threading through the SECURITY DEFINER RPC) — RLS lets the
-  // creator update a non-approved report. Non-fatal: the report is already saved.
-  if (input.evidenceBundleId) {
-    const { data: linked, error: linkError } = await supabase
-      .from('commercialization_reports')
-      .update({ evidence_bundle_id: input.evidenceBundleId })
-      .eq('id', report.id)
-      .select()
-      .maybeSingle();
-    if (!linkError && linked) return toCommercializationReport(linked);
-  }
-  return report;
+  return toCommercializationReport(data as Tables['commercialization_reports']['Row']);
 }
 
 export async function fetchEvidenceBundles(projectId?: string): Promise<EvidenceBundleRecord[]> {
@@ -509,6 +522,9 @@ export async function fetchEvidenceBundles(projectId?: string): Promise<Evidence
 
 export async function saveEvidenceBundle(input: {
   projectId: string;
+  canonicalProjectId?: string | null;
+  decisionRecordId?: string | null;
+  formulationVersionId?: string | null;
   schemaVersion: string;
   sourceDataVersion: string;
   payload: Record<string, unknown>;
@@ -518,6 +534,9 @@ export async function saveEvidenceBundle(input: {
     target_schema_version: input.schemaVersion,
     target_source_data_version: input.sourceDataVersion,
     target_payload: asJson(input.payload),
+    target_project_id: input.canonicalProjectId ?? undefined,
+    target_decision_record_id: input.decisionRecordId ?? undefined,
+    target_formulation_version_id: input.formulationVersionId ?? undefined,
   });
   if (error) throw dbError(error);
   return toEvidenceBundle(data as Tables['evidence_bundles']['Row']);

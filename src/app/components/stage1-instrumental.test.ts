@@ -52,6 +52,7 @@ describe('CSV import workflow intelligence', () => {
         protein: '18.4',
         fat: '12.2',
         moisture: '54.1',
+        ingredientStatement: 'Water, pea protein, rapeseed oil, salt',
       },
       {
         sampleId: 'M2',
@@ -70,6 +71,7 @@ describe('CSV import workflow intelligence', () => {
         protein: '19.1',
         fat: '11.8',
         moisture: '53.6',
+        ingredientStatement: 'Water, pea protein, coconut oil, natural flavouring',
       },
     ];
 
@@ -83,6 +85,10 @@ describe('CSV import workflow intelligence', () => {
     expect(dataset.eTongueData).toHaveLength(2);
     expect(dataset.gcmsData.M1).toHaveLength(1);
     expect(dataset.compositionData.M2.protein).toBe(19.1);
+    expect(dataset.ingredientStatements.M1).toMatchObject({
+      text: 'Water, pea protein, rapeseed oil, salt',
+      source: 'csv_import',
+    });
     expect(validation.errors).toEqual([]);
   });
 

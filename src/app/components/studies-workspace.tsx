@@ -1,6 +1,7 @@
 import { AdminConfig } from './admin-config';
 import { useParams } from 'react-router';
 import { StudiesNavigation } from './studies-navigation';
+import { FormulationContextStrip } from './formulation-context-strip';
 
 export function StudiesWorkspace() {
   const { projectId } = useParams<{ projectId?: string }>();
@@ -9,7 +10,12 @@ export function StudiesWorkspace() {
     <div className="space-y-6">
       <AdminConfig
         mode="studies"
-        secondaryNavigation={projectId ? <StudiesNavigation projectId={projectId} active="studies" /> : undefined}
+        secondaryNavigation={projectId ? (
+          <div className="space-y-4">
+            <StudiesNavigation projectId={projectId} active="studies" />
+            <FormulationContextStrip projectId={projectId} context="ship-outs" />
+          </div>
+        ) : undefined}
       />
     </div>
   );

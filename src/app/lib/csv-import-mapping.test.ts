@@ -19,8 +19,8 @@ describe('CSV import mapping', () => {
   });
 
   it('matches aliases regardless of case, spacing, or punctuation', () => {
-    const mappings = inferImportMappings(['  pH  ', 'Salt-Content', 'Odour Threshold', 'Analyte']);
-    expect(mappings.map(item => item.target)).toEqual(['pH', 'saltContent', 'threshold', 'compound']);
+    const mappings = inferImportMappings(['  pH  ', 'Salt-Content', 'Odour Threshold', 'Analyte', 'Ingredient List']);
+    expect(mappings.map(item => item.target)).toEqual(['pH', 'saltContent', 'threshold', 'compound', 'ingredientStatement']);
   });
 
   it('handles all unit conversions, including mg/g and g/kg to percent', () => {

@@ -8,6 +8,12 @@ import {
 } from '../food-intelligence';
 import { asJson, dbError, isMissingFoodImportSchema } from './shared';
 import type { Database } from './database.types';
+import {
+  deriveStructuredIngredients,
+  type FormulationReviewStatus,
+  type FormulationVersion,
+  type StructuredIngredient,
+} from '../formulation-profile';
 
 type Tables = Database['public']['Tables'];
 
@@ -34,6 +40,7 @@ export interface ETongueMeasurementRecord {
   type?: string;
   category?: string;
   importBatchId?: string;
+  ingredientStatement?: IngredientStatementRecord;
 }
 
 export interface GCMSCompoundRecord {
@@ -52,11 +59,77 @@ export interface ChemicalCompositionRecord {
   calciumMg: number;
 }
 
+export interface IngredientStatementRecord {
+  text: string;
+  source: 'csv_import' | 'manual';
+  updatedAt: string | null;
+}
+
 export interface InstrumentalDataset {
   eTongueData: ETongueMeasurementRecord[];
   gcmsData: Record<string, GCMSCompoundRecord[]>;
   compositionData: Record<string, ChemicalCompositionRecord>;
+  ingredientStatements?: Record<string, IngredientStatementRecord>;
+  formulationVersions?: Record<string, FormulationVersion[]>;
   importBatchId?: string;
+}
+
+function toStructuredIngredient(row: Tables['formulation_ingredients']['Row']): StructuredIngredient {
+  return {
+    id: row.id,
+    position: Number(row.position),
+    suppliedName: row.supplied_name,
+    canonicalName: row.canonical_name ?? row.supplied_name,
+    functionalRole: row.functional_role ?? '',
+    percentage: row.percentage === null ? null : Number(row.percentage),
+    supplier: row.supplier ?? '',
+    specification: row.specification ?? '',
+    allergenTags: row.allergen_tags ?? [],
+    dietaryTags: row.dietary_tags ?? [],
+    confidence: Number(row.confidence),
+    reviewStatus: row.review_status as StructuredIngredient['reviewStatus'],
+    notes: row.notes ?? '',
+  };
+}
+
+export async function fetchFormulationVersions(projectId?: string): Promise<FormulationVersion[]> {
+  let query = supabase
+    .from('formulation_versions')
+    .select(`
+      *,
+      instrumental_samples!inner(import_batch_id, sample_id, sample_name),
+      formulation_ingredients(*)
+    `)
+    .order('version_number', { ascending: false });
+  if (projectId) query = query.eq('project_id', projectId);
+
+  const { data, error } = await query;
+  if (error && /formulation_versions|schema cache|does not exist/i.test(error.message ?? '')) return [];
+  if (error) throw dbError(error);
+
+  return ((data ?? []) as unknown as Array<Tables['formulation_versions']['Row'] & {
+    instrumental_samples: Pick<Tables['instrumental_samples']['Row'], 'import_batch_id' | 'sample_id' | 'sample_name'>;
+    formulation_ingredients: Tables['formulation_ingredients']['Row'][];
+  }>).map(row => ({
+    id: row.id,
+    instrumentalSampleId: row.instrumental_sample_id,
+    projectId: row.project_id,
+    importBatchId: row.instrumental_samples.import_batch_id,
+    sampleId: row.instrumental_samples.sample_id,
+    sampleName: row.instrumental_samples.sample_name,
+    versionNumber: Number(row.version_number),
+    exactStatement: row.exact_statement,
+    statementSource: row.statement_source === 'manual' ? 'manual' : 'csv_import',
+    fingerprint: row.fingerprint,
+    isCurrent: row.is_current,
+    reviewStatus: row.review_status as FormulationReviewStatus,
+    changeSummary: row.change_summary,
+    createdAt: row.created_at,
+    reviewedAt: row.reviewed_at,
+    ingredients: [...(row.formulation_ingredients ?? [])]
+      .sort((a, b) => a.position - b.position)
+      .map(toStructuredIngredient),
+  }));
 }
 
 export interface InstrumentalImportInput extends InstrumentalDataset {
@@ -519,6 +592,9 @@ export async function fetchInstrumentalDataset(): Promise<InstrumentalDataset> {
       sample_id,
       sample_name,
       category,
+      ingredient_statement,
+      ingredient_statement_source,
+      ingredient_statement_updated_at,
       food_types!inner(slug, status),
       import_batches!inner(id, status),
       e_tongue_measurements(sourness, bitterness, saltiness, umami, sweetness),
@@ -530,18 +606,28 @@ export async function fetchInstrumentalDataset(): Promise<InstrumentalDataset> {
     .order('created_at', { ascending: true });
 
   if (error && isMissingFoodImportSchema(dbError(error))) {
-    return { eTongueData: [], gcmsData: {}, compositionData: {} };
+    return { eTongueData: [], gcmsData: {}, compositionData: {}, ingredientStatements: {} };
   }
   if (error) throw dbError(error);
 
   const eTongueData: ETongueMeasurementRecord[] = [];
   const gcmsData: Record<string, GCMSCompoundRecord[]> = {};
   const compositionData: Record<string, ChemicalCompositionRecord> = {};
+  const ingredientStatements: Record<string, IngredientStatementRecord> = {};
 
   ((data ?? []) as Record<string, unknown>[]).forEach(row => {
     const sampleId = row.sample_id as string;
     const foodType = row.food_types as { slug?: string } | null;
     const importBatch = row.import_batches as { id?: string } | null;
+    const ingredientStatement = String(row.ingredient_statement ?? '').trim();
+    const ingredientSource = row.ingredient_statement_source === 'manual' ? 'manual' : 'csv_import';
+    if (ingredientStatement) {
+      ingredientStatements[sampleId] = {
+        text: ingredientStatement,
+        source: ingredientSource,
+        updatedAt: (row.ingredient_statement_updated_at as string | null) ?? null,
+      };
+    }
     const eTongue = ((row.e_tongue_measurements as Record<string, unknown>[] | null) ?? [])[0];
     if (eTongue) {
       eTongueData.push({
@@ -550,6 +636,7 @@ export async function fetchInstrumentalDataset(): Promise<InstrumentalDataset> {
         category: (row.category as string) ?? undefined,
         importBatchId: importBatch?.id,
         type: foodType?.slug,
+        ingredientStatement: ingredientStatement ? ingredientStatements[sampleId] : undefined,
         sourness: Number(eTongue.sourness ?? 0),
         bitterness: Number(eTongue.bitterness ?? 0),
         saltiness: Number(eTongue.saltiness ?? 0),
@@ -582,7 +669,53 @@ export async function fetchInstrumentalDataset(): Promise<InstrumentalDataset> {
     }
   });
 
-  return { eTongueData, gcmsData, compositionData };
+  const formulationVersions = (await fetchFormulationVersions()).reduce<Record<string, FormulationVersion[]>>((grouped, version) => {
+    (grouped[version.sampleId] ??= []).push(version);
+    return grouped;
+  }, {});
+
+  return { eTongueData, gcmsData, compositionData, ingredientStatements, formulationVersions };
+}
+
+export interface UpdateIngredientStatementInput {
+  importBatchId: string;
+  sampleId: string;
+  statement: string;
+  ingredients?: StructuredIngredient[];
+  changeSummary?: string;
+}
+
+export async function updateIngredientStatement(input: UpdateIngredientStatementInput): Promise<string | null> {
+  const statement = input.statement.trim();
+  const ingredients = input.ingredients ?? (statement ? deriveStructuredIngredients(statement) : []);
+  const { data, error } = await supabase.rpc('set_formulation_profile', {
+    target_import_batch_id: input.importBatchId,
+    target_sample_id: input.sampleId,
+    target_statement: statement,
+    target_source: 'manual',
+    target_ingredients: asJson(ingredients),
+    target_change_summary: input.changeSummary?.trim() || undefined,
+  });
+  if (error) throw dbError(error);
+  if (data) {
+    const { error: reviewResetError } = await supabase
+      .from('formulation_versions')
+      .update({ review_status: 'pending_review', reviewed_by: null, reviewed_at: null })
+      .eq('id', data);
+    if (reviewResetError) throw dbError(reviewResetError);
+  }
+  return data ?? null;
+}
+
+export async function reviewFormulationVersion(input: {
+  versionId: string;
+  status: Extract<FormulationReviewStatus, 'reviewed' | 'needs_revision'>;
+}): Promise<void> {
+  const { error } = await supabase.rpc('review_formulation_version', {
+    target_version_id: input.versionId,
+    target_status: input.status,
+  });
+  if (error) throw dbError(error);
 }
 
 export async function insertInstrumentalImport(input: InstrumentalImportInput): Promise<InstrumentalDataset> {
@@ -592,6 +725,7 @@ export async function insertInstrumentalImport(input: InstrumentalImportInput): 
     eTongueData: input.eTongueData,
     gcmsData: input.gcmsData,
     compositionData: input.compositionData,
+    ingredientStatements: input.ingredientStatements,
   });
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(fingerprintSource));
   const idempotencyKey = Array.from(new Uint8Array(digest))
@@ -613,6 +747,20 @@ export async function insertInstrumentalImport(input: InstrumentalImportInput): 
   });
   if (error) throw dbError(error);
   if (typeof batchId === 'string') {
+    const ingredientUpdates = Object.entries(input.ingredientStatements ?? {})
+      .map(([sampleId, record]) => ({ sampleId, statement: record.text.trim() }))
+      .filter(item => item.statement.length > 0);
+    for (const ingredient of ingredientUpdates) {
+      const { error: ingredientError } = await supabase.rpc('set_formulation_profile', {
+        target_import_batch_id: batchId,
+        target_sample_id: ingredient.sampleId,
+        target_statement: ingredient.statement,
+        target_source: 'csv_import',
+        target_ingredients: asJson(deriveStructuredIngredients(ingredient.statement)),
+      });
+      if (ingredientError) throw dbError(ingredientError);
+    }
+
     await ensureSurveysForImportBatch({
       batchId,
       foodTypeSlug: slugifyFoodType(input.detection.slug),

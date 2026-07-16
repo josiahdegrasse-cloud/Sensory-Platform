@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { WorkflowPageHeader } from './workflow-page-header';
 import { StudiesNavigation } from './studies-navigation';
 import { PanelistKitInserts } from './panelist-kit-inserts';
+import { FormulationContextStrip } from './formulation-context-strip';
 
 export function ShipOutsWorkspace() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -53,6 +54,8 @@ export function ShipOutsWorkspace() {
       />
 
       <StudiesNavigation projectId={projectId} active="ship-outs" />
+
+      <FormulationContextStrip projectId={projectId} sampleId={selectedProduct?.sourceSampleId} context="ship-outs" />
 
       {loading ? (
         <div className="space-y-3" aria-label="Loading shipment studies">

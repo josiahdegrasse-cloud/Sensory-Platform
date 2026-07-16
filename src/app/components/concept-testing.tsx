@@ -27,6 +27,7 @@ import { useAuth } from '../contexts/auth-context';
 import {
   useConceptGenerationSettings,
   useConceptLabDiagnostics,
+  useDecisionFreshness,
   useDecisionRecords,
   useInstrumentalDataset,
   usePanelists,
@@ -44,6 +45,7 @@ import { ReviewStep } from './concept-testing/ReviewStep';
 import { getConceptReadiness } from './concept-testing/concept-readiness';
 import { buildTailoredConceptQuestions, defaultConceptPanelistIds } from './concept-testing/smart-defaults';
 import { WorkflowPageHeader } from './workflow-page-header';
+import { FormulationContextStrip } from './formulation-context-strip';
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
@@ -92,11 +94,14 @@ interface StoredConceptDraft {
 
 interface SourceDecisionSeed {
   id: string;
+  sampleId: string;
   sampleName: string;
   issfScore: number;
   confidence: number;
   timestamp: string;
   likedSignals?: string[];
+  formulationVersionId?: string | null;
+  evidenceBundleId?: string | null;
 }
 
 interface ConceptSeed {
@@ -158,11 +163,14 @@ function conceptSeedFromDecisionRecord(
     technicalChallenges: record.note,
     sourceDecision: {
       id: record.id,
+      sampleId: record.sampleId,
       sampleName: record.sampleName,
       issfScore: record.issfScore,
       confidence: record.confidence,
       timestamp: record.timestamp,
       likedSignals,
+      formulationVersionId: record.formulationVersionId ?? null,
+      evidenceBundleId: record.evidenceBundleId ?? null,
     },
   };
   return {
@@ -223,6 +231,7 @@ export function ConceptTesting() {
   const { data: workspaceSettings } = useWorkspaceSettings();
   const { data: diagnostics } = useConceptLabDiagnostics();
   const { data: decisionRecords = [] } = useDecisionRecords();
+  const { data: decisionFreshness } = useDecisionFreshness(sourceDecision?.id);
   const { data: instrumentalDataset } = useInstrumentalDataset(user?.role === 'admin');
   const { liveAggregations } = useSurveyData();
   const smartDefaultsApplied = useRef(false);
@@ -251,7 +260,9 @@ export function ConceptTesting() {
     panelists,
     requireApprovedVisuals,
   });
-  const launchReady = readinessItems.every(item => item.ready);
+  const launchReady = readinessItems.every(item => item.ready)
+    && Boolean(sourceDecision?.id)
+    && decisionFreshness?.allowed === true;
   const conceptStepReady = readinessItems.filter(item => item.fixStep === 'concept').every(item => item.ready);
   const surveyStepReady = readinessItems.filter(item => item.fixStep === 'survey').every(item => item.ready);
   const panelStepReady = readinessItems.filter(item => item.fixStep === 'panel').every(item => item.ready);
@@ -380,8 +391,14 @@ export function ConceptTesting() {
   };
 
   const confirmedGoDecisions = useMemo(
-    () => decisionRecords.filter(record => record.decision === 'GO').slice(0, 6),
-    [decisionRecords],
+    () => decisionRecords
+      .filter(record => (
+        record.decision === 'GO'
+        && Boolean(record.evidenceBundleId)
+        && (!routeProjectId || record.projectId === routeProjectId)
+      ))
+      .slice(0, 6),
+    [decisionRecords, routeProjectId],
   );
 
   const startFromDecision = (record: DecisionRecord) => {
@@ -395,9 +412,25 @@ export function ConceptTesting() {
       foodType,
       evidenceProfile,
     );
+    const reviewedFormulation = instrumentalDataset?.formulationVersions?.[record.sampleId]
+      ?.find(version => version.isCurrent && version.reviewStatus === 'reviewed');
+    const ingredientCues = reviewedFormulation?.ingredients
+      .filter(ingredient => ingredient.reviewStatus === 'verified')
+      .map(ingredient => ingredient.canonicalName)
+      .slice(0, 4) ?? [];
+    const formulationAwareDraft = ingredientCues.length > 0 ? {
+      ...seededDraft,
+      keyBenefits: [seededDraft.keyBenefits, `Ingredient-led cue candidates (claims review required): ${ingredientCues.join(', ')}`]
+        .filter(Boolean)
+        .join('\n'),
+      technicalChallenges: [
+        seededDraft.technicalChallenges,
+        `Formulation v${reviewedFormulation?.versionNumber} is linked. Ingredient cues are positioning inputs only; do not convert them into nutrition, free-from, or performance claims without separate substantiation.`,
+      ].filter(Boolean).join('\n'),
+    } : seededDraft;
     setStep('concept');
-    setDraft(seededDraft);
-    setQuestions(buildTailoredConceptQuestions(seededDraft));
+    setDraft(formulationAwareDraft);
+    setQuestions(buildTailoredConceptQuestions(formulationAwareDraft));
     setQuestionsReviewState('draft');
     setSegments([]);
     setAssignedPanelistIds([]);
@@ -406,7 +439,7 @@ export function ConceptTesting() {
     smartDefaultsApplied.current = false;
     setDraftNotice(
       seed.sourceDecision?.likedSignals?.length
-        ? `Started from the confirmed GO decision for "${record.sampleName}" and prefilled image cues: ${seed.sourceDecision.likedSignals.join(', ')}.`
+        ? `Started from the confirmed GO decision for "${record.sampleName}" and prefilled image cues: ${seed.sourceDecision.likedSignals.join(', ')}.${ingredientCues.length ? ' Reviewed formulation cues were added for claims review.' : ''}`
         : `Started from the confirmed GO decision for "${record.sampleName}".`
     );
     localStorage.removeItem(draftStorageKey);
@@ -429,8 +462,12 @@ export function ConceptTesting() {
   const handleLaunch = async () => {
     if (launching) return;
     if (!launchReady) {
-      const missing = readinessItems.filter(item => !item.ready).map(item => item.label.toLowerCase()).join(', ');
-      setLaunchError(`Not ready to launch yet. Finish: ${missing}.`);
+      const missing = readinessItems.filter(item => !item.ready).map(item => item.label.toLowerCase());
+      if (!sourceDecision?.id) missing.push('confirmed GO decision');
+      if (sourceDecision?.id && decisionFreshness && !decisionFreshness.allowed) {
+        missing.push(decisionFreshness.reason ?? 'current decision evidence');
+      }
+      setLaunchError(`Not ready to launch yet. Finish: ${missing.join(', ')}.`);
       return;
     }
     setLaunching(true);
@@ -465,6 +502,10 @@ export function ConceptTesting() {
         status: 'active',
         variantDimensions: draft.variantDimensions as unknown as Record<string, string | null>,
         brandReferenceImageId: draft.brandReference?.imageId ?? null,
+        projectId: routeProjectId ?? null,
+        formulationVersionId: sourceDecision?.formulationVersionId ?? null,
+        decisionRecordId: sourceDecision?.id ?? null,
+        evidenceBundleId: sourceDecision?.evidenceBundleId ?? null,
       });
       localStorage.removeItem(draftStorageKey);
       setStep('launched');
@@ -539,6 +580,8 @@ export function ConceptTesting() {
         description="Prepare one consumer concept test for launch."
         actions={saveStatus}
       />
+
+      <FormulationContextStrip projectId={routeProjectId} context="concept" />
 
       {setupWarnings.length > 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">

@@ -1,10 +1,11 @@
+import { useState } from 'react';
 import { Link } from "react-router";
 import {
-  FolderKanban, Plus, ArrowRight,
+  FolderKanban, Plus, ArrowRight, Search,
 } from "lucide-react";
 import { useFoodType } from "../contexts/food-type-context";
 import { encodeBatchSelection, projectRoutePath } from "../lib/project-identity";
-import { useWorkspaceSettings } from "../lib/hooks";
+import { useFormulationVersions, useWorkspaceSettings } from "../lib/hooks";
 import { useProjectStatusList, type ProjectStatusListEntry } from "../lib/use-project-status";
 import { ProjectCard } from "./project-card";
 import { ProjectWorkflowPath } from "./project-workflow-path";
@@ -114,11 +115,14 @@ function ProjectTable({ entries, onOpen }: {
 function ActiveProjects() {
   const { setSelection } = useFoodType();
   const projects = useProjectStatusList();
+  const { data: formulationVersions = [] } = useFormulationVersions();
+  const [query, setQuery] = useState('');
+  const [formulationFilter, setFormulationFilter] = useState<'all' | 'reviewed' | 'needs-review'>('all');
 
   if (projects.length === 0) {
     return (
       <div>
-        <ProjectSectionHeader count={0} />
+        <ProjectSectionHeader count={0} query={query} onQueryChange={setQuery} formulationFilter={formulationFilter} onFilterChange={setFormulationFilter} />
         <ActiveProjectsEmptyState />
       </div>
     );
@@ -133,17 +137,46 @@ function ActiveProjects() {
     if (attention !== 0) return attention;
     return new Date(b.batch.createdAt).getTime() - new Date(a.batch.createdAt).getTime();
   });
-  const attention = sorted.filter(needsHumanAttention);
+  const visible = (() => {
+    const normalized = query.trim().toLowerCase();
+    return sorted.filter(entry => {
+      const linkedVersions = formulationVersions.filter(version => (
+        version.isCurrent
+        && (version.importBatchId === entry.batch.id || version.projectId === entry.batch.projectId)
+      ));
+      const formulationMatches = formulationFilter === 'all'
+        || (formulationFilter === 'reviewed' && linkedVersions.some(version => version.reviewStatus === 'reviewed'))
+        || (formulationFilter === 'needs-review' && (
+          linkedVersions.length === 0 || linkedVersions.some(version => version.reviewStatus !== 'reviewed')
+        ));
+      if (!formulationMatches) return false;
+      if (!normalized) return true;
+      const formulationText = linkedVersions.flatMap(version => [
+        version.exactStatement,
+        ...version.ingredients.flatMap(ingredient => [ingredient.suppliedName, ingredient.canonicalName, ingredient.functionalRole]),
+      ]).join(' ');
+      return [entry.status.projectName, entry.status.foodTypeLabel, formulationText]
+        .join(' ')
+        .toLowerCase()
+        .includes(normalized);
+    });
+  })();
+  const attention = visible.filter(needsHumanAttention);
 
   return (
     <div className="space-y-5">
-      <ProjectSectionHeader count={projects.length} />
+      <ProjectSectionHeader count={projects.length} visibleCount={visible.length} query={query} onQueryChange={setQuery} formulationFilter={formulationFilter} onFilterChange={setFormulationFilter} />
       <AttentionRail entries={attention} onOpen={open} />
-      {sorted.length > 8 ? (
-        <ProjectTable entries={sorted} onOpen={open} />
+      {visible.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
+          <p className="text-sm font-bold text-slate-900">No projects match this formulation search</p>
+          <p className="mt-1 text-xs text-slate-600">Try a project name, category, ingredient, functional role, or a different review filter.</p>
+        </div>
+      ) : visible.length > 8 ? (
+        <ProjectTable entries={visible} onOpen={open} />
       ) : (
         <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2">
-          {sorted.map(entry => (
+          {visible.map(entry => (
             <ProjectCard
               key={entry.batch.id}
               projectId={entry.batch.id}
@@ -159,14 +192,54 @@ function ActiveProjects() {
   );
 }
 
-function ProjectSectionHeader({ count }: { count: number }) {
+function ProjectSectionHeader({
+  count,
+  visibleCount = count,
+  query,
+  onQueryChange,
+  formulationFilter,
+  onFilterChange,
+}: {
+  count: number;
+  visibleCount?: number;
+  query: string;
+  onQueryChange: (value: string) => void;
+  formulationFilter: 'all' | 'reviewed' | 'needs-review';
+  onFilterChange: (value: 'all' | 'reviewed' | 'needs-review') => void;
+}) {
   return (
-    <div className="mb-4 flex items-center justify-between gap-4">
-      <h2 className="text-lg font-bold text-slate-900">Live projects</h2>
-      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-        <span className={`size-2 rounded-full ${count > 0 ? 'bg-emerald-500' : 'bg-slate-300'}`} aria-hidden />
-        {count} live
-      </span>
+    <div className="mb-4 space-y-3">
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="text-lg font-bold text-slate-900">Live projects</h2>
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+          <span className={`size-2 rounded-full ${count > 0 ? 'bg-emerald-500' : 'bg-slate-300'}`} aria-hidden />
+          {visibleCount === count ? `${count} live` : `${visibleCount} of ${count}`}
+        </span>
+      </div>
+      {count > 0 && (
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <label className="relative flex-1">
+            <span className="sr-only">Search projects and ingredients</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+            <input
+              value={query}
+              onChange={event => onQueryChange(event.target.value)}
+              placeholder="Search projects, ingredients, or roles"
+              className="h-10 w-full rounded-md border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            />
+          </label>
+          <select
+            value={formulationFilter}
+            onChange={event => onFilterChange(event.target.value as 'all' | 'reviewed' | 'needs-review')}
+            aria-label="Filter by formulation review status"
+            className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          >
+            <option value="all">All formulations</option>
+            <option value="reviewed">Reviewed formulations</option>
+            <option value="needs-review">Needs ingredient review</option>
+          </select>
+        </div>
+      )}
     </div>
   );
 }

@@ -76,6 +76,11 @@ export function projectStudiesPath(projectId: string, view: 'studies' | 'ship-ou
   return search ? `${path}${search.startsWith('?') ? search : `?${search}`}` : path;
 }
 
+export function projectDecisionExperimentsPath(projectId: string, search = ''): string {
+  const path = `${projectPath(projectId, 'decision')}/experiments`;
+  return search ? `${path}${search.startsWith('?') ? search : `?${search}`}` : path;
+}
+
 export function legacyWorkflowPathToStep(pathname: string): ProjectJourneyStep | null {
   return LEGACY_PATH_TO_STEP[pathname.replace(/\/+$/, '') || '/'] ?? null;
 }

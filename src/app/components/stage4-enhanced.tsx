@@ -8,7 +8,7 @@ import { CheckCircle2, FileSpreadsheet, FileText, GitMerge, Megaphone } from "lu
 import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from "../data/enhanced-sensory";
 import { DataProvenanceBadge } from "./data-provenance-badge";
 import { useAuth } from "../contexts/auth-context";
-import { insertDecisionRecord } from "../lib/database";
+import { insertDecisionRecord, saveEvidenceBundle } from "../lib/database";
 import { formatFoodTypeLabel, getFoodTypeProfile } from "../lib/food-intelligence";
 import { queryKeys, useDecisionRecords, useImportBatches, useInstrumentalDataset, useProducts, useWorkspaceSettings } from "../lib/hooks";
 import { useSurveyData } from "../lib/use-survey-data";
@@ -31,11 +31,15 @@ import { DecisionReviewWorkspace } from "./decision-review-workspace";
 import { TweakIntelligencePanel } from "./tweak-intelligence-panel";
 import { WorkflowPageHeader } from "./workflow-page-header";
 import { ProjectReadinessSetupCard } from "./project-readiness-setup-card";
+import { FormulationContextStrip } from './formulation-context-strip';
+import { buildEvidenceBundleFromProfiles } from '../lib/report-evidence';
 import type { DecisionOutcome } from "../utils/go-stop-tweak-engine";
 type SampleDecision = GoStopTweakDecision;
 type ConfirmedSampleDecision = SampleDecision & {
   recordId?: string | null;
   parentDecisionId?: string | null;
+  formulationVersionId?: string | null;
+  evidenceBundleId?: string | null;
 };
 
 const DEFAULT_WEIGHTS = { hedonic: 30, texture: 25, cata: 25, emotional: 15 };
@@ -92,11 +96,14 @@ function buildConceptSeedFromDecision(
     technicalChallenges: decisionWatchouts.join('\n'),
     sourceDecision: {
       id: decision.sampleId,
+      sampleId: decision.sampleId,
       sampleName: decision.sampleName,
       issfScore: decision.issfScore,
       confidence: decision.confidenceScore,
       timestamp: new Date().toISOString(),
       likedSignals,
+      formulationVersionId: decision.formulationVersionId ?? null,
+      evidenceBundleId: decision.evidenceBundleId ?? null,
     },
   };
 }
@@ -305,6 +312,8 @@ export function Stage4Enhanced() {
               decision: persistedDecisionRecord.decision,
               recordId: persistedDecisionRecord.id,
               parentDecisionId: persistedDecisionRecord.parentDecisionId,
+              formulationVersionId: persistedDecisionRecord.formulationVersionId,
+              evidenceBundleId: persistedDecisionRecord.evidenceBundleId,
             }
           : null
     : null;
@@ -379,6 +388,7 @@ export function Stage4Enhanced() {
 
       {selected && (
         <>
+          <FormulationContextStrip projectId={routeProjectId} sampleId={selected.sampleId} context="decision" />
           <DecisionReviewWorkspace
             decisions={sampleDecisions}
             selected={selected}
@@ -420,6 +430,25 @@ export function Stage4Enhanced() {
           setDecisionSaving(true);
           setDecisionError("");
           try {
+            if (!selectedProfile) throw new Error('The selected sample evidence is unavailable.');
+            const currentFormulationVersionId = instrumentalDataset?.formulationVersions?.[selected.sampleId]
+              ?.find(version => version.isCurrent)?.id ?? null;
+            const evidencePayload = buildEvidenceBundleFromProfiles({
+              projectId: selected.sampleId,
+              profiles: [selectedProfile],
+              foodTypeSlug: selectedFoodType,
+              createdBy: user.id,
+              thresholds: { go: goThreshold, stop: stopThreshold },
+              minimumResponses,
+            });
+            const evidenceBundle = await saveEvidenceBundle({
+              projectId: selected.sampleId,
+              canonicalProjectId: selectedProjectId,
+              formulationVersionId: currentFormulationVersionId,
+              schemaVersion: evidencePayload.schemaVersion,
+              sourceDataVersion: evidencePayload.sourceDataVersion,
+              payload: evidencePayload as unknown as Record<string, unknown>,
+            });
             const newDecisionId = await insertDecisionRecord({
               sampleId: selected.sampleId,
               sampleName: selected.sampleName,
@@ -432,13 +461,28 @@ export function Stage4Enhanced() {
               createdBy: user.id,
               projectId: selectedProjectId,
               parentDecisionId: retestParentDecisionId,
+              formulationVersionId: currentFormulationVersionId,
+              evidenceBundleId: evidenceBundle.id,
             });
+            if (newDecisionId) {
+              await saveEvidenceBundle({
+                projectId: selected.sampleId,
+                canonicalProjectId: selectedProjectId,
+                decisionRecordId: newDecisionId,
+                formulationVersionId: currentFormulationVersionId,
+                schemaVersion: evidencePayload.schemaVersion,
+                sourceDataVersion: evidencePayload.sourceDataVersion,
+                payload: evidencePayload as unknown as Record<string, unknown>,
+              });
+            }
             await queryClient.invalidateQueries({ queryKey: queryKeys.decisionRecords });
             setConfirmedDecision({
               ...selected,
               decision: outcome,
               recordId: newDecisionId,
               parentDecisionId: retestParentDecisionId,
+              formulationVersionId: currentFormulationVersionId,
+              evidenceBundleId: evidenceBundle.id,
             });
             setConfirmPending(false);
           } catch (error) {

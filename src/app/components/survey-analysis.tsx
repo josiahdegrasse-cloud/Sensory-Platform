@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useParams } from 'react-router';
 import {
-  AlertCircle, BarChart3, ChevronDown, Download, Layers, Megaphone, MessageCircle, Users,
+  AlertCircle, BarChart3, ChevronDown, Download, Layers, Megaphone, Users,
 } from 'lucide-react';
 import { useAuth } from '../contexts/auth-context';
 import { useFoodType, sampleMatchesFoodType } from '../contexts/food-type-context';
@@ -11,6 +11,7 @@ import {
   useAdminConceptTests,
   useConceptTestResponses,
   useDecisionRecords,
+  useFormulationExperiments,
   useImportBatches,
   useInstrumentalDataset,
   useProducts,
@@ -49,6 +50,9 @@ import {
 } from './insights-prototype-workspace';
 import { TEMPORARY_CHEESE_PRODUCT } from '../data/demo/temporary-cheese-demo';
 import { WorkflowPageHeader } from './workflow-page-header';
+import { FormulationContextStrip } from './formulation-context-strip';
+import { buildProductEvidenceSummary } from '../lib/product-evidence';
+import { projectDecisionExperimentsPath, projectPath } from '../lib/project-journey-routes';
 
 const INTENSITY_CHART_MAX = 5;
 
@@ -94,6 +98,7 @@ function buildImportedProfiles(dataset: ReturnType<typeof useInstrumentalDataset
 }
 
 export function SurveyAnalysis() {
+  const { projectId: routeProjectId } = useParams<{ projectId?: string }>();
   const { user } = useAuth();
   const { foodType, subCategory } = useFoodType();
   const importBatchId = parseBatchSelection(subCategory);
@@ -119,6 +124,8 @@ export function SurveyAnalysis() {
   const selectedProjectId = importBatchId
     ? importBatches.find(batch => batch.id === importBatchId)?.projectId ?? null
     : null;
+  const effectiveProjectId = routeProjectId ?? selectedProjectId ?? undefined;
+  const { data: formulationExperiments = [] } = useFormulationExperiments(effectiveProjectId);
   const projectProducts = useMemo(
     () => filterProjectProducts(products, projectSampleIds, foodType, importBatchId, selectedProjectId),
     [products, projectSampleIds, foodType, importBatchId, selectedProjectId],
@@ -186,7 +193,9 @@ export function SurveyAnalysis() {
     projectSampleIds.has(decision.sampleId) ||
     (!importBatchId && sampleMatchesFoodType(decision.sampleId, decision.sampleName) === foodType)
   );
-  const latestDecision = projectDecisions[0] ?? null;
+  const selectedDecision = selectedData
+    ? projectDecisions.find(decision => decision.sampleId === selectedData.sampleId) ?? null
+    : null;
   const selectedGcms = selectedData ? instrumentalDataset?.gcmsData[selectedData.sampleId] ?? [] : [];
   const selectedComposition = selectedData ? instrumentalDataset?.compositionData[selectedData.sampleId] : undefined;
   const datasetsPresent = [selectedInstrument, selectedGcms.length > 0, selectedComposition].filter(Boolean).length;
@@ -313,6 +322,41 @@ export function SurveyAnalysis() {
     : weakestHedonic && weakestHedonic.score < 6
       ? `${weakestHedonic.category} is the lowest liking dimension at ${weakestHedonic.score.toFixed(1)}/9.`
       : strength.note;
+  const selectedFormulationVersions = instrumentalDataset?.formulationVersions?.[selectedData.sampleId] ?? [];
+  const selectedExperiment = formulationExperiments.find(experiment => (
+    projectDecisions.some(decision => (
+      decision.id === experiment.decisionRecordId
+      && decision.sampleId === selectedData.sampleId
+    ))
+  )) ?? null;
+  const productEvidenceSummary = buildProductEvidenceSummary({
+    sampleName: selectedData.sampleName,
+    responseCount: liveResponseCount,
+    minimumResponses,
+    instrumentSources: datasetsPresent,
+    strength,
+    keyStrength,
+    keyConcern,
+    decision: selectedDecision,
+    formulationVersions: selectedFormulationVersions,
+    experiment: selectedExperiment,
+  });
+  const decisionHref = effectiveProjectId ? projectPath(effectiveProjectId, 'decision') : '/decision';
+  const studiesHref = effectiveProjectId ? projectPath(effectiveProjectId, 'studies') : '/admin';
+  const experimentSearch = selectedExperiment
+    ? `?decision=${encodeURIComponent(selectedExperiment.decisionRecordId)}&experiment=${encodeURIComponent(selectedExperiment.id)}`
+    : selectedDecision
+      ? `?decision=${encodeURIComponent(selectedDecision.id)}`
+      : '';
+  const experimentHref = effectiveProjectId && (selectedExperiment || selectedDecision?.decision === 'TWEAK' || selectedDecision?.decision === 'STOP')
+    ? projectDecisionExperimentsPath(effectiveProjectId, experimentSearch)
+    : null;
+  const nextActionHref = productEvidenceSummary.state === 'collecting'
+    ? studiesHref
+    : productEvidenceSummary.state.includes('experiment')
+      || ['confirmation_required', 'capture_learning', 'learning_approved'].includes(productEvidenceSummary.state)
+      ? experimentHref ?? decisionHref
+      : decisionHref;
 
   const comparisonProfiles = projectSamples.filter(sample =>
     liveAggregations.some(aggregation => aggregation.sourceSampleId === sample.sampleId) ||
@@ -330,7 +374,6 @@ export function SurveyAnalysis() {
     };
   });
   const showComparison = comparisonProfiles.length > 1 || multiSampleProducts.length > 0;
-  const comments = matchingLiveData ? commentsByProduct[matchingLiveData.productId] ?? [] : [];
   const prototypeScores = projectSamples.map(sample => {
     const live = findLiveAggregationForSample(sample.sampleId, sample.sampleName);
     return {
@@ -372,32 +415,50 @@ export function SurveyAnalysis() {
   });
   const overviewEvidence = [
     {
-      label: 'Panel coverage',
-      detail: liveResponseCount >= minimumResponses
-        ? `${liveResponseCount} responses exceeds the configured minimum of ${minimumResponses}.`
-        : `${liveResponseCount} of ${minimumResponses} required responses are available.`,
-      value: liveResponseCount >= minimumResponses ? 'Complete' : `${liveResponseCount}/${minimumResponses}`,
-      complete: liveResponseCount >= minimumResponses,
-      warning: liveResponseCount > 0 && liveResponseCount < minimumResponses,
+      kind: 'panel' as const,
+      label: 'Panel response record',
+      source: usingLiveData ? 'Live questionnaire submissions' : 'No live questionnaire source',
+      value: usingLiveData ? `${liveResponseCount} completed evaluation${liveResponseCount === 1 ? '' : 's'}` : 'No live evaluations',
+      detail: usingLiveData
+        ? `Responses are linked directly to ${selectedData.sampleName} (${selectedData.sampleId}).`
+        : 'The displayed profile is not backed by responses collected for this project.',
+      supports: 'The response base for liking, descriptor, and intensity observations.',
+      status: usingLiveData ? (liveResponseCount >= minimumResponses ? 'recorded' as const : 'partial' as const) : 'missing' as const,
     },
     {
-      label: 'Sensory preference',
+      kind: 'liking' as const,
+      label: 'Liking observation',
+      source: '9-point hedonic questionnaire',
+      value: usingLiveData ? `${(matchingLiveData?.hedonic.overall ?? selectedData.hedonic.overall).toFixed(1)}/9 overall liking` : 'No live liking score',
       detail: usingLiveData ? keyStrength : 'No live panel preference has been established for this prototype.',
-      value: usingLiveData ? strength.level : 'Pending',
-      complete: usingLiveData,
+      supports: 'Observed acceptance for this food sample; it does not establish commercialization readiness.',
+      status: usingLiveData ? 'recorded' as const : 'missing' as const,
     },
     {
+      kind: 'descriptors' as const,
+      label: 'Sensory identity',
+      source: 'Panelist-selected CATA descriptors',
+      value: usingLiveData && activeCata[0]
+        ? `${activeCata[0].attribute} · ${activeCata[0].count}/${panelN}`
+        : 'No live descriptor pattern',
+      detail: usingLiveData && activeCata[0]
+        ? `${activeCata[0].percentage.toFixed(0)}% of the recorded panel selected this descriptor.`
+        : 'A descriptor pattern will appear when panel responses are available.',
+      supports: 'The most consistently recognized sensory characteristic of this sample.',
+      status: usingLiveData && activeCata[0] ? 'recorded' as const : 'missing' as const,
+    },
+    {
+      kind: 'instrumental' as const,
       label: 'Instrumental data',
-      detail: `${datasetsPresent} of 3 expected machine sources are linked to this prototype.`,
-      value: `${datasetsPresent}/3`,
-      complete: datasetsPresent === 3,
-    },
-    {
-      label: 'Evidence limitation',
-      detail: keyConcern,
-      value: strength.representative ? 'Qualified' : 'Open',
-      complete: strength.representative,
-      warning: true,
+      source: 'Imported project measurements',
+      value: `${datasetsPresent}/3 sources linked`,
+      detail: [
+        selectedInstrument ? 'E-tongue' : null,
+        selectedGcms.length > 0 ? 'GC-MS' : null,
+        selectedComposition ? 'Composition' : null,
+      ].filter(Boolean).join(', ') || 'No instrumental source is linked to this sample.',
+      supports: 'Objective product measurements that can be compared with the panel observations.',
+      status: datasetsPresent === 3 ? 'recorded' as const : datasetsPresent > 0 ? 'partial' as const : 'missing' as const,
     },
   ];
   const exportSampleCSV = () => {
@@ -413,14 +474,16 @@ export function SurveyAnalysis() {
   return (
     <div className="space-y-6">
       <WorkflowPageHeader
-        title="Insights"
-        description="Separate trained panel evidence from concept testing evidence so product performance and marketing appeal stay clear."
+        title="Product evidence"
+        description="See what the project proves, what it does not prove, and the next evidence gate for each prototype."
         actions={(
           <span className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-500">
-          {projectSamples.length} prototype{projectSamples.length === 1 ? '' : 's'} · {prototypeOptions.reduce((total, prototype) => total + prototype.responseCount, 0)} live responses
+          {projectSamples.length} prototype{projectSamples.length === 1 ? '' : 's'} · {prototypeOptions.reduce((total, prototype) => total + prototype.responseCount, 0)} live response{prototypeOptions.reduce((total, prototype) => total + prototype.responseCount, 0) === 1 ? '' : 's'}
           </span>
         )}
       />
+
+      <FormulationContextStrip projectId={routeProjectId} sampleId={selectedData.sampleId} context="insights" />
 
       {usingTemporaryDemo && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -455,13 +518,7 @@ export function SurveyAnalysis() {
         </TabsList>
 
         <TabsContent value="food-panel" className="space-y-4">
-          <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4">
-            <InsightsSectionHeader
-              id="trained-panel-results"
-              icon={Users}
-              title="What panelists think of the food"
-              description="Product and sample evidence from trained panel questionnaires, live responses, and linked machine data."
-            />
+          <section className="space-y-4">
             <InsightsPrototypeWorkspace
               prototypes={prototypeOptions}
               selectedId={selectedSample}
@@ -470,8 +527,9 @@ export function SurveyAnalysis() {
               instrumentSources={datasetsPresent}
               usingLiveData={usingLiveData}
               strength={strength}
-              keyStrength={keyStrength}
-              keyConcern={keyConcern}
+              summary={productEvidenceSummary}
+              nextActionHref={nextActionHref}
+              experimentHref={experimentHref}
               overviewEvidence={overviewEvidence}
               likingContent={<HedonicTab activeHedonicData={activeHedonic} activeAvgHedonic={averageHedonic.toFixed(1)} activePanelistN={panelN} usingLiveData={usingLiveData} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}
               descriptorContent={<CATATab activeCataAttributes={activeCata} activePanelistN={panelN} usingLiveData={usingLiveData} activeSampleId={selectedData.sampleId} activeSampleName={selectedData.sampleName} />}
@@ -525,23 +583,12 @@ export function SurveyAnalysis() {
       <details className="rounded-lg border border-slate-200 bg-white">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-bold text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500">
           <span>
-            Explore detailed evidence
-            <span className="ml-2 font-normal text-slate-500">Comparisons, concepts, method notes, and raw exports</span>
+            Methods and exports
+            <span className="ml-2 font-normal text-slate-500">Provenance, thresholds, and downloadable project data</span>
           </span>
           <ChevronDown className="size-4 shrink-0 text-slate-500" aria-hidden />
         </summary>
         <div className="space-y-8 border-t border-slate-200 p-5">
-      <section className="space-y-4">
-        <InsightsSectionHeader id="comments-themes" icon={MessageCircle} title="Comments and themes" description="Raw panelist language remains visible alongside clear response coverage." />
-        <CommentsTab usingLiveData={usingLiveData} matchingLiveData={matchingLiveData} commentsByProduct={commentsByProduct} />
-        {comments.length > 0 && (
-          <p className="text-xs text-slate-500">
-            {comments.length} open-text comment{comments.length === 1 ? '' : 's'} from {liveResponseCount} matched live responses.
-            {comments.length < 3 && ' Too few comments to infer a recurring theme — use them to generate hypotheses, not claims.'}
-          </p>
-        )}
-      </section>
-
       <RawDataAppendix>
         <div className="grid gap-5 lg:grid-cols-2">
           <div>
@@ -551,7 +598,7 @@ export function SurveyAnalysis() {
               <li>Instrument sources: {datasetsPresent} of 3 available.</li>
               <li>Concept responses: {primaryConceptResponses.length}.</li>
               <li>Configured decision threshold: {minimumResponses} responses.</li>
-              <li>Decision: {latestDecision ? `${latestDecision.decision}, ISSF ${latestDecision.issfScore.toFixed(0)}` : 'not recorded'}.</li>
+              <li>Decision: {selectedDecision ? `${selectedDecision.decision}, ISSF ${selectedDecision.issfScore.toFixed(0)}` : 'not recorded'}.</li>
             </ul>
           </div>
           <div>

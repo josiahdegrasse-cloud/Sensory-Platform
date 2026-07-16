@@ -11,7 +11,9 @@ import {
   useRecordPanelistKitReminder,
   useUpdatePanelistKitFulfillment,
   useVoidPanelistKit,
+  useFormulationVersions,
 } from '../lib/hooks';
+import { verifiedAllergenTags } from '../lib/formulation-profile';
 import { getBlindStudyDisplayName } from '../lib/blind-study';
 import { taskSummariesForIds, type BoxTaskSummary } from '../lib/panelist-box-workflow';
 import { Alert, AlertDescription } from './ui/alert';
@@ -120,8 +122,8 @@ function downloadKitsCsv(product: Product, kits: PanelistKitRecord[], taskOption
   URL.revokeObjectURL(url);
 }
 
-function downloadPackingSheet(product: Product, kits: GeneratedPanelistKit[], taskOptions: Product[]) {
-  const headers = ['Packed', 'Box code', 'Recipient name', 'Recipient email', 'Delivery address', 'Assigned tasks'];
+function downloadPackingSheet(product: Product, kits: GeneratedPanelistKit[], taskOptions: Product[], verifiedAllergens: string[]) {
+  const headers = ['Packed', 'Box code', 'Recipient name', 'Recipient email', 'Delivery address', 'Assigned tasks', 'Verified allergen note'];
   const rows = kits.map(kit => [
     '',
     kit.kitCode,
@@ -129,6 +131,7 @@ function downloadPackingSheet(product: Product, kits: GeneratedPanelistKit[], ta
     kit.recipientEmail,
     kit.recipientAddress,
     taskSummariesForIds(taskOptions, kit.assignedProductIds, product).map(task => task.label).join('; '),
+    verifiedAllergens.join('; ') || 'None recorded',
   ]);
   const csv = [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
@@ -140,11 +143,12 @@ function downloadPackingSheet(product: Product, kits: GeneratedPanelistKit[], ta
   URL.revokeObjectURL(url);
 }
 
-function KitInsertCard({ kit, product, instructions, assignedTasks }: {
+function KitInsertCard({ kit, product, instructions, assignedTasks, verifiedAllergens }: {
   kit: GeneratedPanelistKit;
   product: Product;
   instructions: string;
   assignedTasks: BoxTaskSummary[];
+  verifiedAllergens: string[];
 }) {
   const url = panelistSiteUrl();
   const displayName = product.blinded ? 'Coded at-home tasting box' : `${product.name} tasting box`;
@@ -196,6 +200,10 @@ function KitInsertCard({ kit, product, instructions, assignedTasks }: {
               ))}
             </ul>
           </div>
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
+            <h3 className="text-sm font-bold text-amber-950">Verified allergen information</h3>
+            <p className="mt-1 text-sm leading-5 text-amber-900">{verifiedAllergens.join(', ') || 'No allergens are recorded in the reviewed formulation. Always check the physical product label before tasting.'}</p>
+          </div>
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
             <h3 className="text-sm font-bold text-slate-900">Handling notes</h3>
             <p className="mt-1 whitespace-pre-line text-sm leading-5 text-slate-700">{instructions}</p>
@@ -224,10 +232,11 @@ function KitInsertCard({ kit, product, instructions, assignedTasks }: {
   );
 }
 
-function BatchPackingSheet({ product, kits, taskOptions }: {
+function BatchPackingSheet({ product, kits, taskOptions, verifiedAllergens }: {
   product: Product;
   kits: GeneratedPanelistKit[];
   taskOptions: Product[];
+  verifiedAllergens: string[];
 }) {
   return (
     <section className="kit-manifest-page rounded-lg border border-slate-200 bg-white p-6 text-slate-900">
@@ -240,6 +249,7 @@ function BatchPackingSheet({ product, kits, taskOptions }: {
         <p className="text-xs text-slate-500">Printed {new Date().toLocaleDateString()}</p>
       </div>
       <p className="mt-4 rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-700">Pack one row at a time. Match the box code to its insert, confirm the recipient details, then tick the row when sealed.</p>
+      <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950"><strong>Reviewed formulation allergens:</strong> {verifiedAllergens.join(', ') || 'None recorded'} · Confirm against the physical label before sealing.</p>
       <div className="mt-4 overflow-hidden rounded-md border border-slate-300">
         <table className="w-full border-collapse text-left text-xs">
           <thead className="bg-slate-100 text-slate-700">
@@ -272,12 +282,19 @@ export function PanelistKitInserts({
   standalone?: boolean;
 }) {
   const { data: existingKits = [] } = usePanelistKits(product.id);
+  const { data: formulationVersions = [] } = useFormulationVersions();
   const { data: panelists = [], isLoading: panelistsLoading } = usePanelists();
   const generateKits = useGeneratePanelistKits();
   const updateFulfillment = useUpdatePanelistKitFulfillment(product.id);
   const recordReminder = useRecordPanelistKitReminder(product.id);
   const voidKit = useVoidPanelistKit(product.id);
   const createReplacement = useCreateReplacementPanelistKit(product.id);
+  const reviewedFormulation = formulationVersions.find(version => (
+    version.sampleId === product.sourceSampleId
+    && version.isCurrent
+    && version.reviewStatus === 'reviewed'
+  ));
+  const verifiedAllergens = verifiedAllergenTags(reviewedFormulation);
   const [responseDeadline, setResponseDeadline] = useState('');
   const [instructions, setInstructions] = useState(defaultInstructions);
   const [selectedPanelistIds, setSelectedPanelistIds] = useState<string[]>([]);
@@ -528,6 +545,12 @@ export function PanelistKitInserts({
           <div className="space-y-4">
             <div className="max-w-sm space-y-1.5"><Label htmlFor="response-deadline">Complete tastings by</Label><Input id="response-deadline" type="date" value={responseDeadline} onChange={event => setResponseDeadline(event.target.value)} /></div>
             <div className="space-y-1.5"><Label htmlFor="handling-instructions">Storage and safety instructions</Label><Textarea id="handling-instructions" value={instructions} onChange={event => setInstructions(event.target.value)} className="min-h-24 bg-white text-sm leading-5" /></div>
+            <p className={`rounded-md border px-3 py-2.5 text-xs leading-5 ${reviewedFormulation ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+              <strong>{reviewedFormulation ? `Formulation v${reviewedFormulation.versionNumber} reviewed.` : 'Formulation review required.'}</strong>{' '}
+              {reviewedFormulation
+                ? `Verified allergen note for inserts: ${verifiedAllergens.join(', ') || 'none recorded'}. Confirm against the physical label.`
+                : 'Suggested ingredient flags are not inserted into participant materials.'}
+            </p>
             <p className="rounded-md bg-slate-50 px-3 py-2.5 text-xs leading-5 text-slate-600">The printed QR always opens the panelist site. Study availability is controlled by account assignment and the completion deadline above.</p>
           </div>
         </section>
@@ -572,9 +595,9 @@ export function PanelistKitInserts({
         <span className="text-xs leading-5 text-slate-500">Creates {effectiveKitCount || 0} assigned box{effectiveKitCount === 1 ? '' : 'es'} and adds the selected tasks to each panelist account.</span>
       </div>
 
-      {generatedKits.length > 0 && <section className="rounded-lg border border-emerald-300 bg-emerald-50 p-4" aria-labelledby="generated-boxes-heading"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-700" aria-hidden /><div><h4 id="generated-boxes-heading" className="font-bold text-emerald-950">The complete batch is ready</h4><p className="mt-0.5 text-sm text-emerald-900">Print one packing sheet followed by every account QR insert, or download the recipient sheet for your shipping workflow.</p></div></div><div className="flex flex-col gap-2 sm:flex-row"><Button type="button" variant="outline" onClick={() => downloadPackingSheet(product, generatedKits, taskOptions)} className="border-emerald-700 bg-white text-emerald-900 hover:bg-emerald-100"><Download className="size-4" aria-hidden />Download packing sheet</Button><Button type="button" onClick={() => window.print()} className="bg-emerald-800 text-white hover:bg-emerald-900"><Printer className="size-4" aria-hidden />Print / save full batch</Button></div></div></section>}
+      {generatedKits.length > 0 && <section className="rounded-lg border border-emerald-300 bg-emerald-50 p-4" aria-labelledby="generated-boxes-heading"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-700" aria-hidden /><div><h4 id="generated-boxes-heading" className="font-bold text-emerald-950">The complete batch is ready</h4><p className="mt-0.5 text-sm text-emerald-900">Print one packing sheet followed by every account QR insert, or download the recipient sheet for your shipping workflow.</p></div></div><div className="flex flex-col gap-2 sm:flex-row"><Button type="button" variant="outline" onClick={() => downloadPackingSheet(product, generatedKits, taskOptions, verifiedAllergens)} className="border-emerald-700 bg-white text-emerald-900 hover:bg-emerald-100"><Download className="size-4" aria-hidden />Download packing sheet</Button><Button type="button" onClick={() => window.print()} className="bg-emerald-800 text-white hover:bg-emerald-900"><Printer className="size-4" aria-hidden />Print / save full batch</Button></div></div></section>}
 
-      {generatedKits.length > 0 && <div className="kit-print-area grid gap-4"><BatchPackingSheet product={product} kits={generatedKits} taskOptions={taskOptions} />{generatedKits.map(kit => <KitInsertCard key={kit.id} kit={kit} product={product} instructions={instructions} assignedTasks={taskSummariesForIds(taskOptions, kit.assignedProductIds, product)} />)}</div>}
+      {generatedKits.length > 0 && <div className="kit-print-area grid gap-4"><BatchPackingSheet product={product} kits={generatedKits} taskOptions={taskOptions} verifiedAllergens={verifiedAllergens} />{generatedKits.map(kit => <KitInsertCard key={kit.id} kit={kit} product={product} instructions={instructions} assignedTasks={taskSummariesForIds(taskOptions, kit.assignedProductIds, product)} verifiedAllergens={verifiedAllergens} />)}</div>}
 
       {existingKits.length > 0 && (
         <section className="overflow-hidden rounded-lg border border-slate-200 bg-white" aria-labelledby="fielding-heading">

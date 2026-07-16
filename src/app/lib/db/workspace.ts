@@ -122,6 +122,12 @@ export interface DecisionRecord {
   projectId?: string | null;
   /** Set when this decision was made after a retest triggered by a prior TWEAK/STOP. */
   parentDecisionId?: string | null;
+  /** Immutable formulation snapshot evaluated when this decision was saved. */
+  formulationVersionId?: string | null;
+  /** Immutable product-evidence bundle evaluated when this decision was saved. */
+  evidenceBundleId?: string | null;
+  researchRefreshedAt?: string | null;
+  researchFingerprint?: string | null;
 }
 
 function defaultWorkspaceSettings(): WorkspaceSettings {
@@ -541,6 +547,10 @@ export async function fetchDecisionRecords(limit = 200): Promise<DecisionRecord[
     decisionFingerprint: row.decision_fingerprint as string,
     projectId: (row.project_id as string) ?? null,
     parentDecisionId: (row.parent_decision_id as string) ?? null,
+    formulationVersionId: (row.formulation_version_id as string) ?? null,
+    evidenceBundleId: (row.evidence_bundle_id as string) ?? null,
+    researchRefreshedAt: (row.research_refreshed_at as string) ?? null,
+    researchFingerprint: (row.research_fingerprint as string) ?? null,
   }));
 }
 
@@ -557,6 +567,8 @@ export async function insertDecisionRecord(input: {
   projectId?: string | null;
   /** ID of the TWEAK/STOP decision that triggered the retest leading to this one. */
   parentDecisionId?: string | null;
+  formulationVersionId?: string | null;
+  evidenceBundleId?: string | null;
 }): Promise<string | null> {
   const { data, error } = await supabase.from('decision_records').insert({
     sample_id: input.sampleId,
@@ -570,6 +582,8 @@ export async function insertDecisionRecord(input: {
     created_by: input.createdBy,
     project_id: input.projectId ?? null,
     parent_decision_id: input.parentDecisionId ?? null,
+    formulation_version_id: input.formulationVersionId ?? null,
+    evidence_bundle_id: input.evidenceBundleId ?? null,
   }).select('id').single();
   if (error) throw dbError(error);
   return (data as { id: string } | null)?.id ?? null;

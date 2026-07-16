@@ -135,6 +135,32 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
   );
   const latestDecision = latestByDate(projectDecisions, decision => decision.timestamp);
   projectDecisions.forEach(record => sampleIds.add(record.sampleId));
+  const currentEvidenceBundle = latestDecision
+    ? input.evidenceBundles?.find(bundle => (
+        bundle.projectId === latestDecision.sampleId
+        && bundle.isCurrentProduct
+        && (!routeProjectId || !bundle.canonicalProjectId || bundle.canonicalProjectId === routeProjectId)
+      )) ?? null
+    : null;
+  const currentFormulationVersion = latestDecision
+    ? input.instrumentalDataset?.formulationVersions?.[latestDecision.sampleId]
+        ?.find(version => version.isCurrent) ?? null
+    : null;
+  const productEvidenceCurrent = input.evidenceBundles === undefined
+    ? Boolean(latestDecision)
+    : Boolean(
+        latestDecision
+        && latestDecision.evidenceBundleId
+        && currentEvidenceBundle?.id === latestDecision.evidenceBundleId
+      );
+  const formulationCurrent = Boolean(
+    latestDecision
+    && (
+      currentFormulationVersion
+        ? latestDecision.formulationVersionId === currentFormulationVersion.id
+        : !latestDecision.formulationVersionId
+    )
+  );
 
   const projectProducts = input.products.filter(product => {
     if (product.status === 'archived') return false;
@@ -231,9 +257,17 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
     : insightsStatus === 'ready'
       ? 'ready'
       : 'blocked';
-  const decisionWarnings = latestDecision && latestDecision.confidence < 70
-    ? [`Evidence strength is ${latestDecision.confidence}/100. Treat this decision as cautious guidance and review the underlying evidence before downstream work.`]
-    : [];
+  const decisionWarnings = [
+    latestDecision && latestDecision.confidence < 70
+      ? `Evidence strength is ${latestDecision.confidence}/100. Treat this decision as cautious guidance and review the underlying evidence before downstream work.`
+      : null,
+    latestDecision && !productEvidenceCurrent
+      ? 'Product evidence changed or the decision is not linked to the current canonical evidence bundle. Re-run and confirm the decision before concept or report work.'
+      : null,
+    latestDecision && !formulationCurrent
+      ? 'The current formulation differs from the formulation evaluated by this decision. Re-test and re-confirm before downstream work.'
+      : null,
+  ].filter((warning): warning is string => Boolean(warning));
   const decisionStage = enforceNoReadyWithBlockers(stage({
     id: 'decision',
     status: decisionStatus,
@@ -246,7 +280,7 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
     relatedEntityIds: { decisionRecordIds: latestDecision ? [latestDecision.id] : [] },
   }));
 
-  const goDecision = latestDecision?.decision === 'GO';
+  const goDecision = latestDecision?.decision === 'GO' && productEvidenceCurrent && formulationCurrent;
   const projectConcepts = input.conceptTests.filter(concept =>
     (concept.foodTypeSlug ? concept.foodTypeSlug === input.foodType : true) &&
     concept.status !== 'archived'
@@ -268,7 +302,11 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
   const conceptStage = enforceNoReadyWithBlockers(stage({
     id: 'concept',
     status: conceptStatus,
-    blockers: goDecision ? [] : [`A confirmed GO decision is required before concept testing. The current decision is ${latestDecision?.decision ?? 'not confirmed'}, so do not use this project for consumer-facing concept or commercialization work yet.`],
+    blockers: goDecision ? [] : [
+      latestDecision?.decision === 'GO'
+        ? 'The GO decision is stale because product evidence or formulation context changed. Re-run and confirm the decision before concept testing.'
+        : `A confirmed GO decision is required before concept testing. The current decision is ${latestDecision?.decision ?? 'not confirmed'}, so do not use this project for consumer-facing concept or commercialization work yet.`,
+    ],
     warnings: projectConcepts.length > 0 && conceptResponses === 0 ? ['Concept evidence has no consumer responses yet. Consumer preference and purchase intent cannot be supported until panelists complete the concept test. Launch the test or collect responses.'] : [],
     completedItems: [
       projectConcepts[0] ? `${projectConcepts[0].name} concept exists` : null,
@@ -313,7 +351,11 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
     id: 'report',
     status: reportStatus,
     blockers: [
-      !goDecision ? `A confirmed GO decision is required before building a commercialization report. The current decision is ${latestDecision?.decision ?? 'not confirmed'}; review the decision and retest if needed before commercialization reporting.` : null,
+      !goDecision
+        ? latestDecision?.decision === 'GO'
+          ? 'The GO decision is stale because product evidence or formulation context changed. Re-run and confirm it before commercialization reporting.'
+          : `A confirmed GO decision is required before building a commercialization report. The current decision is ${latestDecision?.decision ?? 'not confirmed'}; review the decision and retest if needed before commercialization reporting.`
+        : null,
       ...reportReadinessBlockers,
     ].filter((item): item is string => Boolean(item)),
     warnings: [

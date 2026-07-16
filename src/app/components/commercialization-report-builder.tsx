@@ -13,7 +13,9 @@ import {
   useCommercializationReports,
   useConceptTestResponses,
   useCreateCommercializationReport,
+  useDecisionFreshness,
   useDecisionRecords,
+  useFormulationVersions,
   useProjectEvidenceBundle,
   useSaveEvidenceBundle,
 } from '../lib/hooks';
@@ -59,23 +61,27 @@ export function CommercializationReportBuilder({
   const { data: decisions = [] } = useDecisionRecords();
   const { data: concepts = [] } = useAdminConceptTests();
   const { data: reports = [] } = useCommercializationReports();
+  const { data: formulationVersions = [] } = useFormulationVersions();
   const matchingConcepts = useMemo(() => concepts.filter(concept =>
     concept.foodTypeSlug === foodType || concept.category.toLowerCase().includes(foodType.toLowerCase()),
   ), [concepts, foodType]);
-  const effectiveConceptId = conceptId || matchingConcepts[0]?.id || '';
-  const selectedConcept = matchingConcepts.find(concept => concept.id === effectiveConceptId);
-  const responsesQuery = useConceptTestResponses(effectiveConceptId);
-  const responses = useMemo(() => responsesQuery.data ?? [], [responsesQuery.data]);
-  const evidenceQuery = useProjectEvidenceBundle(decision.sampleId, userId, open);
-  const evidenceBundle = evidenceQuery.data ?? null;
-  const createReport = useCreateCommercializationReport();
-  const saveBundle = useSaveEvidenceBundle();
-
   const confirmedGo = decisions.find(record =>
     record.sampleId === decision.sampleId
     && record.decision === 'GO'
     && record.decisionFingerprint === decision.decisionFingerprint,
   );
+  const governedConcepts = useMemo(() => matchingConcepts.filter(concept =>
+    concept.decisionRecordId === confirmedGo?.id
+  ), [confirmedGo?.id, matchingConcepts]);
+  const effectiveConceptId = conceptId || governedConcepts[0]?.id || '';
+  const selectedConcept = governedConcepts.find(concept => concept.id === effectiveConceptId);
+  const responsesQuery = useConceptTestResponses(effectiveConceptId);
+  const responses = useMemo(() => responsesQuery.data ?? [], [responsesQuery.data]);
+  const evidenceQuery = useProjectEvidenceBundle(decision.sampleId, userId, open);
+  const evidenceBundle = evidenceQuery.data ?? null;
+  const { data: decisionFreshness } = useDecisionFreshness(confirmedGo?.id);
+  const createReport = useCreateCommercializationReport();
+  const saveBundle = useSaveEvidenceBundle();
   const imageIndex = imageIndexOverride
     ?? (selectedConcept ? preferredConceptImageIndex(selectedConcept.imageMeta, selectedConcept.imageUrls.length) : 0);
   const canOpen = decision.decision === 'GO' && Boolean(confirmedGo);
@@ -85,7 +91,8 @@ export function CommercializationReportBuilder({
     && selectedConcept.imageUrls.length > 0
     && responsesQuery.isSuccess
     && evidenceBundle
-    && userId,
+    && userId
+    && decisionFreshness?.allowed === true,
   );
 
   useEffect(() => {
@@ -185,8 +192,28 @@ export function CommercializationReportBuilder({
         throw new Error(orchestrated.qc.criticalBlockers[0] ?? 'The agent workflow stopped before the document could be drafted.');
       }
       const estimatedCostUsd = estimateReportAgentCost(metered.usage);
+      const formulation = formulationVersions.find(version => version.id === confirmedGo.formulationVersionId)
+        ?? formulationVersions.find(version => version.sampleId === decision.sampleId && version.isCurrent)
+        ?? null;
+      const verifiedIngredients = formulation?.ingredients.filter(ingredient => ingredient.reviewStatus === 'verified') ?? [];
+      const formulationGaps = formulation ? [
+        formulation.reviewStatus !== 'reviewed' ? 'Formulation profile needs human review.' : null,
+        formulation.ingredients.some(ingredient => ingredient.reviewStatus === 'suggested') ? 'Ingredient classifications remain unverified.' : null,
+        verifiedIngredients.some(ingredient => !ingredient.supplier) ? 'One or more ingredient suppliers are not recorded.' : null,
+        verifiedIngredients.some(ingredient => !ingredient.specification) ? 'One or more ingredient specifications are not recorded.' : null,
+      ].filter((gap): gap is string => Boolean(gap)) : ['No formulation snapshot is linked.'];
       const reportSnapshot: CommercializationReportSnapshot = {
         ...orchestrated.snapshot,
+        formulation: formulation ? {
+          versionId: formulation.id,
+          versionNumber: formulation.versionNumber,
+          fingerprint: formulation.fingerprint,
+          reviewStatus: formulation.reviewStatus,
+          exactStatement: formulation.reviewStatus === 'reviewed' ? formulation.exactStatement : undefined,
+          reviewedIngredients: verifiedIngredients.map(ingredient => ingredient.canonicalName),
+          verifiedAllergens: [...new Set(verifiedIngredients.flatMap(ingredient => ingredient.allergenTags))],
+          readinessGaps: formulationGaps,
+        } : undefined,
         literatureCitations: orchestrated.literatureCitations,
         evidenceCards: orchestrated.evidenceCards,
         agentReview: {
@@ -218,6 +245,9 @@ export function CommercializationReportBuilder({
       try {
         const savedBundle = await saveBundle.mutateAsync({
           projectId: evidenceBundle.projectId,
+          canonicalProjectId: confirmedGo.projectId,
+          decisionRecordId: confirmedGo.id,
+          formulationVersionId: confirmedGo.formulationVersionId,
           schemaVersion: evidenceBundle.schemaVersion,
           sourceDataVersion: evidenceBundle.sourceDataVersion,
           payload: evidenceBundle as unknown as Record<string, unknown>,
@@ -235,6 +265,7 @@ export function CommercializationReportBuilder({
           .replace(/\{sample\}/g, decision.sampleName),
         reportSnapshot: reportSnapshot as unknown as Record<string, unknown>,
         evidenceBundleId,
+        formulationVersionId: confirmedGo.formulationVersionId ?? selectedConcept.formulationVersionId ?? null,
       });
       if (reportSnapshot.concept.packagingImageId) {
         await updateConceptImageReviewStatus([reportSnapshot.concept.packagingImageId], 'approved').catch(() => {});
@@ -278,11 +309,14 @@ export function CommercializationReportBuilder({
                 <Select value={effectiveConceptId} onValueChange={value => { setConceptId(value); setImageIndex(null); }}>
                   <SelectTrigger className="mt-1"><SelectValue placeholder="Select concept" /></SelectTrigger>
                   <SelectContent>
-                    {matchingConcepts.map(concept => <SelectItem key={concept.id} value={concept.id}>{concept.name}</SelectItem>)}
+                    {governedConcepts.map(concept => <SelectItem key={concept.id} value={concept.id}>{concept.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                {matchingConcepts.length === 0 && (
-                  <p className="mt-2 text-xs text-amber-700">A matching {foodType} concept is required.</p>
+                {governedConcepts.length === 0 && (
+                  <p className="mt-2 text-xs text-amber-700">A concept linked to this confirmed GO decision is required.</p>
+                )}
+                {decisionFreshness && !decisionFreshness.allowed && (
+                  <p className="mt-2 text-xs text-rose-700">{decisionFreshness.reason}</p>
                 )}
               </div>
 

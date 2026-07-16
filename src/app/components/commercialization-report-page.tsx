@@ -14,6 +14,7 @@ import {
   useAdminConceptTests,
   useCommercializationReports,
   useDecisionRecords,
+  useDecisionFreshness,
   useInstrumentalDataset,
   useProjectEvidenceBundle,
   useWorkspaceSettings,
@@ -33,6 +34,7 @@ import { ReportReadinessPanel } from './report-readiness-panel';
 import { ReportNarrativePanel, ReportPdfPreviewPanel, ReportVersionsPanel } from './report-workspace-panels';
 import { StageEmptyState } from './stage-empty-state';
 import { WorkflowPageHeader } from './workflow-page-header';
+import { FormulationContextStrip } from './formulation-context-strip';
 
 type WorkspaceTab = 'report' | 'review' | 'narrative' | 'preview' | 'versions';
 
@@ -71,9 +73,12 @@ export function CommercializationReportPage() {
   ), [foodType, instrumentalDataset]);
   const projectGoDecisions = useMemo(() => decisions.filter(decision =>
     decision.decision === 'GO'
+    && Boolean(decision.evidenceBundleId)
+    && (!routeProjectId || decision.projectId === routeProjectId)
     && (currentSampleIds.has(decision.sampleId) || sampleMatchesFoodType(decision.sampleId, decision.sampleName) === foodType),
-  ), [currentSampleIds, decisions, foodType]);
+  ), [currentSampleIds, decisions, foodType, routeProjectId]);
   const focusDecision = requestedDecision ?? projectGoDecisions[0] ?? null;
+  const { data: decisionFreshness } = useDecisionFreshness(focusDecision?.id);
   const { data: evidenceBundle, isLoading: evidenceLoading } = useProjectEvidenceBundle(
     focusDecision?.sampleId,
     user?.id,
@@ -82,8 +87,9 @@ export function CommercializationReportPage() {
 
   const matchingConcepts = useMemo(() => concepts.filter(concept =>
     concept.status !== 'archived'
+    && concept.decisionRecordId === focusDecision?.id
     && (concept.foodTypeSlug === foodType || concept.category.toLowerCase().includes(foodType.toLowerCase())),
-  ), [concepts, foodType]);
+  ), [concepts, focusDecision?.id, foodType]);
   const selectedConcept = requestedReport
     ? concepts.find(concept => concept.id === requestedReport.conceptTestId) ?? null
     : matchingConcepts[0] ?? null;
@@ -160,11 +166,31 @@ export function CommercializationReportPage() {
           description="Prepare the client deliverable after a GO decision has been confirmed."
           actions={<Button asChild variant="outline"><Link to={workflowStagePath('report', routeProjectId)}><ArrowLeft className="size-4" />Reports</Link></Button>}
         />
+        <FormulationContextStrip projectId={routeProjectId} context="report" />
         <StageEmptyState
           icon={FileText}
           locked
           headline="A confirmed GO decision is required"
           body="Review the product evidence and confirm the decision before creating a commercialization report."
+          cta={{ label: 'Open Decision review', to: workflowStagePath('decision', routeProjectId) }}
+        />
+      </div>
+    );
+  }
+
+  if (decisionFreshness && !decisionFreshness.allowed) {
+    return (
+      <div className="space-y-6">
+        <WorkflowPageHeader
+          title="Commercialization report"
+          description="The prior GO decision no longer matches the current product evidence."
+          actions={<Button asChild variant="outline"><Link to={workflowStagePath('report', routeProjectId)}><ArrowLeft className="size-4" />Reports</Link></Button>}
+        />
+        <StageEmptyState
+          icon={ShieldCheck}
+          locked
+          headline="Re-confirm the product decision"
+          body={decisionFreshness.reason ?? 'Product evidence changed after the linked GO decision.'}
           cta={{ label: 'Open Decision review', to: workflowStagePath('decision', routeProjectId) }}
         />
       </div>
@@ -179,6 +205,8 @@ export function CommercializationReportPage() {
           description="Confirm the source decision and concept direction, then create a structured client report."
           actions={<Button asChild variant="outline"><Link to={libraryPath}><ArrowLeft className="size-4" />Reports</Link></Button>}
         />
+
+        <FormulationContextStrip projectId={routeProjectId} sampleId={focusDecision.sampleId} context="report" />
 
         <section className="border-y border-slate-200 bg-white py-5">
           <div className="grid gap-5 md:grid-cols-3">
@@ -259,6 +287,13 @@ export function CommercializationReportPage() {
         )}
       />
 
+      <FormulationContextStrip
+        projectId={routeProjectId}
+        sampleId={focusDecision.sampleId}
+        formulationVersionId={savedReport.formulationVersionId ?? focusDecision.formulationVersionId}
+        context="report"
+      />
+
       {exportError && <p role="alert" className="text-sm text-rose-700">{exportError}</p>}
 
       {usingDemoEvidence && (
@@ -266,6 +301,24 @@ export function CommercializationReportPage() {
           <ShieldCheck className="mt-0.5 size-4 shrink-0" />
           <p><strong>Demonstration report.</strong> The workflow and layout are fully functional, but reference evidence must be replaced before client release.</p>
         </div>
+      )}
+
+      {snapshot.formulation && (
+        <section className="border-y border-slate-200 bg-white py-4" aria-label="Saved formulation traceability">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Saved formulation traceability</p>
+              <p className="mt-1 text-sm font-bold text-slate-900">
+                Version {snapshot.formulation.versionNumber} · {snapshot.formulation.reviewStatus.replace('_', ' ')}
+              </p>
+              <p className="mt-1 text-xs text-slate-600">Fingerprint {snapshot.formulation.fingerprint.slice(0, 12)} · {snapshot.formulation.reviewedIngredients.length} reviewed ingredients</p>
+            </div>
+            <div className="max-w-2xl text-xs leading-5 text-slate-700">
+              <p><strong className="text-slate-900">Verified allergens:</strong> {snapshot.formulation.verifiedAllergens.join(', ') || 'None recorded'}</p>
+              <p><strong className="text-slate-900">Readiness gaps:</strong> {snapshot.formulation.readinessGaps.join(' ') || 'No formulation gaps recorded.'}</p>
+            </div>
+          </div>
+        </section>
       )}
 
       <ReportApprovalBar report={savedReport} blockedReason={approvalBlocker} />

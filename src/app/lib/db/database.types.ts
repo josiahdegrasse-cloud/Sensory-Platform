@@ -157,6 +157,7 @@ export type Database = {
           created_by: string
           decision_record_id: string
           evidence_bundle_id: string | null
+          formulation_version_id: string | null
           id: string
           org_id: string | null
           packaging_image_id: string | null
@@ -175,6 +176,7 @@ export type Database = {
           created_by: string
           decision_record_id: string
           evidence_bundle_id?: string | null
+          formulation_version_id?: string | null
           id?: string
           org_id?: string | null
           packaging_image_id?: string | null
@@ -193,6 +195,7 @@ export type Database = {
           created_by?: string
           decision_record_id?: string
           evidence_bundle_id?: string | null
+          formulation_version_id?: string | null
           id?: string
           org_id?: string | null
           packaging_image_id?: string | null
@@ -237,6 +240,13 @@ export type Database = {
             columns: ["evidence_bundle_id"]
             isOneToOne: false
             referencedRelation: "evidence_bundles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commercialization_reports_formulation_version_id_fkey"
+            columns: ["formulation_version_id"]
+            isOneToOne: false
+            referencedRelation: "formulation_versions"
             referencedColumns: ["id"]
           },
           {
@@ -597,8 +607,11 @@ export type Database = {
           category: string
           concept_folder_name: string | null
           created_at: string | null
+          decision_record_id: string | null
           description: string | null
+          evidence_bundle_id: string | null
           food_type_slug: string | null
+          formulation_version_id: string | null
           generated_image_ids: string[] | null
           id: string
           image_urls: string[] | null
@@ -622,8 +635,11 @@ export type Database = {
           category?: string
           concept_folder_name?: string | null
           created_at?: string | null
+          decision_record_id?: string | null
           description?: string | null
+          evidence_bundle_id?: string | null
           food_type_slug?: string | null
+          formulation_version_id?: string | null
           generated_image_ids?: string[] | null
           id?: string
           image_urls?: string[] | null
@@ -647,8 +663,11 @@ export type Database = {
           category?: string
           concept_folder_name?: string | null
           created_at?: string | null
+          decision_record_id?: string | null
           description?: string | null
+          evidence_bundle_id?: string | null
           food_type_slug?: string | null
+          formulation_version_id?: string | null
           generated_image_ids?: string[] | null
           id?: string
           image_urls?: string[] | null
@@ -670,6 +689,27 @@ export type Database = {
             columns: ["brand_reference_image_id"]
             isOneToOne: false
             referencedRelation: "concept_images"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concept_tests_decision_record_id_fkey"
+            columns: ["decision_record_id"]
+            isOneToOne: false
+            referencedRelation: "decision_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concept_tests_evidence_bundle_id_fkey"
+            columns: ["evidence_bundle_id"]
+            isOneToOne: false
+            referencedRelation: "evidence_bundles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concept_tests_formulation_version_id_fkey"
+            columns: ["formulation_version_id"]
+            isOneToOne: false
+            referencedRelation: "formulation_versions"
             referencedColumns: ["id"]
           },
           {
@@ -695,6 +735,8 @@ export type Database = {
           created_by: string
           decision: string
           decision_fingerprint: string
+          evidence_bundle_id: string | null
+          formulation_version_id: string | null
           id: string
           issf_score: number
           method_version: string
@@ -702,6 +744,8 @@ export type Database = {
           org_id: string | null
           parent_decision_id: string | null
           project_id: string | null
+          research_fingerprint: string | null
+          research_refreshed_at: string | null
           sample_id: string
           sample_name: string
         }
@@ -711,6 +755,8 @@ export type Database = {
           created_by: string
           decision: string
           decision_fingerprint: string
+          evidence_bundle_id?: string | null
+          formulation_version_id?: string | null
           id?: string
           issf_score: number
           method_version: string
@@ -718,6 +764,8 @@ export type Database = {
           org_id?: string | null
           parent_decision_id?: string | null
           project_id?: string | null
+          research_fingerprint?: string | null
+          research_refreshed_at?: string | null
           sample_id: string
           sample_name: string
         }
@@ -727,6 +775,8 @@ export type Database = {
           created_by?: string
           decision?: string
           decision_fingerprint?: string
+          evidence_bundle_id?: string | null
+          formulation_version_id?: string | null
           id?: string
           issf_score?: number
           method_version?: string
@@ -734,6 +784,8 @@ export type Database = {
           org_id?: string | null
           parent_decision_id?: string | null
           project_id?: string | null
+          research_fingerprint?: string | null
+          research_refreshed_at?: string | null
           sample_id?: string
           sample_name?: string
         }
@@ -743,6 +795,20 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "decision_records_evidence_bundle_id_fkey"
+            columns: ["evidence_bundle_id"]
+            isOneToOne: false
+            referencedRelation: "evidence_bundles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "decision_records_formulation_version_id_fkey"
+            columns: ["formulation_version_id"]
+            isOneToOne: false
+            referencedRelation: "formulation_versions"
             referencedColumns: ["id"]
           },
           {
@@ -823,34 +889,58 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string
+          decision_record_id: string | null
+          formulation_version_id: string | null
           id: string
+          is_current_product: boolean
+          literature_fingerprint: string | null
+          literature_refreshed_at: string | null
           org_id: string | null
           payload: Json
+          product_evidence_fingerprint: string
+          project_id: string | null
           sample_id: string
           schema_version: string
           source_data_version: string
+          supersedes_bundle_id: string | null
           version: number
         }
         Insert: {
           created_at?: string
           created_by: string
+          decision_record_id?: string | null
+          formulation_version_id?: string | null
           id?: string
+          is_current_product?: boolean
+          literature_fingerprint?: string | null
+          literature_refreshed_at?: string | null
           org_id?: string | null
           payload: Json
+          product_evidence_fingerprint: string
+          project_id?: string | null
           sample_id: string
           schema_version: string
           source_data_version: string
+          supersedes_bundle_id?: string | null
           version: number
         }
         Update: {
           created_at?: string
           created_by?: string
+          decision_record_id?: string | null
+          formulation_version_id?: string | null
           id?: string
+          is_current_product?: boolean
+          literature_fingerprint?: string | null
+          literature_refreshed_at?: string | null
           org_id?: string | null
           payload?: Json
+          product_evidence_fingerprint?: string
+          project_id?: string | null
           sample_id?: string
           schema_version?: string
           source_data_version?: string
+          supersedes_bundle_id?: string | null
           version?: number
         }
         Relationships: [
@@ -862,10 +952,38 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "evidence_bundles_decision_record_id_fkey"
+            columns: ["decision_record_id"]
+            isOneToOne: false
+            referencedRelation: "decision_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evidence_bundles_formulation_version_id_fkey"
+            columns: ["formulation_version_id"]
+            isOneToOne: false
+            referencedRelation: "formulation_versions"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "evidence_bundles_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evidence_bundles_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evidence_bundles_supersedes_bundle_id_fkey"
+            columns: ["supersedes_bundle_id"]
+            isOneToOne: false
+            referencedRelation: "evidence_bundles"
             referencedColumns: ["id"]
           },
         ]
@@ -920,6 +1038,584 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      formulation_experiment_arms: {
+        Row: {
+          arm_type: string
+          change_description: string
+          code: string
+          created_at: string
+          experiment_id: string
+          formulation_version_id: string | null
+          id: string
+          label: string
+          mechanism: string
+          org_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          arm_type: string
+          change_description?: string
+          code: string
+          created_at?: string
+          experiment_id: string
+          formulation_version_id?: string | null
+          id?: string
+          label: string
+          mechanism?: string
+          org_id?: string
+          sort_order: number
+          updated_at?: string
+        }
+        Update: {
+          arm_type?: string
+          change_description?: string
+          code?: string
+          created_at?: string
+          experiment_id?: string
+          formulation_version_id?: string | null
+          id?: string
+          label?: string
+          mechanism?: string
+          org_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "formulation_experiment_arms_experiment_id_fkey"
+            columns: ["experiment_id"]
+            isOneToOne: false
+            referencedRelation: "approved_formulation_learnings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_experiment_arms_experiment_id_fkey"
+            columns: ["experiment_id"]
+            isOneToOne: false
+            referencedRelation: "formulation_experiments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_experiment_arms_formulation_version_id_fkey"
+            columns: ["formulation_version_id"]
+            isOneToOne: false
+            referencedRelation: "formulation_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_experiment_arms_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      formulation_experiment_evaluations: {
+        Row: {
+          arm_id: string
+          category_fit_score: number | null
+          created_at: string
+          defect_flags: string[]
+          experiment_id: string
+          id: string
+          org_id: string
+          overall_liking: number | null
+          primary_score: number
+          secondary_scores: Json
+          trial_id: string
+          updated_at: string
+        }
+        Insert: {
+          arm_id: string
+          category_fit_score?: number | null
+          created_at?: string
+          defect_flags?: string[]
+          experiment_id: string
+          id?: string
+          org_id?: string
+          overall_liking?: number | null
+          primary_score: number
+          secondary_scores?: Json
+          trial_id: string
+          updated_at?: string
+        }
+        Update: {
+          arm_id?: string
+          category_fit_score?: number | null
+          created_at?: string
+          defect_flags?: string[]
+          experiment_id?: string
+          id?: string
+          org_id?: string
+          overall_liking?: number | null
+          primary_score?: number
+          secondary_scores?: Json
+          trial_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "formulation_experiment_evaluations_arm_id_fkey"
+            columns: ["arm_id"]
+            isOneToOne: false
+            referencedRelation: "formulation_experiment_arms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_experiment_evaluations_experiment_id_fkey"
+            columns: ["experiment_id"]
+            isOneToOne: false
+            referencedRelation: "approved_formulation_learnings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_experiment_evaluations_experiment_id_fkey"
+            columns: ["experiment_id"]
+            isOneToOne: false
+            referencedRelation: "formulation_experiments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_experiment_evaluations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_experiment_evaluations_trial_id_fkey"
+            columns: ["trial_id"]
+            isOneToOne: false
+            referencedRelation: "formulation_experiment_trials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      formulation_experiment_trials: {
+        Row: {
+          batch_code: string | null
+          created_at: string
+          evaluated_at: string
+          experiment_id: string
+          id: string
+          notes: string | null
+          org_id: string
+          participant_key: string
+          session_key: string
+        }
+        Insert: {
+          batch_code?: string | null
+          created_at?: string
+          evaluated_at?: string
+          experiment_id: string
+          id?: string
+          notes?: string | null
+          org_id?: string
+          participant_key: string
+          session_key?: string
+        }
+        Update: {
+          batch_code?: string | null
+          created_at?: string
+          evaluated_at?: string
+          experiment_id?: string
+          id?: string
+          notes?: string | null
+          org_id?: string
+          participant_key?: string
+          session_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "formulation_experiment_trials_experiment_id_fkey"
+            columns: ["experiment_id"]
+            isOneToOne: false
+            referencedRelation: "approved_formulation_learnings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_experiment_trials_experiment_id_fkey"
+            columns: ["experiment_id"]
+            isOneToOne: false
+            referencedRelation: "formulation_experiments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_experiment_trials_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      formulation_experiments: {
+        Row: {
+          advancement_gates: Json
+          analysis_mode: string
+          analysis_snapshot: Json | null
+          analyzed_at: string | null
+          bootstrap_iterations: number
+          confidence_level: number
+          confirmation_completed_at: string | null
+          created_at: string
+          created_by: string
+          decision_record_id: string
+          deterministic_seed: number
+          evidence_bundle_id: string
+          formulation_version_id: string | null
+          hypothesis: string
+          id: string
+          learning_applies_to: string[]
+          learning_approved_at: string | null
+          learning_approved_by: string | null
+          learning_limitations: string[]
+          learning_status: string
+          learning_summary: string | null
+          learning_tags: string[]
+          lifecycle: string
+          locked_at: string | null
+          locked_by: string | null
+          measured_driver: string
+          minimum_n: number
+          name: string
+          org_id: string
+          primary_outcome: string
+          primary_scale_max: number
+          primary_scale_min: number
+          project_id: string
+          serving_protocol: string
+          storage_checkpoints: Json
+          uncertainty_margin: number
+          updated_at: string
+          winner_arm_id: string | null
+        }
+        Insert: {
+          advancement_gates?: Json
+          analysis_mode?: string
+          analysis_snapshot?: Json | null
+          analyzed_at?: string | null
+          bootstrap_iterations?: number
+          confidence_level?: number
+          confirmation_completed_at?: string | null
+          created_at?: string
+          created_by: string
+          decision_record_id: string
+          deterministic_seed?: number
+          evidence_bundle_id: string
+          formulation_version_id?: string | null
+          hypothesis: string
+          id?: string
+          learning_applies_to?: string[]
+          learning_approved_at?: string | null
+          learning_approved_by?: string | null
+          learning_limitations?: string[]
+          learning_status?: string
+          learning_summary?: string | null
+          learning_tags?: string[]
+          lifecycle?: string
+          locked_at?: string | null
+          locked_by?: string | null
+          measured_driver: string
+          minimum_n?: number
+          name: string
+          org_id?: string
+          primary_outcome: string
+          primary_scale_max?: number
+          primary_scale_min?: number
+          project_id: string
+          serving_protocol?: string
+          storage_checkpoints?: Json
+          uncertainty_margin?: number
+          updated_at?: string
+          winner_arm_id?: string | null
+        }
+        Update: {
+          advancement_gates?: Json
+          analysis_mode?: string
+          analysis_snapshot?: Json | null
+          analyzed_at?: string | null
+          bootstrap_iterations?: number
+          confidence_level?: number
+          confirmation_completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          decision_record_id?: string
+          deterministic_seed?: number
+          evidence_bundle_id?: string
+          formulation_version_id?: string | null
+          hypothesis?: string
+          id?: string
+          learning_applies_to?: string[]
+          learning_approved_at?: string | null
+          learning_approved_by?: string | null
+          learning_limitations?: string[]
+          learning_status?: string
+          learning_summary?: string | null
+          learning_tags?: string[]
+          lifecycle?: string
+          locked_at?: string | null
+          locked_by?: string | null
+          measured_driver?: string
+          minimum_n?: number
+          name?: string
+          org_id?: string
+          primary_outcome?: string
+          primary_scale_max?: number
+          primary_scale_min?: number
+          project_id?: string
+          serving_protocol?: string
+          storage_checkpoints?: Json
+          uncertainty_margin?: number
+          updated_at?: string
+          winner_arm_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "formulation_experiments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_experiments_decision_record_id_fkey"
+            columns: ["decision_record_id"]
+            isOneToOne: false
+            referencedRelation: "decision_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_experiments_evidence_bundle_id_fkey"
+            columns: ["evidence_bundle_id"]
+            isOneToOne: false
+            referencedRelation: "evidence_bundles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_experiments_formulation_version_id_fkey"
+            columns: ["formulation_version_id"]
+            isOneToOne: false
+            referencedRelation: "formulation_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_experiments_learning_approved_by_fkey"
+            columns: ["learning_approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_experiments_locked_by_fkey"
+            columns: ["locked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_experiments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_experiments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_experiments_winner_arm_fkey"
+            columns: ["winner_arm_id"]
+            isOneToOne: false
+            referencedRelation: "formulation_experiment_arms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      formulation_ingredients: {
+        Row: {
+          allergen_tags: string[]
+          canonical_name: string | null
+          confidence: number
+          created_at: string
+          dietary_tags: string[]
+          formulation_version_id: string
+          functional_role: string | null
+          id: string
+          notes: string | null
+          org_id: string
+          percentage: number | null
+          position: number
+          review_status: string
+          specification: string | null
+          supplied_name: string
+          supplier: string | null
+          updated_at: string
+        }
+        Insert: {
+          allergen_tags?: string[]
+          canonical_name?: string | null
+          confidence?: number
+          created_at?: string
+          dietary_tags?: string[]
+          formulation_version_id: string
+          functional_role?: string | null
+          id?: string
+          notes?: string | null
+          org_id: string
+          percentage?: number | null
+          position: number
+          review_status?: string
+          specification?: string | null
+          supplied_name: string
+          supplier?: string | null
+          updated_at?: string
+        }
+        Update: {
+          allergen_tags?: string[]
+          canonical_name?: string | null
+          confidence?: number
+          created_at?: string
+          dietary_tags?: string[]
+          formulation_version_id?: string
+          functional_role?: string | null
+          id?: string
+          notes?: string | null
+          org_id?: string
+          percentage?: number | null
+          position?: number
+          review_status?: string
+          specification?: string | null
+          supplied_name?: string
+          supplier?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "formulation_ingredients_formulation_version_id_fkey"
+            columns: ["formulation_version_id"]
+            isOneToOne: false
+            referencedRelation: "formulation_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_ingredients_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      formulation_versions: {
+        Row: {
+          change_summary: string | null
+          created_at: string
+          created_by: string | null
+          exact_statement: string
+          fingerprint: string
+          id: string
+          instrumental_sample_id: string
+          is_current: boolean
+          org_id: string
+          previous_version_id: string | null
+          project_id: string | null
+          review_status: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          statement_source: string
+          updated_at: string
+          version_number: number
+        }
+        Insert: {
+          change_summary?: string | null
+          created_at?: string
+          created_by?: string | null
+          exact_statement: string
+          fingerprint: string
+          id?: string
+          instrumental_sample_id: string
+          is_current?: boolean
+          org_id: string
+          previous_version_id?: string | null
+          project_id?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          statement_source: string
+          updated_at?: string
+          version_number: number
+        }
+        Update: {
+          change_summary?: string | null
+          created_at?: string
+          created_by?: string | null
+          exact_statement?: string
+          fingerprint?: string
+          id?: string
+          instrumental_sample_id?: string
+          is_current?: boolean
+          org_id?: string
+          previous_version_id?: string | null
+          project_id?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          statement_source?: string
+          updated_at?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "formulation_versions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_versions_instrumental_sample_id_fkey"
+            columns: ["instrumental_sample_id"]
+            isOneToOne: false
+            referencedRelation: "instrumental_samples"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_versions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_versions_previous_version_id_fkey"
+            columns: ["previous_version_id"]
+            isOneToOne: false
+            referencedRelation: "formulation_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_versions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_versions_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1113,6 +1809,9 @@ export type Database = {
           food_type_id: string
           id: string
           import_batch_id: string
+          ingredient_statement: string | null
+          ingredient_statement_source: string
+          ingredient_statement_updated_at: string | null
           org_id: string | null
           project_id: string | null
           sample_id: string
@@ -1124,6 +1823,9 @@ export type Database = {
           food_type_id: string
           id?: string
           import_batch_id: string
+          ingredient_statement?: string | null
+          ingredient_statement_source?: string
+          ingredient_statement_updated_at?: string | null
           org_id?: string | null
           project_id?: string | null
           sample_id: string
@@ -1135,6 +1837,9 @@ export type Database = {
           food_type_id?: string
           id?: string
           import_batch_id?: string
+          ingredient_statement?: string | null
+          ingredient_statement_source?: string
+          ingredient_statement_updated_at?: string | null
           org_id?: string | null
           project_id?: string | null
           sample_id?: string
@@ -2198,9 +2903,103 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      approved_formulation_learnings: {
+        Row: {
+          decision_record_id: string | null
+          evidence_bundle_id: string | null
+          experiment_name: string | null
+          formulation_version_id: string | null
+          hypothesis: string | null
+          id: string | null
+          learning_applies_to: string[] | null
+          learning_approved_at: string | null
+          learning_limitations: string[] | null
+          learning_summary: string | null
+          learning_tags: string[] | null
+          measured_driver: string | null
+          org_id: string | null
+          primary_outcome: string | null
+          project_id: string | null
+          project_name: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "formulation_experiments_decision_record_id_fkey"
+            columns: ["decision_record_id"]
+            isOneToOne: false
+            referencedRelation: "decision_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_experiments_evidence_bundle_id_fkey"
+            columns: ["evidence_bundle_id"]
+            isOneToOne: false
+            referencedRelation: "evidence_bundles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_experiments_formulation_version_id_fkey"
+            columns: ["formulation_version_id"]
+            isOneToOne: false
+            referencedRelation: "formulation_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_experiments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulation_experiments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      add_formulation_experiment_arm: {
+        Args: {
+          target_change_description: string
+          target_experiment_id: string
+          target_label: string
+          target_mechanism: string
+        }
+        Returns: {
+          arm_type: string
+          change_description: string
+          code: string
+          created_at: string
+          experiment_id: string
+          formulation_version_id: string | null
+          id: string
+          label: string
+          mechanism: string
+          org_id: string
+          sort_order: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "formulation_experiment_arms"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      advance_formulation_experiment: {
+        Args: {
+          target_analysis_snapshot?: Json
+          target_experiment_id: string
+          target_lifecycle: string
+          target_winner_arm_id?: string
+        }
+        Returns: undefined
+      }
       claim_panelist_kit: {
         Args: { p_manual_code?: string; p_token?: string }
         Returns: {
@@ -2243,6 +3042,8 @@ export type Database = {
         Args: {
           target_concept_test_id: string
           target_decision_record_id: string
+          target_evidence_bundle_id?: string
+          target_formulation_version_id?: string
           target_packaging_image_id: string
           target_report_snapshot: Json
           target_title: string
@@ -2255,6 +3056,7 @@ export type Database = {
           created_by: string
           decision_record_id: string
           evidence_bundle_id: string | null
+          formulation_version_id: string | null
           id: string
           org_id: string | null
           packaging_image_id: string | null
@@ -2274,7 +3076,10 @@ export type Database = {
       }
       create_evidence_bundle: {
         Args: {
+          target_decision_record_id?: string
+          target_formulation_version_id?: string
           target_payload: Json
+          target_project_id?: string
           target_sample_id: string
           target_schema_version: string
           target_source_data_version: string
@@ -2282,17 +3087,85 @@ export type Database = {
         Returns: {
           created_at: string
           created_by: string
+          decision_record_id: string | null
+          formulation_version_id: string | null
           id: string
+          is_current_product: boolean
+          literature_fingerprint: string | null
+          literature_refreshed_at: string | null
           org_id: string | null
           payload: Json
+          product_evidence_fingerprint: string
+          project_id: string | null
           sample_id: string
           schema_version: string
           source_data_version: string
+          supersedes_bundle_id: string | null
           version: number
         }
         SetofOptions: {
           from: "*"
           to: "evidence_bundles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_formulation_experiment: {
+        Args: {
+          target_advancement_gates?: Json
+          target_analysis_mode?: string
+          target_decision_record_id: string
+          target_hypothesis: string
+          target_measured_driver: string
+          target_minimum_n?: number
+          target_name: string
+          target_primary_outcome: string
+          target_project_id: string
+          target_uncertainty_margin?: number
+        }
+        Returns: {
+          advancement_gates: Json
+          analysis_mode: string
+          analysis_snapshot: Json | null
+          analyzed_at: string | null
+          bootstrap_iterations: number
+          confidence_level: number
+          confirmation_completed_at: string | null
+          created_at: string
+          created_by: string
+          decision_record_id: string
+          deterministic_seed: number
+          evidence_bundle_id: string
+          formulation_version_id: string | null
+          hypothesis: string
+          id: string
+          learning_applies_to: string[]
+          learning_approved_at: string | null
+          learning_approved_by: string | null
+          learning_limitations: string[]
+          learning_status: string
+          learning_summary: string | null
+          learning_tags: string[]
+          lifecycle: string
+          locked_at: string | null
+          locked_by: string | null
+          measured_driver: string
+          minimum_n: number
+          name: string
+          org_id: string
+          primary_outcome: string
+          primary_scale_max: number
+          primary_scale_min: number
+          project_id: string
+          serving_protocol: string
+          storage_checkpoints: Json
+          uncertainty_margin: number
+          updated_at: string
+          winner_arm_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "formulation_experiments"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -2369,6 +3242,18 @@ export type Database = {
           sample_code: string
           status: string
           token: string
+        }[]
+      }
+      get_decision_freshness: {
+        Args: { target_decision_record_id: string }
+        Returns: {
+          allowed: boolean
+          current_evidence_bundle_id: string
+          current_formulation_version_id: string
+          formulation_current: boolean
+          literature_refresh_required: boolean
+          product_evidence_current: boolean
+          reason: string
         }[]
       }
       get_panelist_kit_by_manual_code: {
@@ -2462,6 +3347,17 @@ export type Database = {
           voided_at: string
         }[]
       }
+      lock_formulation_experiment: {
+        Args: { target_experiment_id: string }
+        Returns: undefined
+      }
+      mark_decision_research_refreshed: {
+        Args: {
+          target_decision_record_id: string
+          target_research_fingerprint?: string
+        }
+        Returns: undefined
+      }
       mark_panelist_kit_started: {
         Args: { p_manual_code?: string; p_token?: string }
         Returns: undefined
@@ -2505,9 +3401,80 @@ export type Database = {
         Args: { decision: string; note?: string; target_request_id: string }
         Returns: undefined
       }
+      review_formulation_version: {
+        Args: { target_status: string; target_version_id: string }
+        Returns: undefined
+      }
+      save_formulation_experiment_learning: {
+        Args: {
+          target_applies_to?: string[]
+          target_experiment_id: string
+          target_limitations?: string[]
+          target_status?: string
+          target_summary: string
+          target_tags?: string[]
+        }
+        Returns: {
+          advancement_gates: Json
+          analysis_mode: string
+          analysis_snapshot: Json | null
+          analyzed_at: string | null
+          bootstrap_iterations: number
+          confidence_level: number
+          confirmation_completed_at: string | null
+          created_at: string
+          created_by: string
+          decision_record_id: string
+          deterministic_seed: number
+          evidence_bundle_id: string
+          formulation_version_id: string | null
+          hypothesis: string
+          id: string
+          learning_applies_to: string[]
+          learning_approved_at: string | null
+          learning_approved_by: string | null
+          learning_limitations: string[]
+          learning_status: string
+          learning_summary: string | null
+          learning_tags: string[]
+          lifecycle: string
+          locked_at: string | null
+          locked_by: string | null
+          measured_driver: string
+          minimum_n: number
+          name: string
+          org_id: string
+          primary_outcome: string
+          primary_scale_max: number
+          primary_scale_min: number
+          project_id: string
+          serving_protocol: string
+          storage_checkpoints: Json
+          uncertainty_margin: number
+          updated_at: string
+          winner_arm_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "formulation_experiments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_food_type_status: {
         Args: { next_status: string; target_slug: string }
         Returns: undefined
+      }
+      set_formulation_profile: {
+        Args: {
+          target_change_summary?: string
+          target_import_batch_id: string
+          target_ingredients?: Json
+          target_sample_id: string
+          target_source?: string
+          target_statement: string
+        }
+        Returns: string
       }
       set_import_batch_status: {
         Args: { next_status: string; target_batch_id: string }

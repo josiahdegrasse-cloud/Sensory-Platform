@@ -2,6 +2,7 @@ import type { EnhancedSensoryProfile } from '../data/enhanced-sensory';
 import { PANEL_N, type GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
 import { parseEvidenceAssistResult, type EvidenceAssistResult } from './evidence-assist';
 import { openRagSource, ragFetch } from './rag-client';
+import type { FormulationVersion } from './formulation-profile';
 
 const CACHE_PREFIX = 'nfi:tweak-intelligence:v13';
 
@@ -28,6 +29,10 @@ export type TweakLanguageContext = {
 };
 
 export type TweakDiagnosisRequest = {
+  projectId?: string;
+  decisionRecordId?: string;
+  evidenceBundleId?: string;
+  formulationVersionId?: string;
   question: string;
   sample: {
     sampleId: string;
@@ -66,6 +71,19 @@ export type TweakDiagnosisRequest = {
       istdRecovery: number | null;
       olfactometryFlowSplit: string;
     };
+  };
+  formulationContext?: {
+    versionId: string;
+    versionNumber: number;
+    fingerprint: string;
+    exactStatement: string;
+    ingredients: Array<{
+      name: string;
+      functionalRole: string;
+      percentage: number | null;
+      allergenTags: string[];
+    }>;
+    boundary: string;
   };
   languageContext: TweakLanguageContext;
   options: {
@@ -123,8 +141,13 @@ export function buildTweakDiagnosisRequest(input: {
   decision: GoStopTweakDecision;
   profile: EnhancedSensoryProfile;
   foodType: string;
+  formulation?: FormulationVersion | null;
+  projectId?: string | null;
+  decisionRecordId?: string | null;
+  evidenceBundleId?: string | null;
+  formulationVersionId?: string | null;
 }): TweakDiagnosisRequest {
-  const { decision, profile, foodType } = input;
+  const { decision, profile, foodType, formulation } = input;
   const weakDimensions = Object.entries(decision.dimensionScores)
     .sort((a, b) => a[1] - b[1])
     .slice(0, 2)
@@ -138,6 +161,10 @@ export function buildTweakDiagnosisRequest(input: {
   const languageContext = buildLanguageContext(decision, profile, foodType);
 
   return {
+    projectId: input.projectId ?? undefined,
+    decisionRecordId: input.decisionRecordId ?? undefined,
+    evidenceBundleId: input.evidenceBundleId ?? undefined,
+    formulationVersionId: input.formulationVersionId ?? formulation?.id,
     question: `${question}\n\nAnalysis requirements: identify the measured blocker before proposing a mechanism; do not infer a formulation cause from aggregate CATA or liking scores alone; label literature-backed mechanisms as hypotheses unless the product evidence directly supports them; require a control or category benchmark diagnostic; limit the first screen to the current control plus no more than three targeted variants; preserve current positive attributes; and define measurable advancement gates, confirmation-batch requirements, and storage checkpoints before resubmission.`,
     sample: {
       sampleId: decision.sampleId,
@@ -193,6 +220,21 @@ export function buildTweakDiagnosisRequest(input: {
         olfactometryFlowSplit: profile.olfactometryFlowSplit,
       },
     },
+    formulationContext: formulation?.reviewStatus === 'reviewed' ? {
+      versionId: formulation.id,
+      versionNumber: formulation.versionNumber,
+      fingerprint: formulation.fingerprint,
+      exactStatement: formulation.exactStatement,
+      ingredients: formulation.ingredients
+        .filter(ingredient => ingredient.reviewStatus === 'verified')
+        .map(ingredient => ({
+          name: ingredient.canonicalName,
+          functionalRole: ingredient.functionalRole,
+          percentage: ingredient.percentage,
+          allergenTags: ingredient.allergenTags,
+        })),
+      boundary: 'Reviewed formulation context may guide hypotheses and controlled trials. It does not prove that an ingredient caused a sensory outcome, and missing percentages must not be inferred.',
+    } : undefined,
     languageContext,
     options: {
       evidenceDepth: 'all_applicable',

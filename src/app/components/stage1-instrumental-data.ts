@@ -16,6 +16,7 @@ export interface ETongueMeasurement {
   type?: string;
   category?: string;
   importBatchId?: string;
+  ingredientStatement?: IngredientStatement;
 }
 
 export interface GCMSCompound {
@@ -32,6 +33,12 @@ export interface ChemicalComposition {
   pH: number;
   saltContent: number;
   calciumMg: number;
+}
+
+export interface IngredientStatement {
+  text: string;
+  source: 'csv_import' | 'manual';
+  updatedAt: string | null;
 }
 
 export interface ColumnReport {
@@ -165,6 +172,7 @@ export const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 export const KNOWN_ALIASES = [
   'sampleid', 'sample', 'id',
   'type', 'category', 'samplename', 'name',
+  'ingredientstatement', 'ingredientlist', 'ingredients',
   'sourness', 'bitterness', 'saltiness', 'umami', 'sweetness',
   'compound', 'name', 'concentration', 'aroma', 'odour', 'threshold',
   'protein', 'fat', 'moisture', 'ph', 'saltcontent', 'calciummg',
@@ -223,6 +231,7 @@ export interface StoredImportedData {
   eTongueData: ETongueMeasurement[];
   gcmsData: Record<string, GCMSCompound[]>;
   compositionData: Record<string, ChemicalComposition>;
+  ingredientStatements?: Record<string, IngredientStatement>;
 }
 
 export function mergeInstrumentalData(imported: StoredImportedData | null | undefined): StoredImportedData {
@@ -231,6 +240,7 @@ export function mergeInstrumentalData(imported: StoredImportedData | null | unde
       eTongueData: MOCK_ETONGUE_DATA,
       gcmsData: MOCK_GCMS_DATA,
       compositionData: MOCK_COMPOSITION_DATA,
+      ingredientStatements: {},
     };
   }
 
@@ -242,6 +252,7 @@ export function mergeInstrumentalData(imported: StoredImportedData | null | unde
     eTongueData: [...samplesById.values()],
     gcmsData: { ...MOCK_GCMS_DATA, ...imported.gcmsData },
     compositionData: { ...MOCK_COMPOSITION_DATA, ...imported.compositionData },
+    ingredientStatements: { ...(imported.ingredientStatements ?? {}) },
   };
 }
 
@@ -336,6 +347,7 @@ export function buildImportedDataset(previewData: Record<string, string>[], uplo
   const eTongueMap = new Map<string, ETongueMeasurement>();
   const gcmsMap: Record<string, GCMSCompound[]> = {};
   const compositionMap: Record<string, ChemicalComposition> = {};
+  const ingredientStatements: Record<string, IngredientStatement> = {};
 
   const detectionValues: string[] = [uploadedFile ?? ""];
   previewData.forEach((row, index) => {
@@ -348,6 +360,21 @@ export function buildImportedDataset(previewData: Record<string, string>[], uplo
     const category = inferCategory(sampleId, csvCategory, type, sampleName);
 
     detectionValues.push(sampleId, sampleName, csvCategory, csvType, category, type);
+
+    const ingredientStatement = getRowValue(row, [
+      'ingredientStatement',
+      'ingredient_statement',
+      'ingredientList',
+      'ingredient_list',
+      'ingredients',
+    ]).trim();
+    if (ingredientStatement && !ingredientStatements[sampleId]) {
+      ingredientStatements[sampleId] = {
+        text: ingredientStatement,
+        source: 'csv_import',
+        updatedAt: null,
+      };
+    }
 
     const sourness   = parseFloat(row.sourness   || row.Sourness   || row.SOURNESS   || "NaN");
     const bitterness = parseFloat(row.bitterness || row.Bitterness || row.BITTERNESS || "NaN");
@@ -367,6 +394,7 @@ export function buildImportedDataset(previewData: Record<string, string>[], uplo
         sweetness:  Number.isNaN(sweetness)  ? 0 : sweetness,
         type,
         category,
+        ingredientStatement: ingredientStatements[sampleId],
       });
     }
 
@@ -418,6 +446,7 @@ export function buildImportedDataset(previewData: Record<string, string>[], uplo
       eTongueData,
       gcmsData: gcmsMap,
       compositionData: compositionMap,
+      ingredientStatements,
       detection: {
         ...detection,
         slug: explicitSlug,
@@ -427,7 +456,7 @@ export function buildImportedDataset(previewData: Record<string, string>[], uplo
     };
   }
 
-  return { eTongueData, gcmsData: gcmsMap, compositionData: compositionMap, detection };
+  return { eTongueData, gcmsData: gcmsMap, compositionData: compositionMap, ingredientStatements, detection };
 }
 
 export function validateImportedDataset(
