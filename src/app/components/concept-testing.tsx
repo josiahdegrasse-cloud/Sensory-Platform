@@ -4,7 +4,7 @@ import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import {
   ChevronRight, ChevronLeft, Send, CheckCircle2,
-  AlertTriangle, Gauge, Circle, Sparkles,
+  AlertTriangle, Gauge, Circle,
 } from 'lucide-react';
 import { insertConceptTest } from '../lib/database';
 import type { DecisionRecord } from '../lib/database';
@@ -275,11 +275,17 @@ export function ConceptTesting() {
     || questions.length > 0
   ), [draft.category, draft.description, draft.marketingImages, draft.name, questions.length]);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- one-time seed/draft hydration from external route and storage state */
   useEffect(() => {
     const seed = (location.state as {
       conceptSeed?: ConceptSeed;
     } | null)?.conceptSeed;
     if (seed?.name) {
+      if (!seed.sourceDecision?.id || !seed.sourceDecision.evidenceBundleId) {
+        localStorage.removeItem(draftStorageKey);
+        setDraftNotice('A confirmed GO decision with linked evidence is required before starting concept work.');
+        return;
+      }
       const emptyDraft = makeEmptyDraft(settings?.promptStyle ?? 'balanced');
       const seededDraft = {
         ...emptyDraft,
@@ -296,7 +302,6 @@ export function ConceptTesting() {
         keyBenefits: seed.keyBenefits?.trim() || emptyDraft.keyBenefits,
         technicalChallenges: seed.technicalChallenges?.trim() || emptyDraft.technicalChallenges,
       };
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time seed from route state on mount
       setDraft(seededDraft);
       setQuestions(buildTailoredConceptQuestions(seededDraft));
       setQuestionsReviewState('draft');
@@ -318,7 +323,7 @@ export function ConceptTesting() {
       const raw = localStorage.getItem(draftStorageKey);
       if (raw) {
         const saved = JSON.parse(raw) as StoredConceptDraft;
-        if (saved?.draft) {
+        if (saved?.draft && saved.sourceDecision?.id && saved.sourceDecision.evidenceBundleId) {
           setDraft({ ...makeEmptyDraft(saved.draft.promptStyle), ...saved.draft });
           setQuestions(saved.questions ?? []);
           setQuestionsReviewState(saved.questionsReviewState ?? 'none');
@@ -331,6 +336,8 @@ export function ConceptTesting() {
           setDraftNotice(`Draft restored from ${new Date(saved.savedAt).toLocaleString()}.`);
           return;
         }
+        localStorage.removeItem(draftStorageKey);
+        setDraftNotice('An older unlinked concept draft was removed. Select a confirmed GO decision to continue.');
       }
     } catch {
       localStorage.removeItem(draftStorageKey);
@@ -338,6 +345,7 @@ export function ConceptTesting() {
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (!sourceDecision || smartDefaultsApplied.current || panelists.length === 0) return;
@@ -442,20 +450,6 @@ export function ConceptTesting() {
         ? `Started from the confirmed GO decision for "${record.sampleName}" and prefilled image cues: ${seed.sourceDecision.likedSignals.join(', ')}.${ingredientCues.length ? ' Reviewed formulation cues were added for claims review.' : ''}`
         : `Started from the confirmed GO decision for "${record.sampleName}".`
     );
-    localStorage.removeItem(draftStorageKey);
-  };
-
-  const startFromScratch = () => {
-    setStep('concept');
-    setDraft(makeEmptyDraft(settings?.promptStyle ?? 'balanced'));
-    setQuestions([]);
-    setQuestionsReviewState('none');
-    setSegments([]);
-    setAssignedPanelistIds([]);
-    setSourceDecision(null);
-    setConceptSourceChosen(true);
-    smartDefaultsApplied.current = false;
-    setDraftNotice('Started a concept image without a source decision. Add the product type and positioning so the image generator has enough context.');
     localStorage.removeItem(draftStorageKey);
   };
 
@@ -571,7 +565,7 @@ export function ConceptTesting() {
   const blockerMessage = currentBlockers[0]?.detail ?? '';
   const nextStep = STEPS[stepIndex + 1];
   const nextActionLabel = nextStep ? `Continue to ${STEP_LABELS[nextStep]}` : 'Continue';
-  const conceptWorkspaceStarted = conceptSourceChosen || Boolean(sourceDecision) || Boolean(draftHasWork);
+  const conceptWorkspaceStarted = Boolean(sourceDecision?.id && sourceDecision.evidenceBundleId);
 
   return (
     <div className="space-y-6 pb-8">
@@ -608,14 +602,16 @@ export function ConceptTesting() {
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <h2 className="text-base font-semibold text-slate-900">Start the concept image from evidence</h2>
+              <h2 className="text-base font-semibold text-slate-900">Start concept work from confirmed evidence</h2>
               <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
-                Pick a confirmed GO item so the image brief inherits the food type, score context, and sensory cues, or start without a decision when you are exploring a new image direction.
+                Pick a confirmed GO item so the concept, image brief, survey, and launch record inherit the correct product identity and evidence lineage.
               </p>
             </div>
-            <Button type="button" variant="outline" onClick={startFromScratch} className="shrink-0">
-              <Sparkles className="size-4" />
-              Start without decision
+            <Button asChild type="button" variant="outline" className="shrink-0">
+              <Link to={workflowStagePath('decision', routeProjectId)}>
+                <Gauge className="size-4" />
+                Review decisions
+              </Link>
             </Button>
           </div>
 
@@ -645,7 +641,7 @@ export function ConceptTesting() {
             </div>
           ) : (
             <div className="mt-5 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-600">
-              No confirmed GO decisions yet. You can still start without a decision, but confirming a Decision item first will give image generation better food and panel context.
+              No confirmed GO decisions with linked evidence are available yet. Confirm the product decision before starting concept work.
             </div>
           )}
         </section>
