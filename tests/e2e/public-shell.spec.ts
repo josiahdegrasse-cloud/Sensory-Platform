@@ -19,7 +19,10 @@ test('FermIQ preview applies tenant identity without application errors', async 
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
 
-  await page.goto('http://fermiq.localhost:4173');
+  const tenantPreviewUrl = process.env.E2E_BASE_URL
+    ? `${process.env.E2E_BASE_URL}/?tenant=fermiq`
+    : 'http://fermiq.localhost:4173';
+  await page.goto(tenantPreviewUrl);
 
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
   await expect(page.getByText('Open your FermIQ Food workspace')).toBeVisible();
