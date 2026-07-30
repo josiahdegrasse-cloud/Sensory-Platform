@@ -1,0 +1,12 @@
+{
+  "name": "sensory-codex-compounding-loop",
+  "version": 1,
+  "maxIterations": 3,
+  "steps": [
+    {"id":"preflight","agent":"codex-orchestrator","action":"Run protected-path and dirty-tree preflight"},
+    {"id":"make","agent":"codex-maker","action":"Implement only the approved bounded scope"},
+    {"id":"deterministic-verify","agent":"repository-verifier","action":"Run allowlisted checks and emit a structured verdict"},
+    {"id":"independent-review","agent":"codex-verifier","action":"Review artifacts and rubric without maker reasoning; remain read-only"},
+    {"id":"promote","agent":"codex-orchestrator","action":"Record a sanitized candidate and promote only after policy thresholds"}
+  ]
+}

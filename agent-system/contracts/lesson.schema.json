@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Verified lesson candidate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id","rule","rootCause","confidence","scope","tags","evidenceRuns"],
+  "properties": {
+    "id": {"type":"string","pattern":"^[a-z0-9][a-z0-9-]{2,63}$"},
+    "rule": {"type":"string","minLength":12,"maxLength":500},
+    "rootCause": {"type":"string","minLength":12,"maxLength":1000},
+    "confidence": {"type":"number","minimum":0,"maximum":1},
+    "scope": {"enum":["run","project","global"]},
+    "tags": {"type":"array","items":{"type":"string"},"uniqueItems":true},
+    "evidenceRuns": {"type":"array","items":{"type":"string"},"uniqueItems":true},
+    "supersedes": {"type":"string"},
+    "expiresAt": {"type":"string","format":"date-time"}
+  }
+}

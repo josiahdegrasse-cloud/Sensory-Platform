@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "threshold": 0.95,
+  "weights": {"correctness":0.35,"governance":0.25,"evidenceIntegrity":0.2,"visual":0.1,"delivery":0.1},
+  "gateFirst": true,
+  "passRequiresFullCoverage": true
+}

@@ -10,6 +10,14 @@ DEMO_CREDENTIALS.local.md
 # Test & build artifacts
 test-results
 playwright-report
+tmp/
+
+# Generated report review output — canonical fixtures remain tracked explicitly
+output/pdf/*-preview.pdf
+output/pdf/*-v6.pdf
+output/pdf/*-rendered/
+tests/artifacts/commercialization-report/commercialization-readiness-iteration-[0-9][0-9].json
+tests/artifacts/commercialization-report/commercialization-readiness-iteration-[0-9][0-9].pdf
 
 # Supabase CLI local state
 supabase/.temp
@@ -22,4 +30,13 @@ ruvector.db
 .claude-flow/security
 .claude-flow/agents
 .claude-flow/swarm
+.claude-flow/system
+.claude-flow/intelligence
+.impeccable/critique
+.ruflo
+.ruvector
+agent-system/runs
+agent-system/state/candidates.jsonl
+agent-system/state/promoted.jsonl
 .vercel
+.env*

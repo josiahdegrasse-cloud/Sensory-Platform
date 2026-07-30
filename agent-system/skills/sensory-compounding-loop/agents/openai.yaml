@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sensory Compounding Loop"
+  short_description: "Run verified Codex improvement loops"
+  default_prompt: "Use $sensory-compounding-loop to execute this task through a bounded maker-verifier loop and promote only verified lessons."
