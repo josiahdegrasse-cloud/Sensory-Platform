@@ -40,7 +40,7 @@ Required environment variables (see `.env.example`):
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon (public) key — RLS is the real access gate |
 | `VITE_ROOT_DOMAIN` | Canonical apex used to resolve and enforce branded tenant subdomains |
-| `VITE_NFI_RAG_URL` | Authenticated Railway Evidence Assist API URL; required in production |
+| `VITE_NFI_RAG_URL` | Authenticated Vercel Evidence Assist API URL; required in production |
 | `SENTRY_AUTH_TOKEN` / `SENTRY_DSN` | Optional; only for source-map upload in CI |
 
 ## Scripts

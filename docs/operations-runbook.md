@@ -32,13 +32,13 @@ Before promoting a release:
 The dashboard must not claim a backup exists merely because the application is healthy. Verify these provider controls directly:
 
 - **Supabase:** confirm the project plan’s backup retention and point-in-time recovery window. Record the date and operator in the release ticket. Run a restore into a separate preview project at least quarterly and verify tenant RLS, generated schema types, object storage references, and a representative project workflow.
-- **Railway:** keep all required environment-variable names documented, never their secret values. Retain the last known-good deployment. Exercise rollback to that deployment and verify `/api/status` plus one authenticated retrieval request at least quarterly.
-- **Frontend host:** retain the last known-good deployment and confirm wildcard DNS/certificates after rollback.
+- **Vercel research API:** keep all required environment-variable names documented, never their secret values. Retain the last known-good deployment. Exercise rollback to that deployment and verify `/health/ready`, `/api/status`, and one authenticated retrieval request at least quarterly.
+- **Vercel frontend:** retain the last known-good deployment and confirm wildcard DNS/certificates after rollback.
 
 ## Incident rollback
 
 1. Stop new imports and AI generation if data integrity or unexpected spend is suspected.
-2. Roll the frontend and Railway service back to their last known-good deployments.
+2. Roll the Vercel frontend and research API projects back to their last known-good deployments.
 3. Do not reverse an applied database migration destructively. Ship a forward-only corrective migration after comparing the live schema with generated `database.types.ts`.
 4. Re-run tenant isolation, prototype lineage, decision-gate, and report-quality tests before restoring normal operation.
 5. Preserve request IDs, audit events, failed import records, and generation error messages for the incident review.

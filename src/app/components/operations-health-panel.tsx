@@ -74,7 +74,7 @@ export function OperationsHealthPanel() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <CardTitle className="flex items-center gap-2 text-base"><CloudCog className="size-5 text-slate-500" />Evidence Assist</CardTitle>
-                <CardDescription>Railway research API and literature index.</CardDescription>
+                <CardDescription>Vercel research API and Supabase literature index.</CardDescription>
               </div>
               <HealthBadge healthy={rag.isSuccess && library.isSuccess} />
             </div>
@@ -133,8 +133,8 @@ export function OperationsHealthPanel() {
             <p className="mt-1 text-xs leading-5 text-amber-800">Verify retention and point-in-time recovery in the Supabase project before each release.</p>
           </div>
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-            <p className="font-semibold text-amber-900">Railway recovery</p>
-            <p className="mt-1 text-xs leading-5 text-amber-800">Keep deployment variables documented and run the health-check/rollback drill in the release checklist.</p>
+            <p className="font-semibold text-amber-900">Research API recovery</p>
+            <p className="mt-1 text-xs leading-5 text-amber-800">Keep Vercel variables documented and run the authenticated health-check/rollback drill in the release checklist.</p>
           </div>
         </CardContent>
       </Card>
