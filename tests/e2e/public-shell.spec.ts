@@ -6,11 +6,25 @@ test('sign-in shell is usable without application errors', async ({ page }) => {
 
   await page.goto('/');
 
-  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
   await expect(page.getByLabel('Email address')).toBeVisible();
   await expect(page.getByLabel('Password')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Sign In' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeEnabled();
   await expect(page.getByRole('link', { name: 'Privacy' })).toBeVisible();
+  await expect(page.locator('.tenant-auth-shell')).toHaveCSS('background-color', 'rgb(17, 17, 17)');
+  expect(errors).toEqual([]);
+});
+
+test('FermIQ preview applies tenant identity without application errors', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+
+  await page.goto('http://fermiq.localhost:4173');
+
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  await expect(page.getByText('Open your FermIQ Food workspace')).toBeVisible();
+  await expect(page.getByRole('img', { name: 'FermIQ Food' }).first()).toBeVisible();
+  await expect(page.locator('.tenant-auth-shell')).toHaveCSS('background-color', 'rgb(14, 58, 95)');
   expect(errors).toEqual([]);
 });
 
@@ -28,10 +42,10 @@ test('public legal routes remain available without authentication', async ({ pag
 test('protected routes redirect to sign-in when unauthenticated', async ({ page }) => {
   await page.goto('/survey-analysis');
   // ProtectedRoute sends unauthenticated users back to the sign-in shell.
-  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
 
   await page.goto('/decision');
-  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
 });
 
 test('unknown routes fall back to the sign-in shell when unauthenticated', async ({ page }) => {
@@ -41,6 +55,6 @@ test('unknown routes fall back to the sign-in shell when unauthenticated', async
   page.on('pageerror', error => errors.push(error.message));
 
   await page.goto('/this-route-does-not-exist');
-  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
   expect(errors).toEqual([]);
 });
