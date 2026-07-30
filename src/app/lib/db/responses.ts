@@ -4,12 +4,45 @@ import { dbError, fromJson } from './shared';
 import type { Database } from './database.types';
 
 type Tables = Database['public']['Tables'];
-type ResponseRow = Tables['responses']['Row'] & {
-  presentation_order?: string[] | null;
-};
+type ResponseRow = Pick<
+  Tables['responses']['Row'],
+  | 'id'
+  | 'user_id'
+  | 'product_id'
+  | 'created_at'
+  | 'run_number'
+  | 'cata_attributes'
+  | 'intensity_ratings'
+  | 'hedonic_scores'
+  | 'emotional_profile'
+  | 'comments'
+  | 'session_type'
+  | 'sample_code'
+  | 'different_sample'
+  | 'ranking'
+  | 'presentation_order'
+>;
 type ResponseInsert = Tables['responses']['Insert'] & {
   presentation_order?: string[] | null;
 };
+
+const RESPONSE_SELECT = [
+  'id',
+  'user_id',
+  'product_id',
+  'created_at',
+  'run_number',
+  'cata_attributes',
+  'intensity_ratings',
+  'hedonic_scores',
+  'emotional_profile',
+  'comments',
+  'session_type',
+  'sample_code',
+  'different_sample',
+  'ranking',
+  'presentation_order',
+].join(',') as 'id,user_id,product_id,created_at,run_number,cata_attributes,intensity_ratings,hedonic_scores,emotional_profile,comments,session_type,sample_code,different_sample,ranking,presentation_order';
 
 function toResponse(row: ResponseRow): QuestionnaireResponse {
   const rawComments = row.comments ?? '';
@@ -62,21 +95,67 @@ export async function fetchAllResponses(options?: {
   limit?: number;
   offset?: number;
 }): Promise<QuestionnaireResponse[]> {
-  const limit = options?.limit ?? 500;
-  const offset = options?.offset ?? 0;
-  const { data, error } = await supabase
-    .from('responses')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
+  if (options) {
+    const limit = options.limit ?? 500;
+    const offset = options.offset ?? 0;
+    const { data, error } = await supabase
+      .from('responses')
+      .select(RESPONSE_SELECT)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (error) throw dbError(error);
+    return (data ?? []).map(toResponse);
+  }
+
+  const pageSize = 1000;
+  const responses: QuestionnaireResponse[] = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase
+      .from('responses')
+      .select(RESPONSE_SELECT)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw dbError(error);
+    responses.push(...(data ?? []).map(toResponse));
+    if ((data?.length ?? 0) < pageSize) break;
+  }
+  return responses;
+}
+
+export async function fetchResponseCountsByProduct(): Promise<Record<string, number>> {
+  const { data, error } = await supabase.rpc('get_response_counts_by_product');
   if (error) throw dbError(error);
-  return (data ?? []).map(toResponse);
+  return Object.fromEntries(
+    (data ?? []).map(row => [row.product_id, Number(row.response_count)]),
+  );
+}
+
+export async function fetchResponsesForProducts(
+  productIds: readonly string[],
+): Promise<QuestionnaireResponse[]> {
+  if (productIds.length === 0) return [];
+
+  const pageSize = 1000;
+  const responses: QuestionnaireResponse[] = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase
+      .from('responses')
+      .select(RESPONSE_SELECT)
+      .in('product_id', [...productIds])
+      .order('created_at', { ascending: false })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw dbError(error);
+
+    responses.push(...(data ?? []).map(toResponse));
+    if ((data?.length ?? 0) < pageSize) break;
+  }
+  return responses;
 }
 
 export async function fetchUserResponses(userId: string): Promise<QuestionnaireResponse[]> {
   const { data, error } = await supabase
     .from('responses')
-    .select('*')
+    .select(RESPONSE_SELECT)
     .eq('user_id', userId);
   if (error) throw dbError(error);
   return (data ?? []).map(toResponse);
@@ -88,7 +167,7 @@ export async function fetchLatestUserResponse(
 ): Promise<QuestionnaireResponse | null> {
   const { data, error } = await supabase
     .from('responses')
-    .select('*')
+    .select(RESPONSE_SELECT)
     .eq('user_id', userId)
     .eq('product_id', productId)
     .order('run_number', { ascending: false })
@@ -105,7 +184,7 @@ export async function fetchUserResponseAtRun(
 ): Promise<QuestionnaireResponse | null> {
   const { data, error } = await supabase
     .from('responses')
-    .select('*')
+    .select(RESPONSE_SELECT)
     .eq('user_id', userId)
     .eq('product_id', productId)
     .eq('run_number', runNumber)

@@ -336,6 +336,8 @@ export function CommercializationReportBuilder({
                           <img
                             src={url}
                             alt={meta ? `${getConceptImageMode(meta.mode).label} option ${index + 1}` : `Packaging option ${index + 1}`}
+                            loading="lazy"
+                            decoding="async"
                             className="aspect-square w-full object-cover"
                           />
                           <div className="truncate bg-white px-2 py-1.5 text-[11px] font-medium text-slate-600">

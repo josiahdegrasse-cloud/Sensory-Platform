@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   fetchProducts, fetchActiveProducts, fetchTemplates,
   fetchPanelists, fetchPanelistReliability, invitePanelistAccount,
-  fetchAllResponses, fetchUserResponses,
+  fetchAllResponses, fetchResponseCountsByProduct, fetchResponsesForProducts, fetchUserResponses,
   fetchConceptTestsForPanelist, fetchUserConceptResponses,
   fetchConceptTestsForAdmin, fetchConceptTestsForStudyDashboard, fetchConceptResponsesForTest,
   fetchConceptResponseCounts,
@@ -78,6 +78,8 @@ export const queryKeys = {
   panelists: ['panelists'] as const,
   panelistReliability: ['panelistReliability'] as const,
   allResponses: ['allResponses'] as const,
+  responseCountsByProduct: ['responseCountsByProduct'] as const,
+  responsesForProducts: (productIds: readonly string[]) => ['responsesForProducts', ...productIds] as const,
   userResponses: (userId: string) => ['userResponses', userId] as const,
   conceptTests: (userId: string) => ['conceptTests', userId] as const,
   conceptResponses: (userId: string) => ['conceptResponses', userId] as const,
@@ -285,8 +287,29 @@ export function useAllResponses() {
   return useQuery({
     queryKey: queryKeys.allResponses,
     queryFn: () => fetchAllResponses(),
-    staleTime: 0,
-    refetchOnMount: 'always',
+    // Responses must stay fresh for decisions, but remounting adjacent
+    // workflow screens should not repeatedly download the same large payload.
+    staleTime: 15_000,
+    refetchOnMount: true,
+  })
+}
+
+export function useResponseCountsByProduct() {
+  return useQuery({
+    queryKey: queryKeys.responseCountsByProduct,
+    queryFn: fetchResponseCountsByProduct,
+    staleTime: 15_000,
+    refetchInterval: 60_000,
+  })
+}
+
+export function useResponsesForProducts(productIds: readonly string[]) {
+  const stableProductIds = [...productIds].sort();
+  return useQuery({
+    queryKey: queryKeys.responsesForProducts(stableProductIds),
+    queryFn: () => fetchResponsesForProducts(stableProductIds),
+    enabled: stableProductIds.length > 0,
+    staleTime: 15_000,
   })
 }
 
@@ -865,6 +888,9 @@ export function usePublicWorkspaceConfig() {
   return useQuery({
     queryKey: [...queryKeys.publicWorkspaceConfig, slug] as const,
     queryFn: () => fetchPublicWorkspaceConfig(slug ?? undefined),
+    staleTime: 30 * 60 * 1000,
+    gcTime: 2 * 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
   })
 }
 
@@ -1125,12 +1151,15 @@ export function useAssignBatchToProject() {
   })
 }
 
-export function usePendingImports(enabled = true) {
+export function usePendingImports(
+  enabled = true,
+  options: { pollIntervalMs?: number | false } = {},
+) {
   return useQuery({
     queryKey: queryKeys.pendingImports,
     queryFn: fetchPendingImports,
     enabled,
-    refetchInterval: 30_000,
+    refetchInterval: options.pollIntervalMs ?? 30_000,
   })
 }
 

@@ -53,6 +53,7 @@ const isValidImageUrlLaunch = (u: string) =>
   u.startsWith('data:image/') || ((): boolean => { try { return new URL(u).protocol === 'https:'; } catch { return false; } })();
 
 const DRAFT_STORAGE_KEY = 'concept_lab_draft_v1';
+const CONCEPT_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 const makeEmptyDraft = (promptStyle: string = 'balanced'): ConceptDraft => ({
   name: '',
@@ -323,6 +324,12 @@ export function ConceptTesting() {
       const raw = localStorage.getItem(draftStorageKey);
       if (raw) {
         const saved = JSON.parse(raw) as StoredConceptDraft;
+        const savedAt = Date.parse(saved.savedAt);
+        if (!Number.isFinite(savedAt) || Date.now() - savedAt > CONCEPT_DRAFT_TTL_MS) {
+          localStorage.removeItem(draftStorageKey);
+          setDraftNotice('The previous concept draft expired after seven days and was removed for workspace privacy.');
+          return;
+        }
         if (saved?.draft && saved.sourceDecision?.id && saved.sourceDecision.evidenceBundleId) {
           setDraft({ ...makeEmptyDraft(saved.draft.promptStyle), ...saved.draft });
           setQuestions(saved.questions ?? []);
@@ -375,8 +382,13 @@ export function ConceptTesting() {
         conceptSourceChosen,
         savedAt: new Date().toISOString(),
       };
-      localStorage.setItem(draftStorageKey, JSON.stringify(payload));
-      setSaveState('saved');
+      try {
+        localStorage.setItem(draftStorageKey, JSON.stringify(payload));
+        setSaveState('saved');
+      } catch {
+        setSaveState('idle');
+        setDraftNotice('This draft is too large for browser autosave. Approved records remain stored in the workspace.');
+      }
     }, 400);
     return () => window.clearTimeout(timeout);
   }, [assignedPanelistIds, conceptSourceChosen, draft, draftHasWork, draftStorageKey, panelSize, questions, questionsReviewState, segments, sourceDecision, step]);

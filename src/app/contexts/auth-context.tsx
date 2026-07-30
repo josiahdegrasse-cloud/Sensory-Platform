@@ -36,11 +36,15 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function clearPanelistSessionArtifacts() {
+function clearBrowserSessionArtifacts() {
   if (typeof window === 'undefined') return;
   for (const storage of [window.sessionStorage, window.localStorage]) {
     Object.keys(storage).forEach(key => {
-      if (key.startsWith('qs_draft_') || key.startsWith('panelist_kit_')) {
+      if (
+        key.startsWith('qs_draft_')
+        || key.startsWith('panelist_kit_')
+        || key.startsWith('concept_lab_draft_')
+      ) {
         storage.removeItem(key);
       }
     });
@@ -52,10 +56,23 @@ interface ProfileResult {
   blockedMessage: string | null;
 }
 
+const PROFILE_WITH_ORGANIZATION_SELECT = `
+  id,
+  role,
+  name,
+  org_id,
+  panelist_id,
+  status,
+  consent_accepted_at,
+  consent_version,
+  profile_completed_at,
+  organization:organizations!profiles_org_id_fkey(id, slug, status)
+` as const;
+
 async function loadProfile(supabaseUser: SupabaseUser): Promise<ProfileResult> {
   let { data, error } = await supabase
     .from('profiles')
-    .select('*')
+    .select(PROFILE_WITH_ORGANIZATION_SELECT)
     .eq('id', supabaseUser.id)
     .single();
   if (error || !data) {
@@ -63,7 +80,7 @@ async function loadProfile(supabaseUser: SupabaseUser): Promise<ProfileResult> {
       await requestAdminAccess();
       const retry = await supabase
         .from('profiles')
-        .select('*')
+        .select(PROFILE_WITH_ORGANIZATION_SELECT)
         .eq('id', supabaseUser.id)
         .single();
       data = retry.data;
@@ -85,13 +102,10 @@ async function loadProfile(supabaseUser: SupabaseUser): Promise<ProfileResult> {
     };
   }
 
-  const { data: organization, error: organizationError } = await supabase
-    .from('organizations')
-    .select('id, slug, status')
-    .eq('id', data.org_id)
-    .single();
-
-  if (organizationError || !organization) {
+  const organization = Array.isArray(data.organization)
+    ? data.organization[0]
+    : data.organization;
+  if (!organization) {
     return {
       profile: null,
       blockedMessage: 'Your company workspace could not be verified. Contact your study administrator.',
@@ -216,7 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    clearPanelistSessionArtifacts();
+    clearBrowserSessionArtifacts();
     await supabase.auth.signOut();
     setUser(null);
   };

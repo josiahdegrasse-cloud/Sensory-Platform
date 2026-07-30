@@ -49,7 +49,7 @@ export function ReportBrandStrip({ settings }: { settings?: WorkspaceSettings | 
       style={settings?.accentColor ? { borderColor: settings.accentColor } : undefined}
     >
       {settings?.logoUrl ? (
-        <img src={settings.logoUrl} alt={`${orgName} logo`} className="h-7 w-auto object-contain" />
+        <img src={settings.logoUrl} alt={`${orgName} logo`} decoding="async" className="h-7 w-auto object-contain" />
       ) : orgName === DEFAULT_REPORT_ORGANIZATION_NAME ? (
         <NfiBrandLockup markSize={28} textClassName="text-slate-700 [&_div]:text-[11px]" />
       ) : (
@@ -128,7 +128,7 @@ export function ReportCoverHeader({ settings, sampleName, foodTypeLabel, decisio
         <div className="min-w-0">
           <div className="flex items-center gap-3">
             {settings?.logoUrl ? (
-              <img src={settings.logoUrl} alt={`${orgName} logo`} className="h-7 w-auto object-contain" />
+              <img src={settings.logoUrl} alt={`${orgName} logo`} decoding="async" className="h-7 w-auto object-contain" />
             ) : orgName === DEFAULT_REPORT_ORGANIZATION_NAME ? (
               <NfiBrandLockup markSize={28} textClassName="text-slate-700 [&_div]:text-[11px]" />
             ) : null}

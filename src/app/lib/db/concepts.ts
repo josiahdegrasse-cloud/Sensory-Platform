@@ -426,15 +426,11 @@ export async function fetchConceptResponsesForTest(conceptTestId: string): Promi
 }
 
 export async function fetchConceptResponseCounts(): Promise<Record<string, number>> {
-  const { data, error } = await supabase
-    .from('concept_responses')
-    .select('concept_test_id');
+  const { data, error } = await supabase.rpc('get_concept_response_counts');
   if (error) throw dbError(error);
-  return (data ?? []).reduce<Record<string, number>>((counts, row) => {
-    const id = row.concept_test_id as string;
-    counts[id] = (counts[id] ?? 0) + 1;
-    return counts;
-  }, {});
+  return Object.fromEntries(
+    (data ?? []).map(row => [row.concept_test_id, Number(row.response_count)]),
+  );
 }
 
 function toCommercializationReport(row: Tables['commercialization_reports']['Row']): CommercializationReportRecord {

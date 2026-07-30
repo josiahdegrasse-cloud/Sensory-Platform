@@ -4,7 +4,8 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && node scripts/check-bundle-budget.mjs",
+    "check:bundle": "node scripts/check-bundle-budget.mjs",
     "dev": "vite",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",

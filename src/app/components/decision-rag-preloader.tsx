@@ -21,6 +21,15 @@ const DECISION_WEIGHTS = { hedonic: 30, texture: 25, cata: 25, emotional: 15 };
 const PREFETCH_CONCURRENCY = 2;
 const PREFETCH_START_DELAY_MS = 300;
 
+export function scopeDecisionRagProfiles(
+  profiles: readonly EnhancedSensoryProfile[],
+  sampleIds?: ReadonlySet<string>,
+): EnhancedSensoryProfile[] {
+  return sampleIds
+    ? profiles.filter(profile => sampleIds.has(profile.sampleId))
+    : [...profiles];
+}
+
 export function buildDecisionRagPrefetchRequests(input: {
   profiles: readonly EnhancedSensoryProfile[];
   foodTypeForProfile: (profile: EnhancedSensoryProfile) => string;
@@ -76,7 +85,11 @@ export async function warmDecisionRagRequests(
   await Promise.all(Array.from({ length: concurrency }, () => worker()));
 }
 
-export function DecisionRagPreloader() {
+export function DecisionRagPreloader({
+  sampleIds,
+}: {
+  sampleIds?: ReadonlySet<string>;
+}) {
   const queryClient = useQueryClient();
   const ragStatus = useRagStatus();
   const { data: instrumentalDataset } = useInstrumentalDataset();
@@ -86,11 +99,14 @@ export function DecisionRagPreloader() {
   const goThreshold = workspaceSettings?.decisionGoThreshold ?? 75;
   const stopThreshold = workspaceSettings?.decisionStopThreshold ?? 45;
 
-  const profiles = useMemo(() => buildImportedSensoryProfiles(
-    instrumentalDataset,
-    liveAggregations,
-    { minimumResponses },
-  ), [instrumentalDataset, liveAggregations, minimumResponses]);
+  const profiles = useMemo(() => {
+    const importedProfiles = buildImportedSensoryProfiles(
+      instrumentalDataset,
+      liveAggregations,
+      { minimumResponses },
+    );
+    return scopeDecisionRagProfiles(importedProfiles, sampleIds);
+  }, [instrumentalDataset, liveAggregations, minimumResponses, sampleIds]);
 
   const requests = useMemo(() => buildDecisionRagPrefetchRequests({
     profiles,
@@ -104,7 +120,11 @@ export function DecisionRagPreloader() {
   }), [goThreshold, instrumentalDataset?.eTongueData, instrumentalDataset?.formulationVersions, profiles, stopThreshold]);
 
   useEffect(() => {
-    if (!ragStatus.isSuccess || requests.length === 0) return;
+    if (
+      !ragStatus.isSuccess
+      || requests.length === 0
+      || document.visibilityState === 'hidden'
+    ) return;
     let active = true;
     const timer = window.setTimeout(() => {
       void warmDecisionRagRequests(

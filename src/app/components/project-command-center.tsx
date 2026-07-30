@@ -13,7 +13,6 @@ import { useFoodType } from '../contexts/food-type-context';
 import { parseBatchSelection, encodeBatchSelection, projectRoutePath } from '../lib/project-identity';
 import {
   useAdminConceptTests,
-  useAllResponses,
   useAuditEvents,
   useCommercializationReports,
   useDecisionRecords,
@@ -22,6 +21,7 @@ import {
   useImportBatches,
   useInstrumentalDataset,
   useProducts,
+  useResponsesForProducts,
   useRenameProject,
   useUpdateImportBatchName,
   useWorkspaceSettings,
@@ -234,7 +234,6 @@ export function ProjectCommandCenter() {
   const { data: conceptTests = [] } = useAdminConceptTests();
   const { data: reports = [] } = useCommercializationReports();
   const { data: products = [] } = useProducts();
-  const { data: responses = [] } = useAllResponses();
   const { data: instrumentalDataset } = useInstrumentalDataset(true);
   const renameProject = useRenameProject();
   const updateImportBatchName = useUpdateImportBatchName();
@@ -326,6 +325,18 @@ export function ProjectCommandCenter() {
     const batchIds = new Set(projectBatches.map(item => item.id));
     return instrumentalDataset.eTongueData.filter(sample => sample.importBatchId && batchIds.has(sample.importBatchId));
   }, [instrumentalDataset, projectBatches]);
+  const projectProductIds = useMemo(() => {
+    const sampleIds = new Set(projectSamples.map(sample => sample.sampleId));
+    const batchIds = new Set(projectBatches.map(item => item.id));
+    return products
+      .filter(product => (
+        (projectScopeId ? product.projectId === projectScopeId : false)
+        || (product.sourceImportBatchId ? batchIds.has(product.sourceImportBatchId) : false)
+        || (product.sourceSampleId ? sampleIds.has(product.sourceSampleId) : false)
+      ))
+      .map(product => product.id);
+  }, [products, projectBatches, projectSamples, projectScopeId]);
+  const { data: responses = [] } = useResponsesForProducts(projectProductIds);
   const prototypes = useMemo(() => buildDecisionRoomPrototypes({
     samples: projectSamples,
     decisions: decisionRecords,

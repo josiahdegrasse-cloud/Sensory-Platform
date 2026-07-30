@@ -150,6 +150,7 @@ export function ConceptSurvey() {
               <img
                 src={validImages[imageIndex]}
                 alt={`Marketing concept ${imageIndex + 1}`}
+                decoding="async"
                 className="w-full h-72 object-contain"
               />
               {validImages.length > 1 && (
@@ -184,7 +185,7 @@ export function ConceptSurvey() {
                       i === imageIndex ? 'border-orange-500 shadow-sm' : 'border-slate-200 hover:border-orange-300'
                     }`}
                   >
-                    <img src={url} alt={`Concept ${i + 1}`} className="w-20 h-14 object-cover" />
+                    <img src={url} alt={`Concept ${i + 1}`} loading="lazy" decoding="async" className="w-20 h-14 object-cover" />
                   </button>
                 ))}
               </div>
@@ -383,7 +384,7 @@ function ImageChoiceInput({
             value === url ? 'border-orange-500 shadow-md' : 'border-slate-200 hover:border-orange-300'
           }`}
         >
-          <img src={url} alt={`Concept visual ${i + 1}`} className="w-full aspect-square object-cover" />
+          <img src={url} alt={`Concept visual ${i + 1}`} loading="lazy" decoding="async" className="w-full aspect-square object-cover" />
           <span className={`absolute top-1.5 right-1.5 flex size-5 items-center justify-center rounded-full border-2 shadow-sm ${
             value === url ? 'bg-orange-500 border-orange-500 text-white' : 'bg-white/90 border-slate-200 text-transparent'
           }`}>

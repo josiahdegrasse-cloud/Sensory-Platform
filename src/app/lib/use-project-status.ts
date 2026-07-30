@@ -8,9 +8,9 @@ import {
   useInstrumentalDataset,
   usePendingImports,
   useProducts,
+  useResponseCountsByProduct,
   useWorkspaceSettings,
 } from './hooks';
-import { useSurveyData } from './use-survey-data';
 import type { ProjectStatusSummary, WorkflowStageState, ReportStatus, DecisionStatus, SemanticTone } from './project-status';
 import type { ImportBatchRecord } from './database';
 import { evaluateProjectWorkflow } from './workflow/workflow-evaluator';
@@ -31,15 +31,19 @@ function useProjectStatusInputs() {
   const { data: conceptTests = [] } = useAdminConceptTests();
   const { data: conceptResponseCounts = {} } = useConceptResponseCounts();
   const { data: commercializationReports = [] } = useCommercializationReports();
-  const { liveAggregations } = useSurveyData();
+  const { data: responseCountsByProduct = {} } = useResponseCountsByProduct();
 
   const responseCountsBySampleId = useMemo(() => {
     const counts: Record<string, number> = {};
-    liveAggregations.forEach(agg => {
-      if (agg.sourceSampleId) counts[agg.sourceSampleId] = agg.n;
+    products.forEach(product => {
+      if (!product.sourceSampleId) return;
+      counts[product.sourceSampleId] = (
+        (counts[product.sourceSampleId] ?? 0)
+        + (responseCountsByProduct[product.id] ?? 0)
+      );
     });
     return counts;
-  }, [liveAggregations]);
+  }, [products, responseCountsByProduct]);
 
   return {
     importBatches,

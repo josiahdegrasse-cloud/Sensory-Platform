@@ -30,7 +30,16 @@ describe.skipIf(!CONFIGURED)('RLS tenant isolation', () => {
   let admin: SupabaseClient;          // service role — bypasses RLS, used for seeding
   let clientA: SupabaseClient;        // signed in as org A's admin
   let clientB: SupabaseClient;        // signed in as org B's admin
-  const ids: { orgA?: string; orgB?: string; userA?: string; userB?: string; productA?: string; productB?: string } = {};
+  const ids: {
+    orgA?: string;
+    orgB?: string;
+    userA?: string;
+    userB?: string;
+    productA?: string;
+    productB?: string;
+    responseA?: string;
+    responseB?: string;
+  } = {};
 
   beforeAll(async () => {
     admin = createClient(URL!, SERVICE!, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -66,6 +75,19 @@ describe.skipIf(!CONFIGURED)('RLS tenant isolation', () => {
     const pb = must('product B insert', await admin.from('products').insert({ name: 'Secret Formula B', category: 'Test', status: 'active', org_id: ids.orgB }).select().single());
     ids.productA = (pa as unknown as { id: string }).id; ids.productB = (pb as unknown as { id: string }).id;
 
+    const ra = must('response A insert', await admin.from('responses').insert({
+      user_id: ids.userA,
+      product_id: ids.productA,
+      org_id: ids.orgA,
+    }).select().single());
+    const rb = must('response B insert', await admin.from('responses').insert({
+      user_id: ids.userB,
+      product_id: ids.productB,
+      org_id: ids.orgB,
+    }).select().single());
+    ids.responseA = (ra as unknown as { id: string }).id;
+    ids.responseB = (rb as unknown as { id: string }).id;
+
     clientA = createClient(URL!, ANON!, { auth: { persistSession: false, autoRefreshToken: false } });
     clientB = createClient(URL!, ANON!, { auth: { persistSession: false, autoRefreshToken: false } });
     await clientA.auth.signInWithPassword(userA);
@@ -74,6 +96,8 @@ describe.skipIf(!CONFIGURED)('RLS tenant isolation', () => {
 
   afterAll(async () => {
     if (!admin) return;
+    if (ids.responseA) await admin.from('responses').delete().eq('id', ids.responseA);
+    if (ids.responseB) await admin.from('responses').delete().eq('id', ids.responseB);
     if (ids.productA) await admin.from('products').delete().eq('id', ids.productA);
     if (ids.productB) await admin.from('products').delete().eq('id', ids.productB);
     if (ids.userA) await admin.auth.admin.deleteUser(ids.userA);
@@ -113,5 +137,21 @@ describe.skipIf(!CONFIGURED)('RLS tenant isolation', () => {
   it('the reverse holds: org B cannot see org A\'s product', async () => {
     const { data } = await clientB.from('products').select('id').eq('id', ids.productA);
     expect(data ?? []).toHaveLength(0);
+  });
+
+  it('aggregate response-count functions preserve tenant isolation', async () => {
+    const [{ data: byProduct, error: productError }, { data: byPanelist, error: panelistError }] = await Promise.all([
+      clientA.rpc('get_response_counts_by_product'),
+      clientA.rpc('get_response_counts_by_panelist'),
+    ]);
+    expect(productError).toBeNull();
+    expect(panelistError).toBeNull();
+
+    const productIds = (byProduct ?? []).map((row: { product_id: string }) => row.product_id);
+    const userIds = (byPanelist ?? []).map((row: { user_id: string }) => row.user_id);
+    expect(productIds).toContain(ids.productA);
+    expect(productIds).not.toContain(ids.productB);
+    expect(userIds).toContain(ids.userA);
+    expect(userIds).not.toContain(ids.userB);
   });
 });

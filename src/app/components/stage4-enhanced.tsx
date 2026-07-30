@@ -33,6 +33,7 @@ import { ProjectReadinessSetupCard } from "./project-readiness-setup-card";
 import { FormulationContextStrip } from './formulation-context-strip';
 import { buildEvidenceBundleFromProfiles } from '../lib/report-evidence';
 import type { DecisionOutcome } from "../utils/go-stop-tweak-engine";
+import { DecisionRagPreloader } from './decision-rag-preloader';
 type SampleDecision = GoStopTweakDecision;
 type ConfirmedSampleDecision = SampleDecision & {
   recordId?: string | null;
@@ -326,6 +327,7 @@ export function Stage4Enhanced() {
 
   return (
     <div className="space-y-6">
+      <DecisionRagPreloader sampleIds={projectSampleIds} />
       <WorkflowPageHeader
         title="Decision Review"
         description="Review the recommendation, confirm the outcome, and move the project forward."

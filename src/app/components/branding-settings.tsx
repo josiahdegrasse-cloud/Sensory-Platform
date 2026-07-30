@@ -209,7 +209,7 @@ export function BrandingSettings({ draft, updateDraft, disabled }: {
             <Label>Preview</Label>
             <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
               {draft.logoUrl ? (
-                <img src={draft.logoUrl} alt="" className="size-6 rounded object-contain" />
+                <img src={draft.logoUrl} alt="" decoding="async" className="size-6 rounded object-contain" />
               ) : (
                 <span className="flex size-6 items-center justify-center rounded bg-slate-50 text-[11px] font-bold text-slate-500">
                   {(draft.organizationName || 'SP').slice(0, 2).toUpperCase()}

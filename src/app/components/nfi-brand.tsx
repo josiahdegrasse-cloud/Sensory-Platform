@@ -14,6 +14,7 @@ export function NfiBrandMark({ size = 40, className, monochrome = false }: NfiBr
       alt="NFI"
       width={size}
       height={size}
+      decoding="async"
       className={cn('shrink-0 rounded-[26%] object-cover', className)}
       style={{
         width: size,
@@ -84,6 +85,7 @@ export function TenantOrNfiLogo({
       <img
         src={logoUrl}
         alt={organizationName ?? 'Logo'}
+        decoding="async"
         className={cn('block h-9 max-w-40 object-contain', logoClassName)}
       />
     );

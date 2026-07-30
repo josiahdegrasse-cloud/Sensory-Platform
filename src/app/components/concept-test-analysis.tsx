@@ -844,7 +844,7 @@ function ImageChoiceResults({ answers, images, imagePairs, conceptName, evidence
           const isWinner = !!winner && url === winner.url && count > 0;
           return (
             <div key={`${url}-${index}`} className={`relative rounded-lg overflow-hidden border-2 ${isWinner ? 'border-blue-500 shadow-md' : 'border-slate-200'}`}>
-              <img src={url} alt={`Concept test visual option ${index + 1}`} className="w-full aspect-square object-cover" />
+              <img src={url} alt={`Concept test visual option ${index + 1}`} loading="lazy" decoding="async" className="w-full aspect-square object-cover" />
               {isWinner && (
                 <span className="absolute top-1.5 right-1.5 flex items-center justify-center rounded-full bg-blue-600 p-1 text-white shadow-sm" aria-label="Leading visual">
                   <Trophy className="size-3" aria-hidden />

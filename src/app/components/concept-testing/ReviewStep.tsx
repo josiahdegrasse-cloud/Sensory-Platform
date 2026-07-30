@@ -284,7 +284,7 @@ export function ReviewStep({
               {selectedImageEntries.map(({ image, review, originalIndex }, index) => {
                 return (
                   <div key={`${image}-${originalIndex}`} className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-                    <img src={image} alt={`Selected concept visual ${index + 1}`} className="aspect-square w-full object-cover" />
+                    <img src={image} alt={`Selected concept visual ${index + 1}`} loading="lazy" decoding="async" className="aspect-square w-full object-cover" />
                     <div className="space-y-1.5 border-t border-slate-200 p-2">
                       <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${visualStatusClasses(review?.status)}`}>
                         {visualStatusLabel(review?.status)}

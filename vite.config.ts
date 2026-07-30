@@ -4,6 +4,11 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { sentryVitePlugin } from '@sentry/vite-plugin'
 
+const hasSentryUpload = Boolean(
+  process.env.SENTRY_AUTH_TOKEN
+  && process.env.SENTRY_ORG
+  && process.env.SENTRY_PROJECT
+)
 
 function figmaAssetResolver() {
   return {
@@ -24,8 +29,14 @@ export default defineConfig({
     // Tailwind is not being actively used – do not remove them
     react(),
     tailwindcss(),
-    ...(process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT
-      ? [sentryVitePlugin({ org: process.env.SENTRY_ORG, project: process.env.SENTRY_PROJECT })]
+    ...(hasSentryUpload
+      ? [sentryVitePlugin({
+          org: process.env.SENTRY_ORG,
+          project: process.env.SENTRY_PROJECT,
+          sourcemaps: {
+            filesToDeleteAfterUpload: ['./dist/**/*.map'],
+          },
+        })]
       : []),
   ],
   resolve: {
@@ -39,7 +50,10 @@ export default defineConfig({
   assetsInclude: ['**/*.svg', '**/*.csv'],
 
   build: {
-    sourcemap: false,
+    // Hidden maps make production errors actionable without exposing source
+    // URLs to browsers. They are generated only when the Sentry upload is
+    // configured, then deleted after upload by the plugin above.
+    sourcemap: hasSentryUpload ? 'hidden' : false,
     // Charting/PDF/Excel libraries are intentionally large but lazy-loaded
     // (dynamic import or route-level code splitting), so they never land in
     // the initial bundle. Raise the warning limit to avoid noise for those
@@ -53,6 +67,14 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes('node_modules')) {
             if (id.includes('@supabase')) return 'vendor-supabase'
+            // Recharts also depends on clsx. Pin the app-shell styling helpers
+            // before assigning Recharts, otherwise Rollup can absorb them into
+            // vendor-charts and force the login screen to preload every chart.
+            if (
+              id.includes('/clsx/')
+              || id.includes('/tailwind-merge/')
+              || id.includes('/class-variance-authority/')
+            ) return 'vendor-ui'
             if (id.includes('recharts')) return 'vendor-charts'
             if (id.includes('@radix-ui')) return 'vendor-ui'
             if (

@@ -625,6 +625,8 @@ export function ImagesStep({
                 <img
                   src={draft.brandReference.url}
                   alt="Locked product design"
+                  loading="lazy"
+                  decoding="async"
                   className="size-12 shrink-0 rounded-md border border-blue-200 bg-white object-contain"
                 />
                 <div className="min-w-0">
@@ -763,6 +765,8 @@ export function ImagesStep({
                           <img
                             src={candidate.url}
                             alt={`Generated ${modeLabel} concept for ${draft.name}, option ${i + 1}`}
+                            loading="lazy"
+                            decoding="async"
                             className="h-full w-full bg-slate-100 object-contain"
                           />
                           <span className={`absolute top-2 right-2 flex size-6 items-center justify-center rounded-full border-2 shadow-sm ${

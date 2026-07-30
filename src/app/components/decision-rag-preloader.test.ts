@@ -4,10 +4,18 @@ import { ENHANCED_SENSORY_DATA } from '../data/enhanced-sensory';
 import { tweakDiagnosisQueryOptions } from '../lib/hooks';
 import {
   buildDecisionRagPrefetchRequests,
+  scopeDecisionRagProfiles,
   warmDecisionRagRequests,
 } from './decision-rag-preloader';
 
 describe('decision RAG background preloader', () => {
+  it('limits background research to the active project samples', () => {
+    const profiles = ENHANCED_SENSORY_DATA.filter(profile => ['S2', 'S3', 'S4'].includes(profile.sampleId));
+
+    expect(scopeDecisionRagProfiles(profiles, new Set(['S3'])).map(profile => profile.sampleId))
+      .toEqual(['S3']);
+  });
+
   it('builds requests for TWEAK and STOP decisions but skips GO decisions', () => {
     const profiles = ENHANCED_SENSORY_DATA.filter(profile => ['S2', 'S3', 'S4'].includes(profile.sampleId));
     const requests = buildDecisionRagPrefetchRequests({

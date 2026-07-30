@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Navigate, useLocation, useParams } from 'react-router';
 import { useFoodType } from '../contexts/food-type-context';
 import {
@@ -12,16 +12,36 @@ import {
   projectPath,
   type ProjectJourneyStep,
 } from '../lib/project-journey-routes';
-import { CommercializationReportPage } from './commercialization-report-page';
-import { ConceptTesting } from './concept-testing';
-import { ProjectCommandCenter } from './project-command-center';
-import { ReportsPage } from './reports-page';
-import { Stage1Instrumental } from './stage1-instrumental';
-import { Stage4Enhanced } from './stage4-enhanced';
-import { StudiesWorkspace } from './studies-workspace';
-import { ShipOutsWorkspace } from './ship-outs-workspace';
-import { SurveyAnalysis } from './survey-analysis';
-import { FormulationExperimentWorkspace } from './formulation-experiment-workspace';
+const CommercializationReportPage = lazy(() => import('./commercialization-report-page').then(module => ({
+  default: module.CommercializationReportPage,
+})));
+const ConceptTesting = lazy(() => import('./concept-testing').then(module => ({
+  default: module.ConceptTesting,
+})));
+const ProjectCommandCenter = lazy(() => import('./project-command-center').then(module => ({
+  default: module.ProjectCommandCenter,
+})));
+const ReportsPage = lazy(() => import('./reports-page').then(module => ({
+  default: module.ReportsPage,
+})));
+const Stage1Instrumental = lazy(() => import('./stage1-instrumental').then(module => ({
+  default: module.Stage1Instrumental,
+})));
+const Stage4Enhanced = lazy(() => import('./stage4-enhanced').then(module => ({
+  default: module.Stage4Enhanced,
+})));
+const StudiesWorkspace = lazy(() => import('./studies-workspace').then(module => ({
+  default: module.StudiesWorkspace,
+})));
+const ShipOutsWorkspace = lazy(() => import('./ship-outs-workspace').then(module => ({
+  default: module.ShipOutsWorkspace,
+})));
+const SurveyAnalysis = lazy(() => import('./survey-analysis').then(module => ({
+  default: module.SurveyAnalysis,
+})));
+const FormulationExperimentWorkspace = lazy(() => import('./formulation-experiment-workspace').then(module => ({
+  default: module.FormulationExperimentWorkspace,
+})));
 
 function LoadingProjectScope() {
   return (
@@ -83,5 +103,9 @@ export function ProjectWorkflowRoute() {
   if (!scope?.selectedBatch || !scope.foodTypeSlug) return <Navigate to="/" replace />;
   if (!selectionMatchesProjectScope(foodType, subCategory, scope)) return <LoadingProjectScope />;
 
-  return <ProjectStepContent step={journeyStep} substep={substep} />;
+  return (
+    <Suspense fallback={<LoadingProjectScope />}>
+      <ProjectStepContent step={journeyStep} substep={substep} />
+    </Suspense>
+  );
 }

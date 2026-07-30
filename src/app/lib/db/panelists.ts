@@ -33,13 +33,13 @@ export function panelistShippingAddress(panelist: Pick<PanelistInfo, 'addressLin
 }
 
 export async function fetchPanelists(): Promise<PanelistInfo[]> {
-  const [profilesResult, { data: responses }] = await Promise.all([
+  const [profilesResult, responseCountsResult] = await Promise.all([
     supabase
       .from('profiles')
       .select('id, name, email, panelist_id, training_level, status, consent_accepted_at, consent_version, phone, address_line_1, address_line_2, city, region, postal_code, country, profile_completed_at')
       .eq('role', 'panelist')
       .order('created_at', { ascending: false }),
-    supabase.from('responses').select('user_id'),
+    supabase.rpc('get_response_counts_by_panelist'),
   ]);
 
   // Graceful fallback if training_level column hasn't been migrated yet
@@ -50,9 +50,8 @@ export async function fetchPanelists(): Promise<PanelistInfo[]> {
   }
 
   const counts: Record<string, number> = {};
-  (responses ?? []).forEach((r: Record<string, unknown>) => {
-    const uid = r.user_id as string;
-    counts[uid] = (counts[uid] || 0) + 1;
+  (responseCountsResult.data ?? []).forEach(row => {
+    counts[row.user_id] = Number(row.response_count);
   });
 
   return (profiles ?? []).map((p: Record<string, unknown>) => ({

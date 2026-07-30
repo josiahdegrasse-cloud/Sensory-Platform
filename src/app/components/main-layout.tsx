@@ -1,11 +1,10 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
 import { FlaskConical, BarChart3, GitMerge, ClipboardList, LogOut, Lightbulb, Archive, Trash2, Undo2, ChevronDown, ChevronRight, Settings, AlertCircle, AlertTriangle, X, FileText, FolderKanban, Menu, BookOpenText } from "lucide-react";
 import { useAuth } from "../contexts/auth-context";
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useFoodType } from "../contexts/food-type-context";
 import { parseBatchSelection, encodeBatchSelection } from "../lib/project-identity";
 import { useDeleteImportBatch, useImportBatches, usePendingImports, useProjects, useUpdateImportBatchStatus, useWorkspaceSettings } from "../lib/hooks";
-import { useProjectStatus } from "../lib/use-project-status";
 import { currentPathToJourneyStep, legacyWorkflowPathToStep, projectPath } from "../lib/project-journey-routes";
 import type { ImportBatchRecord } from "../lib/database";
 import { ConsentGate } from "./consent-gate";
@@ -29,10 +28,6 @@ import {
 import { TenantOrNfiLogo } from "./nfi-brand";
 import { applyBrandTheme } from "../lib/brand-theme";
 import { NFI_BRAND_COLOR, NFI_BRAND_COLOR_DARK, NFI_ORGANIZATION_NAME } from "../lib/nfi-brand";
-
-const DecisionRagPreloader = lazy(() => import('./decision-rag-preloader').then(module => ({
-  default: module.DecisionRagPreloader,
-})));
 
 const LEGACY_DEMO_IMPORT_CUTOFF = Date.parse('2026-06-16T03:35:41Z');
 
@@ -157,8 +152,6 @@ function CategorySidebar() {
       });
     return groups;
   }, [importBatches]);
-  const status = useProjectStatus(foodType, selectedBatchId);
-  const hasActiveProject = foodType !== 'all' && Boolean(foodType);
   const applyTypeProjectStatus = (type: string, nextStatus: 'archived' | 'deleted') => {
     (projectBatchesByType[type] ?? []).forEach(project => {
       updateImportBatchStatus.mutate({ id: project.id, status: nextStatus });
@@ -351,21 +344,6 @@ function CategorySidebar() {
           )}
         </div>
       </div>
-      {hasActiveProject && status.warnings.length > 0 && (
-        <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700">
-              <AlertTriangle className="size-3.5" />
-              Warnings
-            </div>
-            {status.warnings.map(warning => (
-              <div key={warning} className="rounded-lg border border-amber-100 bg-amber-50 px-2 py-1.5 text-[11px] leading-snug text-amber-800">
-                {warning}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
       <AdminCleanupReview batches={importBatches} />
       <AlertDialog open={!!pendingAction} onOpenChange={open => !open && setPendingAction(null)}>
         <AlertDialogContent>
@@ -463,7 +441,12 @@ export function MainLayout() {
   const { subCategory } = useFoodType();
   const { data: workspaceSettings } = useWorkspaceSettings();
   const { data: navImportBatches = [] } = useImportBatches(user?.role === 'admin');
-  const { data: pendingImports = [] } = usePendingImports(user?.role === 'admin');
+  const shouldPollPendingImports = location.pathname === '/stage1'
+    || currentPathToJourneyStep(location.pathname) === 'data';
+  const { data: pendingImports = [] } = usePendingImports(
+    user?.role === 'admin',
+    { pollIntervalMs: shouldPollPendingImports ? 30_000 : false },
+  );
 
   // Per-tenant branding (falls back to NFI when the org hasn't set its own).
   const brandLogo = workspaceSettings?.logoUrl ?? null;
@@ -679,12 +662,6 @@ export function MainLayout() {
 
         </div>
       </header>
-
-      {user?.role === 'admin' && (
-        <Suspense fallback={null}>
-          <DecisionRagPreloader />
-        </Suspense>
-      )}
 
       <div className="mx-auto flex max-w-[1600px] items-start gap-4 px-4 py-6 sm:px-6 lg:py-8">
         {user?.role === 'admin' && <CategorySidebar />}

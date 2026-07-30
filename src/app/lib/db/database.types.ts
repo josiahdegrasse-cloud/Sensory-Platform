@@ -3358,6 +3358,13 @@ export type Database = {
           token: string
         }[]
       }
+      get_concept_response_counts: {
+        Args: never
+        Returns: {
+          concept_test_id: string
+          response_count: number
+        }[]
+      }
       get_decision_freshness: {
         Args: { target_decision_record_id: string }
         Returns: {
@@ -3416,6 +3423,20 @@ export type Database = {
           logo_url: string
           primary_color: string
           workspace_name: string
+        }[]
+      }
+      get_response_counts_by_panelist: {
+        Args: never
+        Returns: {
+          response_count: number
+          user_id: string
+        }[]
+      }
+      get_response_counts_by_product: {
+        Args: never
+        Returns: {
+          product_id: string
+          response_count: number
         }[]
       }
       is_active_user: { Args: never; Returns: boolean }
