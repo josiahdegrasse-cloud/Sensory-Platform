@@ -31,7 +31,8 @@ async function openProjectWithPrototype(page: Page) {
     await expect(page.getByRole('heading', { name: 'Project decision room' })).toBeVisible({
       timeout: 15_000,
     });
-    if (await page.getByRole('complementary', { name: 'Project prototypes' }).count()) {
+    const prototypePanel = page.getByRole('complementary', { name: 'Project prototypes' });
+    if (await prototypePanel.isVisible({ timeout: 5_000 }).catch(() => false)) {
       return href;
     }
   }
