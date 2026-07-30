@@ -30,6 +30,7 @@ export interface FoodTypeRecord {
 }
 
 export interface ETongueMeasurementRecord {
+  instrumentalSampleId?: string;
   sampleId: string;
   sampleName?: string;
   sourness: number;
@@ -589,6 +590,7 @@ export async function fetchInstrumentalDataset(): Promise<InstrumentalDataset> {
   const { data, error } = await supabase
     .from('instrumental_samples')
     .select(`
+      id,
       sample_id,
       sample_name,
       category,
@@ -631,6 +633,7 @@ export async function fetchInstrumentalDataset(): Promise<InstrumentalDataset> {
     const eTongue = ((row.e_tongue_measurements as Record<string, unknown>[] | null) ?? [])[0];
     if (eTongue) {
       eTongueData.push({
+        instrumentalSampleId: row.id as string,
         sampleId,
         sampleName: (row.sample_name as string) ?? undefined,
         category: (row.category as string) ?? undefined,

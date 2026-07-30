@@ -2,6 +2,7 @@ import { supabase } from '../supabase';
 import { dbError, fromJson, insertAuditEvent } from './shared';
 import { validateCompanyDomain } from '../company-email';
 import type { Database } from './database.types';
+import { tenantSignInUrl } from '../tenant';
 
 type Tables = Database['public']['Tables'];
 
@@ -96,6 +97,34 @@ export interface PublicWorkspaceConfig {
   accentColor?: string | null;
 }
 
+export interface PlatformOrganizationInput {
+  organizationName: string;
+  organizationSlug: string;
+  administratorEmail: string;
+  emailDomains: string[];
+  workspaceName?: string;
+  logoUrl?: string;
+  primaryColor?: string;
+  accentColor?: string;
+}
+
+export interface PlatformOrganizationResult {
+  organizationId: string;
+  organizationSlug: string;
+  administratorEmail: string;
+  signInUrl: string;
+}
+
+export interface WorkspaceOperationalHealth {
+  databaseOnline: boolean;
+  checkedAt: string;
+  unresolvedLineageCount: number;
+  failedImageGenerationsThisMonth: number;
+  failedPendingImports: number;
+  latestAuditEventAt: string | null;
+  warnings: string[];
+}
+
 export interface AuditEventRecord {
   id: string;
   actorId: string | null;
@@ -120,6 +149,8 @@ export interface DecisionRecord {
   methodVersion: string;
   decisionFingerprint: string;
   projectId?: string | null;
+  /** Canonical imported prototype evaluated by this decision. */
+  instrumentalSampleId?: string | null;
   /** Set when this decision was made after a retest triggered by a prior TWEAK/STOP. */
   parentDecisionId?: string | null;
   /** Immutable formulation snapshot evaluated when this decision was saved. */
@@ -255,6 +286,78 @@ export async function fetchWorkspaceSettings(): Promise<WorkspaceSettings> {
     throw dbError(error);
   }
   return data ? toWorkspaceSettings(data) : defaultWorkspaceSettings();
+}
+
+export async function fetchIsPlatformOperator(): Promise<boolean> {
+  const { data, error } = await supabase.rpc('is_platform_operator');
+  if (error) throw dbError(error);
+  return Boolean(data);
+}
+
+export async function provisionPlatformOrganization(
+  input: PlatformOrganizationInput,
+): Promise<PlatformOrganizationResult> {
+  const { data, error } = await supabase.rpc('platform_provision_organization', {
+    p_org_name: input.organizationName,
+    p_org_slug: input.organizationSlug,
+    p_admin_email: input.administratorEmail,
+    p_email_domains: input.emailDomains,
+    p_workspace_name: input.workspaceName || undefined,
+    p_logo_url: input.logoUrl || undefined,
+    p_primary_color: input.primaryColor || undefined,
+    p_accent_color: input.accentColor || undefined,
+  });
+  if (error) throw dbError(error);
+  const row = data?.[0];
+  if (!row) throw new Error('Organization provisioning completed without a result.');
+
+  return {
+    organizationId: row.organization_id,
+    organizationSlug: row.organization_slug,
+    administratorEmail: row.administrator_email,
+    signInUrl: tenantSignInUrl(row.organization_slug),
+  };
+}
+
+export async function fetchWorkspaceOperationalHealth(): Promise<WorkspaceOperationalHealth> {
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+
+  const [database, lineage, imageFailures, importFailures, latestAudit] = await Promise.all([
+    supabase.from('projects').select('id', { count: 'exact', head: true }),
+    supabase.from('prototype_lineage_reconciliation').select('entity_id', { count: 'exact', head: true }),
+    supabase
+      .from('concept_image_generations')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'failed')
+      .gte('created_at', monthStart.toISOString()),
+    supabase
+      .from('pending_imports')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'failed'),
+    supabase
+      .from('audit_events')
+      .select('created_at')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const checks = [database, lineage, imageFailures, importFailures, latestAudit];
+  const warnings = checks
+    .map(check => check.error?.message)
+    .filter((message): message is string => Boolean(message));
+
+  return {
+    databaseOnline: !database.error,
+    checkedAt: new Date().toISOString(),
+    unresolvedLineageCount: lineage.count ?? 0,
+    failedImageGenerationsThisMonth: imageFailures.count ?? 0,
+    failedPendingImports: importFailures.count ?? 0,
+    latestAuditEventAt: latestAudit.data?.created_at ?? null,
+    warnings,
+  };
 }
 
 // Pre-login config for the (eventually branded) login page. `orgSlug` resolves a
@@ -546,6 +649,7 @@ export async function fetchDecisionRecords(limit = 200): Promise<DecisionRecord[
     methodVersion: row.method_version as string,
     decisionFingerprint: row.decision_fingerprint as string,
     projectId: (row.project_id as string) ?? null,
+    instrumentalSampleId: (row.instrumental_sample_id as string) ?? null,
     parentDecisionId: (row.parent_decision_id as string) ?? null,
     formulationVersionId: (row.formulation_version_id as string) ?? null,
     evidenceBundleId: (row.evidence_bundle_id as string) ?? null,
@@ -565,6 +669,7 @@ export async function insertDecisionRecord(input: {
   decisionFingerprint: string;
   createdBy: string;
   projectId?: string | null;
+  instrumentalSampleId?: string | null;
   /** ID of the TWEAK/STOP decision that triggered the retest leading to this one. */
   parentDecisionId?: string | null;
   formulationVersionId?: string | null;
@@ -581,6 +686,7 @@ export async function insertDecisionRecord(input: {
     decision_fingerprint: input.decisionFingerprint,
     created_by: input.createdBy,
     project_id: input.projectId ?? null,
+    instrumental_sample_id: input.instrumentalSampleId ?? null,
     parent_decision_id: input.parentDecisionId ?? null,
     formulation_version_id: input.formulationVersionId ?? null,
     evidence_bundle_id: input.evidenceBundleId ?? null,

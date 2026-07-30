@@ -41,10 +41,17 @@ export function buildProductTimeline(
   decisions: DecisionRecord[],
   concepts: ConceptTest[],
   reports: CommercializationReportRecord[],
+  scope?: { instrumentalSampleId?: string | null; projectId?: string | null },
 ): ProductTimeline {
   const events: ProductHistoryEvent[] = [];
 
-  const sampleDecisions = decisions.filter(d => d.sampleId === sampleId);
+  const sampleDecisions = decisions.filter(decision => {
+    if (scope?.instrumentalSampleId && decision.instrumentalSampleId) {
+      return decision.instrumentalSampleId === scope.instrumentalSampleId;
+    }
+    return decision.sampleId === sampleId
+      && (!scope?.projectId || !decision.projectId || decision.projectId === scope.projectId);
+  });
   const decisionIds = new Set(sampleDecisions.map(d => d.id));
 
   // Import batches – linked by sampleId appearing in the batch file name
@@ -80,10 +87,14 @@ export function buildProductTimeline(
     });
   }
 
-  // Concept tests – linked by projectName or foodTypeSlug containing sampleId
-  const linkedConcepts = concepts.filter(c =>
-    (c.projectName?.toLowerCase().includes(sampleId.toLowerCase())) ||
-    (c.foodTypeSlug?.toLowerCase().includes(sampleId.toLowerCase()))
+  // Concepts are linked only through an authoritative decision or a report
+  // that preserves both the decision and concept ids. Names are never lineage.
+  const reportConceptIds = new Set(
+    reports.filter(report => decisionIds.has(report.decisionRecordId)).map(report => report.conceptTestId),
+  );
+  const linkedConcepts = concepts.filter(concept =>
+    (concept.decisionRecordId ? decisionIds.has(concept.decisionRecordId) : false)
+    || reportConceptIds.has(concept.id),
   );
   for (const concept of linkedConcepts) {
     events.push({

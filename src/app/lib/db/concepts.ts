@@ -98,6 +98,7 @@ export interface EvidenceBundleRecord {
   createdBy: string;
   createdAt: string;
   canonicalProjectId?: string | null;
+  instrumentalSampleId?: string | null;
   decisionRecordId?: string | null;
   formulationVersionId?: string | null;
   isCurrentProduct?: boolean;
@@ -468,6 +469,7 @@ function toEvidenceBundle(row: Tables['evidence_bundles']['Row']): EvidenceBundl
     createdBy: row.created_by,
     createdAt: row.created_at as string,
     canonicalProjectId: row.project_id ?? null,
+    instrumentalSampleId: row.instrumental_sample_id ?? null,
     decisionRecordId: row.decision_record_id ?? null,
     formulationVersionId: row.formulation_version_id ?? null,
     isCurrentProduct: row.is_current_product,

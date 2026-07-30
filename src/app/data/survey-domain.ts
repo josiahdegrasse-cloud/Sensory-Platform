@@ -28,6 +28,7 @@ export interface Product {
   blindCode?: string | null;
   assignedPanelistIds?: string[];
   projectId?: string | null;
+  instrumentalSampleId?: string | null;
   sourceImportBatchId?: string | null;
   sourceSampleId?: string | null;
 }

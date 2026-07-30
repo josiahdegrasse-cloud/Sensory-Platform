@@ -8,16 +8,22 @@ export interface ProjectRecord {
   id: string;
   name: string;
   foodTypeId: string;
+  foodTypeSlug?: string;
+  foodTypeLabel?: string;
   status: 'active' | 'archived' | 'deleted';
   startedAt: string;
   createdAt: string;
 }
 
-function toProject(row: Tables['projects']['Row']): ProjectRecord {
+function toProject(row: Tables['projects']['Row'] & {
+  food_types?: { slug?: string; label?: string } | null;
+}): ProjectRecord {
   return {
     id: row.id,
     name: row.name,
     foodTypeId: row.food_type_id,
+    foodTypeSlug: row.food_types?.slug,
+    foodTypeLabel: row.food_types?.label,
     status: row.status as ProjectRecord['status'],
     startedAt: row.started_at as string,
     createdAt: row.created_at as string,
@@ -28,12 +34,14 @@ function toProject(row: Tables['projects']['Row']): ProjectRecord {
 export async function fetchProjects(): Promise<ProjectRecord[]> {
   const { data, error } = await supabase
     .from('projects')
-    .select('*')
+    .select('*, food_types(slug, label)')
     .neq('status', 'deleted')
     .order('started_at', { ascending: false });
   if (error && /projects|schema cache|does not exist/i.test(error.message ?? '')) return [];
   if (error) throw dbError(error);
-  return (data ?? []).map(toProject);
+  return (data ?? []).map(row => toProject(row as Tables['projects']['Row'] & {
+    food_types?: { slug?: string; label?: string } | null;
+  }));
 }
 
 /** Create a project. org_id is stamped server-side by the set_org_id trigger. */

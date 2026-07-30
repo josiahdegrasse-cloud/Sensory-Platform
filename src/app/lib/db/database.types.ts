@@ -738,6 +738,7 @@ export type Database = {
           evidence_bundle_id: string | null
           formulation_version_id: string | null
           id: string
+          instrumental_sample_id: string | null
           issf_score: number
           method_version: string
           note: string
@@ -758,6 +759,7 @@ export type Database = {
           evidence_bundle_id?: string | null
           formulation_version_id?: string | null
           id?: string
+          instrumental_sample_id?: string | null
           issf_score: number
           method_version: string
           note?: string
@@ -778,6 +780,7 @@ export type Database = {
           evidence_bundle_id?: string | null
           formulation_version_id?: string | null
           id?: string
+          instrumental_sample_id?: string | null
           issf_score?: number
           method_version?: string
           note?: string
@@ -809,6 +812,13 @@ export type Database = {
             columns: ["formulation_version_id"]
             isOneToOne: false
             referencedRelation: "formulation_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "decision_records_instrumental_sample_id_fkey"
+            columns: ["instrumental_sample_id"]
+            isOneToOne: false
+            referencedRelation: "instrumental_samples"
             referencedColumns: ["id"]
           },
           {
@@ -892,6 +902,7 @@ export type Database = {
           decision_record_id: string | null
           formulation_version_id: string | null
           id: string
+          instrumental_sample_id: string | null
           is_current_product: boolean
           literature_fingerprint: string | null
           literature_refreshed_at: string | null
@@ -911,6 +922,7 @@ export type Database = {
           decision_record_id?: string | null
           formulation_version_id?: string | null
           id?: string
+          instrumental_sample_id?: string | null
           is_current_product?: boolean
           literature_fingerprint?: string | null
           literature_refreshed_at?: string | null
@@ -930,6 +942,7 @@ export type Database = {
           decision_record_id?: string | null
           formulation_version_id?: string | null
           id?: string
+          instrumental_sample_id?: string | null
           is_current_product?: boolean
           literature_fingerprint?: string | null
           literature_refreshed_at?: string | null
@@ -963,6 +976,13 @@ export type Database = {
             columns: ["formulation_version_id"]
             isOneToOne: false
             referencedRelation: "formulation_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evidence_bundles_instrumental_sample_id_fkey"
+            columns: ["instrumental_sample_id"]
+            isOneToOne: false
+            referencedRelation: "instrumental_samples"
             referencedColumns: ["id"]
           },
           {
@@ -1902,6 +1922,51 @@ export type Database = {
           },
         ]
       }
+      organization_admin_bootstrap_invites: {
+        Row: {
+          claimed_at: string | null
+          claimed_by: string | null
+          created_at: string
+          email: string
+          id: string
+          invited_by: string
+          org_id: string
+        }
+        Insert: {
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          invited_by: string
+          org_id: string
+        }
+        Update: {
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          invited_by?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_admin_bootstrap_invites_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_admin_bootstrap_invites_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string
@@ -2185,6 +2250,32 @@ export type Database = {
           },
         ]
       }
+      platform_operators: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_operators_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           assigned_panelist_ids: string[] | null
@@ -2194,6 +2285,7 @@ export type Database = {
           created_at: string | null
           custom_attributes: Json | null
           id: string
+          instrumental_sample_id: string | null
           is_calibration: boolean
           is_multi_sample: boolean | null
           name: string
@@ -2214,6 +2306,7 @@ export type Database = {
           created_at?: string | null
           custom_attributes?: Json | null
           id?: string
+          instrumental_sample_id?: string | null
           is_calibration?: boolean
           is_multi_sample?: boolean | null
           name: string
@@ -2234,6 +2327,7 @@ export type Database = {
           created_at?: string | null
           custom_attributes?: Json | null
           id?: string
+          instrumental_sample_id?: string | null
           is_calibration?: boolean
           is_multi_sample?: boolean | null
           name?: string
@@ -2247,6 +2341,13 @@ export type Database = {
           status_before_archive?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "products_instrumental_sample_id_fkey"
+            columns: ["instrumental_sample_id"]
+            isOneToOne: false
+            referencedRelation: "instrumental_samples"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "products_org_id_fkey"
             columns: ["org_id"]
@@ -2961,6 +3062,18 @@ export type Database = {
           },
         ]
       }
+      prototype_lineage_reconciliation: {
+        Row: {
+          created_at: string | null
+          entity_id: string | null
+          entity_type: string | null
+          org_id: string | null
+          project_id: string | null
+          reason: string | null
+          sample_key: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       add_formulation_experiment_arm: {
@@ -3090,6 +3203,7 @@ export type Database = {
           decision_record_id: string | null
           formulation_version_id: string | null
           id: string
+          instrumental_sample_id: string | null
           is_current_product: boolean
           literature_fingerprint: string | null
           literature_refreshed_at: string | null
@@ -3306,6 +3420,7 @@ export type Database = {
       }
       is_active_user: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
+      is_platform_operator: { Args: never; Returns: boolean }
       is_public_email_domain: { Args: { p_domain: string }; Returns: boolean }
       list_panelist_kits: {
         Args: { target_product_id: string }
@@ -3368,6 +3483,24 @@ export type Database = {
       }
       org_id_for_email: { Args: { p_email: string }; Returns: string }
       panelist_kit_token_hash: { Args: { p_token: string }; Returns: string }
+      platform_provision_organization: {
+        Args: {
+          p_accent_color?: string
+          p_admin_email: string
+          p_email_domains: string[]
+          p_logo_url?: string
+          p_org_name: string
+          p_org_slug: string
+          p_primary_color?: string
+          p_workspace_name?: string
+        }
+        Returns: {
+          administrator_email: string
+          organization_id: string
+          organization_slug: string
+          sign_in_host: string
+        }[]
+      }
       provision_organization: {
         Args: { org_name: string; org_slug: string }
         Returns: string
