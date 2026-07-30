@@ -74,6 +74,16 @@ test.describe('authenticated admin workflow', () => {
     await expect(prototypePanel).toBeVisible();
   });
 
+  test('Concept Lab requires a confirmed GO evidence source', async ({ page }) => {
+    await loginAsAdmin(page);
+
+    await page.goto('/concept-testing');
+    await expect(page.getByRole('heading', { name: 'Concept Lab' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Start concept work from confirmed evidence' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Start without decision/i })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Review decisions' })).toBeVisible();
+  });
+
   test('unknown routes render the 404 page once authenticated', async ({ page }) => {
     await loginAsAdmin(page);
 
