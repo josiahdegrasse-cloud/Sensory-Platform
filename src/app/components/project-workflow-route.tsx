@@ -1,14 +1,17 @@
 import { useEffect } from 'react';
 import { Navigate, useLocation, useParams } from 'react-router';
 import { useFoodType } from '../contexts/food-type-context';
-import { encodeBatchSelection, parseBatchSelection } from '../lib/project-identity';
-import { useImportBatches } from '../lib/hooks';
+import {
+  encodeBatchSelection,
+  resolveProjectRouteScope,
+  selectionMatchesProjectScope,
+} from '../lib/project-identity';
+import { useImportBatches, useProjects } from '../lib/hooks';
 import {
   isProjectJourneyStep,
   projectPath,
   type ProjectJourneyStep,
 } from '../lib/project-journey-routes';
-import type { ImportBatchRecord } from '../lib/database';
 import { CommercializationReportPage } from './commercialization-report-page';
 import { ConceptTesting } from './concept-testing';
 import { ProjectCommandCenter } from './project-command-center';
@@ -26,13 +29,6 @@ function LoadingProjectScope() {
       <div className="size-5 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700" />
     </div>
   );
-}
-
-function findProjectBatch(importBatches: ImportBatchRecord[], projectId?: string) {
-  if (!projectId) return null;
-  return importBatches.find(batch => batch.projectId === projectId && batch.status === 'active')
-    ?? importBatches.find(batch => batch.id === projectId)
-    ?? null;
 }
 
 function ProjectStepContent({ step, substep }: { step: ProjectJourneyStep; substep?: string }) {
@@ -60,16 +56,16 @@ function ProjectStepContent({ step, substep }: { step: ProjectJourneyStep; subst
 
 export function ProjectWorkflowRoute() {
   const { projectId, step, substep } = useParams<{ projectId: string; step?: string; substep?: string }>();
-  const { data: importBatches = [], isLoading } = useImportBatches();
-  const { subCategory, setSelection } = useFoodType();
-  const batch = findProjectBatch(importBatches, projectId);
-  const selectedBatchId = parseBatchSelection(subCategory);
+  const { data: importBatches = [], isLoading: batchesLoading } = useImportBatches();
+  const { data: projects = [], isLoading: projectsLoading } = useProjects();
+  const { foodType, subCategory, setSelection } = useFoodType();
+  const scope = resolveProjectRouteScope(projectId, projects, importBatches);
   const journeyStep = step ?? 'overview';
 
   useEffect(() => {
-    if (!batch || selectedBatchId === batch.id) return;
-    setSelection(batch.foodTypeSlug, encodeBatchSelection(batch.id));
-  }, [batch, selectedBatchId, setSelection]);
+    if (!scope?.selectedBatch || selectionMatchesProjectScope(foodType, subCategory, scope)) return;
+    setSelection(scope.foodTypeSlug, encodeBatchSelection(scope.selectedBatch.id));
+  }, [foodType, scope, setSelection, subCategory]);
 
   if (!projectId) return <Navigate to="/" replace />;
   if (!isProjectJourneyStep(journeyStep)) return <Navigate to={projectPath(projectId)} replace />;
@@ -83,9 +79,9 @@ export function ProjectWorkflowRoute() {
     return <Navigate to={projectPath(projectId, journeyStep)} replace />;
   }
   if (journeyStep === 'responses') return <Navigate to={projectPath(projectId, 'studies')} replace />;
-  if (isLoading) return <LoadingProjectScope />;
-  if (!batch) return <Navigate to="/" replace />;
-  if (selectedBatchId !== batch.id) return <LoadingProjectScope />;
+  if (batchesLoading || projectsLoading) return <LoadingProjectScope />;
+  if (!scope?.selectedBatch || !scope.foodTypeSlug) return <Navigate to="/" replace />;
+  if (!selectionMatchesProjectScope(foodType, subCategory, scope)) return <LoadingProjectScope />;
 
   return <ProjectStepContent step={journeyStep} substep={substep} />;
 }

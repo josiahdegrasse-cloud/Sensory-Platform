@@ -1,16 +1,20 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useAuth } from '../contexts/auth-context';
 import { AlertCircle, ArrowLeft, CheckCircle2, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
-import { NfiBrandMark } from './nfi-brand';
+import { NfiBrandMark, TenantOrNfiLogo } from './nfi-brand';
+import { brandThemeVariables } from '../lib/brand-theme';
+import { NFI_BRAND_COLOR, NFI_BRAND_COLOR_DARK } from '../lib/nfi-brand';
+import { getTenantSlug } from '../lib/tenant';
 
 export interface LoginBranding {
   workspaceName?: string;
   logoUrl?: string | null;
   primaryColor?: string | null;
+  accentColor?: string | null;
 }
 
 interface Props {
@@ -65,13 +69,12 @@ function mapLoginError(msg: string): string {
 const googleSignInEnabled = import.meta.env.VITE_ENABLE_GOOGLE_SIGNIN === 'true';
 
 export function LoginPage({ onSignup, branding }: Props) {
-  // A tenant is "branded" once it has its own logo; until then the default NFI
-  // login keeps a black brand panel with a restrained light workspace form.
-  const hasBranding = !!branding?.logoUrl;
-  const brandName = hasBranding ? (branding?.workspaceName || 'your') : 'NFI';
-  const logoAlt = branding?.workspaceName ?? 'Logo';
-  const primaryButtonBackground = branding?.primaryColor || '#111';
-  const primaryButtonText = '#fff';
+  const hasTenantBranding = Boolean(getTenantSlug());
+  const brandName = hasTenantBranding ? (branding?.workspaceName || 'your') : 'NFI';
+  const brandStyles = brandThemeVariables(hasTenantBranding ? branding : {
+    primaryColor: NFI_BRAND_COLOR,
+    accentColor: NFI_BRAND_COLOR_DARK,
+  }) as CSSProperties;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -120,22 +123,21 @@ export function LoginPage({ onSignup, branding }: Props) {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#111111]">
+    <div className="tenant-auth-shell flex min-h-screen" style={brandStyles}>
       {/* Left panel */}
       <div
-        className="hidden lg:flex lg:w-[46%] flex-col justify-between border-r border-white/10 p-12 xl:p-14"
-        style={{ background: '#111111' }}
+        className="tenant-auth-panel hidden border-r border-white/15 p-12 lg:flex lg:w-[46%] lg:flex-col lg:justify-between xl:p-14"
       >
         {/* Logo */}
         <div className="flex items-center gap-3">
-          {hasBranding ? (
-            // White plate so any brand logo (incl. dark wordmarks) reads on the
-            // dark panel; `contain` keeps wide wordmarks from being cropped.
+          {hasTenantBranding ? (
             <div style={{ background: '#fff', borderRadius: 10, padding: '10px 14px', display: 'inline-flex', alignItems: 'center' }}>
-              <img
-                src={branding!.logoUrl!}
-                alt={logoAlt}
-                style={{ height: 44, width: 'auto', maxWidth: 200, objectFit: 'contain', display: 'block' }}
+              <TenantOrNfiLogo
+                logoUrl={branding?.logoUrl}
+                organizationName={branding?.workspaceName}
+                tenant
+                markSize={44}
+                logoClassName="h-11 max-w-[200px]"
               />
             </div>
           ) : (
@@ -152,7 +154,11 @@ export function LoginPage({ onSignup, branding }: Props) {
 
         {/* Centre copy */}
         <div className="max-w-[430px]">
-          <p className="mb-5 text-xs font-semibold uppercase tracking-[0.18em] text-white/45">
+          <p className="mb-5 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/65">
+            <span
+              className={`size-2 rounded-sm ${hasTenantBranding ? 'bg-[var(--brand-accent)]' : 'bg-white/70'}`}
+              aria-hidden="true"
+            />
             Sensory Intelligence Platform
           </p>
           <h1 className="mb-6 text-[2.625rem] font-semibold leading-[1.08] tracking-[-0.02em] text-white">
@@ -165,23 +171,25 @@ export function LoginPage({ onSignup, branding }: Props) {
 
         {/* Footer */}
         <p className="max-w-[360px] text-sm leading-6 text-white/40">
-          {hasBranding
+          {hasTenantBranding
             ? 'Powered by New Food Innovation'
             : 'Built for food teams turning research into market-ready decisions.'}
         </p>
       </div>
 
       {/* Right panel — form */}
-      <div className="flex flex-1 flex-col bg-[#f3f3ef]">
+      <div className="tenant-auth-form flex flex-1 flex-col">
         {/* Mobile logo */}
-        <div className="flex items-center justify-between gap-4 border-b border-white/10 bg-[#111111] px-6 py-5 lg:hidden">
+        <div className="tenant-auth-panel flex items-center justify-between gap-4 border-b border-white/15 px-6 py-5 lg:hidden">
           <div className="flex items-center gap-3">
-            {hasBranding ? (
+            {hasTenantBranding ? (
               <div className="inline-flex items-center rounded-md bg-white px-3 py-2">
-                <img
-                  src={branding!.logoUrl!}
-                  alt={logoAlt}
-                  style={{ height: 30, width: 'auto', maxWidth: 170, objectFit: 'contain', display: 'block' }}
+                <TenantOrNfiLogo
+                  logoUrl={branding?.logoUrl}
+                  organizationName={branding?.workspaceName}
+                  tenant
+                  markSize={30}
+                  logoClassName="h-[30px] max-w-[170px]"
                 />
               </div>
             ) : (
@@ -207,7 +215,7 @@ export function LoginPage({ onSignup, branding }: Props) {
               <button
                 type="button"
                 onClick={() => { setResetMode(false); setResetSent(false); setResetError(''); setResetEmail(''); }}
-                className="mb-7 inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
+                className="tenant-auth-link mb-7 inline-flex items-center gap-1.5 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]/20"
               >
                 <ArrowLeft className="size-3.5" />
                 Return to sign in
@@ -236,7 +244,7 @@ export function LoginPage({ onSignup, branding }: Props) {
                       placeholder="you@company.com"
                       value={resetEmail}
                       onChange={(e) => setResetEmail(e.target.value)}
-                      className="h-11 rounded-md border-slate-200 bg-white text-slate-900 placeholder:text-slate-500 focus-visible:border-slate-900 focus-visible:ring-slate-900/15"
+                      className="tenant-auth-control h-11 rounded-md bg-white text-slate-900 placeholder:text-slate-500"
                       required
                     />
                   </div>
@@ -248,8 +256,7 @@ export function LoginPage({ onSignup, branding }: Props) {
                   )}
                   <Button
                     type="submit"
-                    className="h-11 w-full rounded-md text-sm font-semibold transition-[filter,background-color] hover:brightness-90"
-                    style={{ backgroundColor: primaryButtonBackground, color: primaryButtonText }}
+                    className="tenant-auth-primary h-11 w-full rounded-md text-sm font-semibold transition-[filter,background-color] hover:brightness-90"
                     disabled={resetLoading}
                   >
                     {resetLoading ? 'Sending…' : 'Email reset link'}
@@ -260,7 +267,7 @@ export function LoginPage({ onSignup, branding }: Props) {
           ) : (
             <>
               <div className="mb-8">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace sign-in</p>
+                <p className="tenant-auth-kicker mb-3 text-xs font-semibold uppercase tracking-[0.16em]">Workspace sign-in</p>
                 <h2 className="text-2xl font-semibold tracking-[-0.01em] text-slate-900">Welcome back</h2>
                 <p className="mt-2 text-sm leading-6 text-slate-700">Open your {brandName} workspace to review studies, decisions, concepts, and reports.</p>
               </div>
@@ -284,7 +291,7 @@ export function LoginPage({ onSignup, branding }: Props) {
                     placeholder="you@company.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="h-11 rounded-md border-slate-200 bg-white text-slate-900 placeholder:text-slate-500 focus-visible:border-slate-900 focus-visible:ring-slate-900/15"
+                    className="tenant-auth-control h-11 rounded-md bg-white text-slate-900 placeholder:text-slate-500"
                     required
                   />
                 </div>
@@ -300,7 +307,7 @@ export function LoginPage({ onSignup, branding }: Props) {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="h-11 rounded-md border-slate-200 bg-white text-slate-900 placeholder:text-slate-500 focus-visible:border-slate-900 focus-visible:ring-slate-900/15"
+                    className="tenant-auth-control h-11 rounded-md bg-white text-slate-900 placeholder:text-slate-500"
                     required
                   />
                 </div>
@@ -309,7 +316,7 @@ export function LoginPage({ onSignup, branding }: Props) {
                   <button
                     type="button"
                     onClick={() => { setResetMode(true); setError(''); }}
-                    className="rounded-md text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
+                    className="tenant-auth-link rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]/20"
                   >
                     Forgot password?
                   </button>
@@ -324,8 +331,7 @@ export function LoginPage({ onSignup, branding }: Props) {
 
                 <Button
                   type="submit"
-                  className="h-11 w-full rounded-md text-sm font-semibold transition-[filter,background-color] hover:brightness-90"
-                  style={{ backgroundColor: primaryButtonBackground, color: primaryButtonText }}
+                  className="tenant-auth-primary h-11 w-full rounded-md text-sm font-semibold transition-[filter,background-color] hover:brightness-90"
                   disabled={loading}
                 >
                   {loading ? 'Signing in…' : (
@@ -363,7 +369,7 @@ export function LoginPage({ onSignup, branding }: Props) {
                   <button
                     type="button"
                     onClick={onSignup}
-                    className="rounded-md text-sm text-slate-700 transition-colors hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
+                    className="tenant-auth-link rounded-md text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]/20"
                   >
                     Joining a panel?{' '}
                     <span className="font-semibold underline underline-offset-2">Create account</span>
@@ -372,11 +378,11 @@ export function LoginPage({ onSignup, branding }: Props) {
                   <p className="text-sm leading-6 text-slate-700">Panelist access is managed by the workspace admin.</p>
                 )}
                 <div className="mt-5 flex items-center justify-center gap-3 text-xs font-medium text-slate-500">
-                  <a href="/privacy" className="rounded-sm hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20">Privacy</a>
+                  <a href="/privacy" className="tenant-auth-link rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]/20">Privacy</a>
                   <span aria-hidden="true">/</span>
-                  <a href="/terms" className="rounded-sm hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20">Terms</a>
+                  <a href="/terms" className="tenant-auth-link rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]/20">Terms</a>
                   <span aria-hidden="true">/</span>
-                  <a href="/panelist-consent" className="rounded-sm hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20">Consent</a>
+                  <a href="/panelist-consent" className="tenant-auth-link rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]/20">Consent</a>
                 </div>
               </div>
             </>

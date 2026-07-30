@@ -30,10 +30,6 @@ export interface ProductTimeline {
   issfProgression: IssfStep[];
 }
 
-function batchContainsSample(batch: ImportBatchRecord, sampleId: string): boolean {
-  return batch.fileName.toLowerCase().includes(sampleId.toLowerCase());
-}
-
 export function buildProductTimeline(
   sampleId: string,
   sampleName: string,
@@ -41,7 +37,11 @@ export function buildProductTimeline(
   decisions: DecisionRecord[],
   concepts: ConceptTest[],
   reports: CommercializationReportRecord[],
-  scope?: { instrumentalSampleId?: string | null; projectId?: string | null },
+  scope?: {
+    instrumentalSampleId?: string | null;
+    importBatchId?: string | null;
+    projectId?: string | null;
+  },
 ): ProductTimeline {
   const events: ProductHistoryEvent[] = [];
 
@@ -49,14 +49,17 @@ export function buildProductTimeline(
     if (scope?.instrumentalSampleId && decision.instrumentalSampleId) {
       return decision.instrumentalSampleId === scope.instrumentalSampleId;
     }
+    if (decision.instrumentalSampleId) return false;
     return decision.sampleId === sampleId
-      && (!scope?.projectId || !decision.projectId || decision.projectId === scope.projectId);
+      && (!scope?.projectId || decision.projectId === scope.projectId);
   });
   const decisionIds = new Set(sampleDecisions.map(d => d.id));
 
-  // Import batches – linked by sampleId appearing in the batch file name
-  // (best available linkage without a separate batch-sample join table)
-  const sampleBatches = batches.filter(b => batchContainsSample(b, sampleId));
+  // The selected instrumental sample owns its import batch. Do not infer
+  // lineage from a filename or a repeated text sample ID.
+  const sampleBatches = scope?.importBatchId
+    ? batches.filter(batch => batch.id === scope.importBatchId)
+    : [];
   for (const batch of sampleBatches) {
     events.push({
       id: `import-${batch.id}`,

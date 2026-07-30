@@ -1,59 +1,45 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { formatDistanceToNow } from 'date-fns';
 import {
-  Activity,
   ArrowLeft,
   ArrowRight,
-  CheckCircle2,
-  Circle,
-  ClipboardCheck,
-  FileText,
   FolderKanban,
-  ListChecks,
-  Lock,
   Check,
   Pencil,
-  TriangleAlert,
   X,
 } from 'lucide-react';
-import { Card, CardContent } from './ui/card';
 import { StageEmptyState } from './stage-empty-state';
 import { useFoodType } from '../contexts/food-type-context';
 import { parseBatchSelection, encodeBatchSelection, projectRoutePath } from '../lib/project-identity';
 import {
   useAdminConceptTests,
+  useAllResponses,
   useAuditEvents,
   useCommercializationReports,
   useDecisionRecords,
+  useFormulationExperiments,
+  useFormulationVersions,
   useImportBatches,
   useInstrumentalDataset,
+  useProducts,
   useRenameProject,
   useUpdateImportBatchName,
   useWorkspaceSettings,
 } from '../lib/hooks';
-import { ProjectStatusBadge, toneClasses, toneSolidClasses } from './project-status-badge';
 import { ProductHistoryTimeline } from './product-history-timeline';
 import { buildProductTimeline } from '../lib/product-history';
 import { useProjectWorkflow } from '../lib/workflow/use-project-workflow';
-import {
-  workflowStatusLabel,
-  workflowTone,
-  workflowToneToSemanticTone,
-} from '../lib/workflow/workflow-actions';
-import type { AuditEventRecord, ImportBatchRecord } from '../lib/database';
-import type { WorkflowStageStatus, WorkflowStageSummary } from '../lib/workflow/workflow-types';
+import type { ImportBatchRecord } from '../lib/database';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-
-const STAGE_STATUS_ICONS: Record<WorkflowStageStatus, typeof CheckCircle2> = {
-  complete: CheckCircle2,
-  blocked: Lock,
-  needs_review: TriangleAlert,
-  ready: ClipboardCheck,
-  in_progress: ListChecks,
-  not_started: Circle,
-};
+import { ProjectDecisionRoom } from './project-decision-room';
+import {
+  buildDecisionRoomLineage,
+  buildDecisionRoomPrototypes,
+  decisionRoomEligibility,
+  decisionRoomNextAction,
+} from '../lib/project-decision-room';
+import { projectDecisionExperimentsPath, projectPath } from '../lib/project-journey-routes';
 
 function EvidenceStat({ label, value }: { label: string; value: number }) {
   return (
@@ -66,182 +52,6 @@ function EvidenceStat({ label, value }: { label: string; value: number }) {
 
 function uniqueItems(items: string[]) {
   return [...new Set(items.filter(Boolean))];
-}
-
-function JourneyRail({
-  stages,
-  activeStageId,
-}: {
-  stages: WorkflowStageSummary[];
-  activeStageId: string;
-}) {
-  return (
-    <nav aria-label="Project workflow">
-      <ol className="grid grid-cols-2 items-stretch gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7">
-        {stages.map(stage => {
-          const displayStatus = stage.status;
-          const tone = workflowToneToSemanticTone(workflowTone(displayStatus));
-          const Icon = STAGE_STATUS_ICONS[displayStatus];
-          const isActive = stage.id === activeStageId;
-          return (
-            <li key={stage.id} className="min-w-0">
-              <Link
-                to={stage.nextActionRoute}
-                title={`${stage.label}: ${workflowStatusLabel(displayStatus)}`}
-                className={`group flex min-h-12 min-w-0 items-center justify-center gap-2 px-3 py-2.5 text-center text-xs font-semibold transition-colors ${
-                  isActive
-                    ? 'bg-slate-900 text-white'
-                    : displayStatus === 'complete'
-                      ? 'bg-white text-emerald-900 hover:bg-emerald-50'
-                      : displayStatus === 'blocked'
-                        ? 'bg-slate-50 text-slate-500 hover:text-slate-700'
-                        : 'bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-950'
-                }`}
-                aria-current={isActive ? 'step' : undefined}
-              >
-                <span className={`flex size-5 shrink-0 items-center justify-center rounded-full border ${toneClasses(tone)}`}>
-                  <Icon className="size-3.5" />
-                </span>
-                <span className="min-w-0 truncate">{stage.label}</span>
-              </Link>
-            </li>
-          );
-        })}
-      </ol>
-    </nav>
-  );
-}
-
-function StageTimelineItem({
-  stage,
-  active,
-  position,
-  total,
-}: {
-  stage: WorkflowStageSummary;
-  active: boolean;
-  position: number;
-  total: number;
-}) {
-  const displayStatus = stage.status;
-  const displayBlockers = stage.blockers;
-  const displayDetail = stage.detail;
-  const tone = workflowToneToSemanticTone(workflowTone(displayStatus));
-  const Icon = STAGE_STATUS_ICONS[displayStatus];
-  const canNavigate = displayStatus !== 'blocked' || stage.nextActionRoute;
-  const shouldExpand = stage.completedItems.length > 0 || displayBlockers.length > 0 || stage.warnings.length > 0;
-  const evidence = uniqueItems(stage.completedItems)
-    .filter(item => item.replace(/[.\s]+$/g, '') !== displayDetail.replace(/[.\s]+$/g, ''))
-    .slice(0, 3);
-  return (
-    <article className={active ? 'bg-blue-50/50 px-4 py-4 sm:px-5' : 'bg-white px-4 py-4 sm:px-5'}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
-          <span className={`mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md border ${toneClasses(tone)}`}>
-            <Icon className="size-3.5" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-slate-500">Stage {position} of {total}</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-semibold text-slate-900">{stage.label}</h3>
-              <ProjectStatusBadge label={workflowStatusLabel(displayStatus)} tone={tone} showIcon={false} className="px-1.5 py-0 text-[10px] leading-4" />
-            </div>
-            <p className="mt-1 text-sm text-slate-700">{displayDetail}</p>
-          </div>
-        </div>
-        {canNavigate && (
-          <Link
-            to={stage.nextActionRoute}
-            className={`inline-flex min-h-8 w-fit shrink-0 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-semibold transition-colors ${
-              active
-                ? toneSolidClasses(tone)
-                : 'border border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-            }`}
-          >
-            {stage.nextActionLabel}
-            <ArrowRight className="size-3.5" />
-          </Link>
-        )}
-      </div>
-
-      {shouldExpand && (
-        <div className="mt-3 grid gap-3 border-t border-slate-200 pt-3 md:grid-cols-3">
-          {evidence.length > 0 && (
-            <div>
-              <h4 className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                <CheckCircle2 className="size-3.5 text-emerald-700" aria-hidden />
-                Evidence in place
-              </h4>
-              <ul className="mt-1.5 space-y-1 text-xs leading-5 text-slate-700">
-                {evidence.map(item => <li key={item}>• {item}</li>)}
-              </ul>
-            </div>
-          )}
-          {displayBlockers.length > 0 && (
-            <div>
-              <h4 className="flex items-center gap-1.5 text-xs font-semibold text-rose-800">
-                <Lock className="size-3.5" aria-hidden />
-                Gate
-              </h4>
-              <ul className="mt-1.5 space-y-1 text-xs leading-5 text-rose-700">
-                {displayBlockers.slice(0, 2).map(item => <li key={item}>• {item}</li>)}
-              </ul>
-            </div>
-          )}
-          {stage.warnings.length > 0 && (
-            <div>
-              <h4 className="flex items-center gap-1.5 text-xs font-semibold text-amber-800">
-                <TriangleAlert className="size-3.5" aria-hidden />
-                Needs attention
-              </h4>
-              <ul className="mt-1.5 space-y-1 text-xs leading-5 text-amber-700">
-                {stage.warnings.slice(0, 2).map(item => <li key={item}>• {item}</li>)}
-              </ul>
-            </div>
-          )}
-          {evidence.length === 0 && displayBlockers.length === 0 && stage.warnings.length === 0 && (
-            <p className="text-xs text-slate-500">No project artifact has been saved for this stage yet.</p>
-          )}
-        </div>
-      )}
-    </article>
-  );
-}
-
-function RecentActivity({ events, projectScoped }: { events: AuditEventRecord[]; projectScoped: boolean }) {
-  return (
-    <Card className="border border-slate-200 bg-white">
-      <CardContent className="py-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="flex items-center gap-1.5 text-sm font-bold text-slate-900">
-            <Activity className="size-4 text-slate-500" aria-hidden />
-            Recent activity
-            {!projectScoped && <span className="text-[11px] font-normal text-slate-500">(workspace-wide)</span>}
-          </h3>
-          <Link to="/settings" className="text-xs font-semibold text-blue-700 hover:text-blue-900">
-            View audit log
-          </Link>
-        </div>
-        {events.length === 0 ? (
-          <p className="text-xs text-slate-500">No tracked activity yet.</p>
-        ) : (
-          <ul className="divide-y divide-slate-100">
-            {events.map(event => (
-              <li key={event.id} className="flex items-baseline justify-between gap-3 py-1.5 text-xs">
-                <span className="min-w-0 truncate text-slate-700">
-                  {event.eventType.replace(/[._-]+/g, ' ')}
-                  {event.actorName && <span className="text-slate-500"> · {event.actorName}</span>}
-                </span>
-                <span className="shrink-0 text-slate-500">
-                  {formatDistanceToNow(new Date(event.createdAt), { addSuffix: true })}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
-  );
 }
 
 function NoProjectState() {
@@ -423,6 +233,8 @@ export function ProjectCommandCenter() {
   const { data: decisionRecords = [] } = useDecisionRecords();
   const { data: conceptTests = [] } = useAdminConceptTests();
   const { data: reports = [] } = useCommercializationReports();
+  const { data: products = [] } = useProducts();
+  const { data: responses = [] } = useAllResponses();
   const { data: instrumentalDataset } = useInstrumentalDataset(true);
   const renameProject = useRenameProject();
   const updateImportBatchName = useUpdateImportBatchName();
@@ -452,6 +264,9 @@ export function ProjectCommandCenter() {
   const effectiveBatchId = routedBatch?.id ?? (routeProjectId ? parseBatchSelection(subCategory) : null);
   const workflow = useProjectWorkflow(effectiveFoodType, effectiveBatchId);
   const batch = routedBatch ?? (effectiveBatchId ? importBatches.find(item => item.id === effectiveBatchId) ?? null : null);
+  const projectScopeId = batch?.projectId ?? routedProjectBatch?.projectId ?? undefined;
+  const { data: formulationVersions = [] } = useFormulationVersions(projectScopeId, Boolean(projectScopeId));
+  const { data: formulationExperiments = [] } = useFormulationExperiments(projectScopeId);
   const isRenaming = renameProject.isPending || updateImportBatchName.isPending;
 
   useEffect(() => {
@@ -500,27 +315,79 @@ export function ProjectCommandCenter() {
     }
   };
 
-  const batchSamples = useMemo(() => {
-    if (!effectiveBatchId || !instrumentalDataset) return [];
-    return instrumentalDataset.eTongueData.filter(sample => sample.importBatchId === effectiveBatchId);
-  }, [effectiveBatchId, instrumentalDataset]);
-
-  const historySampleId = selectedHistorySampleId ?? batchSamples[0]?.sampleId ?? null;
-  const historySampleName = batchSamples.find(sample => sample.sampleId === historySampleId)?.sampleName ?? historySampleId ?? '';
-  const productTimeline = useMemo(() => {
-    if (!historySampleId) return null;
-    return buildProductTimeline(
+  const projectBatches = useMemo(() => {
+    if (projectScopeId) {
+      return importBatches.filter(item => item.projectId === projectScopeId && item.status === 'active');
+    }
+    return batch ? [batch] : [];
+  }, [batch, importBatches, projectScopeId]);
+  const projectSamples = useMemo(() => {
+    if (!instrumentalDataset) return [];
+    const batchIds = new Set(projectBatches.map(item => item.id));
+    return instrumentalDataset.eTongueData.filter(sample => sample.importBatchId && batchIds.has(sample.importBatchId));
+  }, [instrumentalDataset, projectBatches]);
+  const prototypes = useMemo(() => buildDecisionRoomPrototypes({
+    samples: projectSamples,
+    decisions: decisionRecords,
+    formulations: formulationVersions,
+    experiments: formulationExperiments,
+    products,
+    responses,
+    concepts: conceptTests,
+    reports,
+    projectId: projectScopeId,
+    dataset: instrumentalDataset,
+  }), [conceptTests, decisionRecords, formulationExperiments, formulationVersions, instrumentalDataset, products, projectSamples, projectScopeId, reports, responses]);
+  const selectedPrototypeKey = selectedHistorySampleId && prototypes.some(item => item.key === selectedHistorySampleId)
+    ? selectedHistorySampleId
+    : prototypes[0]?.key ?? null;
+  const selectedPrototype = prototypes.find(item => item.key === selectedPrototypeKey) ?? null;
+  const historySampleId = selectedPrototype?.sampleId ?? null;
+  const historySampleName = selectedPrototype?.sampleName ?? historySampleId ?? '';
+  const productTimeline = historySampleId
+    ? buildProductTimeline(
       historySampleId,
       historySampleName,
       importBatches,
       decisionRecords,
       conceptTests,
       reports,
-    );
-  }, [conceptTests, decisionRecords, historySampleId, historySampleName, importBatches, reports]);
+      {
+        instrumentalSampleId: selectedPrototype?.instrumentalSampleId,
+        importBatchId: selectedPrototype?.importBatchId,
+        projectId: projectScopeId,
+      },
+    )
+    : null;
+
+  const scopeRouteId = projectScopeId ?? batch?.id ?? routeProjectId ?? '';
+  const decisionRoomRoutes = useMemo(() => ({
+    data: projectPath(scopeRouteId, 'data'),
+    studies: projectPath(scopeRouteId, 'studies'),
+    insights: projectPath(scopeRouteId, 'insights'),
+    decision: projectPath(scopeRouteId, 'decision'),
+    experiments: projectDecisionExperimentsPath(scopeRouteId),
+    concept: projectPath(scopeRouteId, 'concept'),
+    report: projectPath(scopeRouteId, 'report'),
+  }), [scopeRouteId]);
+  const eligibility = selectedPrototype ? decisionRoomEligibility(selectedPrototype) : null;
+  const lineage = useMemo(() => selectedPrototype ? buildDecisionRoomLineage({
+    prototype: selectedPrototype,
+    workflow,
+    routes: decisionRoomRoutes,
+  }) : [], [decisionRoomRoutes, selectedPrototype, workflow]);
+  const prototypeNextAction = selectedPrototype ? decisionRoomNextAction({
+    prototype: selectedPrototype,
+    workflow,
+    routes: {
+      data: decisionRoomRoutes.data,
+      decision: decisionRoomRoutes.decision,
+      experiments: decisionRoomRoutes.experiments,
+    },
+  }) : null;
 
   const { projectEvents, projectScoped } = useMemo(() => {
-    const needles = [effectiveBatchId, workflow.projectName, effectiveFoodType].filter(Boolean) as string[];
+    const needles = [projectScopeId, ...projectBatches.map(item => item.id)].filter(Boolean) as string[];
     const matched = auditEvents.filter(event => {
       const haystack = `${event.entityId ?? ''} ${JSON.stringify(event.metadata)}`;
       return needles.some(needle => haystack.includes(needle));
@@ -528,7 +395,7 @@ export function ProjectCommandCenter() {
     return matched.length > 0
       ? { projectEvents: matched.slice(0, 5), projectScoped: true }
       : { projectEvents: auditEvents.slice(0, 5), projectScoped: false };
-  }, [auditEvents, effectiveBatchId, effectiveFoodType, workflow.projectName]);
+  }, [auditEvents, projectBatches, projectScopeId]);
 
   if (!effectiveBatchId || !effectiveFoodType || effectiveFoodType === 'all') {
     return (
@@ -546,212 +413,91 @@ export function ProjectCommandCenter() {
 
   const contextLine = [
     workspaceSettings?.organizationName,
-    batch && `Imported ${new Date(batch.createdAt).toLocaleDateString()}`,
+    `${projectBatches.length} active batch${projectBatches.length === 1 ? '' : 'es'}`,
+    `${prototypes.length} prototype${prototypes.length === 1 ? '' : 's'}`,
   ].filter(Boolean).join(' · ');
-  const activeStageId = workflow.nextAction.stageId;
-  const nextActionTone = workflowToneToSemanticTone(workflow.nextAction.tone);
-  const reportGateStage = workflow.stages.find(stage => stage.id === 'report');
-  const gateBlockers = uniqueItems(reportGateStage?.blockers ?? []);
-  const gateWarnings = uniqueItems(reportGateStage?.warnings ?? []);
-  const readinessLine = workflow.latestDecision?.decision === 'GO'
-    ? 'Ready for concept and report work from the confirmed decision.'
-    : gateBlockers.length > 0
-      ? 'Decision confirmation is the gate before report building.'
-      : workflow.nextAction.description;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-        <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="min-w-0 self-center">
-            <Link to="/" className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition-colors hover:text-slate-700">
-              <ArrowLeft className="size-3.5" aria-hidden /> Projects
-            </Link>
-            <div className="mt-3">
-              {editingName ? (
-                <div className="flex max-w-xl items-center gap-2">
-                  <Input
-                    ref={renameInputRef}
-                    value={draftName}
-                    onChange={event => setDraftName(event.target.value)}
-                    onKeyDown={event => {
-                      if (event.key === 'Enter') void saveProjectName();
-                      if (event.key === 'Escape') cancelRenaming();
-                    }}
-                    onBlur={() => void saveProjectName()}
-                    aria-label="Project name"
-                    aria-invalid={Boolean(renameError)}
-                    className="h-14 bg-white text-3xl font-bold tracking-tight"
-                  />
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="outline"
-                    onMouseDown={event => event.preventDefault()}
-                    onClick={() => void saveProjectName()}
-                    disabled={isRenaming}
-                    aria-label="Save project name"
-                  >
-                    <Check className="size-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    onMouseDown={event => event.preventDefault()}
-                    onClick={cancelRenaming}
-                    aria-label="Cancel project rename"
-                  >
-                    <X className="size-4" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="group/name flex min-w-0 items-center gap-2">
-                  <h1 className="min-w-0 text-4xl font-bold leading-tight tracking-tight text-slate-950">
-                    <button
-                      type="button"
-                      onDoubleClick={startRenaming}
-                      onPointerUp={event => {
-                        if (event.pointerType !== 'touch') return;
-                        const now = Date.now();
-                        if (now - lastTitleTapAt.current < 400) startRenaming();
-                        lastTitleTapAt.current = now;
-                      }}
-                      className="max-w-full truncate rounded-md text-left text-4xl font-bold leading-tight tracking-tight decoration-slate-400 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
-                      title="Double-click or double-tap to rename"
-                      aria-label={`${workflow.projectName}. Double-click or double-tap to rename.`}
-                    >
-                      {workflow.projectName}
-                    </button>
-                  </h1>
+    <div className="mx-auto max-w-[90rem] space-y-5">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <Link to="/" className="inline-flex min-h-9 items-center gap-1 text-xs font-semibold text-slate-500 transition-colors hover:text-slate-800">
+            <ArrowLeft className="size-3.5" aria-hidden /> Projects
+          </Link>
+          <div className="mt-1">
+            {editingName ? (
+              <div className="flex max-w-xl items-center gap-2">
+                <Input
+                  ref={renameInputRef}
+                  value={draftName}
+                  onChange={event => setDraftName(event.target.value)}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') void saveProjectName();
+                    if (event.key === 'Escape') cancelRenaming();
+                  }}
+                  onBlur={() => void saveProjectName()}
+                  aria-label="Project name"
+                  aria-invalid={Boolean(renameError)}
+                  className="h-12 bg-white text-2xl font-semibold tracking-tight"
+                />
+                <Button type="button" size="icon" variant="outline" onMouseDown={event => event.preventDefault()} onClick={() => void saveProjectName()} disabled={isRenaming} aria-label="Save project name">
+                  <Check className="size-4" />
+                </Button>
+                <Button type="button" size="icon" variant="ghost" onMouseDown={event => event.preventDefault()} onClick={cancelRenaming} aria-label="Cancel project rename">
+                  <X className="size-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="group/name flex min-w-0 items-center gap-2">
+                <h1 className="min-w-0 text-3xl font-semibold leading-tight tracking-tight text-slate-950">
                   <button
                     type="button"
-                    onClick={startRenaming}
-                    className="rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20 sm:opacity-0 sm:group-hover/name:opacity-100 sm:focus:opacity-100"
-                    aria-label={`Rename ${workflow.projectName}`}
+                    onDoubleClick={startRenaming}
+                    onPointerUp={event => {
+                      if (event.pointerType !== 'touch') return;
+                      const now = Date.now();
+                      if (now - lastTitleTapAt.current < 400) startRenaming();
+                      lastTitleTapAt.current = now;
+                    }}
+                    className="max-w-full truncate rounded-md text-left decoration-slate-400 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
+                    title="Double-click or double-tap to rename"
+                    aria-label={`${workflow.projectName}. Double-click or double-tap to rename.`}
                   >
-                    <Pencil className="size-4" />
+                    {workflow.projectName}
                   </button>
-                  {workflow.latestDecision?.decision === 'GO' && (
-                    <ProjectStatusBadge label="GO confirmed" tone="success" showIcon={false} />
-                  )}
-                </div>
-              )}
-              {renameError && <p className="mt-1 text-xs font-semibold text-rose-700" role="alert">{renameError}</p>}
-            </div>
-            <p className="mt-1 max-w-3xl text-sm text-slate-600">
-              {contextLine || 'A guided overview of what exists and what to do next.'}
-            </p>
-            <p className="mt-4 max-w-2xl text-sm font-medium text-slate-800">{readinessLine}</p>
+                </h1>
+                <button type="button" onClick={startRenaming} className="rounded-md p-2 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20 sm:opacity-0 sm:group-hover/name:opacity-100 sm:focus:opacity-100" aria-label={`Rename ${workflow.projectName}`}>
+                  <Pencil className="size-4" />
+                </button>
+              </div>
+            )}
+            {renameError && <p className="mt-1 text-xs font-semibold text-rose-700" role="alert">{renameError}</p>}
           </div>
+          <p className="mt-1 text-sm text-slate-600">{contextLine}</p>
+        </div>
+      </header>
 
-          <div className="rounded-lg bg-blue-50 p-4 ring-1 ring-inset ring-blue-200">
-            <div className="flex items-center gap-2 text-sm font-semibold text-blue-950">
-              <ClipboardCheck className="size-4" />
-              Next action
-            </div>
-            <h2 className="mt-3 text-lg font-semibold text-slate-900">{workflow.nextAction.label}</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-700">{workflow.nextAction.description}</p>
-            <Link
-              to={workflow.nextAction.route}
-              className={`mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-semibold transition-opacity hover:opacity-90 ${toneSolidClasses(nextActionTone)}`}
-            >
-              Continue
-              <ArrowRight className="size-4" />
-            </Link>
+      <ProjectDecisionRoom
+        prototypes={prototypes}
+        selectedPrototype={selectedPrototype}
+        onSelectPrototype={setSelectedHistorySampleId}
+        lineage={lineage}
+        eligibility={eligibility}
+        nextAction={prototypeNextAction}
+        projectEvents={projectEvents}
+        projectScopedEvents={projectScoped}
+        batchCount={projectBatches.length}
+      />
+
+      {productTimeline && productTimeline.events.length > 0 && (
+        <details className="rounded-lg border border-slate-200 bg-white">
+          <summary className="min-h-12 cursor-pointer px-4 py-3 text-sm font-semibold text-slate-900 marker:text-slate-400">
+            Full prototype history ({productTimeline.events.length} event{productTimeline.events.length === 1 ? '' : 's'})
+          </summary>
+          <div className="border-t border-slate-200 p-4">
+            <ProductHistoryTimeline timeline={productTimeline} />
           </div>
-        </div>
-
-        <div className="border-t border-slate-200 px-5 py-4 sm:px-6">
-          <JourneyRail stages={workflow.stages} activeStageId={activeStageId} />
-        </div>
-
-        <div className="border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-            <EvidenceStat label="Samples" value={workflow.counts.importedSamples} />
-            <EvidenceStat label="Studies" value={workflow.counts.activeStudies} />
-            <EvidenceStat label="Responses" value={workflow.counts.responsesCollected} />
-            <EvidenceStat label="Decisions" value={workflow.counts.decisionsRecorded} />
-            <EvidenceStat label="Concepts" value={workflow.counts.conceptsActive} />
-            <EvidenceStat label="Reports" value={workflow.counts.reportsSaved} />
-          </div>
-        </div>
-      </section>
-
-      {(gateBlockers.length > 0 || gateWarnings.length > 0) && (
-        <div className="flex flex-col gap-1 px-1 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <p>
-            {gateBlockers.length > 0
-              ? `Report readiness has ${gateBlockers.length} outstanding item${gateBlockers.length === 1 ? '' : 's'}.`
-              : 'A report quality review is available.'}
-          </p>
-          <Link
-            to={reportGateStage?.nextActionRoute ?? workflow.nextAction.route}
-            className="w-fit font-semibold text-slate-600 underline-offset-4 hover:text-slate-900 hover:underline"
-          >
-            Review when ready
-          </Link>
-        </div>
-      )}
-
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="font-semibold text-slate-900">Workflow progress</h2>
-            <p className="max-w-3xl text-sm text-slate-700">
-              Each workstream is tracked independently. Completed evidence remains visible, while downstream gates show exactly what must happen next.
-            </p>
-          </div>
-        </div>
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white divide-y divide-slate-200">
-          {workflow.stages.map((item, index) => (
-            <StageTimelineItem
-              key={item.id}
-              stage={item}
-              active={item.id === activeStageId}
-              position={index + 1}
-              total={workflow.stages.length}
-            />
-          ))}
-        </div>
-      </section>
-
-      <div className="grid gap-5 lg:grid-cols-3">
-        <RecentActivity events={projectEvents} projectScoped={projectScoped} />
-        <Card className="rounded-lg border border-slate-200 bg-white lg:col-span-2">
-          <CardContent className="py-4">
-            <div className="flex items-center gap-2">
-              <FileText className="size-4 text-slate-500" />
-              <h2 className="text-sm font-semibold text-slate-900">Report readiness link</h2>
-            </div>
-            <p className="mt-2 text-sm text-slate-700">
-              The Report stage uses the saved-report context builder, so strict PDF export readiness,
-              reference/demo evidence, missing concept evidence, and approval blockers are reflected here.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {productTimeline && (
-        <div className="space-y-3">
-          {batchSamples.length > 1 && (
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-semibold text-slate-500">Sample</span>
-              <select
-                value={historySampleId ?? ''}
-                onChange={event => setSelectedHistorySampleId(event.target.value)}
-                className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {batchSamples.map(sample => (
-                  <option key={sample.sampleId} value={sample.sampleId}>
-                    {sample.sampleName ?? sample.sampleId}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          <ProductHistoryTimeline timeline={productTimeline} />
-        </div>
+        </details>
       )}
     </div>
   );

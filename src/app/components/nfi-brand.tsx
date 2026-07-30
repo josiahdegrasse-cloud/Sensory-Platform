@@ -66,6 +66,7 @@ type TenantOrNfiLogoProps = {
   textClassName?: string;
   markSize?: number;
   monochromeMark?: boolean;
+  tenant?: boolean;
 };
 
 export function TenantOrNfiLogo({
@@ -76,6 +77,7 @@ export function TenantOrNfiLogo({
   textClassName,
   markSize = 36,
   monochromeMark = false,
+  tenant = false,
 }: TenantOrNfiLogoProps) {
   if (logoUrl) {
     return (
@@ -84,6 +86,29 @@ export function TenantOrNfiLogo({
         alt={organizationName ?? 'Logo'}
         className={cn('block h-9 max-w-40 object-contain', logoClassName)}
       />
+    );
+  }
+
+  if (tenant && organizationName) {
+    const initials = organizationName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(part => part[0]?.toUpperCase())
+      .join('');
+    return (
+      <div className={cn('inline-flex items-center gap-2.5', className)}>
+        <span
+          className="inline-flex shrink-0 items-center justify-center rounded-md bg-[var(--brand)] font-semibold text-[var(--primary-foreground)]"
+          style={{ width: markSize, height: markSize }}
+          aria-hidden="true"
+        >
+          {initials || 'W'}
+        </span>
+        <span className={cn('max-w-40 text-sm font-semibold leading-tight text-slate-900', textClassName)}>
+          {organizationName}
+        </span>
+      </div>
     );
   }
 

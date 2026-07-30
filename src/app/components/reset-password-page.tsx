@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -6,10 +6,18 @@ import { Alert, AlertDescription } from './ui/alert';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../contexts/auth-context';
 import { NFI_BRAND_COLOR, NFI_BRAND_COLOR_DARK } from '../lib/nfi-brand';
-import { NfiBrandLockup } from './nfi-brand';
+import { TenantOrNfiLogo } from './nfi-brand';
+import type { LoginBranding } from './login-page';
+import { brandThemeVariables } from '../lib/brand-theme';
+import { getTenantSlug } from '../lib/tenant';
 
-export function ResetPasswordPage() {
+export function ResetPasswordPage({ branding }: { branding?: LoginBranding }) {
   const { updatePassword } = useAuth();
+  const hasTenantBranding = Boolean(getTenantSlug());
+  const brandStyles = brandThemeVariables(hasTenantBranding ? branding : {
+    primaryColor: NFI_BRAND_COLOR,
+    accentColor: NFI_BRAND_COLOR_DARK,
+  }) as CSSProperties;
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
@@ -29,24 +37,36 @@ export function ResetPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex bg-white">
-      <div className="hidden lg:flex lg:w-[46%] flex-col justify-between border-r border-slate-200 bg-slate-50 p-12">
-        <NfiBrandLockup markSize={44} textClassName="text-slate-700" />
+    <div className="tenant-auth-form flex min-h-screen bg-white" style={brandStyles}>
+      <div className="tenant-auth-panel hidden flex-col justify-between border-r border-white/15 p-12 text-white lg:flex lg:w-[46%]">
+        <div className="inline-flex w-fit rounded-md bg-white px-3 py-2">
+          <TenantOrNfiLogo
+            logoUrl={branding?.logoUrl}
+            organizationName={branding?.workspaceName}
+            tenant={hasTenantBranding}
+            markSize={44}
+          />
+        </div>
         <div>
-          <p className="mb-5 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Sensory Analysis Platform</p>
-          <h1 className="mb-6 max-w-[24rem] text-[2.65rem] font-bold leading-[1.08] tracking-[-0.02em] text-slate-900">
+          <p className="mb-5 text-xs font-semibold uppercase tracking-[0.16em] text-white/65">Sensory Analysis Platform</p>
+          <h1 className="mb-6 max-w-[24rem] text-[2.65rem] font-bold leading-[1.08] tracking-[-0.02em] text-white">
             Set a new password.
           </h1>
-          <p className="max-w-[23rem] text-base leading-7 text-slate-700">
+          <p className="max-w-[23rem] text-base leading-7 text-white/75">
             Keep access to your sensory evidence, decisions, and commercialization reports protected.
           </p>
         </div>
-        <p className="max-w-sm text-sm text-slate-500">Scientific enough for product teams. Clear enough for commercial decisions.</p>
+        <p className="max-w-sm text-sm text-white/50">Scientific enough for product teams. Clear enough for commercial decisions.</p>
       </div>
 
       <div className="flex-1 flex flex-col justify-center px-8 sm:px-16 bg-white">
         <div className="lg:hidden mb-8">
-          <NfiBrandLockup markSize={36} textClassName="text-slate-700 [&_div]:text-[11px]" />
+          <TenantOrNfiLogo
+            logoUrl={branding?.logoUrl}
+            organizationName={branding?.workspaceName}
+            tenant={hasTenantBranding}
+            markSize={36}
+          />
         </div>
         <div className="max-w-sm w-full mx-auto">
           {done ? (
@@ -98,10 +118,7 @@ export function ResetPasswordPage() {
                 )}
                 <Button
                   type="submit"
-                  className="w-full h-11 text-white font-semibold text-sm rounded-lg"
-                  style={{ background: NFI_BRAND_COLOR }}
-                  onMouseEnter={e => (e.currentTarget.style.background = NFI_BRAND_COLOR_DARK)}
-                  onMouseLeave={e => (e.currentTarget.style.background = NFI_BRAND_COLOR)}
+                  className="tenant-auth-primary h-11 w-full rounded-lg text-sm font-semibold"
                   disabled={loading}
                 >
                   {loading ? 'Updating…' : 'Set new password'}

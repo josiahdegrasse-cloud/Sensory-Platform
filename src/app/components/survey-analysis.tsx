@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/auth-context';
 import { useFoodType, sampleMatchesFoodType } from '../contexts/food-type-context';
-import { parseBatchSelection } from '../lib/project-identity';
+import { parseBatchSelection, resolveProjectRouteScope } from '../lib/project-identity';
 import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from '../data/enhanced-sensory';
 import {
   useAdminConceptTests,
@@ -15,13 +15,13 @@ import {
   useImportBatches,
   useInstrumentalDataset,
   useProducts,
+  useProjects,
   useWorkspaceSettings,
 } from '../lib/hooks';
 import { mergeAnalysisProfiles } from '../lib/analysis-dataset';
 import {
   deriveInsightsEvidenceStrength,
   filterProjectConceptTests,
-  filterProjectInstrumentSamples,
   filterProjectProducts,
 } from '../lib/insights';
 import { useProjectStatus } from '../lib/use-project-status';
@@ -101,9 +101,17 @@ export function SurveyAnalysis() {
   const { projectId: routeProjectId } = useParams<{ projectId?: string }>();
   const { user } = useAuth();
   const { foodType, subCategory } = useFoodType();
-  const importBatchId = parseBatchSelection(subCategory);
-  const status = useProjectStatus(foodType, importBatchId);
+  const contextBatchId = parseBatchSelection(subCategory);
   const { data: importBatches = [] } = useImportBatches();
+  const { data: projects = [] } = useProjects();
+  const routeScope = resolveProjectRouteScope(routeProjectId, projects, importBatches);
+  const scopedFoodType = routeScope?.foodTypeSlug ?? foodType;
+  const scopedBatchIds = useMemo(
+    () => new Set(routeScope?.activeBatches.map(batch => batch.id) ?? (contextBatchId ? [contextBatchId] : [])),
+    [contextBatchId, routeScope],
+  );
+  const primaryBatchId = routeScope?.selectedBatch?.id ?? contextBatchId;
+  const status = useProjectStatus(scopedFoodType, primaryBatchId);
   const { data: products = [] } = useProducts();
   const { data: instrumentalDataset } = useInstrumentalDataset(user?.role === 'admin');
   const { data: settings } = useWorkspaceSettings();
@@ -117,18 +125,30 @@ export function SurveyAnalysis() {
 
   const minimumResponses = settings?.decisionMinResponses ?? 12;
   const projectInstrumentSamples = useMemo(
-    () => filterProjectInstrumentSamples(instrumentalDataset?.eTongueData ?? [], foodType, importBatchId),
-    [instrumentalDataset?.eTongueData, foodType, importBatchId],
+    () => (instrumentalDataset?.eTongueData ?? []).filter(sample => (
+      (scopedFoodType === 'all' || sample.type === scopedFoodType)
+      && (scopedBatchIds.size === 0 || (sample.importBatchId ? scopedBatchIds.has(sample.importBatchId) : false))
+    )),
+    [instrumentalDataset?.eTongueData, scopedBatchIds, scopedFoodType],
   );
   const projectSampleIds = useMemo(() => new Set(projectInstrumentSamples.map(sample => sample.sampleId)), [projectInstrumentSamples]);
-  const selectedProjectId = importBatchId
-    ? importBatches.find(batch => batch.id === importBatchId)?.projectId ?? null
-    : null;
+  const projectInstrumentSampleIds = useMemo(
+    () => new Set(projectInstrumentSamples
+      .map(sample => sample.instrumentalSampleId)
+      .filter((id): id is string => Boolean(id))),
+    [projectInstrumentSamples],
+  );
+  const selectedProjectId = routeScope?.projectId
+    ?? (primaryBatchId ? importBatches.find(batch => batch.id === primaryBatchId)?.projectId ?? null : null);
   const effectiveProjectId = routeProjectId ?? selectedProjectId ?? undefined;
   const { data: formulationExperiments = [] } = useFormulationExperiments(effectiveProjectId);
   const projectProducts = useMemo(
-    () => filterProjectProducts(products, projectSampleIds, foodType, importBatchId, selectedProjectId),
-    [products, projectSampleIds, foodType, importBatchId, selectedProjectId],
+    () => filterProjectProducts(products, projectSampleIds, scopedFoodType, primaryBatchId, selectedProjectId),
+    [products, projectSampleIds, scopedFoodType, primaryBatchId, selectedProjectId],
+  );
+  const projectProductIds = useMemo(
+    () => new Set(projectProducts.map(product => product.id)),
+    [projectProducts],
   );
   // Same per-sample rollup Decision uses, so both pages agree on "where are
   // we" instead of Insights staying silent while Decision says something else.
@@ -151,11 +171,13 @@ export function SurveyAnalysis() {
   // stay out of the chart UI (which would otherwise be blank) and show up in
   // ProjectReadinessSetupCard's per-sample list instead, appearing here the
   // moment their first response comes in.
-  const findLiveAggregationForSample = (sampleId: string, sampleName: string) => liveAggregations.find(aggregation =>
-    aggregation.sourceSampleId === sampleId ||
-    aggregation.productName.toLowerCase() === sampleName.toLowerCase() ||
-    aggregation.productName.toLowerCase().includes(`(${sampleId.toLowerCase()})`)
-  );
+  const findLiveAggregationForSample = (sampleId: string, sampleName: string) => liveAggregations.find(aggregation => (
+    (!selectedProjectId && !primaryBatchId) || projectProductIds.has(aggregation.productId)
+  ) && (
+    aggregation.sourceSampleId === sampleId
+    || aggregation.productName.toLowerCase() === sampleName.toLowerCase()
+    || aggregation.productName.toLowerCase().includes(`(${sampleId.toLowerCase()})`)
+  ));
   const hasEvidence = (profile: EnhancedSensoryProfile) =>
     !projectSampleIds.has(profile.sampleId) // reference/demo profile, or out-of-project browsing
     || Boolean(findLiveAggregationForSample(profile.sampleId, profile.sampleName));
@@ -163,10 +185,10 @@ export function SurveyAnalysis() {
     if (projectInstrumentSamples.length > 0) {
       return mergedProfiles.filter(profile => projectSampleIds.has(profile.sampleId) && hasEvidence(profile));
     }
-    if (importBatchId) return [];
-    return mergedProfiles.filter(profile => sampleMatchesFoodType(profile.sampleId, profile.sampleName) === foodType);
+    if (primaryBatchId) return [];
+    return mergedProfiles.filter(profile => sampleMatchesFoodType(profile.sampleId, profile.sampleName) === scopedFoodType);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectInstrumentSamples.length, projectSampleIds, mergedProfiles, importBatchId, foodType, liveAggregations]);
+  }, [projectInstrumentSamples.length, projectSampleIds, mergedProfiles, primaryBatchId, scopedFoodType, liveAggregations]);
 
   const selectedSample = projectSamples.some(sample => sample.sampleId === requestedSample)
     ? requestedSample
@@ -180,8 +202,12 @@ export function SurveyAnalysis() {
   const liveResponseCount = matchingLiveData?.n ?? 0;
 
   const projectConcepts = useMemo(
-    () => filterProjectConceptTests(conceptTests, { foodType, importBatchId, projectName: status.projectName }),
-    [conceptTests, foodType, importBatchId, status.projectName],
+    () => filterProjectConceptTests(conceptTests, {
+      foodType: scopedFoodType,
+      importBatchId: primaryBatchId,
+      projectName: routeScope?.projectName ?? status.projectName,
+    }),
+    [conceptTests, primaryBatchId, routeScope?.projectName, scopedFoodType, status.projectName],
   );
   const multiSampleProducts = projectProducts.filter(product => product.isMultiSample);
   const activeMultiSampleProduct = multiSampleProducts.some(product => product.id === selectedMultiProduct)
@@ -189,12 +215,20 @@ export function SurveyAnalysis() {
     : multiSampleProducts[0]?.id ?? '';
   const primaryConcept = projectConcepts[0];
   const { data: primaryConceptResponses = [] } = useConceptTestResponses(primaryConcept?.id);
-  const projectDecisions = decisions.filter(decision =>
-    projectSampleIds.has(decision.sampleId) ||
-    (!importBatchId && sampleMatchesFoodType(decision.sampleId, decision.sampleName) === foodType)
-  );
+  const projectDecisions = decisions.filter(decision => {
+    if (decision.instrumentalSampleId) {
+      return projectInstrumentSampleIds.has(decision.instrumentalSampleId);
+    }
+    if (selectedProjectId) {
+      return decision.projectId === selectedProjectId && projectSampleIds.has(decision.sampleId);
+    }
+    return projectSampleIds.has(decision.sampleId)
+      || (!primaryBatchId && sampleMatchesFoodType(decision.sampleId, decision.sampleName) === scopedFoodType);
+  });
   const selectedDecision = selectedData
-    ? projectDecisions.find(decision => decision.sampleId === selectedData.sampleId) ?? null
+    ? projectDecisions.find(decision => selectedInstrument?.instrumentalSampleId && decision.instrumentalSampleId
+      ? decision.instrumentalSampleId === selectedInstrument.instrumentalSampleId
+      : decision.sampleId === selectedData.sampleId) ?? null
     : null;
   const selectedGcms = selectedData ? instrumentalDataset?.gcmsData[selectedData.sampleId] ?? [] : [];
   const selectedComposition = selectedData ? instrumentalDataset?.compositionData[selectedData.sampleId] : undefined;
@@ -210,7 +244,7 @@ export function SurveyAnalysis() {
   if (user?.role !== 'admin') return null;
 
   if (!selectedData) {
-    const activeLabel = foodType === 'all' ? 'selected food types' : formatFoodTypeLabel(foodType);
+    const activeLabel = scopedFoodType === 'all' ? 'selected food types' : formatFoodTypeLabel(scopedFoodType);
 
     // Samples were imported and are moving through the pipeline, just none
     // have live evidence yet — show the same setup/status page Decision uses

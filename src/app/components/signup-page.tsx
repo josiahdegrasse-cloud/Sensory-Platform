@@ -1,18 +1,29 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { supabase } from '../lib/supabase';
-import { AlertCircle, ArrowLeft, CheckCircle2, FlaskConical } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { CURRENT_CONSENT_VERSION, emailDomainHasWorkspace } from '../lib/database';
+import type { LoginBranding } from './login-page';
+import { TenantOrNfiLogo } from './nfi-brand';
+import { brandThemeVariables } from '../lib/brand-theme';
+import { NFI_BRAND_COLOR, NFI_BRAND_COLOR_DARK } from '../lib/nfi-brand';
+import { getTenantSlug } from '../lib/tenant';
 
 interface Props {
   onBack: () => void;
+  branding?: LoginBranding;
 }
 
-export function SignupPage({ onBack }: Props) {
+export function SignupPage({ onBack, branding }: Props) {
+  const hasTenantBranding = Boolean(getTenantSlug());
+  const brandStyles = brandThemeVariables(hasTenantBranding ? branding : {
+    primaryColor: NFI_BRAND_COLOR,
+    accentColor: NFI_BRAND_COLOR_DARK,
+  }) as CSSProperties;
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -61,8 +72,9 @@ export function SignupPage({ onBack }: Props) {
         return;
       }
     } catch {
-      // Network/db hiccup: let signup proceed; the sign-in guard still blocks
-      // org-less accounts from entering the app.
+      setError('We could not verify your company workspace. Please try again in a moment.');
+      setLoading(false);
+      return;
     }
 
     const consentAcceptedAt = new Date().toISOString();
@@ -109,14 +121,14 @@ export function SignupPage({ onBack }: Props) {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+      <div className="tenant-auth-form flex min-h-screen items-center justify-center p-6" style={brandStyles}>
         <div className="max-w-md w-full">
-          <Card className="shadow-2xl">
+          <Card className="border-[var(--brand-border)] shadow-sm">
             <CardContent className="pt-8 pb-8 text-center space-y-4">
               <CheckCircle2 className="size-16 text-emerald-600 mx-auto" />
               <h2 className="text-2xl font-bold text-slate-900">Request sent</h2>
               <p className="text-slate-700">Your company email is recognized. An existing admin needs to approve your access before you can enter the workspace.</p>
-              <Button onClick={onBack} className="w-full bg-slate-900 hover:bg-slate-700">
+              <Button onClick={onBack} className="tenant-auth-primary w-full">
                 Sign In
               </Button>
             </CardContent>
@@ -127,25 +139,31 @@ export function SignupPage({ onBack }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+    <div className="tenant-auth-form flex min-h-screen items-center justify-center p-6" style={brandStyles}>
       <div className="max-w-md w-full">
-        <Card className="shadow-2xl">
+        <Card className="border-[var(--brand-border)] shadow-sm">
           <CardHeader className="space-y-2">
             <button
               type="button"
               onClick={onBack}
-              className="mb-2 inline-flex w-fit items-center gap-1.5 rounded-md text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
+              className="tenant-auth-link mb-2 inline-flex w-fit items-center gap-1.5 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]/20"
             >
               <ArrowLeft className="size-4" />
               Back to sign in
             </button>
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center">
-                <FlaskConical className="size-7 text-white" />
+            <div className="flex items-center gap-4">
+              <div className="inline-flex min-h-12 min-w-12 items-center justify-center rounded-md bg-white px-2 ring-1 ring-[var(--brand-border)]">
+                <TenantOrNfiLogo
+                  logoUrl={branding?.logoUrl}
+                  organizationName={branding?.workspaceName}
+                  tenant={hasTenantBranding}
+                  logoClassName="h-9 max-w-36"
+                  markSize={36}
+                />
               </div>
               <div>
                 <CardTitle className="text-2xl">Create Account</CardTitle>
-                <p className="text-sm text-slate-700">Request workspace admin access</p>
+                <p className="text-sm text-slate-700">Request access to {branding?.workspaceName ?? 'your workspace'}</p>
               </div>
             </div>
           </CardHeader>
@@ -186,7 +204,7 @@ export function SignupPage({ onBack }: Props) {
                 />
                 <p className="text-xs text-slate-500">Min 8 characters, one uppercase letter, one number.</p>
               </div>
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
+              <div className="tenant-brand-soft space-y-2 rounded-lg border border-[var(--brand-border)] p-3">
                 <p className="text-xs text-slate-700 font-medium">Workspace access terms</p>
                 <p className="text-xs text-slate-500">
                   Your name and email will be stored so an existing admin can review your workspace access request.
@@ -196,14 +214,15 @@ export function SignupPage({ onBack }: Props) {
                     type="checkbox"
                     checked={consentGiven}
                     onChange={e => setConsentGiven(e.target.checked)}
-                    className="mt-0.5 accent-slate-900"
+                    className="mt-0.5"
+                    style={{ accentColor: 'var(--brand)' }}
                     required
                   />
                   <span className="text-xs text-slate-700">
                     I agree to the{' '}
-                    <a href="/panelist-consent" className="font-semibold underline underline-offset-2">Panelist Consent</a>,{' '}
-                    <a href="/privacy" className="font-semibold underline underline-offset-2">Privacy Policy</a>, and{' '}
-                    <a href="/terms" className="font-semibold underline underline-offset-2">Terms of Use</a>.
+                    <a href="/panelist-consent" className="tenant-auth-link font-semibold underline underline-offset-2">Panelist Consent</a>,{' '}
+                    <a href="/privacy" className="tenant-auth-link font-semibold underline underline-offset-2">Privacy Policy</a>, and{' '}
+                    <a href="/terms" className="tenant-auth-link font-semibold underline underline-offset-2">Terms of Use</a>.
                   </span>
                 </label>
               </div>
@@ -215,7 +234,7 @@ export function SignupPage({ onBack }: Props) {
               )}
               <Button
                 type="submit"
-                className="w-full bg-slate-900 hover:bg-slate-700"
+                className="tenant-auth-primary w-full"
                 disabled={loading || !consentGiven}
               >
                 {loading ? 'Creating account…' : 'Create Account'}
@@ -223,7 +242,7 @@ export function SignupPage({ onBack }: Props) {
               <button
                 type="button"
                 onClick={onBack}
-                className="w-full text-sm text-slate-500 hover:text-slate-900"
+                className="tenant-auth-link w-full text-sm"
               >
                 Already have an account? Sign in
               </button>

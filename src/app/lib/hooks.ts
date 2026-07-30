@@ -14,6 +14,8 @@ import {
   fetchFoodTypes, fetchInstrumentalDataset, fetchFormulationVersions, fetchImportBatches,
   fetchProjects, createProject, renameProject, assignBatchToProject,
   fetchWorkspaceSettings, updateWorkspaceSettings, fetchAuditEvents,
+  fetchIsPlatformOperator, provisionPlatformOrganization,
+  fetchWorkspaceOperationalHealth,
   adoptConceptImageAsBrandKit, clearConceptBrandKit,
   fetchDecisionRecords,
   fetchPanelistKits, fetchPanelistKitInvite, fetchPanelistKitInviteByManualCode, generatePanelistKits,
@@ -31,6 +33,7 @@ import {
   rejectPendingImport, listDriveFiles, importDriveFiles,
   type ConceptTest, type InstrumentalImportInput, type ConceptGenerationSettings,
   type WorkspaceSettings, type PanelistInfo,
+  type PlatformOrganizationInput,
   type CommercializationReportRecord,
   type EvidenceBundleRecord,
   type PendingImportRecord,
@@ -100,6 +103,8 @@ export const queryKeys = {
   importBatches: ['importBatches'] as const,
   projects: ['projects'] as const,
   workspaceSettings: ['workspaceSettings'] as const,
+  workspaceOperationalHealth: ['workspaceOperationalHealth'] as const,
+  platformOperator: ['platformOperator'] as const,
   publicWorkspaceConfig: ['publicWorkspaceConfig'] as const,
   orgEmailDomains: ['orgEmailDomains'] as const,
   auditEvents: ['auditEvents'] as const,
@@ -824,6 +829,35 @@ export function useUpdatePanelistStatus() {
 
 export function useWorkspaceSettings() {
   return useQuery({ queryKey: queryKeys.workspaceSettings, queryFn: fetchWorkspaceSettings })
+}
+
+export function usePlatformOperator(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.platformOperator,
+    queryFn: fetchIsPlatformOperator,
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export function useProvisionPlatformOrganization() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: PlatformOrganizationInput) => provisionPlatformOrganization(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.auditEvents })
+    },
+  })
+}
+
+export function useWorkspaceOperationalHealth(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.workspaceOperationalHealth,
+    queryFn: fetchWorkspaceOperationalHealth,
+    enabled,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  })
 }
 
 export function usePublicWorkspaceConfig() {

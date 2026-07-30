@@ -125,10 +125,10 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
     ));
   }, [foodTypesQuery.data]);
 
-  const setSelection = (ft: FoodType, sub: string | null = null) => {
+  const setSelection = useCallback((ft: FoodType, sub: string | null = null) => {
     setFoodType(ft);
     setSubCategory(sub);
-  };
+  }, []);
 
   // Mirror the current selection into localStorage so a reload restores it.
   useEffect(() => {
@@ -153,7 +153,10 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
       if (!exists) return [...prev, { type: slug, status: 'archived' as const }].sort((a, b) => a.type.localeCompare(b.type));
       return prev.map(record => record.type === slug ? { ...record, status: 'archived' as const } : record);
     });
-    setFoodType(current => current === slug ? fallbackType : current);
+    if (foodType === slug) {
+      setFoodType(fallbackType);
+      setSubCategory(null);
+    }
     setActionError('');
     void archiveFoodTypeMutation.mutateAsync(slug).catch(error => {
       setLocalFoodTypeRecords(prev => prev.map(record =>
@@ -161,7 +164,7 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
       ));
       setActionError(error instanceof Error ? error.message : `Could not archive ${slug}.`);
     });
-  }, [archiveFoodTypeMutation, foodTypeRecords]);
+  }, [archiveFoodTypeMutation, foodType, foodTypeRecords]);
 
   const restoreFoodType = useCallback((type: string) => {
     const slug = slugifyFoodType(type);
@@ -176,7 +179,7 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
       setFoodType(current => current === slug ? '' : current);
       setActionError(error instanceof Error ? error.message : `Could not restore ${slug}.`);
     });
-  }, [foodTypeRecords, restoreFoodTypeMutation]);
+  }, [foodTypeRecords, restoreFoodTypeMutation, setSelection]);
 
   const deleteFoodType = useCallback((type: string) => {
     const slug = slugifyFoodType(type);
@@ -187,7 +190,10 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
       if (!exists) return [...prev, { type: slug, status: 'deleted' as const }].sort((a, b) => a.type.localeCompare(b.type));
       return prev.map(record => record.type === slug ? { ...record, status: 'deleted' as const } : record);
     });
-    setFoodType(current => current === slug ? fallbackType : current);
+    if (foodType === slug) {
+      setFoodType(fallbackType);
+      setSubCategory(null);
+    }
     setActionError('');
     void deleteFoodTypeMutation.mutateAsync(slug)
       .then(() => {
@@ -201,7 +207,7 @@ export function FoodTypeProvider({ children }: { children: ReactNode }) {
         ));
         setActionError(error instanceof Error ? error.message : `Could not delete ${slug}.`);
       });
-  }, [deleteFoodTypeMutation, foodTypeRecords]);
+  }, [deleteFoodTypeMutation, foodType, foodTypeRecords]);
 
   const clearExtraFoodTypes = useCallback(() => {
     setLocalFoodTypeRecords([]);

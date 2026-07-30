@@ -10,15 +10,22 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
   --primary: var(--brand);
-  --primary-foreground: oklch(1 0 0);
-  /* Per-tenant accent. Default = NFI blue-grey; overridden at runtime from the
-     org's workspace_settings.primary_color (see main-layout). */
-  --brand: #6B7890;
-  --secondary: #eef2f6;
+  --primary-foreground: #ffffff;
+  /* Per-tenant identity. Defaults use NFI black and are overridden from
+     workspace_settings in the authenticated shell or public tenant config. */
+  --brand: #111111;
+  --brand-accent: #000000;
+  --brand-accent-foreground: #ffffff;
+  --brand-strong: color-mix(in oklch, var(--brand) 82%, black);
+  --brand-soft: color-mix(in oklch, var(--brand) 8%, white);
+  --brand-accent-soft: color-mix(in oklch, var(--brand-accent) 10%, white);
+  --brand-canvas: color-mix(in oklch, var(--brand) 4%, white);
+  --brand-border: color-mix(in oklch, var(--brand) 18%, white);
+  --secondary: var(--brand-soft);
   --secondary-foreground: #030213;
   --muted: #eef2f6;
   --muted-foreground: #64748b;
-  --accent: #eef2f6;
+  --accent: var(--brand-accent-soft);
   --accent-foreground: #030213;
   --destructive: #d4183d;
   --destructive-foreground: #ffffff;
@@ -28,7 +35,7 @@
   --switch-background: #cbced4;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: oklch(0.708 0 0);
+  --ring: var(--brand);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -38,12 +45,57 @@
   --radius: 0.5rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #030213;
+  --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent: var(--brand-soft);
   --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-border: var(--brand-border);
+  --sidebar-ring: var(--brand);
+}
+
+@layer components {
+  .tenant-auth-shell,
+  .tenant-auth-panel {
+    background: var(--brand);
+  }
+
+  .tenant-auth-form {
+    background: var(--brand-canvas);
+  }
+
+  .tenant-auth-kicker {
+    color: var(--brand-strong);
+  }
+
+  .tenant-auth-primary {
+    background: var(--brand);
+    color: var(--primary-foreground);
+  }
+
+  .tenant-auth-link {
+    color: var(--brand-strong);
+  }
+
+  .tenant-auth-link:hover {
+    color: var(--brand);
+  }
+
+  .tenant-auth-control {
+    border-color: var(--brand-border);
+  }
+
+  .tenant-auth-control:focus-visible {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px var(--brand-soft);
+  }
+
+  .tenant-brand-surface {
+    background: var(--brand-canvas);
+  }
+
+  .tenant-brand-soft {
+    background: var(--brand-soft);
+  }
 }
 
 /*

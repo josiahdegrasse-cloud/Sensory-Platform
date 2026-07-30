@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFoodType, sampleMatchesFoodType, matchFoodType } from "../contexts/food-type-context";
-import { parseBatchSelection } from "../lib/project-identity";
+import { parseBatchSelection, resolveProjectRouteScope } from "../lib/project-identity";
 import { Button } from "./ui/button";
 import { CheckCircle2, FileSpreadsheet, FileText, GitMerge, Megaphone } from "lucide-react";
 import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from "../data/enhanced-sensory";
@@ -10,12 +10,11 @@ import { DataProvenanceBadge } from "./data-provenance-badge";
 import { useAuth } from "../contexts/auth-context";
 import { insertDecisionRecord, saveEvidenceBundle } from "../lib/database";
 import { formatFoodTypeLabel, getFoodTypeProfile } from "../lib/food-intelligence";
-import { queryKeys, useDecisionRecords, useImportBatches, useInstrumentalDataset, useProducts, useWorkspaceSettings } from "../lib/hooks";
+import { queryKeys, useDecisionRecords, useImportBatches, useInstrumentalDataset, useProducts, useProjects, useWorkspaceSettings } from "../lib/hooks";
 import { useSurveyData } from "../lib/use-survey-data";
 import { calculateGoStopTweakDecision, type GoStopTweakDecision } from "../utils/go-stop-tweak-engine";
 import { assessSampleWorkflow, summarizeProjectReadiness } from "../lib/workflow-readiness";
 import { downloadDecisionReportExcel, downloadDecisionReportPdf } from "../utils/decision-report";
-import { filterProjectInstrumentSamples } from "../lib/insights";
 import {
   buildEvidencePositioningPromise,
   buildInstrumentEvidenceSummary,
@@ -113,14 +112,22 @@ export function Stage4Enhanced() {
   const location = useLocation();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { foodType, subCategory, extraFoodTypes } = useFoodType();
+  const { foodType: contextFoodType, subCategory, extraFoodTypes } = useFoodType();
   const { data: instrumentalDataset } = useInstrumentalDataset(user?.role === 'admin');
   const { data: importBatches = [] } = useImportBatches();
+  const { data: projects = [] } = useProjects();
   const { data: products = [] } = useProducts();
   const { data: workspaceSettings } = useWorkspaceSettings();
   const { data: decisionRecords = [] } = useDecisionRecords();
   const { liveAggregations } = useSurveyData();
-  const selectedBatchId = parseBatchSelection(subCategory);
+  const contextBatchId = parseBatchSelection(subCategory);
+  const routeScope = resolveProjectRouteScope(routeProjectId, projects, importBatches);
+  const foodType = routeScope?.foodTypeSlug ?? contextFoodType;
+  const selectedBatchId = routeScope?.selectedBatch?.id ?? contextBatchId;
+  const projectBatchIds = useMemo(
+    () => new Set(routeScope?.activeBatches.map(batch => batch.id) ?? (selectedBatchId ? [selectedBatchId] : [])),
+    [routeScope, selectedBatchId],
+  );
   const [selectedSample, setSelectedSample] = useState<string>("");
   const [confirmPending, setConfirmPending] = useState(false);
   const [decisionSaving, setDecisionSaving] = useState(false);
@@ -133,20 +140,18 @@ export function Stage4Enhanced() {
   const minimumResponses = workspaceSettings?.decisionMinResponses ?? 12;
   const retestParentDecisionId = (location.state as { retestParentDecisionId?: string } | null)?.retestParentDecisionId ?? null;
   const projectInstrumentSamples = useMemo(
-    () => filterProjectInstrumentSamples(
-      instrumentalDataset?.eTongueData ?? [],
-      foodType,
-      selectedBatchId,
-    ),
-    [foodType, instrumentalDataset?.eTongueData, selectedBatchId],
+    () => (instrumentalDataset?.eTongueData ?? []).filter(sample => (
+      (foodType === 'all' || sample.type === foodType)
+      && (projectBatchIds.size === 0 || (sample.importBatchId ? projectBatchIds.has(sample.importBatchId) : false))
+    )),
+    [foodType, instrumentalDataset?.eTongueData, projectBatchIds],
   );
   const projectSampleIds = useMemo(
     () => new Set(projectInstrumentSamples.map(sample => sample.sampleId)),
     [projectInstrumentSamples],
   );
-  const selectedProjectId = selectedBatchId
-    ? importBatches.find(batch => batch.id === selectedBatchId)?.projectId ?? null
-    : null;
+  const selectedProjectId = routeScope?.projectId
+    ?? (selectedBatchId ? importBatches.find(batch => batch.id === selectedBatchId)?.projectId ?? null : null);
   const reportOptions = (decisions: SampleDecision[]) => ({
     foodType: formatFoodTypeLabel(foodType),
     decisions,
@@ -171,15 +176,13 @@ export function Stage4Enhanced() {
   const importedReadiness = useMemo(() => (
     projectInstrumentSamples
       .map(sample => {
-        const product = products.find(item =>
-          item.sourceSampleId === sample.sampleId &&
-          (
-            !selectedBatchId ||
-            item.sourceImportBatchId === selectedBatchId ||
-            (selectedProjectId ? item.projectId === selectedProjectId : false)
-          )
-        );
-        const aggregation = liveAggregations.find(item => item.sourceSampleId === sample.sampleId);
+        const product = products.find(item => sample.instrumentalSampleId && item.instrumentalSampleId
+          ? item.instrumentalSampleId === sample.instrumentalSampleId
+          : item.sourceSampleId === sample.sampleId
+            && item.sourceImportBatchId === sample.importBatchId);
+        const aggregation = product
+          ? liveAggregations.find(item => item.productId === product.id)
+          : undefined;
         return assessSampleWorkflow({
           sample,
           product,
@@ -189,7 +192,7 @@ export function Stage4Enhanced() {
           hasComposition: Boolean(instrumentalDataset?.compositionData[sample.sampleId]),
         });
       })
-  ), [instrumentalDataset, liveAggregations, minimumResponses, products, projectInstrumentSamples, selectedBatchId, selectedProjectId]);
+  ), [instrumentalDataset, liveAggregations, minimumResponses, products, projectInstrumentSamples]);
 
   const liveSensoryData = useMemo<EnhancedSensoryProfile[]>(() => {
     const activeTypes = new Set(extraFoodTypes);
@@ -431,6 +434,10 @@ export function Stage4Enhanced() {
           setDecisionError("");
           try {
             if (!selectedProfile) throw new Error('The selected sample evidence is unavailable.');
+            const matchingInstrumentalSamples = projectInstrumentSamples.filter(sample => sample.sampleId === selected.sampleId);
+            const selectedInstrumentalSampleId = matchingInstrumentalSamples.length === 1
+              ? matchingInstrumentalSamples[0].instrumentalSampleId ?? null
+              : null;
             const currentFormulationVersionId = instrumentalDataset?.formulationVersions?.[selected.sampleId]
               ?.find(version => version.isCurrent)?.id ?? null;
             const evidencePayload = buildEvidenceBundleFromProfiles({
@@ -460,6 +467,7 @@ export function Stage4Enhanced() {
               decisionFingerprint: selected.decisionFingerprint,
               createdBy: user.id,
               projectId: selectedProjectId,
+              instrumentalSampleId: selectedInstrumentalSampleId,
               parentDecisionId: retestParentDecisionId,
               formulationVersionId: currentFormulationVersionId,
               evidenceBundleId: evidenceBundle.id,

@@ -4,7 +4,7 @@ import { useAuth } from "../contexts/auth-context";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useFoodType } from "../contexts/food-type-context";
 import { parseBatchSelection, encodeBatchSelection } from "../lib/project-identity";
-import { useDeleteImportBatch, useImportBatches, usePendingImports, useUpdateImportBatchStatus, useWorkspaceSettings } from "../lib/hooks";
+import { useDeleteImportBatch, useImportBatches, usePendingImports, useProjects, useUpdateImportBatchStatus, useWorkspaceSettings } from "../lib/hooks";
 import { useProjectStatus } from "../lib/use-project-status";
 import { currentPathToJourneyStep, legacyWorkflowPathToStep, projectPath } from "../lib/project-journey-routes";
 import type { ImportBatchRecord } from "../lib/database";
@@ -26,8 +26,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-import { NFI_BRAND_COLOR } from "../lib/nfi-brand";
 import { TenantOrNfiLogo } from "./nfi-brand";
+import { applyBrandTheme } from "../lib/brand-theme";
+import { NFI_BRAND_COLOR, NFI_BRAND_COLOR_DARK, NFI_ORGANIZATION_NAME } from "../lib/nfi-brand";
 
 const DecisionRagPreloader = lazy(() => import('./decision-rag-preloader').then(module => ({
   default: module.DecisionRagPreloader,
@@ -175,7 +176,7 @@ function CategorySidebar() {
   };
 
   const btnStyle = (active: boolean) => ({
-    background: active ? '#f1f5f9' : 'transparent',
+    background: active ? 'var(--brand-soft)' : 'transparent',
     color: active ? 'var(--brand)' : '#64748b',
     fontWeight: active ? 600 : 400,
   });
@@ -194,8 +195,8 @@ function CategorySidebar() {
           </button>
         </div>
       )}
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-        <div className="flex items-center gap-1.5 px-3 py-2.5 border-b border-slate-200">
+      <div className="overflow-hidden rounded-lg border border-[var(--brand-border)] bg-white">
+        <div className="flex items-center gap-1.5 border-b border-[var(--brand-border)] px-3 py-2.5">
           <FolderKanban className="size-3.5 text-slate-500" />
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Project Ledger</span>
         </div>
@@ -260,7 +261,7 @@ function CategorySidebar() {
                     return (
                       <div
                         key={project.id}
-                        className={`group/project flex items-center gap-1 rounded-md ${selectedBatchId === project.id ? 'bg-slate-50' : 'hover:bg-slate-50'}`}
+                        className={`group/project flex items-center gap-1 rounded-md ${selectedBatchId === project.id ? 'bg-[var(--brand-soft)]' : 'hover:bg-[var(--brand-canvas)]'}`}
                       >
                         <button
                           type="button"
@@ -436,14 +437,20 @@ function CategorySidebar() {
 }
 
 function FoodTypeBadge() {
+  const location = useLocation();
   const { foodType, subCategory } = useFoodType();
   const { data: importBatches = [] } = useImportBatches();
+  const { data: projects = [] } = useProjects();
   const typeLabel = foodType === 'cheese' ? 'Cheese' : foodType === 'bread' ? 'Bread' : capitalize(foodType);
   const batchId = parseBatchSelection(subCategory);
   const batch = batchId ? importBatches.find(item => item.id === batchId) : null;
-  const label = batch ? batch.fileName.replace(/\.csv$/i, '') : (subCategory ?? typeLabel);
+  const routeProjectId = location.pathname.match(/^\/project\/([^/]+)/)?.[1] ?? null;
+  const routeProject = routeProjectId ? projects.find(project => project.id === routeProjectId) : null;
+  const label = routeProject?.name
+    ?? batch?.projectName
+    ?? (batch ? batch.fileName.replace(/\.csv$/i, '') : (subCategory ?? typeLabel));
   return (
-    <span className="inline-flex max-w-[9rem] truncate rounded-full border px-2.5 py-1 text-xs font-semibold sm:max-w-[13rem]" style={{ background: '#f1f5f9', color: 'var(--brand)', borderColor: '#cbd5e1' }}>
+    <span className="inline-flex max-w-[9rem] truncate rounded-full border px-2.5 py-1 text-xs font-semibold sm:max-w-[13rem]" style={{ background: 'var(--brand-soft)', color: 'var(--brand-strong)', borderColor: 'var(--brand-border)' }}>
       {label}
     </span>
   );
@@ -461,12 +468,24 @@ export function MainLayout() {
   // Per-tenant branding (falls back to NFI when the org hasn't set its own).
   const brandLogo = workspaceSettings?.logoUrl ?? null;
   const brandName = workspaceSettings?.workspaceName ?? null;
+  const isNfiWorkspace = user?.orgSlug === 'nfi'
+    || workspaceSettings?.organizationName === NFI_ORGANIZATION_NAME;
+  const brandPrimaryColor = isNfiWorkspace
+    ? NFI_BRAND_COLOR
+    : (workspaceSettings?.primaryColor ?? null);
+  const brandAccentColor = isNfiWorkspace
+    ? NFI_BRAND_COLOR_DARK
+    : (workspaceSettings?.accentColor ?? null);
 
-  // Drive the global --brand accent from the org's colour so every var(--brand)
-  // usage across the app themes per tenant from one place.
+  // Drive the complete global tenant palette from the workspace record so
+  // actions, focus states, navigation, and surfaces share one brand language.
   useEffect(() => {
-    document.documentElement.style.setProperty('--brand', workspaceSettings?.primaryColor || NFI_BRAND_COLOR);
-  }, [workspaceSettings?.primaryColor]);
+    applyBrandTheme(document.documentElement.style, {
+      primaryColor: brandPrimaryColor,
+      accentColor: brandAccentColor,
+    });
+    return () => applyBrandTheme(document.documentElement.style);
+  }, [brandPrimaryColor, brandAccentColor]);
 
   const activeAdminNavPath = (pathname: string) => {
     const normalized = pathname.replace(/\/+$/, '') || '/';
@@ -544,16 +563,17 @@ export function MainLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white">
+    <div className="tenant-brand-surface min-h-screen">
+      <header className="sticky top-0 z-50 border-b border-[var(--brand-border)] bg-white">
         <div className="mx-auto max-w-[1600px] px-4 sm:px-6">
 
           {/* Top bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--brand-border)] py-3">
             <Link to={user?.role === 'panelist' ? '/panelist' : '/'} className="flex items-center gap-2.5 hover:opacity-75 transition-opacity">
               <TenantOrNfiLogo
                 logoUrl={brandLogo}
                 organizationName={brandName}
+                tenant={!isNfiWorkspace}
                 markSize={36}
                 monochromeMark
                 textClassName="text-slate-700 [&_div]:text-[11px]"
@@ -573,9 +593,9 @@ export function MainLayout() {
                   to="/settings"
                   title="Settings"
                   aria-label="Settings"
-                  className="flex size-8 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                  className="flex size-8 items-center justify-center rounded-md border border-[var(--brand-border)] text-slate-500 transition-colors hover:bg-[var(--brand-soft)] hover:text-[var(--brand-strong)]"
                   style={{
-                    background: isActive('/settings') ? '#f1f5f9' : undefined,
+                    background: isActive('/settings') ? 'var(--brand-soft)' : undefined,
                     color: isActive('/settings') ? 'var(--brand)' : undefined,
                   }}
                 >
@@ -584,7 +604,7 @@ export function MainLayout() {
               )}
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-500 hover:text-slate-900 hover:bg-slate-50 rounded-md transition-colors border border-slate-200"
+                className="flex items-center gap-1.5 rounded-md border border-[var(--brand-border)] px-3 py-1.5 text-sm text-slate-500 transition-colors hover:bg-[var(--brand-soft)] hover:text-[var(--brand-strong)]"
               >
                 <LogOut className="size-3.5" />
                 Sign out
@@ -621,7 +641,7 @@ export function MainLayout() {
                         {Icon && <Icon className="size-4" />}
                         <span className="flex-1">{item.label}</span>
                         {item.path === '/stage1' && pendingImports.length > 0 && (
-                          <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[11px] font-bold leading-none text-white">
+                          <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[11px] font-bold leading-none text-[var(--primary-foreground)]">
                             {pendingImports.length > 9 ? '9+' : pendingImports.length}
                           </span>
                         )}
@@ -642,13 +662,13 @@ export function MainLayout() {
                   key={item.path}
                   to={user?.role === 'admin' ? adminNavTarget(item.path) : item.path}
                   aria-current={active ? 'page' : undefined}
-                  className={`flex min-h-12 min-w-24 flex-1 items-center justify-center gap-2 border-b-2 border-transparent px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-900/15 ${active ? 'font-semibold' : 'font-normal text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
+                  className={`flex min-h-12 min-w-24 flex-1 items-center justify-center gap-2 border-b-2 border-transparent px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand)]/20 ${active ? 'font-semibold' : 'font-normal text-slate-500 hover:bg-[var(--brand-canvas)] hover:text-slate-800'}`}
                   style={active ? { color: 'var(--brand)', borderBottomColor: 'var(--brand)' } : undefined}
                 >
                   {Icon && <Icon className="size-4 shrink-0" />}
                   {item.label}
                   {item.path === '/stage1' && pendingImports.length > 0 && (
-                    <span className="ml-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[11px] font-bold leading-none text-white">
+                    <span className="ml-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[11px] font-bold leading-none text-[var(--primary-foreground)]">
                       {pendingImports.length > 9 ? '9+' : pendingImports.length}
                     </span>
                   )}

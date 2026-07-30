@@ -2,12 +2,15 @@ import { createContext, useContext, useState, useEffect, useRef, type ReactNode 
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { acceptPanelistConsent, CURRENT_CONSENT_VERSION, requestAdminAccess } from '../lib/database';
+import { checkTenantAccess, tenantAuthRedirectUrl } from '../lib/tenant';
 
 export interface User {
   id: string;
   email: string;
   role: 'admin' | 'panelist' | 'pending_admin';
   name: string;
+  orgId: string;
+  orgSlug: string;
   panelistId?: string;
   status?: 'active' | 'inactive' | 'archived';
   consentAcceptedAt?: string | null;
@@ -81,12 +84,42 @@ async function loadProfile(supabaseUser: SupabaseUser): Promise<ProfileResult> {
       blockedMessage: 'This account isn’t linked to a company workspace yet. Sign in with your company email address, or ask your administrator for an invite.',
     };
   }
+
+  const { data: organization, error: organizationError } = await supabase
+    .from('organizations')
+    .select('id, slug, status')
+    .eq('id', data.org_id)
+    .single();
+
+  if (organizationError || !organization) {
+    return {
+      profile: null,
+      blockedMessage: 'Your company workspace could not be verified. Contact your study administrator.',
+    };
+  }
+  if (organization.status !== 'active') {
+    return {
+      profile: null,
+      blockedMessage: 'This company workspace is inactive. Contact your study administrator.',
+    };
+  }
+
+  const tenantAccess = checkTenantAccess(organization.slug);
+  if (!tenantAccess.allowed) {
+    return {
+      profile: null,
+      blockedMessage: `This account cannot access the ${tenantAccess.requestedTenant} workspace. Use your company’s sign-in address or the shared sign-in page.`,
+    };
+  }
+
   return {
     profile: {
       id: supabaseUser.id,
       email: supabaseUser.email ?? '',
       role: data.role as 'admin' | 'panelist' | 'pending_admin',
       name: data.name ?? supabaseUser.email ?? '',
+      orgId: organization.id,
+      orgSlug: organization.slug,
       panelistId: data.panelist_id ?? undefined,
       status: (data.status ?? 'active') as 'active' | 'archived' | 'inactive',
       consentAcceptedAt: data.consent_accepted_at ?? null,
@@ -148,6 +181,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setLoading(false);
     }).catch(() => {
+      setUser(null);
+      setAuthNotice('Your workspace could not be verified. Please sign in again.');
+      void supabase.auth.signOut();
       setLoading(false);
     });
   }, [sessionUser]);
@@ -169,7 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: import.meta.env.VITE_APP_URL ?? window.location.origin,
+          redirectTo: tenantAuthRedirectUrl('/'),
         },
       });
       if (error) return error.message;
@@ -200,7 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const resetPassword = async (email: string): Promise<string | null> => {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${import.meta.env.VITE_APP_URL ?? window.location.origin}/reset-password`,
+        redirectTo: tenantAuthRedirectUrl('/reset-password'),
       });
       if (error) return error.message;
       return null;

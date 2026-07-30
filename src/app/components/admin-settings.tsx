@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 import {
-  Activity, AlertCircle, Brain, CheckCircle2, ClipboardCheck, Database,
+  Activity, AlertCircle, Brain, Building2, CheckCircle2, ClipboardCheck, Database,
   HardDrive, Lock, Palette, Save, ShieldCheck, UserCheck, UserX, Users,
 } from 'lucide-react';
 import { BrandingSettings } from './branding-settings';
 import { OrgEmailDomainsCard } from './org-email-domains-card';
+import { PlatformOrganizationOnboarding } from './platform-organization-onboarding';
+import { OperationsHealthPanel } from './operations-health-panel';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -20,6 +22,7 @@ import {
   useAdminAccessRequests,
   useConceptGenerationSettings,
   usePanelists,
+  usePlatformOperator,
   useResolveAdminAccessRequest,
   useUpdatePanelistStatus,
   useUpdateWorkspaceSettings,
@@ -143,6 +146,7 @@ export function AdminSettings() {
   const { data: adminAccessRequests = [] } = useAdminAccessRequests(user?.role === 'admin');
   const { data: auditEvents = [] } = useAuditEvents();
   const { data: conceptSettings } = useConceptGenerationSettings();
+  const { data: isPlatformOperator = false } = usePlatformOperator(user?.role === 'admin');
   const updateSettings = useUpdateWorkspaceSettings();
   const updatePanelistStatus = useUpdatePanelistStatus();
   const resolveAdminAccess = useResolveAdminAccessRequest();
@@ -259,6 +263,8 @@ export function AdminSettings() {
           <TabsTrigger className="h-10 justify-start sm:h-8 sm:justify-center" value="decision"><Brain className="size-4" />Decision</TabsTrigger>
           <TabsTrigger className="h-10 justify-start sm:h-8 sm:justify-center" value="branding"><Palette className="size-4" />Branding</TabsTrigger>
           <TabsTrigger className="h-10 justify-start sm:h-8 sm:justify-center" value="audit"><Activity className="size-4" />Audit</TabsTrigger>
+          <TabsTrigger className="h-10 justify-start sm:h-8 sm:justify-center" value="operations"><HardDrive className="size-4" />Operations</TabsTrigger>
+          {isPlatformOperator && <TabsTrigger className="h-10 justify-start sm:h-8 sm:justify-center" value="clients"><Building2 className="size-4" />Clients</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="study">
@@ -403,6 +409,16 @@ export function AdminSettings() {
 
         <TabsContent value="branding">
           <BrandingSettings draft={draft} updateDraft={updateDraft} disabled={settingsLoading} />
+        </TabsContent>
+
+        {isPlatformOperator && (
+          <TabsContent value="clients">
+            <PlatformOrganizationOnboarding />
+          </TabsContent>
+        )}
+
+        <TabsContent value="operations">
+          <OperationsHealthPanel />
         </TabsContent>
 
         <TabsContent value="audit"><AuditLog auditEvents={auditEvents} /></TabsContent>
