@@ -114,7 +114,10 @@ export async function reviewLibraryDocument(input: LibraryDocumentReview): Promi
       notes: input.notes ?? '',
     }),
   });
-  if (!response.ok) throw new Error(`Library review update failed (${response.status})`);
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({})) as { detail?: string };
+    throw new Error(payload.detail || `Library review update failed (${response.status})`);
+  }
 }
 
 export async function reviewLibraryDocuments(input: LibraryBulkReview): Promise<void> {
