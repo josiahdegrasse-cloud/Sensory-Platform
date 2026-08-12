@@ -1,5 +1,5 @@
 import { AlertCircle, BookOpenText, ChevronDown, ChevronLeft, ChevronRight, FileCheck2, RefreshCw, Search, Settings, UploadCloud } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState, type DragEvent } from 'react';
 import { Link } from 'react-router';
 import type { LibraryDocument } from '../lib/nfi-library';
 import { openSourceViewer } from '../lib/tweak-intelligence';
@@ -61,6 +61,8 @@ export function LiteratureLibraryPage() {
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [manageOpen, setManageOpen] = useState(true);
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const status = useLibraryStatus();
   const documents = useLibraryDocuments();
   const imports = useLiteratureImports();
@@ -102,6 +104,20 @@ export function LiteratureLibraryPage() {
       notes: reviewStatus === 'approved' ? 'Approved through the library bulk-review workflow.' : 'Rejected through the library bulk-review workflow.',
     }, { onSuccess: () => setSelected(new Set()) });
   };
+  const selectPublication = (file?: File) => {
+    if (file && !upload.isPending) upload.mutate(file);
+  };
+  const openPublicationPicker = () => {
+    const input = fileInputRef.current;
+    if (!input || upload.isPending) return;
+    if (typeof input.showPicker === 'function') input.showPicker();
+    else input.click();
+  };
+  const dropPublication = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setDragActive(false);
+    selectPublication(event.dataTransfer.files?.[0]);
+  };
 
   return <div className="mx-auto max-w-6xl space-y-5">
     <header className="flex flex-col gap-3 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
@@ -122,7 +138,14 @@ export function LiteratureLibraryPage() {
 
     <Collapsible open={manageOpen} onOpenChange={setManageOpen} className="rounded-lg border border-slate-300 bg-white">
       <CollapsibleTrigger className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left"><div><p className="text-sm font-semibold text-slate-900">Upload publications</p><p className="mt-0.5 text-xs text-slate-600">Add one PDF or a ZIP containing multiple PDF articles. Every paper is checked and enters review separately.</p></div><ChevronDown className={`size-4 text-slate-500 transition-transform ${manageOpen ? 'rotate-180' : ''}`} /></CollapsibleTrigger>
-      <CollapsibleContent className="space-y-4 border-t border-slate-200 px-4 py-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium text-slate-900">Private publication upload</p><p className="mt-1 max-w-2xl text-xs leading-5 text-slate-600">PDFs can be up to 50 MB each. ZIPs can contain up to 100 PDFs and expand to 500 MB. Exact duplicates are skipped, and new sources remain unavailable to Evidence Assist until reviewed.</p></div><div className="flex items-center gap-2"><UploadCloud className="size-4 text-slate-600" aria-hidden="true" /><input type="file" accept="application/pdf,.pdf,application/zip,.zip" className="block max-w-[20rem] cursor-pointer rounded-lg border border-slate-300 bg-white text-sm text-slate-700 file:mr-3 file:cursor-pointer file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:font-medium file:text-white hover:file:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60" disabled={upload.isPending} aria-label="Choose PDF or ZIP publications" onChange={event => { const file = event.target.files?.[0]; if (file) upload.mutate(file); event.currentTarget.value = ''; }} />{upload.isPending && <span className="text-xs font-medium text-slate-600">Processing batch…</span>}</div></div>
+      <CollapsibleContent className="space-y-4 border-t border-slate-200 px-4 py-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium text-slate-900">Private publication upload</p><p className="mt-1 max-w-2xl text-xs leading-5 text-slate-600">PDFs can be up to 50 MB each. ZIPs can contain up to 100 PDFs and expand to 500 MB. Exact duplicates are skipped, and new sources remain unavailable to Evidence Assist until reviewed.</p></div></div>
+        <div onDragEnter={event => { event.preventDefault(); setDragActive(true); }} onDragOver={event => event.preventDefault()} onDragLeave={() => setDragActive(false)} onDrop={dropPublication} className={`flex min-h-28 flex-col items-center justify-center gap-2 rounded-lg border p-4 text-center transition-colors ${dragActive ? 'border-slate-900 bg-slate-100' : 'border-dashed border-slate-300 bg-slate-50'}`}>
+          <UploadCloud className="size-5 text-slate-600" aria-hidden="true" />
+          <p className="text-sm font-medium text-slate-900">Drop a PDF or ZIP here</p>
+          <p className="text-xs text-slate-600">or choose it from your computer</p>
+          <Button type="button" size="sm" disabled={upload.isPending} onClick={openPublicationPicker}>{upload.isPending ? 'Processing batch…' : 'Browse files'}</Button>
+          <input ref={fileInputRef} type="file" accept="application/pdf,.pdf,application/zip,.zip" className="sr-only" disabled={upload.isPending} aria-label="Choose PDF or ZIP publications" onChange={event => { selectPublication(event.target.files?.[0]); event.currentTarget.value = ''; }} />
+        </div>
         {upload.isError && <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">{upload.error instanceof Error ? upload.error.message : 'The publication batch could not be processed.'}</p>}
         {upload.isSuccess && <div className={`rounded-lg border px-3 py-2 text-xs ${upload.data.failed > 0 ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}><p className="font-medium">{upload.data.indexed} of {upload.data.total} publication{upload.data.total === 1 ? '' : 's'} indexed for review.</p>{upload.data.failed > 0 && <ul className="mt-1 list-disc pl-4">{upload.data.failures.slice(0, 5).map(item => <li key={`${item.fileName}-${item.message}`}>{item.fileName}: {item.message}</li>)}{upload.data.failures.length > 5 && <li>{upload.data.failures.length - 5} more failures are recorded in Recent uploads.</li>}</ul>}</div>}
         {(imports.data?.length ?? 0) > 0 && <div className="overflow-hidden rounded-lg border border-slate-200"><div className="bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">Recent uploads</div><ol className="divide-y divide-slate-200">{imports.data!.slice(0, 8).map(item => <li key={item.id} className="flex items-start justify-between gap-3 px-3 py-2"><div className="min-w-0"><p className="truncate text-sm font-medium text-slate-900">{item.title || item.file_name}</p><p className="mt-0.5 text-xs text-slate-600">{item.status}{item.source_quality_score != null ? ` · quality ${item.source_quality_score}/100` : ''}{item.publication_year ? ` · ${item.publication_year}` : ''}{item.doi ? ` · DOI ${item.doi}` : ''}</p>{item.error_message && <p className="mt-1 text-xs text-rose-700">{item.error_message}</p>}</div><FileCheck2 className={`mt-0.5 size-4 shrink-0 ${item.status === 'indexed' ? 'text-emerald-700' : item.status === 'failed' ? 'text-rose-700' : 'text-amber-700'}`} /></li>)}</ol></div>}

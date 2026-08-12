@@ -35,11 +35,11 @@ describe('paginateDocuments', () => {
 });
 
 describe('publication picker', () => {
-  it('uses a visible native file input without a click-forwarding layer', async () => {
+  it('offers direct picker and drag-and-drop paths', async () => {
     const source = await readFile(new URL('./literature-library-page.tsx', import.meta.url), 'utf8');
     expect(source).toContain('aria-label="Choose PDF or ZIP publications"');
-    expect(source).toContain('block max-w-[20rem] cursor-pointer');
-    expect(source).not.toMatch(/type="file"[^>]*className="sr-only"/);
-    expect(source).not.toContain('absolute inset-0 size-full cursor-pointer opacity-0');
+    expect(source).toContain("input.showPicker()");
+    expect(source).toContain('onDrop={dropPublication}');
+    expect(source).toContain('Browse files');
   });
 });
