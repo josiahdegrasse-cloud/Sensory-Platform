@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { classifyLibraryUnavailableReason, paginateDocuments } from './literature-library-page';
 import type { LibraryDocument } from '../lib/nfi-library';
@@ -30,5 +31,14 @@ describe('paginateDocuments', () => {
     const result = paginateDocuments(documents.slice(0, 4), 8, 25);
     expect(result.page).toBe(1);
     expect(result.items).toHaveLength(4);
+  });
+});
+
+describe('publication picker', () => {
+  it('uses a full-size native file input instead of a visually hidden picker', async () => {
+    const source = await readFile(new URL('./literature-library-page.tsx', import.meta.url), 'utf8');
+    expect(source).toContain('aria-label="Choose PDF or ZIP publications"');
+    expect(source).toContain('absolute inset-0 size-full cursor-pointer opacity-0');
+    expect(source).not.toMatch(/type="file"[^>]*className="sr-only"/);
   });
 });
