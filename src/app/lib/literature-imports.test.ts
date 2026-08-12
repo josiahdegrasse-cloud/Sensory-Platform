@@ -36,5 +36,6 @@ describe('upload progress', () => {
     await expect(uploadLiteratureBatch(archive({ 'readme.txt': new Uint8Array([1]) }), onProgress))
       .rejects.toThrow('does not contain any PDF');
     expect(onProgress).toHaveBeenCalledWith(expect.objectContaining({ stage: 'preparing', currentFile: 'papers.zip' }));
+    expect(onProgress).toHaveBeenLastCalledWith(expect.objectContaining({ stage: 'failed', failed: 1 }));
   });
 });
