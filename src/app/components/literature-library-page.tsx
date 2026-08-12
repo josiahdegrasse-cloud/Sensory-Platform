@@ -3,7 +3,7 @@ import { useMemo, useRef, useState, type DragEvent } from 'react';
 import { Link } from 'react-router';
 import type { LibraryDocument } from '../lib/nfi-library';
 import { openSourceViewer } from '../lib/tweak-intelligence';
-import { useLibraryDocuments, useLibraryStatus, useLiteratureImports, useReviewLibraryDocument, useReviewLibraryDocuments, useUploadLiterature } from '../lib/hooks';
+import { useLibraryDocuments, useLibraryStatus, useLiteratureImports, useResumeLiteratureImports, useReviewLibraryDocument, useReviewLibraryDocuments, useUploadLiterature } from '../lib/hooks';
 import { openStoredLiteratureSource, type LiteratureUploadProgress } from '../lib/literature-imports';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -68,6 +68,7 @@ export function LiteratureLibraryPage() {
   const documents = useLibraryDocuments();
   const imports = useLiteratureImports();
   const upload = useUploadLiterature();
+  const resumeImports = useResumeLiteratureImports();
   const bulkReview = useReviewLibraryDocuments();
   const allDocuments = useMemo(() => documents.data?.documents ?? [], [documents.data?.documents]);
   const counts = useMemo(() => topicTagCounts(allDocuments), [allDocuments]);
@@ -77,6 +78,7 @@ export function LiteratureLibraryPage() {
     rejected: allDocuments.filter(item => item.reviewStatus === 'rejected').length,
     restricted: allDocuments.filter(item => item.licenseStatus === 'restricted').length,
   }), [allDocuments]);
+  const recoverableImports = (imports.data ?? []).filter(item => item.status === 'processing' || item.status === 'failed');
   const results = useMemo(() => allDocuments
     .filter(document => !topicFilter || document.topicTags.includes(topicFilter))
     .filter(document => matchesGovernance(document, governanceFilter))
@@ -150,6 +152,8 @@ export function LiteratureLibraryPage() {
         {uploadProgress && <UploadProgressPanel progress={uploadProgress} active={upload.isPending} />}
         {upload.isError && <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">{upload.error instanceof Error ? upload.error.message : 'The publication batch could not be processed.'}</p>}
         {upload.isSuccess && <div className={`rounded-lg border px-3 py-2 text-xs ${upload.data.failed > 0 ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}><p className="font-medium">{upload.data.indexed} of {upload.data.total} publication{upload.data.total === 1 ? '' : 's'} indexed for review.</p>{upload.data.failed > 0 && <ul className="mt-1 list-disc pl-4">{upload.data.failures.slice(0, 5).map(item => <li key={`${item.fileName}-${item.message}`}>{item.fileName}: {item.message}</li>)}{upload.data.failures.length > 5 && <li>{upload.data.failures.length - 5} more failures are recorded in Recent uploads.</li>}</ul>}</div>}
+        {recoverableImports.length > 0 && <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2"><div><p className="text-xs font-semibold text-amber-950">{recoverableImports.length} incomplete upload{recoverableImports.length === 1 ? '' : 's'} can be resumed</p><p className="mt-0.5 text-xs text-amber-900">The stored files will be reprocessed without uploading them again.</p></div><Button size="sm" variant="outline" disabled={resumeImports.isPending || upload.isPending} onClick={() => resumeImports.mutate(recoverableImports)}>{resumeImports.isPending ? 'Resuming…' : 'Resume incomplete'}</Button></div>}
+        {resumeImports.isSuccess && <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">Recovered {resumeImports.data.indexed} of {resumeImports.data.total} stored publication{resumeImports.data.total === 1 ? '' : 's'}.</p>}
         {(imports.data?.length ?? 0) > 0 && <div className="overflow-hidden rounded-lg border border-slate-200"><div className="bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">Recent uploads</div><ol className="divide-y divide-slate-200">{imports.data!.slice(0, 8).map(item => <li key={item.id} className="flex items-start justify-between gap-3 px-3 py-2"><div className="min-w-0"><p className="truncate text-sm font-medium text-slate-900">{item.title || item.file_name}</p><p className="mt-0.5 text-xs text-slate-600">{item.status}{item.source_quality_score != null ? ` · quality ${item.source_quality_score}/100` : ''}{item.publication_year ? ` · ${item.publication_year}` : ''}{item.doi ? ` · DOI ${item.doi}` : ''}</p>{item.error_message && <p className="mt-1 text-xs text-rose-700">{item.error_message}</p>}</div><FileCheck2 className={`mt-0.5 size-4 shrink-0 ${item.status === 'indexed' ? 'text-emerald-700' : item.status === 'failed' ? 'text-rose-700' : 'text-amber-700'}`} /></li>)}</ol></div>}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><Metric label="Total" value={status.data?.totalDocuments ?? 0} /><Metric label="Indexed" value={status.data?.indexedDocuments ?? 0} /><Metric label="Duplicates" value={status.data?.duplicateDocuments ?? 0} /><Metric label="Warnings" value={status.data?.warningCount ?? 0} /></div>
       </CollapsibleContent>

@@ -88,6 +88,42 @@ export async function uploadLiterature(file: File, onStage?: (stage: LiteratureU
   return completed;
 }
 
+export async function resumeLiteratureImport(row: LiteratureImport): Promise<LiteratureImport> {
+  const { data: signed, error: signedError } = await supabase.storage.from('literature-imports').createSignedUrl(row.storage_path, 600);
+  if (signedError) throw signedError;
+  await supabase.from('literature_imports').update({ status: 'processing', error_message: null }).eq('id', row.id);
+  const response = await ragFetch('/api/library/imports/process', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, timeoutMs: 300_000,
+    body: JSON.stringify({ importId: row.id, signedUrl: signed.signedUrl, fileName: row.file_name, sha256: row.sha256 }),
+  });
+  const result = await response.json() as Record<string, unknown>;
+  if (!response.ok) {
+    const message = String(result.detail || `Research ingestion failed (${response.status})`);
+    await supabase.from('literature_imports').update({ status: 'failed', error_message: message }).eq('id', row.id);
+    throw new Error(message);
+  }
+  const status = result.status === 'duplicate' ? 'duplicate' : 'indexed';
+  const { data: completed, error: updateError } = await supabase.from('literature_imports').update({
+    status, document_id: String(result.documentId || ''), duplicate_of: String(result.duplicateOf || '') || null,
+    title: String(result.title || row.file_name), authors: String(result.authors || ''), publication_year: String(result.year || ''),
+    doi: String(result.doi || ''), page_count: Number(result.pageCount || 0), text_quality: String(result.textQuality || ''),
+    evidence_type: String(result.evidenceType || ''), source_quality_score: Number(result.sourceQualityScore || 0),
+    source_quality_reasons: Array.isArray(result.sourceQualityReasons) ? result.sourceQualityReasons : [], error_message: null,
+  }).eq('id', row.id).select('*').single();
+  if (updateError) throw updateError;
+  return completed;
+}
+
+export async function resumeLiteratureImports(rows: LiteratureImport[]): Promise<LiteratureBatchResult> {
+  const failures: LiteratureBatchResult['failures'] = [];
+  let indexed = 0;
+  for (const row of rows) {
+    try { await resumeLiteratureImport(row); indexed += 1; }
+    catch (error) { failures.push({ fileName: row.file_name, message: error instanceof Error ? error.message : 'Resume failed.' }); }
+  }
+  return { total: rows.length, indexed, failed: failures.length, failures };
+}
+
 export async function extractLiteratureFiles(file: File): Promise<File[]> {
   if (!file.name.toLowerCase().endsWith('.zip')) return [file];
   if (file.size <= 0 || file.size > MAX_ZIP_BYTES) throw new Error('ZIP archive must be between 1 byte and 100 MB.');

@@ -45,7 +45,7 @@ import {
 } from './database'
 import type { TrainingLevel } from '../utils/panelist-metrics'
 import type { Product } from './study-types'
-import { fetchLiteratureImports, uploadLiteratureBatch, type LiteratureUploadProgressHandler } from './literature-imports'
+import { fetchLiteratureImports, resumeLiteratureImports, uploadLiteratureBatch, type LiteratureImport, type LiteratureUploadProgressHandler } from './literature-imports'
 import { getTenantSlug } from './tenant'
 import { buildEvidenceBundle } from './report-evidence-source'
 import {
@@ -398,6 +398,19 @@ export function useUploadLiterature() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ file, onProgress }: { file: File; onProgress?: LiteratureUploadProgressHandler }) => uploadLiteratureBatch(file, onProgress),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.literatureImports })
+      qc.invalidateQueries({ queryKey: queryKeys.libraryDocuments })
+      qc.invalidateQueries({ queryKey: queryKeys.libraryStatus })
+      qc.invalidateQueries({ queryKey: queryKeys.ragStatus })
+    },
+  })
+}
+
+export function useResumeLiteratureImports() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (rows: LiteratureImport[]) => resumeLiteratureImports(rows),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.literatureImports })
       qc.invalidateQueries({ queryKey: queryKeys.libraryDocuments })
