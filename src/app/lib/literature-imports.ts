@@ -2,9 +2,21 @@ import { supabase } from './supabase';
 import { ragFetch } from './rag-client';
 import type { Database } from './db/database.types';
 
+const MAX_PDF_BYTES = 50 * 1024 * 1024;
+const MAX_ZIP_BYTES = 100 * 1024 * 1024;
+const MAX_BATCH_FILES = 100;
+const MAX_BATCH_EXPANDED_BYTES = 500 * 1024 * 1024;
+
 type ImportRow = Database['public']['Tables']['literature_imports']['Row'];
 
 export type LiteratureImport = ImportRow;
+
+export type LiteratureBatchResult = {
+  total: number;
+  indexed: number;
+  failed: number;
+  failures: Array<{ fileName: string; message: string }>;
+};
 
 export async function fetchLiteratureImports(): Promise<LiteratureImport[]> {
   const { data, error } = await supabase.from('literature_imports').select('*').order('created_at', { ascending: false }).limit(50);
@@ -19,7 +31,7 @@ async function sha256(file: File): Promise<string> {
 
 export async function uploadLiterature(file: File): Promise<LiteratureImport> {
   if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) throw new Error('Only PDF publications are supported.');
-  if (file.size <= 0 || file.size > 50 * 1024 * 1024) throw new Error('Publication must be between 1 byte and 50 MB.');
+  if (file.size <= 0 || file.size > MAX_PDF_BYTES) throw new Error('Publication must be between 1 byte and 50 MB.');
   const digest = await sha256(file);
   const { data: created, error: createError } = await supabase.rpc('create_literature_import', {
     target_file_name: file.name,
@@ -60,6 +72,42 @@ export async function uploadLiterature(file: File): Promise<LiteratureImport> {
   }).eq('id', row.id).select('*').single();
   if (updateError) throw updateError;
   return completed;
+}
+
+export async function extractLiteratureFiles(file: File): Promise<File[]> {
+  if (!file.name.toLowerCase().endsWith('.zip')) return [file];
+  if (file.size <= 0 || file.size > MAX_ZIP_BYTES) throw new Error('ZIP archive must be between 1 byte and 100 MB.');
+  const { unzip } = await import('fflate');
+  const archive = new Uint8Array(await file.arrayBuffer());
+  const entries = await new Promise<Record<string, Uint8Array>>((resolve, reject) => unzip(archive, {
+    filter: entry => {
+      if (entry.name.endsWith('/') || entry.name.startsWith('__MACOSX/') || entry.name.split('/').some(part => part.startsWith('.'))) return false;
+      if (!entry.name.toLowerCase().endsWith('.pdf')) return false;
+      if (entry.originalSize > MAX_PDF_BYTES) throw new Error(`${entry.name} is larger than the 50 MB per-paper limit.`);
+      return true;
+    },
+  }, (error, result) => error ? reject(error) : resolve(result)));
+  const files = Object.entries(entries);
+  if (!files.length) throw new Error('This ZIP does not contain any PDF articles.');
+  if (files.length > MAX_BATCH_FILES) throw new Error(`A ZIP can contain at most ${MAX_BATCH_FILES} PDF articles.`);
+  const expandedBytes = files.reduce((total, [, bytes]) => total + bytes.byteLength, 0);
+  if (expandedBytes > MAX_BATCH_EXPANDED_BYTES) throw new Error('The PDFs in this ZIP exceed the 500 MB expanded-size limit.');
+  return files.map(([path, bytes]) => new File([new Uint8Array(bytes).buffer], path.split('/').pop() || 'publication.pdf', { type: 'application/pdf' }));
+}
+
+export async function uploadLiteratureBatch(file: File): Promise<LiteratureBatchResult> {
+  const files = await extractLiteratureFiles(file);
+  const failures: LiteratureBatchResult['failures'] = [];
+  let indexed = 0;
+  for (const publication of files) {
+    try {
+      await uploadLiterature(publication);
+      indexed += 1;
+    } catch (error) {
+      failures.push({ fileName: publication.name, message: error instanceof Error ? error.message : 'Upload failed.' });
+    }
+  }
+  return { total: files.length, indexed, failed: failures.length, failures };
 }
 
 export async function openStoredLiteratureSource(sourcePath: string): Promise<void> {
