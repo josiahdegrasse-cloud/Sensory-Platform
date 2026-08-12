@@ -40,6 +40,7 @@ import {
   decisionRoomNextAction,
 } from '../lib/project-decision-room';
 import { projectDecisionExperimentsPath, projectPath } from '../lib/project-journey-routes';
+import { FormulationContextStrip } from './formulation-context-strip';
 
 function EvidenceStat({ label, value }: { label: string; value: number }) {
   return (
@@ -59,7 +60,7 @@ function NoProjectState() {
     <StageEmptyState
       icon={FolderKanban}
       headline="No project selected"
-      body="Pick a project from the sidebar or import instrumental data to start the workflow."
+      body="Choose a project from the project switcher or import instrumental data to start the workflow."
       cta={{ label: 'Import data', to: '/stage1?new=project' }}
       secondaryCta={{ label: 'Back to overview', to: '/' }}
     />
@@ -487,6 +488,8 @@ export function ProjectCommandCenter() {
           <p className="mt-1 text-sm text-slate-600">{contextLine}</p>
         </div>
       </header>
+
+      <FormulationContextStrip projectId={projectScopeId} context="overview" prominent />
 
       <ProjectDecisionRoom
         prototypes={prototypes}

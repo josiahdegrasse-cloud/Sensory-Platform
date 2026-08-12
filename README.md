@@ -41,12 +41,14 @@ Required environment variables (see `.env.example`):
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon (public) key — RLS is the real access gate |
 | `VITE_ROOT_DOMAIN` | Canonical apex used to resolve and enforce branded tenant subdomains |
 | `VITE_NFI_RAG_URL` | Authenticated Vercel Evidence Assist API URL; required in production |
-| `SENTRY_AUTH_TOKEN` / `SENTRY_DSN` | Optional; only for source-map upload in CI |
+| `VITE_SENTRY_DSN` | Optional public browser DSN for privacy-safe runtime error reporting |
+| `SENTRY_AUTH_TOKEN` / `SENTRY_ORG` / `SENTRY_PROJECT` | Optional server-side build credentials for source-map upload; never expose the token to Vite |
 
 ## Scripts
 
 ```bash
 pnpm dev          # start the Vite dev server
+pnpm check:runtime # verify the supported Node release baseline
 pnpm build        # production build
 pnpm test         # run unit tests (vitest)
 pnpm test:watch   # vitest in watch mode

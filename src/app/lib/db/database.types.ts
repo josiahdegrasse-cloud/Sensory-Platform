@@ -1896,6 +1896,156 @@ export type Database = {
           },
         ]
       }
+      literature_document_reviews: {
+        Row: {
+          created_at: string
+          document_id: string
+          license_status: string
+          notes: string
+          peer_review_status: string
+          review_basis: string
+          review_status: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          document_id: string
+          license_status?: string
+          notes?: string
+          peer_review_status?: string
+          review_basis?: string
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          document_id?: string
+          license_status?: string
+          notes?: string
+          peer_review_status?: string
+          review_basis?: string
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "literature_document_reviews_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "literature_document_reviews_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
+      literature_imports: {
+        Row: {
+          authors: string | null
+          created_at: string
+          document_id: string | null
+          doi: string | null
+          duplicate_of: string | null
+          error_message: string | null
+          evidence_type: string | null
+          file_name: string
+          file_size: number
+          id: string
+          org_id: string
+          page_count: number | null
+          publication_year: string | null
+          sha256: string
+          source_quality_reasons: Json
+          source_quality_score: number | null
+          status: string
+          storage_path: string
+          tenant_id: string
+          text_quality: string | null
+          title: string | null
+          updated_at: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          authors?: string | null
+          created_at?: string
+          document_id?: string | null
+          doi?: string | null
+          duplicate_of?: string | null
+          error_message?: string | null
+          evidence_type?: string | null
+          file_name: string
+          file_size: number
+          id?: string
+          org_id: string
+          page_count?: number | null
+          publication_year?: string | null
+          sha256: string
+          source_quality_reasons?: Json
+          source_quality_score?: number | null
+          status?: string
+          storage_path: string
+          tenant_id: string
+          text_quality?: string | null
+          title?: string | null
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          authors?: string | null
+          created_at?: string
+          document_id?: string | null
+          doi?: string | null
+          duplicate_of?: string | null
+          error_message?: string | null
+          evidence_type?: string | null
+          file_name?: string
+          file_size?: number
+          id?: string
+          org_id?: string
+          page_count?: number | null
+          publication_year?: string | null
+          sha256?: string
+          source_quality_reasons?: Json
+          source_quality_score?: number | null
+          status?: string
+          storage_path?: string
+          tenant_id?: string
+          text_quality?: string | null
+          title?: string | null
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "literature_imports_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "literature_imports_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
       org_email_domains: {
         Row: {
           created_at: string
@@ -3285,6 +3435,44 @@ export type Database = {
         }
       }
       create_instrumental_import: { Args: { payload: Json }; Returns: string }
+      create_literature_import: {
+        Args: {
+          target_file_name: string
+          target_file_size: number
+          target_sha256: string
+        }
+        Returns: {
+          authors: string | null
+          created_at: string
+          document_id: string | null
+          doi: string | null
+          duplicate_of: string | null
+          error_message: string | null
+          evidence_type: string | null
+          file_name: string
+          file_size: number
+          id: string
+          org_id: string
+          page_count: number | null
+          publication_year: string | null
+          sha256: string
+          source_quality_reasons: Json
+          source_quality_score: number | null
+          status: string
+          storage_path: string
+          tenant_id: string
+          text_quality: string | null
+          title: string | null
+          updated_at: string
+          uploaded_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "literature_imports"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_replacement_panelist_kit: {
         Args: { p_reason?: string; target_kit_id: string }
         Returns: {

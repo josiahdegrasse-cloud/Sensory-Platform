@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { Navigate, useLocation, useParams } from 'react-router';
+import { FolderKanban } from 'lucide-react';
 import { useFoodType } from '../contexts/food-type-context';
 import {
   encodeBatchSelection,
@@ -12,6 +13,8 @@ import {
   projectPath,
   type ProjectJourneyStep,
 } from '../lib/project-journey-routes';
+import { StageEmptyState } from './stage-empty-state';
+import { WorkflowLoadingState, WorkflowQueryErrorState } from './workflow-loading-state';
 const CommercializationReportPage = lazy(() => import('./commercialization-report-page').then(module => ({
   default: module.CommercializationReportPage,
 })));
@@ -44,11 +47,7 @@ const FormulationExperimentWorkspace = lazy(() => import('./formulation-experime
 })));
 
 function LoadingProjectScope() {
-  return (
-    <div className="flex min-h-[240px] items-center justify-center">
-      <div className="size-5 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700" />
-    </div>
-  );
+  return <WorkflowLoadingState title="Resolving project workspace" />;
 }
 
 function ProjectStepContent({ step, substep }: { step: ProjectJourneyStep; substep?: string }) {
@@ -76,8 +75,10 @@ function ProjectStepContent({ step, substep }: { step: ProjectJourneyStep; subst
 
 export function ProjectWorkflowRoute() {
   const { projectId, step, substep } = useParams<{ projectId: string; step?: string; substep?: string }>();
-  const { data: importBatches = [], isLoading: batchesLoading } = useImportBatches();
-  const { data: projects = [], isLoading: projectsLoading } = useProjects();
+  const batchesQuery = useImportBatches();
+  const projectsQuery = useProjects();
+  const { data: importBatches = [], isLoading: batchesLoading } = batchesQuery;
+  const { data: projects = [], isLoading: projectsLoading } = projectsQuery;
   const { foodType, subCategory, setSelection } = useFoodType();
   const scope = resolveProjectRouteScope(projectId, projects, importBatches);
   const journeyStep = step ?? 'overview';
@@ -100,7 +101,31 @@ export function ProjectWorkflowRoute() {
   }
   if (journeyStep === 'responses') return <Navigate to={projectPath(projectId, 'studies')} replace />;
   if (batchesLoading || projectsLoading) return <LoadingProjectScope />;
-  if (!scope?.selectedBatch || !scope.foodTypeSlug) return <Navigate to="/" replace />;
+  if (batchesQuery.isError || projectsQuery.isError) {
+    return (
+      <WorkflowQueryErrorState
+        projectName="the requested project"
+        checked="project identity and linked import batches"
+        onRetry={() => {
+          void batchesQuery.refetch();
+          void projectsQuery.refetch();
+        }}
+      />
+    );
+  }
+  if (!scope?.selectedBatch || !scope.foodTypeSlug) {
+    return (
+      <StageEmptyState
+        icon={FolderKanban}
+        headline={scope?.project ? `${scope.project.name} has no active data batch` : 'Project could not be resolved'}
+        body={scope?.project
+          ? 'The project record exists, but no active import is linked to it. Review Data hygiene before drawing workflow conclusions.'
+          : `No active project or import batch matched route ID ${projectId}. It may have been archived, deleted, or opened from an outdated link.`}
+        cta={{ label: 'Review Data hygiene', to: '/admin?tab=imports' }}
+        secondaryCta={{ label: 'Open all projects', to: '/' }}
+      />
+    );
+  }
   if (!selectionMatchesProjectScope(foodType, subCategory, scope)) return <LoadingProjectScope />;
 
   return (

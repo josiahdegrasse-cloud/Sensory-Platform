@@ -31,6 +31,8 @@ interface MultiSampleSession {
 }
 
 interface UseSurveyDataResult {
+  isLoading: boolean;
+  isFetched: boolean;
   liveDataFetchFailed: boolean;
   multiSampleResponses: MultiSampleSession[];
   selectedMultiProduct: string;
@@ -40,8 +42,10 @@ interface UseSurveyDataResult {
 }
 
 export function useSurveyData(): UseSurveyDataResult {
-  const { data: allResponsesData, isError: liveDataFetchFailed } = useAllResponses();
-  const { data: products = [] } = useProducts();
+  const responsesQuery = useAllResponses();
+  const productsQuery = useProducts();
+  const { data: allResponsesData, isError: liveDataFetchFailed } = responsesQuery;
+  const { data: products = [] } = productsQuery;
 
   // Explicit user selection; when empty we fall back to the first available
   // session below (derived, not mirrored into state via an effect).
@@ -167,6 +171,8 @@ export function useSurveyData(): UseSurveyDataResult {
   const selectedMultiProduct = selectedOverride || multiSampleResponses[0]?.productId || '';
 
   return {
+    isLoading: responsesQuery.isLoading || productsQuery.isLoading,
+    isFetched: responsesQuery.isFetched && productsQuery.isFetched,
     liveDataFetchFailed: !!liveDataFetchFailed,
     multiSampleResponses,
     selectedMultiProduct,

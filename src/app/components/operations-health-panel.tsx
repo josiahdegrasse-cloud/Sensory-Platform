@@ -1,9 +1,12 @@
-import { AlertTriangle, CheckCircle2, CloudCog, Database, RefreshCw, ShieldCheck, WalletCards, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, CloudCog, Database, RefreshCw, ShieldCheck, WalletCards, XCircle } from 'lucide-react';
+import { Link } from 'react-router';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Progress } from './ui/progress';
-import { useConceptImageUsage, useLibraryStatus, useRagStatus, useWorkspaceOperationalHealth } from '../lib/hooks';
+import { useConceptImageUsage, useLibraryStatus, usePrototypeLineageIssues, useRagStatus, useWorkspaceOperationalHealth } from '../lib/hooks';
+import { projectPath } from '../lib/project-journey-routes';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
+import { useState } from 'react';
 
 function HealthBadge({ healthy, label }: { healthy: boolean; label?: string }) {
   return healthy ? (
@@ -18,13 +21,20 @@ function HealthBadge({ healthy, label }: { healthy: boolean; label?: string }) {
 }
 
 export function OperationsHealthPanel() {
+  const [lineageOpen, setLineageOpen] = useState(false);
   const health = useWorkspaceOperationalHealth();
+  const lineage = usePrototypeLineageIssues();
   const rag = useRagStatus();
   const library = useLibraryStatus();
   const imageUsage = useConceptImageUsage();
 
+  const refreshing = health.isFetching || lineage.isFetching || rag.isFetching || library.isFetching || imageUsage.isFetching;
+  const lastUpdatedAt = Math.max(health.dataUpdatedAt, rag.dataUpdatedAt, library.dataUpdatedAt, imageUsage.dataUpdatedAt);
+  const checkFailed = Boolean(health.error || rag.error || library.error || imageUsage.error);
+
   const refresh = () => {
     void health.refetch();
+    void lineage.refetch();
     void rag.refetch();
     void library.refetch();
     void imageUsage.refetch();
@@ -42,44 +52,85 @@ export function OperationsHealthPanel() {
           <h2 className="text-lg font-semibold text-slate-900">Operations and cost controls</h2>
           <p className="mt-1 text-sm text-slate-500">Live tenant-scoped checks for data, research, imports, lineage, and variable AI spend.</p>
         </div>
-        <Button variant="outline" onClick={refresh} disabled={health.isFetching || rag.isFetching || library.isFetching}>
-          <RefreshCw className={`size-4 ${health.isFetching || rag.isFetching ? 'animate-spin' : ''}`} />
-          Refresh checks
-        </Button>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <Button variant="outline" onClick={refresh} disabled={refreshing}>
+            <RefreshCw className={`size-4 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Checking…' : 'Refresh checks'}
+          </Button>
+          <p className={`text-xs ${checkFailed ? 'text-rose-700' : 'text-slate-500'}`} aria-live="polite">
+            {checkFailed
+              ? 'One or more operational checks failed. Review the checks below.'
+              : lastUpdatedAt > 0
+                ? `Last checked ${new Date(lastUpdatedAt).toLocaleString()}`
+                : 'Checks have not completed yet.'}
+          </p>
+        </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white lg:grid lg:grid-cols-3 lg:divide-x lg:divide-slate-200">
+        <section className="border-b border-slate-200 p-5 lg:border-b-0">
+          <header>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <CardTitle className="flex items-center gap-2 text-base"><Database className="size-5 text-slate-500" />Workspace data</CardTitle>
-                <CardDescription>Supabase connectivity and processing exceptions.</CardDescription>
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900"><Database className="size-4 text-slate-500" />Workspace data</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-500">Supabase connectivity and processing exceptions.</p>
               </div>
               <HealthBadge healthy={Boolean(healthData?.databaseOnline) && !health.error} />
             </div>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="flex justify-between gap-3"><span className="text-slate-500">Unresolved prototype links</span><strong>{healthData?.unresolvedLineageCount ?? '—'}</strong></div>
+          </header>
+          <div className="mt-5 space-y-3 text-sm">
+            <div className="flex justify-between gap-3"><span className="text-slate-500">Lineage records needing evidence</span><strong>{healthData?.unresolvedLineageCount ?? '—'}</strong></div>
             <div className="flex justify-between gap-3"><span className="text-slate-500">Failed pending imports</span><strong>{healthData?.failedPendingImports ?? '—'}</strong></div>
             <div className="flex justify-between gap-3"><span className="text-slate-500">Failed image runs this month</span><strong>{healthData?.failedImageGenerationsThisMonth ?? '—'}</strong></div>
             <p className="border-t border-slate-100 pt-3 text-xs text-slate-500">
               Last workspace activity: {healthData?.latestAuditEventAt ? new Date(healthData.latestAuditEventAt).toLocaleString() : 'No audit event recorded'}
             </p>
-          </CardContent>
-        </Card>
+            {(healthData?.unresolvedLineageCount ?? 0) > 0 && (
+              <Collapsible open={lineageOpen} onOpenChange={setLineageOpen} className="rounded-md border border-amber-200 bg-amber-50">
+                <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs font-semibold text-amber-900">
+                  Review affected records
+                  <ChevronDown className={`size-4 transition-transform ${lineageOpen ? 'rotate-180' : ''}`} aria-hidden />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="max-h-64 space-y-2 overflow-y-auto border-t border-amber-200 p-2">
+                  {(lineage.data ?? []).map(issue => (
+                    <div key={`${issue.entityType}-${issue.entityId}`} className="rounded-md bg-white p-2 text-xs text-slate-700">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-semibold text-slate-900">{issue.entityType.replace(/_/g, ' ')} · {issue.sampleKey ?? 'No sample key'}</p>
+                          <p className="mt-0.5 leading-4">{issue.reason}</p>
+                        </div>
+                        {issue.projectId && (
+                          <Link
+                            to={projectPath(issue.projectId, issue.entityType === 'decision' ? 'decision' : 'data')}
+                            className="shrink-0 font-semibold text-blue-700 hover:underline"
+                          >
+                            Review
+                          </Link>
+                        )}
+                      </div>
+                      <p className="mt-1 font-mono text-[10px] text-slate-500">Record {issue.entityId.slice(0, 8)}</p>
+                    </div>
+                  ))}
+                  {!lineage.isLoading && (lineage.data?.length ?? 0) === 0 && (
+                    <p className="p-2 text-xs text-amber-900">The queue changed. Refresh checks to confirm the current count.</p>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+          </div>
+        </section>
 
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader>
+        <section className="border-b border-slate-200 p-5 lg:border-b-0">
+          <header>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <CardTitle className="flex items-center gap-2 text-base"><CloudCog className="size-5 text-slate-500" />Evidence Assist</CardTitle>
-                <CardDescription>Vercel research API and Supabase literature index.</CardDescription>
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900"><CloudCog className="size-4 text-slate-500" />Evidence Assist</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-500">Research API and Supabase literature index.</p>
               </div>
               <HealthBadge healthy={rag.isSuccess && library.isSuccess} />
             </div>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
+          </header>
+          <div className="mt-5 space-y-3 text-sm">
             {rag.isSuccess ? (
               <>
                 <div className="flex justify-between gap-3"><span className="text-slate-500">Indexed documents</span><strong>{rag.data.document_count}</strong></div>
@@ -92,20 +143,20 @@ export function OperationsHealthPanel() {
             {library.data && library.data.errorDocuments > 0 && (
               <p className="flex gap-2 rounded-md bg-amber-50 p-3 text-amber-800"><AlertTriangle className="mt-0.5 size-4 shrink-0" />{library.data.errorDocuments} literature item(s) require review.</p>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader>
+        <section className="p-5">
+          <header>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <CardTitle className="flex items-center gap-2 text-base"><WalletCards className="size-5 text-slate-500" />Variable AI usage</CardTitle>
-                <CardDescription>Concept-image spend against the enforced tenant cap.</CardDescription>
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900"><WalletCards className="size-4 text-slate-500" />Variable AI usage</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-500">Concept-image spend against the enforced tenant cap.</p>
               </div>
               <HealthBadge healthy={!imageUsage.error && (budget === 0 || spend <= budget)} label={budget > 0 && spend > budget ? 'Cap reached' : 'Within limit'} />
             </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
+          </header>
+          <div className="mt-5 space-y-3">
             <div className="flex items-end justify-between gap-3">
               <span className="text-2xl font-bold text-slate-900">${spend.toFixed(2)}</span>
               <span className="text-sm text-slate-500">of {budget > 0 ? `$${budget.toFixed(2)}` : 'no cap configured'}</span>
@@ -114,30 +165,33 @@ export function OperationsHealthPanel() {
             <p className="text-xs leading-5 text-slate-500">
               {imageUsage.data ? `Resets ${new Date(imageUsage.data.periodResetsAt).toLocaleDateString()}. Image generation is blocked server-side when the configured cap is exhausted.` : 'Usage is loading.'}
             </p>
-          </CardContent>
-        </Card>
+            <p className="border-t border-slate-100 pt-3 text-xs leading-5 text-amber-700">
+              Report-agent token use is recorded in each report. A shared monthly report cap remains unavailable until durable AI jobs can be added to the restored database and research service.
+            </p>
+          </div>
+        </section>
       </div>
 
-      <Card className="border-slate-200 shadow-sm">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base"><ShieldCheck className="size-5 text-slate-500" />Recovery readiness</CardTitle>
-          <CardDescription>The app can verify its own data path; provider backup retention and restore drills must be confirmed outside the app.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-3">
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-            <p className="font-semibold text-emerald-900">Tenant boundaries</p>
-            <p className="mt-1 text-xs leading-5 text-emerald-800">Database RLS and authenticated subdomain matching are enforced.</p>
+      <section className="border-t border-slate-200 pt-5">
+        <div className="max-w-3xl">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900"><ShieldCheck className="size-4 text-slate-500" />Recovery readiness</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-500">The app can verify its data path; provider retention and restore drills are confirmed outside the app.</p>
+        </div>
+        <div className="mt-4 grid divide-y divide-slate-200 border-y border-slate-200 md:grid-cols-3 md:divide-x md:divide-y-0">
+          <div className="py-3 md:pr-4">
+            <p className="flex items-center gap-2 text-sm font-semibold text-slate-900"><CheckCircle2 className="size-4 text-emerald-700" />Tenant boundaries</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">Database RLS and authenticated subdomain matching are enforced.</p>
           </div>
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-            <p className="font-semibold text-amber-900">Supabase backups</p>
-            <p className="mt-1 text-xs leading-5 text-amber-800">Verify retention and point-in-time recovery in the Supabase project before each release.</p>
+          <div className="py-3 md:px-4">
+            <p className="flex items-center gap-2 text-sm font-semibold text-slate-900"><AlertTriangle className="size-4 text-amber-700" />Supabase backups</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">Verify retention and point-in-time recovery before each release.</p>
           </div>
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-            <p className="font-semibold text-amber-900">Research API recovery</p>
-            <p className="mt-1 text-xs leading-5 text-amber-800">Keep Vercel variables documented and run the authenticated health-check/rollback drill in the release checklist.</p>
+          <div className="py-3 md:pl-4">
+            <p className="flex items-center gap-2 text-sm font-semibold text-slate-900"><AlertTriangle className="size-4 text-amber-700" />Research API recovery</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">Document environment variables and run the authenticated health-check and rollback drill.</p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </div>
   );
 }

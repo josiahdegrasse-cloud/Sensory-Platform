@@ -31,6 +31,7 @@ import {
 import type { WorkspaceSettings, PanelistInfo, AdminAccessRequestRecord } from '../lib/database';
 import { parseDriveFolderId } from '../lib/database';
 import { useAuth } from '../contexts/auth-context';
+import { useSearchParams } from 'react-router';
 
 const fallbackSettings: WorkspaceSettings = {
   workspaceName: 'Sensory Analysis Workspace',
@@ -140,6 +141,7 @@ function NumberField({ id, label, value, min, max, onChange, suffix }: {
 }
 
 export function AdminSettings() {
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { data: settings = fallbackSettings, isLoading: settingsLoading } = useWorkspaceSettings();
   const { data: panelists = [] } = usePanelists();
@@ -255,7 +257,12 @@ export function AdminSettings() {
         </Alert>
       )}
 
-      <Tabs defaultValue="study" className="gap-4">
+      <Tabs
+        defaultValue={['study', 'access', 'automation', 'decision', 'branding', 'audit', 'operations', 'clients'].includes(searchParams.get('tab') ?? '')
+          ? searchParams.get('tab')!
+          : 'study'}
+        className="gap-4"
+      >
         <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-lg p-1 sm:inline-flex sm:w-fit sm:grid-cols-none">
           <TabsTrigger className="h-10 justify-start sm:h-8 sm:justify-center" value="study"><ClipboardCheck className="size-4" />Study setup</TabsTrigger>
           <TabsTrigger className="h-10 justify-start sm:h-8 sm:justify-center" value="access"><Users className="size-4" />Access</TabsTrigger>

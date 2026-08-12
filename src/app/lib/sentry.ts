@@ -16,3 +16,20 @@ export function initSentry() {
     })
   })
 }
+
+export type AppErrorSource = 'react-root' | 'react-route'
+
+export function captureAppError(error: unknown, source: AppErrorSource) {
+  if (!import.meta.env.VITE_SENTRY_DSN) return
+
+  const reportable = error instanceof Error ? error : new Error('Unknown application error')
+  void import('@sentry/react')
+    .then(Sentry => {
+      Sentry.captureException(reportable, {
+        tags: { app_error_source: source },
+      })
+    })
+    .catch(() => {
+      // Monitoring must never replace or interrupt the user-facing recovery path.
+    })
+}

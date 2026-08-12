@@ -1,6 +1,13 @@
 import { supabase } from './supabase';
 
 const LOCAL_RAG_BASE_URL = 'http://127.0.0.1:8000';
+const DEFAULT_RAG_TIMEOUT_MS = 30_000;
+const MAX_RAG_TIMEOUT_MS = 300_000;
+
+export interface RagRequestInit extends RequestInit {
+  /** Caller deadline. Longer report workflows can opt in up to five minutes. */
+  timeoutMs?: number;
+}
 
 /** Resolve the Food RAG service without allowing localhost in production. */
 export function ragBaseUrl(): string {
@@ -21,7 +28,7 @@ function requestId() {
  * carry the tenant and role claims supplied by the access-token hook. Cookies
  * stay disabled so browser calls use one auditable authentication mechanism.
  */
-export async function ragFetch(path: string, init: RequestInit = {}): Promise<Response> {
+export async function ragFetch(path: string, init: RagRequestInit = {}): Promise<Response> {
   const { data, error } = await supabase.auth.getSession();
   if (error) throw new Error(`Unable to authenticate the Evidence Assist request: ${error.message}`);
 
@@ -36,11 +43,41 @@ export async function ragFetch(path: string, init: RequestInit = {}): Promise<Re
   if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
 
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return fetch(`${ragBaseUrl()}${normalizedPath}`, {
-    ...init,
-    headers,
-    credentials: 'omit',
-  });
+  const timeoutMs = Math.min(
+    MAX_RAG_TIMEOUT_MS,
+    Math.max(1, Number.isFinite(init.timeoutMs) ? Number(init.timeoutMs) : DEFAULT_RAG_TIMEOUT_MS),
+  );
+  const controller = new AbortController();
+  const callerSignal = init.signal;
+  let timedOut = false;
+  const forwardAbort = () => controller.abort(callerSignal?.reason);
+  if (callerSignal?.aborted) forwardAbort();
+  else callerSignal?.addEventListener('abort', forwardAbort, { once: true });
+  const timeout = globalThis.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  const { timeoutMs: _timeoutMs, signal: _signal, ...fetchInit } = init;
+
+  try {
+    return await fetch(`${ragBaseUrl()}${normalizedPath}`, {
+      ...fetchInit,
+      headers,
+      signal: controller.signal,
+      credentials: 'omit',
+    });
+  } catch (error) {
+    if (timedOut) {
+      throw Object.assign(
+        new Error(`Evidence Assist request timed out after ${timeoutMs} ms.`),
+        { cause: error },
+      );
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeout);
+    callerSignal?.removeEventListener('abort', forwardAbort);
+  }
 }
 
 /** Open an authenticated source document without placing credentials in a URL. */

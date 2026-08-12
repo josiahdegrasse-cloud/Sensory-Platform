@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { ChevronDown, SlidersHorizontal } from 'lucide-react';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import type { ConceptDraft, VariantDimensions } from './types';
 
 // ─── Shared section heading ───────────────────────────────────────────────────
@@ -79,7 +81,6 @@ const promisePresets: QuickPreset[] = [
       },
     },
   },
-  { label: 'Other', fields: { description: '' } },
 ];
 
 const variantDimensionGroups: VariantDimensionGroup[] = [
@@ -328,6 +329,8 @@ function PositioningTags({
 }
 
 export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange: (d: ConceptDraft) => void }) {
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
   const set = (field: keyof ConceptDraft) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     onChange({ ...draft, [field]: event.target.value });
   const setVariantDimensions = (variantDimensions: VariantDimensions) => onChange({ ...draft, variantDimensions });
@@ -350,7 +353,7 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
       </div>
 
       <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
-        <SectionHeading title="Image subject" description="The minimum identity and positioning the image generator needs." />
+        <SectionHeading title="Consumer brief" description="Define who this is for, the occasion, and the single promise the concept should communicate." />
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="concept-product-name" className="font-medium">Product name <span className="text-rose-500">*</span></Label>
@@ -362,19 +365,83 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
           </div>
         </div>
 
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="concept-target-market" className="font-medium">Audience</Label>
+            <Input
+              id="concept-target-market"
+              value={draft.targetMarket}
+              onChange={set('targetMarket')}
+              placeholder="e.g. Flexitarian families"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="concept-target-occasion" className="font-medium">Occasion</Label>
+            <Input
+              id="concept-target-occasion"
+              value={draft.targetOccasion}
+              onChange={set('targetOccasion')}
+              placeholder="e.g. Everyday sandwiches and burgers"
+            />
+          </div>
+        </div>
+
         <div className="space-y-1.5">
-          <Label htmlFor="concept-description" className="font-medium">Positioning promise <span className="text-rose-500">*</span></Label>
+          <Label htmlFor="concept-description" className="font-medium">Consumer promise <span className="text-rose-500">*</span></Label>
           <Textarea
             id="concept-description"
             value={draft.description}
             onChange={set('description')}
-            placeholder="e.g. A dairy-free cheddar slice for everyday sandwiches and burgers, with familiar cheddar flavor and reliable melt."
+            placeholder="e.g. Familiar cheddar flavour and reliable melt for easy everyday meals."
             rows={3}
             className="resize-none"
           />
+          <p className="text-xs text-slate-500">Keep this to one consumer-facing sentence. Evidence and technical boundaries stay separate below.</p>
         </div>
-        <PresetButtons label="Quick promise" presets={promisePresets} onApply={applyPreset} />
-        <PositioningTags draft={draft} onChange={setVariantDimensions} />
+
+        <div className="space-y-1.5">
+          <Label htmlFor="concept-proof-cues" className="font-medium">Proof cues</Label>
+          <Textarea
+            id="concept-proof-cues"
+            value={draft.keyBenefits}
+            onChange={set('keyBenefits')}
+            placeholder="e.g. Smooth texture, clean breakdown, familiar cheddar flavour"
+            rows={2}
+            className="resize-none"
+          />
+          <p className="text-xs text-slate-500">Use observed sensory cues—not nutrition, health, or performance claims.</p>
+        </div>
+
+        <PresetButtons label="Suggested starting points" presets={promisePresets} onApply={applyPreset} />
+
+        {(draft.technicalChallenges.trim() || draft.forbiddenClaims.trim()) && (
+          <Collapsible open={evidenceOpen} onOpenChange={setEvidenceOpen} className="rounded-lg border border-slate-200 bg-slate-50">
+            <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left" aria-label="Toggle evidence used for this concept brief">
+              <span>
+                <span className="block text-xs font-semibold text-slate-800">Evidence used</span>
+                <span className="mt-0.5 block text-xs text-slate-500">Read-only decision context and claim boundaries</span>
+              </span>
+              <ChevronDown className={`size-4 shrink-0 text-slate-500 transition-transform ${evidenceOpen ? 'rotate-180' : ''}`} aria-hidden />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-2 border-t border-slate-200 px-3 py-3 text-xs leading-5 text-slate-700">
+              {draft.technicalChallenges.trim() && <p>{draft.technicalChallenges}</p>}
+              {draft.forbiddenClaims.trim() && <p><strong className="text-slate-900">Do not claim:</strong> {draft.forbiddenClaims}</p>}
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+
+        <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="rounded-lg border border-slate-200">
+          <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left" aria-label="Toggle advanced positioning controls">
+            <span className="flex items-center gap-2 text-xs font-semibold text-slate-800">
+              <SlidersHorizontal className="size-4 text-slate-500" aria-hidden />
+              More positioning controls
+            </span>
+            <ChevronDown className={`size-4 shrink-0 text-slate-500 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} aria-hidden />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="border-t border-slate-200 p-3">
+            <PositioningTags draft={draft} onChange={setVariantDimensions} />
+          </CollapsibleContent>
+        </Collapsible>
       </section>
     </div>
   );

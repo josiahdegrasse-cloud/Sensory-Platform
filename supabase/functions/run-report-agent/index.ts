@@ -472,8 +472,14 @@ function parseRequest(value: unknown): AgentRequest | string {
 function json(body: unknown, status: number, headers: Record<string, string>): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...headers, 'Content-Type': 'application/json' },
+    headers: { ...headers, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   })
+}
+
+function boundedInteger(value: string | undefined, fallback: number, minimum: number, maximum: number): number {
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed)) return fallback
+  return Math.min(maximum, Math.max(minimum, parsed))
 }
 
 function agentUserContent(parsed: AgentRequest): string | Array<Record<string, unknown>> {
@@ -520,6 +526,15 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers })
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405, headers)
 
+  const suppliedIdempotencyKey = req.headers.get('idempotency-key')?.trim() ?? ''
+  if (suppliedIdempotencyKey.length > 512) {
+    return json({ error: 'Idempotency-Key must not exceed 512 characters.' }, 400, headers)
+  }
+  const contentLength = Number(req.headers.get('content-length') ?? 0)
+  if (Number.isFinite(contentLength) && contentLength > 12_500_000) {
+    return json({ error: 'Request body exceeds the 12 MB limit.' }, 413, headers)
+  }
+
   const authHeader = req.headers.get('authorization')
   if (!authHeader) return json({ error: 'Missing authorization header' }, 401, headers)
 
@@ -531,6 +546,18 @@ Deno.serve(async (req: Request) => {
     ?? 'gpt-5.4-mini'
   const premiumModel = Deno.env.get('OPENAI_REPORT_AGENT_PREMIUM_MODEL')
     ?? 'gpt-5.4'
+  const upstreamTimeoutMs = boundedInteger(
+    Deno.env.get('OPENAI_REPORT_AGENT_TIMEOUT_MS'),
+    120_000,
+    10_000,
+    180_000,
+  )
+  const completionTokenCap = boundedInteger(
+    Deno.env.get('OPENAI_REPORT_AGENT_MAX_COMPLETION_TOKENS'),
+    8_000,
+    1_000,
+    8_000,
+  )
   if (!supabaseUrl || !anonKey) return json({ error: 'Supabase environment is not configured.' }, 500, headers)
   if (!openAiKey) return json({ error: 'OPENAI_API_KEY is not configured for this Supabase project.' }, 500, headers)
 
@@ -560,16 +587,25 @@ Deno.serve(async (req: Request) => {
   }
   const parsed = parseRequest(rawBody)
   if (typeof parsed === 'string') return json({ error: parsed }, 400, headers)
+  const idempotencyKey = suppliedIdempotencyKey
+    || `report-agent/${parsed.taskId}/${parsed.role}/${parsed.iteration}`
 
   const role = ROLE_REGISTRY[parsed.role]
   const reportModel = parsed.reviewMode === 'standard'
     ? standardModel
     : role.modelClass === 'premium' ? premiumModel : standardModel
+  const maxCompletionTokens = Math.min(
+    parsed.role === 'professional_report_writer' ? 8_000 : 5_000,
+    completionTokenCap,
+  )
   let output: unknown
   let usage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+  const upstreamController = new AbortController()
+  const upstreamTimeout = setTimeout(() => upstreamController.abort(), upstreamTimeoutMs)
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
+      signal: upstreamController.signal,
       headers: {
         Authorization: `Bearer ${openAiKey}`,
         'Content-Type': 'application/json',
@@ -579,7 +615,7 @@ Deno.serve(async (req: Request) => {
         ...(reportModel.startsWith('gpt-5')
           ? { reasoning_effort: role.modelClass === 'premium' ? 'low' : 'none' }
           : { temperature: role.temperature }),
-        max_completion_tokens: parsed.role === 'professional_report_writer' ? 8000 : 5000,
+        max_completion_tokens: maxCompletionTokens,
         response_format: {
           type: 'json_schema',
           json_schema: {
@@ -615,9 +651,14 @@ Deno.serve(async (req: Request) => {
     if (typeof message?.content !== 'string') return json({ error: 'Agent returned no structured content.' }, 502, headers)
     output = JSON.parse(message.content)
   } catch (error) {
+    if (upstreamController.signal.aborted) {
+      return json({ error: `Report agent timed out after ${upstreamTimeoutMs} ms.` }, 504, headers)
+    }
     return json({
       error: `Agent invocation failed: ${error instanceof Error ? error.message : String(error)}`,
     }, 502, headers)
+  } finally {
+    clearTimeout(upstreamTimeout)
   }
 
   const protectedPath = findProtectedOutput(output)
@@ -626,6 +667,7 @@ Deno.serve(async (req: Request) => {
   }
 
   return json({
+    idempotencyKey,
     taskId: parsed.taskId,
     role: parsed.role,
     reportContextHash: parsed.reportContextHash,

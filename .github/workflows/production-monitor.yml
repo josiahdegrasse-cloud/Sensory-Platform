@@ -1,0 +1,42 @@
+name: Production monitor
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 */6 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-monitor
+  cancel-in-progress: true
+
+jobs:
+  evidence-assist:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+      - run: npx pnpm@10 install --frozen-lockfile
+      - name: Verify production twice before alerting
+        env:
+          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          NFI_EXPECTED_DOCUMENTS: "386"
+          NFI_MAX_LATENCY_MS: "10000"
+        run: |
+          for attempt in 1 2; do
+            if npx pnpm@10 run verify:evidence-assist; then
+              exit 0
+            fi
+            if [ "$attempt" = "1" ]; then
+              echo "First production check failed; retrying once before alerting."
+              sleep 20
+            fi
+          done
+          echo "::error::Evidence Assist failed two consecutive production checks."
+          exit 1

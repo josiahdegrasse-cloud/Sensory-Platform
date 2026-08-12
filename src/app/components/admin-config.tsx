@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -112,7 +112,14 @@ export function AdminConfig({
   secondaryNavigation?: React.ReactNode;
 }) {
   const isResponsesMode = mode === 'responses';
-  const [activeTab, setActiveTab] = useState<AdminTab>('products');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const initialTab: AdminTab = mode === 'admin' && requestedTab === 'imports'
+    ? 'imports'
+    : mode === 'admin' && requestedTab === 'panelists'
+      ? 'panelists'
+      : 'products';
+  const [activeTab, setActiveTab] = useState<AdminTab>(initialTab);
   const { data: products = [] } = useProducts();
   const { data: panelists = [] } = usePanelists();
   const { data: allResponses = [] } = useAllResponses();
@@ -597,12 +604,21 @@ export function AdminConfig({
     }
   };
 
+  const selectTab = (tab: AdminTab) => {
+    setActiveTab(tab);
+    if (mode !== 'admin') return;
+    const nextParams = new URLSearchParams(searchParams);
+    if (tab === 'products') nextParams.delete('tab');
+    else nextParams.set('tab', tab);
+    setSearchParams(nextParams, { replace: true });
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
   const tabs: { id: AdminTab; label: string; icon: React.ElementType }[] = mode === 'admin' ? [
     { id: 'products',  label: 'Studies',  icon: ClipboardList },
     { id: 'panelists', label: 'Panelists', icon: Users },
-    { id: 'imports',   label: 'Imports',   icon: Upload },
+    { id: 'imports',   label: 'Data & imports', icon: Upload },
   ] : [
     { id: 'products', label: isResponsesMode ? 'Responses' : 'Studies', icon: isResponsesMode ? Activity : ClipboardList },
   ];
@@ -626,7 +642,7 @@ export function AdminConfig({
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => selectTab(tab.id)}
                 className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                   active
                     ? 'border-slate-800 text-slate-900'
@@ -1023,9 +1039,9 @@ export function AdminConfig({
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Upload className="size-4 text-slate-500" />
-              Import History
+              Import history and data hygiene
             </CardTitle>
-            <p className="text-sm text-slate-500">All CSV instrument data imports with metadata and audit trail.</p>
+            <p className="text-sm text-slate-500">Review CSV instrument imports, restore archived data, and perform deliberate cleanup with an audit trail.</p>
           </CardHeader>
           <CardContent className="space-y-4">
             {recoverableImportCount > 0 && (

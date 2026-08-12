@@ -15,7 +15,7 @@ import {
   fetchProjects, createProject, renameProject, assignBatchToProject,
   fetchWorkspaceSettings, updateWorkspaceSettings, fetchAuditEvents,
   fetchIsPlatformOperator, provisionPlatformOrganization,
-  fetchWorkspaceOperationalHealth,
+  fetchWorkspaceOperationalHealth, fetchPrototypeLineageIssues,
   adoptConceptImageAsBrandKit, clearConceptBrandKit,
   fetchDecisionRecords,
   fetchPanelistKits, fetchPanelistKitInvite, fetchPanelistKitInviteByManualCode, generatePanelistKits,
@@ -45,6 +45,7 @@ import {
 } from './database'
 import type { TrainingLevel } from '../utils/panelist-metrics'
 import type { Product } from './study-types'
+import { fetchLiteratureImports, uploadLiterature } from './literature-imports'
 import { getTenantSlug } from './tenant'
 import { buildEvidenceBundle } from './report-evidence-source'
 import {
@@ -57,9 +58,11 @@ import {
   fetchLibraryDocuments,
   fetchLibraryStatus,
   ingestLibrary,
+  reviewLibraryDocuments,
   reviewLibraryDocument,
   scanLibrary,
   type LibraryDocumentReview,
+  type LibraryBulkReview,
   type LibraryRequest,
 } from './nfi-library'
 
@@ -106,6 +109,7 @@ export const queryKeys = {
   projects: ['projects'] as const,
   workspaceSettings: ['workspaceSettings'] as const,
   workspaceOperationalHealth: ['workspaceOperationalHealth'] as const,
+  prototypeLineageIssues: ['prototypeLineageIssues'] as const,
   platformOperator: ['platformOperator'] as const,
   publicWorkspaceConfig: ['publicWorkspaceConfig'] as const,
   orgEmailDomains: ['orgEmailDomains'] as const,
@@ -114,6 +118,7 @@ export const queryKeys = {
   ragStatus: ['ragStatus'] as const,
   libraryStatus: ['libraryStatus'] as const,
   libraryDocuments: ['libraryDocuments'] as const,
+  literatureImports: ['literatureImports'] as const,
   tweakDiagnoses: ['tweakDiagnosis'] as const,
   tweakDiagnosis: (request: TweakDiagnosisRequest) => ['tweakDiagnosis', tweakDiagnosisCacheKey(request)] as const,
 }
@@ -369,6 +374,35 @@ export function useReviewLibraryDocument() {
       qc.invalidateQueries({ queryKey: queryKeys.libraryDocuments })
       qc.invalidateQueries({ queryKey: queryKeys.libraryStatus })
       qc.invalidateQueries({ queryKey: queryKeys.tweakDiagnoses })
+    },
+  })
+}
+
+export function useReviewLibraryDocuments() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (review: LibraryBulkReview) => reviewLibraryDocuments(review),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.libraryDocuments })
+      qc.invalidateQueries({ queryKey: queryKeys.libraryStatus })
+      qc.invalidateQueries({ queryKey: queryKeys.tweakDiagnoses })
+    },
+  })
+}
+
+export function useLiteratureImports() {
+  return useQuery({ queryKey: queryKeys.literatureImports, queryFn: fetchLiteratureImports, staleTime: 10_000 })
+}
+
+export function useUploadLiterature() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (file: File) => uploadLiterature(file),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.literatureImports })
+      qc.invalidateQueries({ queryKey: queryKeys.libraryDocuments })
+      qc.invalidateQueries({ queryKey: queryKeys.libraryStatus })
+      qc.invalidateQueries({ queryKey: queryKeys.ragStatus })
     },
   })
 }
@@ -880,6 +914,14 @@ export function useWorkspaceOperationalHealth(enabled = true) {
     enabled,
     staleTime: 30_000,
     refetchInterval: 60_000,
+  })
+}
+
+export function usePrototypeLineageIssues(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.prototypeLineageIssues,
+    queryFn: fetchPrototypeLineageIssues,
+    enabled,
   })
 }
 

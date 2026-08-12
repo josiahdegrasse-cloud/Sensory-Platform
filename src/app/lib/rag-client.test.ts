@@ -54,4 +54,20 @@ describe('authenticated RAG transport', () => {
     await expect(ragFetch('/api/status')).rejects.toThrow(/authenticate.*session storage unavailable/i);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it('aborts a stalled research request at the caller-provided deadline', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockImplementation((_url: string, init: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const request = ragFetch('/api/status', { timeoutMs: 50 });
+    const rejection = expect(request).rejects.toThrow(/timed out after 50 ms/i);
+    await vi.runAllTimersAsync();
+
+    await rejection;
+    expect((fetchMock.mock.calls[0]?.[1] as RequestInit).signal?.aborted).toBe(true);
+    vi.useRealTimers();
+  });
 });

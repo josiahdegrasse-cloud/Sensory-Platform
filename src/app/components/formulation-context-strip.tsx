@@ -4,9 +4,13 @@ import { compareFormulationVersions, formulationReadiness, verifiedAllergenTags 
 import { useFormulationVersions } from '../lib/hooks';
 import { projectPath } from '../lib/project-journey-routes';
 
-type FormulationContext = 'ship-outs' | 'insights' | 'decision' | 'concept' | 'report';
+type FormulationContext = 'overview' | 'ship-outs' | 'insights' | 'decision' | 'concept' | 'report';
 
 const CONTEXT_COPY: Record<FormulationContext, { title: string; description: string }> = {
+  overview: {
+    title: 'Formulation readiness',
+    description: 'Link and review the exact formulation once here so downstream interpretation, safety, concept, and report work share the same version.',
+  },
   'ship-outs': {
     title: 'Formulation safety check',
     description: 'Packing and participant instructions may use verified allergen flags only.',
@@ -34,11 +38,13 @@ export function FormulationContextStrip({
   sampleId,
   formulationVersionId,
   context,
+  prominent = false,
 }: {
   projectId?: string | null;
   sampleId?: string | null;
   formulationVersionId?: string | null;
   context: FormulationContext;
+  prominent?: boolean;
 }) {
   const { data: allVersions = [], isLoading } = useFormulationVersions(undefined, Boolean(projectId || sampleId));
   const versions = allVersions.filter(version => (
@@ -67,6 +73,23 @@ export function FormulationContextStrip({
   const copy = CONTEXT_COPY[context];
 
   if (!projectId && !sampleId) return null;
+
+  if (!isLoading && current.length === 0 && !prominent) {
+    return (
+      <section className="flex flex-wrap items-center justify-between gap-3 border-y border-slate-200 py-2" aria-label="Formulation status">
+        <p className="flex items-center gap-2 text-xs text-slate-600">
+          <AlertTriangle className="size-3.5 shrink-0 text-amber-700" aria-hidden />
+          <span><strong>Formulation not linked.</strong> Conclusions remain product-level until the exact version is recorded.</span>
+        </p>
+        <Link
+          to={projectPath(projectId ?? sampleId!, 'data')}
+          className="text-xs font-semibold text-slate-800 underline decoration-slate-300 underline-offset-4 hover:text-slate-950"
+        >
+          Add in Data
+        </Link>
+      </section>
+    );
+  }
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white px-4 py-3" aria-label={copy.title}>
@@ -119,7 +142,7 @@ export function FormulationContextStrip({
         )}
       </div>
 
-      {!isLoading && current.length === 0 && (
+      {!isLoading && current.length === 0 && prominent && (
         <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700">
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> No versioned formulation is linked yet. Add the exact ingredient statement in Data.
         </p>

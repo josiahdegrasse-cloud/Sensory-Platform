@@ -27,11 +27,25 @@ Before promoting a release:
 4. Confirm Evidence Assist is online, its document/chunk totals are plausible, and literature ingestion has no unexplained errors.
 5. Check concept-image spend against the tenant cap. The image Edge Function enforces the effective monthly cap server-side.
 
+The supported release runtime is Node 22.13 through Node 24 with pnpm 10. Run
+`pnpm check:runtime` before release work; CI enforces the same baseline and
+`.nvmrc` selects the canonical Node version. A successful release record should
+include the commit SHA, CI run, frontend deployment identifier, research API
+deployment identifier, schema drift result, tenant-isolation result, dependency
+audit result, and the operator who approved promotion.
+
+Application crashes and route-render failures are sent to Sentry only when
+`VITE_SENTRY_DSN` is configured. Reports carry a low-cardinality boundary tag;
+default personally identifiable information remains disabled. Confirm the
+release identifier and source maps in a preview error before production
+promotion.
+
 ## Backup and recovery
 
 The dashboard must not claim a backup exists merely because the application is healthy. Verify these provider controls directly:
 
 - **Supabase:** confirm the project plan’s backup retention and point-in-time recovery window. Record the date and operator in the release ticket. Run a restore into a separate preview project at least quarterly and verify tenant RLS, generated schema types, object storage references, and a representative project workflow.
+- **Tenant-isolation CI:** `pnpm test:rls:local` starts a disposable local Supabase stack, applies the complete migration history, signs in administrators from two organizations, and proves that rows and aggregate RPCs cannot cross tenant boundaries. GitHub Actions runs this without production credentials and fails if the stack or required test environment is unavailable.
 - **Vercel research API:** keep all required environment-variable names documented, never their secret values. Retain the last known-good deployment. Exercise rollback to that deployment and verify `/health/ready`, `/api/status`, and one authenticated retrieval request at least quarterly.
 - **Vercel frontend:** retain the last known-good deployment and confirm wildcard DNS/certificates after rollback.
 
@@ -42,3 +56,16 @@ The dashboard must not claim a backup exists merely because the application is h
 3. Do not reverse an applied database migration destructively. Ship a forward-only corrective migration after comparing the live schema with generated `database.types.ts`.
 4. Re-run tenant isolation, prototype lineage, decision-gate, and report-quality tests before restoring normal operation.
 5. Preserve request IDs, audit events, failed import records, and generation error messages for the incident review.
+
+## External drills still requiring an operator
+
+These checks cannot be truthfully automated from the frontend repository:
+
+- Quarterly Supabase restore into an isolated project and verification of RLS,
+  storage references, and a representative workflow.
+- Quarterly Vercel frontend and research-service rollback to known-good
+  deployments, followed by authenticated health and retrieval checks.
+- DNS and TLS verification for the apex and tenant wildcard after a rollback.
+- Sentry alert destination, retention, and escalation-policy review.
+
+Record the evidence and date for each drill in the release or incident ticket.

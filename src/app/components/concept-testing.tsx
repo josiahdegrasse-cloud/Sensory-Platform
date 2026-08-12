@@ -46,6 +46,7 @@ import { getConceptReadiness } from './concept-testing/concept-readiness';
 import { buildTailoredConceptQuestions, defaultConceptPanelistIds } from './concept-testing/smart-defaults';
 import { WorkflowPageHeader } from './workflow-page-header';
 import { FormulationContextStrip } from './formulation-context-strip';
+import { WorkflowLoadingState, WorkflowQueryErrorState } from './workflow-loading-state';
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
@@ -121,6 +122,29 @@ interface ConceptSeed {
   sourceDecision?: SourceDecisionSeed;
 }
 
+function upgradeEvidenceHeavyDraft(draft: ConceptDraft): ConceptDraft {
+  const description = draft.description.trim();
+  const evidenceHeavy = description.length > 320
+    || /panel evidence behind|instrument evidence to preserve|evidence context:\s*issf/i.test(description);
+  if (!evidenceHeavy) return draft;
+  const proofCues = draft.keyBenefits
+    .split(/[,\n]+/)
+    .map(value => value.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  const concisePromise = proofCues.length > 0
+    ? `${draft.category || 'Product'} built around ${proofCues.join(', ')} for a clear, believable consumer experience.`
+    : `${draft.category || 'Product'} concept grounded in the confirmed product decision and intended use occasion.`;
+  const evidenceNote = `Decision evidence (read-only): ${description}`;
+  return {
+    ...draft,
+    description: concisePromise,
+    technicalChallenges: draft.technicalChallenges.includes(description)
+      ? draft.technicalChallenges
+      : [draft.technicalChallenges, evidenceNote].filter(Boolean).join('\n\n'),
+  };
+}
+
 function conceptSeedFromDecisionRecord(
   record: DecisionRecord,
   promptStyle: string,
@@ -140,19 +164,22 @@ function conceptSeedFromDecisionRecord(
     ? [...topSuccessfulPanelSignals(evidenceProfile, foodTypeSlug), ...strongestHedonicSignals(evidenceProfile)]
     : profile.successMarkers.slice(0, 4);
   const strengths = likedSignals.join(', ');
+  const evidencePositioning = buildEvidencePositioningPromise({
+    category,
+    sourceSampleName: record.sampleName,
+    sensoryStrengths: likedSignals,
+    panelEvidence: evidenceProfile ? buildPanelEvidenceSummary(evidenceProfile, foodTypeSlug) : [],
+    instrumentEvidence: evidenceProfile ? buildInstrumentEvidenceSummary(evidenceProfile) : [],
+    issfScore: record.issfScore,
+    confidence: record.confidence,
+    decisionRationale: record.note,
+  });
   const seed: ConceptSeed = {
     name: record.sampleName,
     category,
-    description: buildEvidencePositioningPromise({
-      category,
-      sourceSampleName: record.sampleName,
-      sensoryStrengths: likedSignals,
-      panelEvidence: evidenceProfile ? buildPanelEvidenceSummary(evidenceProfile, foodTypeSlug) : [],
-      instrumentEvidence: evidenceProfile ? buildInstrumentEvidenceSummary(evidenceProfile) : [],
-      issfScore: record.issfScore,
-      confidence: record.confidence,
-      decisionRationale: record.note,
-    }),
+    description: likedSignals.length > 0
+      ? `${category} built around ${likedSignals.slice(0, 3).join(', ')} for an easy-to-understand consumer experience.`
+      : `${category} concept grounded in the confirmed product decision and intended use occasion.`,
     productAppearance: `Show ${record.sampleName} as a believable ${category.toLowerCase()} product with appetizing texture and clear cues for ${strengths}.`,
     packageFormat: 'Retail-ready pack with clear product name, category recognition, and a believable serving suggestion.',
     targetMarket: `Shoppers looking for ${category.toLowerCase()} with validated sensory appeal.`,
@@ -161,7 +188,7 @@ function conceptSeedFromDecisionRecord(
     colorDirection: 'Use a commercial palette that supports the strongest liked sensory cues without overclaiming.',
     mustShow: `Product name, category cue, serving suggestion, and visual support for ${strengths}.`,
     keyBenefits: strengths,
-    technicalChallenges: record.note,
+    technicalChallenges: `Decision evidence (read-only): ${evidencePositioning}`,
     sourceDecision: {
       id: record.id,
       sampleId: record.sampleId,
@@ -221,19 +248,26 @@ export function ConceptTesting() {
   const [panelSize, setPanelSize] = useState(50);
   const [segments, setSegments] = useState<string[]>([]);
   const [assignedPanelistIds, setAssignedPanelistIds] = useState<string[]>([]);
-  const { data: panelists = [] } = usePanelists();
+  const panelistsQuery = usePanelists();
+  const { data: panelists = [] } = panelistsQuery;
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState('');
   const [draftNotice, setDraftNotice] = useState('');
   const [saveState, setSaveState] = useState<'idle' | 'saved'>('idle');
   const [sourceDecision, setSourceDecision] = useState<SourceDecisionSeed | null>(null);
   const [conceptSourceChosen, setConceptSourceChosen] = useState(false);
-  const { data: settings } = useConceptGenerationSettings();
-  const { data: workspaceSettings } = useWorkspaceSettings();
-  const { data: diagnostics } = useConceptLabDiagnostics();
-  const { data: decisionRecords = [] } = useDecisionRecords();
+  const [decisionHistoryOpen, setDecisionHistoryOpen] = useState(false);
+  const settingsQuery = useConceptGenerationSettings();
+  const workspaceQuery = useWorkspaceSettings();
+  const diagnosticsQuery = useConceptLabDiagnostics();
+  const decisionsQuery = useDecisionRecords();
+  const { data: settings } = settingsQuery;
+  const { data: workspaceSettings } = workspaceQuery;
+  const { data: diagnostics } = diagnosticsQuery;
+  const { data: decisionRecords = [] } = decisionsQuery;
   const { data: decisionFreshness } = useDecisionFreshness(sourceDecision?.id);
-  const { data: instrumentalDataset } = useInstrumentalDataset(user?.role === 'admin');
+  const instrumentalQuery = useInstrumentalDataset(user?.role === 'admin');
+  const { data: instrumentalDataset } = instrumentalQuery;
   const { liveAggregations } = useSurveyData();
   const smartDefaultsApplied = useRef(false);
   const minimumResponses = workspaceSettings?.decisionMinResponses ?? 12;
@@ -303,8 +337,9 @@ export function ConceptTesting() {
         keyBenefits: seed.keyBenefits?.trim() || emptyDraft.keyBenefits,
         technicalChallenges: seed.technicalChallenges?.trim() || emptyDraft.technicalChallenges,
       };
-      setDraft(seededDraft);
-      setQuestions(buildTailoredConceptQuestions(seededDraft));
+      const upgradedSeededDraft = upgradeEvidenceHeavyDraft(seededDraft);
+      setDraft(upgradedSeededDraft);
+      setQuestions(buildTailoredConceptQuestions(upgradedSeededDraft));
       setQuestionsReviewState('draft');
       setSegments([]);
       setAssignedPanelistIds([]);
@@ -331,7 +366,7 @@ export function ConceptTesting() {
           return;
         }
         if (saved?.draft && saved.sourceDecision?.id && saved.sourceDecision.evidenceBundleId) {
-          setDraft({ ...makeEmptyDraft(saved.draft.promptStyle), ...saved.draft });
+          setDraft(upgradeEvidenceHeavyDraft({ ...makeEmptyDraft(saved.draft.promptStyle), ...saved.draft }));
           setQuestions(saved.questions ?? []);
           setQuestionsReviewState(saved.questionsReviewState ?? 'none');
           setSegments(saved.segments ?? []);
@@ -410,16 +445,26 @@ export function ConceptTesting() {
     localStorage.removeItem(draftStorageKey);
   };
 
-  const confirmedGoDecisions = useMemo(
-    () => decisionRecords
+  const confirmedGoDecisionGroups = useMemo(() => {
+    const eligible = decisionRecords
       .filter(record => (
         record.decision === 'GO'
         && Boolean(record.evidenceBundleId)
         && (!routeProjectId || record.projectId === routeProjectId)
-      ))
-      .slice(0, 6),
-    [decisionRecords, routeProjectId],
-  );
+      ));
+    const byPrototype = new Map<string, DecisionRecord[]>();
+    eligible.forEach(record => {
+      const key = record.instrumentalSampleId ?? record.sampleId;
+      const records = byPrototype.get(key) ?? [];
+      records.push(record);
+      byPrototype.set(key, records);
+    });
+    return [...byPrototype.values()]
+      .map(records => ({ latest: records[0], history: records.slice(1) }))
+      .slice(0, 6);
+  }, [decisionRecords, routeProjectId]);
+  const confirmedGoDecisions = confirmedGoDecisionGroups.map(group => group.latest);
+  const historicalGoDecisions = confirmedGoDecisionGroups.flatMap(group => group.history);
 
   const startFromDecision = (record: DecisionRecord) => {
     const evidenceProfile = findSensoryEvidenceProfile(evidenceProfiles, {
@@ -579,6 +624,20 @@ export function ConceptTesting() {
   const nextActionLabel = nextStep ? `Continue to ${STEP_LABELS[nextStep]}` : 'Continue';
   const conceptWorkspaceStarted = Boolean(sourceDecision?.id && sourceDecision.evidenceBundleId);
 
+  const sourceQueries = [decisionsQuery, instrumentalQuery, workspaceQuery];
+  if (!conceptWorkspaceStarted && sourceQueries.some(query => query.isLoading)) {
+    return <WorkflowLoadingState title="Loading confirmed concept sources" />;
+  }
+  if (!conceptWorkspaceStarted && sourceQueries.some(query => query.isError)) {
+    return (
+      <WorkflowQueryErrorState
+        projectName="the selected project"
+        checked="confirmed GO decisions and their linked product evidence"
+        onRetry={() => sourceQueries.forEach(query => void query.refetch())}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6 pb-8">
       <WorkflowPageHeader
@@ -602,9 +661,9 @@ export function ConceptTesting() {
       )}
 
       {draftNotice && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900">
-          <span>{draftNotice}</span>
-          <button type="button" onClick={() => setDraftNotice('')} className="text-xs font-semibold text-blue-700 hover:text-blue-900">
+        <div className="flex items-center justify-between gap-3 border-y border-slate-200 py-2 text-xs text-slate-600">
+          <span className="flex items-center gap-2"><CheckCircle2 className="size-3.5 text-emerald-700" />{draftNotice}</span>
+          <button type="button" onClick={() => setDraftNotice('')} className="font-semibold text-slate-700 hover:text-slate-950">
             Dismiss
           </button>
         </div>
@@ -628,7 +687,8 @@ export function ConceptTesting() {
           </div>
 
           {confirmedGoDecisions.length > 0 ? (
-            <div className="mt-5 grid gap-2 lg:grid-cols-2">
+            <div className="mt-5 space-y-3">
+              <div className="grid gap-2 lg:grid-cols-2">
               {confirmedGoDecisions.map(record => (
                 <button
                   key={record.id}
@@ -650,6 +710,35 @@ export function ConceptTesting() {
                   )}
                 </button>
               ))}
+              </div>
+              {historicalGoDecisions.length > 0 && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50">
+                  <button
+                    type="button"
+                    onClick={() => setDecisionHistoryOpen(open => !open)}
+                    aria-expanded={decisionHistoryOpen}
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:text-slate-950"
+                  >
+                    Earlier confirmed decisions
+                    <span className="font-normal text-slate-500">{historicalGoDecisions.length} record{historicalGoDecisions.length === 1 ? '' : 's'}</span>
+                  </button>
+                  {decisionHistoryOpen && (
+                    <div className="grid gap-2 border-t border-slate-200 p-2 lg:grid-cols-2">
+                      {historicalGoDecisions.map(record => (
+                        <button
+                          key={record.id}
+                          type="button"
+                          onClick={() => startFromDecision(record)}
+                          className="rounded-md border border-slate-200 bg-white p-3 text-left hover:border-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+                        >
+                          <p className="text-sm font-semibold text-slate-900">{record.sampleName}</p>
+                          <p className="mt-1 text-xs text-slate-500">GO recorded {new Date(record.timestamp).toLocaleDateString()} · ISSF {record.issfScore.toFixed(0)}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="mt-5 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-600">
@@ -660,30 +749,20 @@ export function ConceptTesting() {
       )}
 
       {conceptWorkspaceStarted && sourceDecision && (
-        <div className="flex flex-col gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-y border-slate-200 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
-            <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-700" />
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-700" />
             <div>
-              <p className="text-sm font-semibold text-emerald-950">
-                Concept is linked to validated GO evidence
+              <p className="text-sm font-semibold text-slate-900">
+                Linked GO evidence
               </p>
-              <dl className="mt-2 grid gap-2 text-xs text-emerald-900 sm:grid-cols-2">
-                <div>
-                  <dt className="font-semibold text-emerald-700">Source sample</dt>
-                  <dd className="mt-0.5">{sourceDecision.sampleName}</dd>
-                </div>
-                <div>
-                  <dt className="font-semibold text-emerald-700">Panelist-facing concept</dt>
-                  <dd className="mt-0.5">{draft.name.trim() || 'Untitled concept'}</dd>
-                </div>
-              </dl>
-              <p className="mt-2 text-xs text-emerald-800">
-                Confirmed GO: ISSF {sourceDecision.issfScore.toFixed(0)} at {sourceDecision.confidence.toFixed(0)}% confidence
-                on {new Date(sourceDecision.timestamp).toLocaleDateString()}.
+              <p className="mt-0.5 text-xs leading-5 text-slate-600">
+                {sourceDecision.sampleName} · ISSF {sourceDecision.issfScore.toFixed(0)} · {sourceDecision.confidence.toFixed(0)}% confidence · Confirmed {new Date(sourceDecision.timestamp).toLocaleDateString()}
+                {' · '}Concept: {draft.name.trim() || 'Untitled concept'}
               </p>
             </div>
           </div>
-          <Button asChild size="sm" variant="outline" className="shrink-0 border-emerald-300 text-emerald-800 hover:bg-emerald-100">
+          <Button asChild size="sm" variant="ghost" className="shrink-0 text-slate-700">
             <Link to={workflowStagePath('decision', routeProjectId)}>
               <Gauge className="size-4" />
               View source decision
@@ -772,7 +851,7 @@ export function ConceptTesting() {
             <p className="text-sm text-rose-600 font-medium text-center">{launchError}</p>
           )}
 
-          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm md:sticky md:bottom-4 md:z-20 md:bg-white/95 md:backdrop-blur">
+          <div className="border-t border-slate-200 pt-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <Button
                 variant="outline"

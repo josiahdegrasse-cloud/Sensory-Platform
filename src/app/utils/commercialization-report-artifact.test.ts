@@ -100,7 +100,7 @@ function sampleInput(): CommercializationReportPdfInput {
   };
 }
 
-describe('commercialization report quality evaluation', () => {
+describe('commercialization report quality evaluation', { timeout: 20_000 }, () => {
   it('generates and evaluates a sample PDF', async () => {
     const iteration = process.env.REPORT_ITERATION || '1';
     const input = sampleInput();

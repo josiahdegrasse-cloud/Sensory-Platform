@@ -32,6 +32,7 @@ import {
 import type { CommercializationReportRecord } from '../lib/database';
 import type { SemanticTone } from '../lib/project-status';
 import { WorkflowPageHeader } from './workflow-page-header';
+import { WorkflowQueryErrorState } from './workflow-loading-state';
 
 const STATUS_OPTIONS = ['all', 'draft', 'review', 'approved', 'archived'] as const;
 type StatusFilter = typeof STATUS_OPTIONS[number];
@@ -43,13 +44,6 @@ const statusTone: Record<CommercializationReportRecord['status'], SemanticTone> 
   review: 'warning',
   approved: 'success',
   archived: 'neutral',
-};
-
-const statusLabel: Record<CommercializationReportRecord['status'], string> = {
-  draft: 'Draft',
-  review: 'In review',
-  approved: 'Approved',
-  archived: 'Archived',
 };
 
 type VaultStatus = ReportReleaseStatus | 'checking';
@@ -98,10 +92,14 @@ function ReadinessBadges({
   const releaseStatus = displayReleaseStatus(entry, loading);
   const release = releaseCopy[releaseStatus];
   return (
-    <div className="mt-3 flex flex-wrap gap-2">
-      <Badge variant="outline" className={release.className} title={release.detail}>
-        {release.label}
-      </Badge>
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      {loading ? (
+        <span className="text-xs text-slate-500">Checking readiness…</span>
+      ) : (
+        <Badge variant="outline" className={release.className} title={release.detail}>
+          {release.label}
+        </Badge>
+      )}
       {isReferenceEvidence && (
         <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">
           Demo/reference evidence
@@ -112,16 +110,6 @@ function ReadinessBadges({
           Missing concept evidence
         </Badge>
       )}
-      <Badge
-        variant="outline"
-        className={entry.latest.status === 'approved'
-          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-          : entry.latest.status === 'review'
-            ? 'border-amber-200 bg-amber-50 text-amber-700'
-            : 'border-slate-200 bg-slate-50 text-slate-700'}
-      >
-        {statusLabel[entry.latest.status]}
-      </Badge>
     </div>
   );
 }
@@ -130,9 +118,14 @@ export function ReportsPage() {
   const { user } = useAuth();
   const { projectId: routeProjectId } = useParams<{ projectId?: string }>();
   const { setSelection } = useFoodType();
-  const { data: reports = [], isLoading } = useCommercializationReports();
-  const { data: decisions = [] } = useDecisionRecords();
-  const { data: concepts = [] } = useAdminConceptTests();
+  const reportsQuery = useCommercializationReports();
+  const decisionsQuery = useDecisionRecords();
+  const conceptsQuery = useAdminConceptTests();
+  const { data: reports = [] } = reportsQuery;
+  const { data: decisions = [] } = decisionsQuery;
+  const { data: concepts = [] } = conceptsQuery;
+  const isLoading = reportsQuery.isLoading || decisionsQuery.isLoading || conceptsQuery.isLoading;
+  const sourceError = reportsQuery.isError || decisionsQuery.isError || conceptsQuery.isError;
   const updateStatus = useUpdateCommercializationReportStatus();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
@@ -273,11 +266,23 @@ export function ReportsPage() {
 
       {error && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
 
-      {isLoading ? (
+      {sourceError && (
+        <WorkflowQueryErrorState
+          projectName="the selected project"
+          checked="saved reports, source decisions, and linked concepts"
+          onRetry={() => {
+            void reportsQuery.refetch();
+            void decisionsQuery.refetch();
+            void conceptsQuery.refetch();
+          }}
+        />
+      )}
+
+      {!sourceError && isLoading ? (
         <div className="space-y-3">
           {[0, 1, 2].map(item => <div key={item} className="h-32 animate-pulse rounded-lg border border-slate-200 bg-white" />)}
         </div>
-      ) : visibleEntries.length === 0 ? (
+      ) : !sourceError && visibleEntries.length === 0 ? (
         <div className="rounded-lg border border-dashed border-slate-200 bg-white px-6 py-14 text-center">
           <FolderOpen className="mx-auto size-9 text-slate-500" />
           <h2 className="mt-3 text-lg font-semibold text-slate-900">No reports match this view</h2>
@@ -285,7 +290,7 @@ export function ReportsPage() {
             Saved versions appear here after a confirmed GO decision is paired with a concept and packaging direction.
           </p>
         </div>
-      ) : (
+      ) : !sourceError ? (
         <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
           {visibleEntries.map((entry, index) => (
             <article key={entry.key} className={`p-4 sm:p-5 ${index > 0 ? 'border-t border-slate-200' : ''}`}>
@@ -303,9 +308,8 @@ export function ReportsPage() {
                   <p className="mt-1 text-sm text-slate-700">
                     {entry.productName} · {entry.foodType} · {entry.conceptName}
                   </p>
-                  <p className="mt-2 text-xs text-slate-500">
+                  <p className="mt-2 text-xs text-slate-500" title={entry.templateTitle ? `Template: ${entry.templateTitle}` : undefined}>
                     Version {entry.latest.version} of {entry.versions.length} · Updated {new Date(entry.latest.updatedAt).toLocaleDateString()} · {entry.decision} decision
-                    {entry.templateTitle ? ` · Template: ${entry.templateTitle}` : ''}
                   </p>
                   <ReadinessBadges entry={entry} loading={Boolean(readinessLoading[entry.latest.id])} />
                   {entry.blockers.length > 0 && (
@@ -365,7 +369,7 @@ export function ReportsPage() {
             </article>
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

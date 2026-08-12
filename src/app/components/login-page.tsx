@@ -208,7 +208,7 @@ export function LoginPage({ onSignup, branding }: Props) {
           </span>
         </div>
 
-        <div className="flex flex-1 items-center justify-center px-6 py-10 sm:px-10 lg:px-16">
+        <div className="flex flex-1 items-start justify-center px-6 pb-10 pt-16 sm:items-center sm:px-10 sm:py-10 lg:px-16">
         <div className="w-full max-w-[430px]">
           {resetMode ? (
             <>

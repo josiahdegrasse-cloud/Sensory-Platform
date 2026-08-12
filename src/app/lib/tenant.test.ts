@@ -2,6 +2,7 @@ import { describe, expect, it, afterEach, vi } from 'vitest';
 import {
   checkTenantAccess,
   getTenantSlug,
+  localTenantPreviewRedirectUrl,
   tenantAuthRedirectUrl,
   tenantSignInUrl,
 } from './tenant';
@@ -50,6 +51,26 @@ describe('getTenantSlug', () => {
   it('keeps an explicit preview hint after a production root is configured', () => {
     vi.stubEnv('VITE_ROOT_DOMAIN', 'sensoryplatform.com');
     expect(getTenantSlug('sensory-platform-git-feature.vercel.app', '?tenant=fermiq')).toBe('fermiq');
+  });
+});
+
+describe('localTenantPreviewRedirectUrl', () => {
+  it('redirects a validated bare-localhost hint to the canonical tenant host', () => {
+    expect(localTenantPreviewRedirectUrl({
+      protocol: 'http:',
+      hostname: 'localhost',
+      port: '4173',
+      pathname: '/reset-password',
+      search: '?tenant=FermIQ&from=email',
+      hash: '#confirm',
+    })).toBe('http://fermiq.localhost:4173/reset-password?from=email#confirm');
+  });
+
+  it('does not redirect invalid, reserved, or already canonical tenant hosts', () => {
+    const base = { protocol: 'http:', port: '4173', pathname: '/', hash: '' };
+    expect(localTenantPreviewRedirectUrl({ ...base, hostname: 'localhost', search: '?tenant=www' })).toBeNull();
+    expect(localTenantPreviewRedirectUrl({ ...base, hostname: 'localhost', search: '?tenant=%3Cscript%3E' })).toBeNull();
+    expect(localTenantPreviewRedirectUrl({ ...base, hostname: 'fermiq.localhost', search: '?tenant=other' })).toBeNull();
   });
 });
 

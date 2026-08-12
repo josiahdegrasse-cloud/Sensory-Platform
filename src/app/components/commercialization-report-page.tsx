@@ -35,12 +35,13 @@ import { ReportNarrativePanel, ReportPdfPreviewPanel, ReportVersionsPanel } from
 import { StageEmptyState } from './stage-empty-state';
 import { WorkflowPageHeader } from './workflow-page-header';
 import { FormulationContextStrip } from './formulation-context-strip';
+import { WorkflowLoadingState, WorkflowQueryErrorState } from './workflow-loading-state';
 
 type WorkspaceTab = 'report' | 'review' | 'narrative' | 'preview' | 'versions';
 
 function SetupFact({ label, value, ok }: { label: string; value: string; ok: boolean }) {
   return (
-    <div className="border-l-2 border-slate-200 pl-3">
+    <div className="rounded-md bg-slate-50 px-3 py-2">
       <p className="text-xs font-medium text-slate-500">{label}</p>
       <p className={`mt-1 text-sm font-semibold ${ok ? 'text-slate-900' : 'text-amber-700'}`}>{value}</p>
     </div>
@@ -57,11 +58,16 @@ export function CommercializationReportPage() {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
 
-  const { data: decisions = [], isLoading: decisionsLoading } = useDecisionRecords();
-  const { data: reports = [] } = useCommercializationReports();
-  const { data: concepts = [] } = useAdminConceptTests();
-  const { data: instrumentalDataset } = useInstrumentalDataset(user?.role === 'admin');
-  const { data: settings } = useWorkspaceSettings();
+  const decisionsQuery = useDecisionRecords();
+  const reportsQuery = useCommercializationReports();
+  const conceptsQuery = useAdminConceptTests();
+  const instrumentalQuery = useInstrumentalDataset(user?.role === 'admin');
+  const settingsQuery = useWorkspaceSettings();
+  const { data: decisions = [] } = decisionsQuery;
+  const { data: reports = [] } = reportsQuery;
+  const { data: concepts = [] } = conceptsQuery;
+  const { data: instrumentalDataset } = instrumentalQuery;
+  const { data: settings } = settingsQuery;
 
   const requestedReport = reports.find(report => report.id === searchParams.get('report')) ?? null;
   const requestedDecisionId = searchParams.get('decision');
@@ -154,8 +160,18 @@ export function CommercializationReportPage() {
     }
   };
 
-  if (decisionsLoading) {
-    return <div className="py-16 text-center text-sm text-slate-500">Loading report workspace...</div>;
+  const reportSourceQueries = [decisionsQuery, reportsQuery, conceptsQuery, instrumentalQuery, settingsQuery];
+  if (reportSourceQueries.some(query => query.isLoading)) {
+    return <WorkflowLoadingState title="Loading report evidence" />;
+  }
+  if (reportSourceQueries.some(query => query.isError)) {
+    return (
+      <WorkflowQueryErrorState
+        projectName="the selected project"
+        checked="confirmed decisions, concepts, saved reports, and instrumental evidence"
+        onRetry={() => reportSourceQueries.forEach(query => void query.refetch())}
+      />
+    );
   }
 
   if (!focusDecision) {

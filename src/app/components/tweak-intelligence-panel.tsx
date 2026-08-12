@@ -198,15 +198,20 @@ function OfflineState({ onRetry }: { onRetry: () => void }) {
     <div className="m-5 rounded-lg border border-amber-200 bg-amber-50 p-4">
       <div className="flex gap-3">
         <AlertCircle className="mt-0.5 size-5 shrink-0 text-amber-700" />
-        <div>
-          <p className="text-sm font-semibold text-amber-950">Local literature service is not reachable.</p>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-amber-950">Literature guidance is temporarily unavailable.</p>
           <p className="mt-1 text-sm leading-6 text-amber-900">
-            Start the Food RAG server on port 8000 to generate cited improvement guidance. The normal decision workflow still works.
+            The measured GO / TWEAK / STOP decision remains available. Retry the cited workplan or review the research-service status in the Literature workspace.
           </p>
-          <Button type="button" size="sm" variant="outline" className="mt-3 border-amber-300 bg-white" onClick={onRetry}>
-            <RefreshCw className="size-4" />
-            Retry connection
-          </Button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="outline" className="border-amber-300 bg-white" onClick={onRetry}>
+              <RefreshCw className="size-4" />
+              Retry guidance
+            </Button>
+            <Button asChild type="button" size="sm" variant="ghost" className="text-amber-900 hover:bg-amber-100">
+              <Link to="/literature">Open Literature status</Link>
+            </Button>
+          </div>
         </div>
       </div>
     </div>

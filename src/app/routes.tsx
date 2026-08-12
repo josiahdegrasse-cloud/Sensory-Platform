@@ -101,7 +101,7 @@ export const router = createBrowserRouter([
           { path: "stage1", element: <LegacyWorkflowRoute><Stage1Instrumental /></LegacyWorkflowRoute> },
           { path: "survey-analysis", element: <LegacyWorkflowRoute><SurveyAnalysis /></LegacyWorkflowRoute> },
           { path: "decision", element: <LegacyWorkflowRoute><Stage4Enhanced /></LegacyWorkflowRoute> },
-          { path: "admin", element: <LegacyWorkflowRoute><AdminConfig mode="admin" /></LegacyWorkflowRoute> },
+          { path: "admin", element: <AdminConfig mode="admin" /> },
           { path: "responses", element: <Navigate to="/admin" replace /> },
           { path: "settings", Component: AdminSettings },
           { path: "concept-testing", element: <LegacyWorkflowRoute><ConceptTesting /></LegacyWorkflowRoute> },

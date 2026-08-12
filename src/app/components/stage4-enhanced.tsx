@@ -26,7 +26,7 @@ import { buildImportedSensoryProfiles } from "../lib/sensory-evidence-profile";
 import { canConfirmDecisionOutcome, decisionRecordMatchesEvidence } from "../lib/decision-governance";
 import { workflowStagePath } from "../lib/project-journey-routes";
 import { DecisionReviewDialog } from "./decision-review-dialog";
-import { DecisionReviewWorkspace } from "./decision-review-workspace";
+import { DecisionReviewWorkspace, orderDecisionsForReview } from "./decision-review-workspace";
 import { TweakIntelligencePanel } from "./tweak-intelligence-panel";
 import { WorkflowPageHeader } from "./workflow-page-header";
 import { ProjectReadinessSetupCard } from "./project-readiness-setup-card";
@@ -34,6 +34,7 @@ import { FormulationContextStrip } from './formulation-context-strip';
 import { buildEvidenceBundleFromProfiles } from '../lib/report-evidence';
 import type { DecisionOutcome } from "../utils/go-stop-tweak-engine";
 import { DecisionRagPreloader } from './decision-rag-preloader';
+import { WorkflowLoadingState, WorkflowQueryErrorState } from './workflow-loading-state';
 type SampleDecision = GoStopTweakDecision;
 type ConfirmedSampleDecision = SampleDecision & {
   recordId?: string | null;
@@ -68,21 +69,24 @@ function buildConceptSeedFromDecision(
     .filter(gate => gate.status === 'watch' || gate.status === 'fail')
     .map(gate => `${gate.label}: ${gate.detail}`)
     .slice(0, 2);
+  const evidencePositioning = buildEvidencePositioningPromise({
+    category,
+    sourceSampleName: decision.sampleName,
+    sensoryStrengths: likedSignals,
+    panelEvidence: profile ? buildPanelEvidenceSummary(profile, effectiveFoodTypeSlug) : [],
+    instrumentEvidence: profile ? buildInstrumentEvidenceSummary(profile) : [],
+    issfScore: decision.issfScore,
+    confidence: decision.confidenceScore,
+    decisionRationale: decision.recommendation,
+    watchouts: decisionWatchouts,
+  });
 
   return {
     name: decision.sampleName,
     category,
-    description: buildEvidencePositioningPromise({
-      category,
-      sourceSampleName: decision.sampleName,
-      sensoryStrengths: likedSignals,
-      panelEvidence: profile ? buildPanelEvidenceSummary(profile, effectiveFoodTypeSlug) : [],
-      instrumentEvidence: profile ? buildInstrumentEvidenceSummary(profile) : [],
-      issfScore: decision.issfScore,
-      confidence: decision.confidenceScore,
-      decisionRationale: decision.recommendation,
-      watchouts: decisionWatchouts,
-    }),
+    description: likedSignals.length > 0
+      ? `${category} built around ${likedSignals.slice(0, 3).join(', ')} for an easy-to-understand consumer experience.`
+      : `${category} concept grounded in the confirmed product decision and intended use occasion.`,
     productAppearance: `Make ${decision.sampleName} look true to the ${category.toLowerCase()} category, with appetizing texture and visible cues for ${marketCues}.`,
     packageFormat: 'Retail-ready pack with clear product name, category recognition, and a believable serving suggestion.',
     targetMarket: /cashew.*cream cheese/i.test(decision.sampleName)
@@ -93,7 +97,7 @@ function buildConceptSeedFromDecision(
     colorDirection: 'Use a commercial palette that supports the strongest liked sensory cues without overclaiming.',
     mustShow: `Product name, category cue, serving suggestion, and visual support for ${marketCues}.`,
     keyBenefits: marketCues,
-    technicalChallenges: decisionWatchouts.join('\n'),
+    technicalChallenges: `Decision evidence (read-only): ${evidencePositioning}`,
     sourceDecision: {
       id: decision.sampleId,
       sampleId: decision.sampleId,
@@ -114,13 +118,20 @@ export function Stage4Enhanced() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { foodType: contextFoodType, subCategory, extraFoodTypes } = useFoodType();
-  const { data: instrumentalDataset } = useInstrumentalDataset(user?.role === 'admin');
-  const { data: importBatches = [] } = useImportBatches();
-  const { data: projects = [] } = useProjects();
-  const { data: products = [] } = useProducts();
-  const { data: workspaceSettings } = useWorkspaceSettings();
-  const { data: decisionRecords = [] } = useDecisionRecords();
-  const { liveAggregations } = useSurveyData();
+  const instrumentalQuery = useInstrumentalDataset(user?.role === 'admin');
+  const batchesQuery = useImportBatches();
+  const projectsQuery = useProjects();
+  const productsQuery = useProducts();
+  const workspaceQuery = useWorkspaceSettings();
+  const decisionsQuery = useDecisionRecords();
+  const { data: instrumentalDataset } = instrumentalQuery;
+  const { data: importBatches = [] } = batchesQuery;
+  const { data: projects = [] } = projectsQuery;
+  const { data: products = [] } = productsQuery;
+  const { data: workspaceSettings } = workspaceQuery;
+  const { data: decisionRecords = [] } = decisionsQuery;
+  const surveyData = useSurveyData();
+  const { liveAggregations } = surveyData;
   const contextBatchId = parseBatchSelection(subCategory);
   const routeScope = resolveProjectRouteScope(routeProjectId, projects, importBatches);
   const foodType = routeScope?.foodTypeSlug ?? contextFoodType;
@@ -214,6 +225,27 @@ export function Stage4Enhanced() {
     minimumResponses,
   ]);
 
+  const evidenceQueries = [instrumentalQuery, batchesQuery, projectsQuery, productsQuery, workspaceQuery, decisionsQuery];
+  const evidenceLoading = evidenceQueries.some(query => query.isLoading) || surveyData.isLoading;
+  const evidenceError = evidenceQueries.some(query => query.isError) || surveyData.liveDataFetchFailed;
+
+  if (evidenceLoading) {
+    return <WorkflowLoadingState title="Loading decision evidence" />;
+  }
+
+  if (evidenceError) {
+    const projectName = routeScope?.projectName ?? 'the selected project';
+    return (
+      <WorkflowQueryErrorState
+        projectName={projectName}
+        checked="machine samples, questionnaires, responses, thresholds, and saved decisions"
+        onRetry={() => {
+          evidenceQueries.forEach(query => void query.refetch());
+        }}
+      />
+    );
+  }
+
   const filteredSensoryData = liveSensoryData.filter(s => {
     const importedSample = instrumentalDataset?.eTongueData.find(sample => sample.sampleId === s.sampleId);
     const ft = importedSample?.type ?? sampleMatchesFoodType(s.sampleId, s.sampleName);
@@ -261,16 +293,16 @@ export function Stage4Enhanced() {
           items={importedReadiness}
           minimumResponses={minimumResponses}
           actions={awaitingResponses ? (
-            <Button asChild>
-              <Link to="/admin">Go to Studies</Link>
+              <Button asChild>
+                <Link to={workflowStagePath('studies', routeProjectId)}>Go to Studies</Link>
             </Button>
           ) : (
             <>
               <Button asChild>
-                <Link to="/stage1">Create questionnaires</Link>
+                <Link to={workflowStagePath('studies', routeProjectId)}>Create questionnaires</Link>
               </Button>
               <Button asChild variant="outline">
-                <Link to="/admin">Review questionnaire setup</Link>
+                <Link to={workflowStagePath('studies', routeProjectId)}>Review questionnaire setup</Link>
               </Button>
             </>
           )}
@@ -288,9 +320,11 @@ export function Stage4Enhanced() {
     });
   });
 
+  const orderedSampleDecisions = orderDecisionsForReview(sampleDecisions);
+
   const activeSelectedSample = sampleDecisions.some(decision => decision.sampleId === selectedSample)
     ? selectedSample
-    : sampleDecisions[0]?.sampleId ?? '';
+    : orderedSampleDecisions[0]?.sampleId ?? '';
   const selected = sampleDecisions.find(d => d.sampleId === activeSelectedSample);
   const selectedProfile = selected
     ? filteredSensoryData.find(profile => profile.sampleId === selected.sampleId)

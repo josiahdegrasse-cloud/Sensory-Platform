@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { isRouteErrorResponse, useRouteError } from 'react-router';
 import { Button } from './ui/button';
+import { captureAppError } from '../lib/sentry';
 
 function getErrorMessage(error: unknown) {
   if (isRouteErrorResponse(error)) return `${error.status} ${error.statusText}`;
@@ -12,6 +14,10 @@ export function RouteErrorBoundary() {
   const error = useRouteError();
   const message = getErrorMessage(error);
   const isChunkLoadError = /dynamically imported module|loading chunk|failed to fetch/i.test(message);
+
+  useEffect(() => {
+    captureAppError(error, 'react-route');
+  }, [error]);
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">

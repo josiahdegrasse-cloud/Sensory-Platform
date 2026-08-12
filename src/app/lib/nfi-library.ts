@@ -47,6 +47,8 @@ export type LibraryDocument = {
   pageCount: number;
   charCount: number;
   textQuality: string;
+  sourceQualityScore?: number | null;
+  sourceQualityReasons?: string[];
   status: string;
   duplicateOf: string;
   topicTags: string[];
@@ -57,6 +59,7 @@ export type LibraryDocument = {
   reviewStatus: 'pending' | 'approved' | 'rejected';
   peerReviewStatus: 'peer_reviewed' | 'not_peer_reviewed' | 'unknown';
   licenseStatus: 'cleared' | 'restricted' | 'unknown';
+  reviewBasis?: 'individual_review' | 'nfi_corpus_attestation' | 'bulk_review';
   reviewedBy: string;
   reviewedAt: string;
   lastCheckedAt: string;
@@ -69,6 +72,10 @@ export type LibraryDocumentReview = {
   peerReviewStatus: LibraryDocument['peerReviewStatus'];
   licenseStatus: LibraryDocument['licenseStatus'];
   notes?: string;
+};
+
+export type LibraryBulkReview = Omit<LibraryDocumentReview, 'documentId'> & {
+  documentIds: string[];
 };
 
 export type LibraryRequest = {
@@ -108,6 +115,15 @@ export async function reviewLibraryDocument(input: LibraryDocumentReview): Promi
     }),
   });
   if (!response.ok) throw new Error(`Library review update failed (${response.status})`);
+}
+
+export async function reviewLibraryDocuments(input: LibraryBulkReview): Promise<void> {
+  const response = await ragFetch('/api/library/reviews', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(`Bulk library review failed (${response.status})`);
 }
 
 async function postLibrary(path: string, input: LibraryRequest): Promise<LibraryRunReport> {

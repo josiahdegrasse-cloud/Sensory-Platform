@@ -108,6 +108,49 @@ export interface TenantAuthRedirectEnvironment {
   search: string;
 }
 
+export interface LocalTenantPreviewEnvironment {
+  protocol: string;
+  hostname: string;
+  port?: string;
+  pathname: string;
+  search: string;
+  hash?: string;
+}
+
+/**
+ * Converts a convenient local `?tenant=acme` preview into the canonical
+ * `acme.localhost` address before the app renders. Production tenant identity
+ * continues to come from the hostname (or an explicit provider-preview hint).
+ */
+export function localTenantPreviewRedirectUrl(
+  environment?: LocalTenantPreviewEnvironment,
+): string | null {
+  const current = environment ?? {
+    protocol: typeof window === 'undefined' ? 'http:' : window.location.protocol,
+    hostname: typeof window === 'undefined' ? 'localhost' : window.location.hostname,
+    port: typeof window === 'undefined' ? '' : window.location.port,
+    pathname: typeof window === 'undefined' ? '/' : window.location.pathname,
+    search: typeof window === 'undefined' ? '' : window.location.search,
+    hash: typeof window === 'undefined' ? '' : window.location.hash,
+  };
+  const isBareLocalHost = current.hostname === 'localhost'
+    || current.hostname === '127.0.0.1'
+    || current.hostname === '[::1]';
+  if (!isBareLocalHost) return null;
+
+  const params = new URLSearchParams(current.search);
+  const tenant = validTenantSlug(params.get('tenant'));
+  if (!tenant) return null;
+
+  params.delete('tenant');
+  const port = current.port ? `:${current.port}` : '';
+  const target = new URL(`${current.protocol}//${tenant}.localhost${port}${current.pathname}`);
+  const remainingSearch = params.toString();
+  target.search = remainingSearch ? `?${remainingSearch}` : '';
+  target.hash = current.hash ?? '';
+  return target.toString();
+}
+
 /**
  * Preserves a shared-preview tenant hint through OAuth and password recovery.
  * Wildcard tenant hosts already carry identity in the hostname.

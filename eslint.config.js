@@ -11,6 +11,7 @@ export default tseslint.config(
       'node_modules',
       '**/.*/**', // agent/editor tooling dirs (.claude, .cursor, .agents, .codex, …)
       'test-results',
+      'tmp', // local schema audits and one-off acceptance probes
       'public',
       'supabase/functions/**', // Deno runtime, separate type environment
       'src/app/components/ui/**', // vendored shadcn primitives

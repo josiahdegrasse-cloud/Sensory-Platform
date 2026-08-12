@@ -35,10 +35,18 @@ function parseResponse<R extends ReportAgentRole>(
     || value.iteration !== task.iteration
     || !isRecord(value.output)
     || typeof value.model !== 'string'
-    || !isRecord(value.usage)) {
+    || !isRecord(value.usage)
+    || !validUsage(value.usage)) {
     throw new Error('Report agent returned an invalid or mismatched response envelope.');
   }
   return value as unknown as ReportAgentResponse<R>;
+}
+
+function validUsage(value: Record<string, unknown>): boolean {
+  const fields = ['inputTokens', 'outputTokens', 'totalTokens'] as const;
+  if (!fields.every(field => Number.isFinite(value[field]) && Number(value[field]) >= 0)) return false;
+  return Number(value.totalTokens) >= Number(value.inputTokens)
+    && Number(value.totalTokens) >= Number(value.outputTokens);
 }
 
 export interface ReportAgentUsage {
@@ -111,6 +119,7 @@ export async function runReportAgent<R extends ReportAgentRole>(
 ): Promise<ReportAgentResponse<R>> {
   const response = await ragFetch('/api/report-agent', {
     method: 'POST',
+    timeoutMs: 180_000,
     headers: {
       'Content-Type': 'application/json',
     },

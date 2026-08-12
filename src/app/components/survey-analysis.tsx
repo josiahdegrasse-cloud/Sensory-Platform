@@ -53,6 +53,7 @@ import { WorkflowPageHeader } from './workflow-page-header';
 import { FormulationContextStrip } from './formulation-context-strip';
 import { buildProductEvidenceSummary } from '../lib/product-evidence';
 import { projectDecisionExperimentsPath, projectPath } from '../lib/project-journey-routes';
+import { WorkflowLoadingState, WorkflowQueryErrorState } from './workflow-loading-state';
 
 const INTENSITY_CHART_MAX = 5;
 
@@ -102,8 +103,10 @@ export function SurveyAnalysis() {
   const { user } = useAuth();
   const { foodType, subCategory } = useFoodType();
   const contextBatchId = parseBatchSelection(subCategory);
-  const { data: importBatches = [] } = useImportBatches();
-  const { data: projects = [] } = useProjects();
+  const batchesQuery = useImportBatches();
+  const projectsQuery = useProjects();
+  const { data: importBatches = [] } = batchesQuery;
+  const { data: projects = [] } = projectsQuery;
   const routeScope = resolveProjectRouteScope(routeProjectId, projects, importBatches);
   const scopedFoodType = routeScope?.foodTypeSlug ?? foodType;
   const scopedBatchIds = useMemo(
@@ -112,15 +115,21 @@ export function SurveyAnalysis() {
   );
   const primaryBatchId = routeScope?.selectedBatch?.id ?? contextBatchId;
   const status = useProjectStatus(scopedFoodType, primaryBatchId);
-  const { data: products = [] } = useProducts();
-  const { data: instrumentalDataset } = useInstrumentalDataset(user?.role === 'admin');
-  const { data: settings } = useWorkspaceSettings();
-  const { data: decisions = [] } = useDecisionRecords();
-  const { data: conceptTests = [] } = useAdminConceptTests();
+  const productsQuery = useProducts();
+  const instrumentalQuery = useInstrumentalDataset(user?.role === 'admin');
+  const settingsQuery = useWorkspaceSettings();
+  const decisionsQuery = useDecisionRecords();
+  const conceptsQuery = useAdminConceptTests();
+  const { data: products = [] } = productsQuery;
+  const { data: instrumentalDataset } = instrumentalQuery;
+  const { data: settings } = settingsQuery;
+  const { data: decisions = [] } = decisionsQuery;
+  const { data: conceptTests = [] } = conceptsQuery;
+  const surveyData = useSurveyData();
   const {
     liveDataFetchFailed, multiSampleResponses, selectedMultiProduct,
     setSelectedMultiProduct, liveAggregations, commentsByProduct,
-  } = useSurveyData();
+  } = surveyData;
   const [requestedSample, setRequestedSample] = useState('');
 
   const minimumResponses = settings?.decisionMinResponses ?? 12;
@@ -141,7 +150,8 @@ export function SurveyAnalysis() {
   const selectedProjectId = routeScope?.projectId
     ?? (primaryBatchId ? importBatches.find(batch => batch.id === primaryBatchId)?.projectId ?? null : null);
   const effectiveProjectId = routeProjectId ?? selectedProjectId ?? undefined;
-  const { data: formulationExperiments = [] } = useFormulationExperiments(effectiveProjectId);
+  const formulationExperimentsQuery = useFormulationExperiments(effectiveProjectId);
+  const { data: formulationExperiments = [] } = formulationExperimentsQuery;
   const projectProducts = useMemo(
     () => filterProjectProducts(products, projectSampleIds, scopedFoodType, primaryBatchId, selectedProjectId),
     [products, projectSampleIds, scopedFoodType, primaryBatchId, selectedProjectId],
@@ -243,6 +253,31 @@ export function SurveyAnalysis() {
   });
   if (user?.role !== 'admin') return null;
 
+  const evidenceQueries = [
+    batchesQuery,
+    projectsQuery,
+    productsQuery,
+    instrumentalQuery,
+    settingsQuery,
+    decisionsQuery,
+    conceptsQuery,
+    formulationExperimentsQuery,
+  ];
+  if (evidenceQueries.some(query => query.isLoading) || surveyData.isLoading) {
+    return <WorkflowLoadingState title="Loading project insights" />;
+  }
+  if (evidenceQueries.some(query => query.isError) || liveDataFetchFailed) {
+    return (
+      <WorkflowQueryErrorState
+        projectName={routeScope?.projectName ?? 'the selected project'}
+        checked="machine samples, studies, panel responses, concepts, and saved decisions"
+        onRetry={() => {
+          evidenceQueries.forEach(query => void query.refetch());
+        }}
+      />
+    );
+  }
+
   if (!selectedData) {
     const activeLabel = scopedFoodType === 'all' ? 'selected food types' : formatFoodTypeLabel(scopedFoodType);
 
@@ -274,15 +309,15 @@ export function SurveyAnalysis() {
             minimumResponses={minimumResponses}
             actions={awaitingResponses ? (
               <Button asChild>
-                <Link to="/admin">Go to Studies</Link>
+                <Link to={effectiveProjectId ? projectPath(effectiveProjectId, 'studies') : '/admin'}>Go to Studies</Link>
               </Button>
             ) : (
               <>
                 <Button asChild>
-                  <Link to="/stage1">Create questionnaires</Link>
+                  <Link to={effectiveProjectId ? projectPath(effectiveProjectId, 'studies') : '/admin'}>Create questionnaires</Link>
                 </Button>
                 <Button asChild variant="outline">
-                  <Link to="/admin">Review questionnaire setup</Link>
+                  <Link to={effectiveProjectId ? projectPath(effectiveProjectId, 'studies') : '/admin'}>Review questionnaire setup</Link>
                 </Button>
               </>
             )}
@@ -301,8 +336,8 @@ export function SurveyAnalysis() {
           icon={BarChart3}
           headline={`No analyzable samples for ${activeLabel}`}
           body="This project does not have panel or reference evidence available to interpret yet."
-          cta={{ label: 'Open project overview', to: '/project' }}
-          secondaryCta={{ label: 'Open Studies', to: '/admin' }}
+          cta={{ label: 'Open project overview', to: effectiveProjectId ? projectPath(effectiveProjectId) : '/' }}
+          secondaryCta={{ label: 'Open Studies', to: effectiveProjectId ? projectPath(effectiveProjectId, 'studies') : '/admin' }}
         />
       </div>
     );

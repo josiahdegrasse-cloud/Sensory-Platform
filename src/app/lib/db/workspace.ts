@@ -125,6 +125,15 @@ export interface WorkspaceOperationalHealth {
   warnings: string[];
 }
 
+export interface PrototypeLineageIssue {
+  entityType: string;
+  entityId: string;
+  projectId: string | null;
+  sampleKey: string | null;
+  reason: string;
+  createdAt: string | null;
+}
+
 export interface AuditEventRecord {
   id: string;
   actorId: string | null;
@@ -360,6 +369,24 @@ export async function fetchWorkspaceOperationalHealth(): Promise<WorkspaceOperat
   };
 }
 
+/** Read-only review queue. Historical scientific records are never guessed or mutated automatically. */
+export async function fetchPrototypeLineageIssues(): Promise<PrototypeLineageIssue[]> {
+  const { data, error } = await supabase
+    .from('prototype_lineage_reconciliation')
+    .select('entity_type, entity_id, project_id, sample_key, reason, created_at')
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (error) throw dbError(error);
+  return (data ?? []).flatMap(row => row.entity_id && row.entity_type && row.reason ? [{
+    entityType: row.entity_type,
+    entityId: row.entity_id,
+    projectId: row.project_id,
+    sampleKey: row.sample_key,
+    reason: row.reason,
+    createdAt: row.created_at,
+  }] : []);
+}
+
 // Pre-login config for the (eventually branded) login page. `orgSlug` resolves a
 // tenant by subdomain; with none it returns platform defaults.
 export async function fetchPublicWorkspaceConfig(orgSlug?: string): Promise<PublicWorkspaceConfig> {
@@ -370,6 +397,7 @@ export async function fetchPublicWorkspaceConfig(orgSlug?: string): Promise<Publ
   });
   if (error) {
     if (/get_public_workspace_config|schema cache|does not exist/i.test(error.message ?? '')) {
+      if (orgSlug) throw dbError(error);
       return { workspaceName: 'Sensory Analysis Workspace', allowSelfSignup: true };
     }
     throw dbError(error);

@@ -9,6 +9,10 @@ const hasSentryUpload = Boolean(
   && process.env.SENTRY_ORG
   && process.env.SENTRY_PROJECT
 )
+const releaseId = process.env.VITE_APP_VERSION
+  || process.env.VERCEL_GIT_COMMIT_SHA
+  || process.env.GITHUB_SHA
+  || 'local'
 
 function figmaAssetResolver() {
   return {
@@ -33,6 +37,7 @@ export default defineConfig({
       ? [sentryVitePlugin({
           org: process.env.SENTRY_ORG,
           project: process.env.SENTRY_PROJECT,
+          release: { name: releaseId },
           sourcemaps: {
             filesToDeleteAfterUpload: ['./dist/**/*.map'],
           },
@@ -44,6 +49,10 @@ export default defineConfig({
       // Alias @ to the src directory
       '@': path.resolve(__dirname, './src'),
     },
+  },
+
+  define: {
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(releaseId),
   },
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
@@ -77,11 +86,12 @@ export default defineConfig({
             ) return 'vendor-ui'
             if (id.includes('recharts')) return 'vendor-charts'
             if (id.includes('@radix-ui')) return 'vendor-ui'
-            if (
-              id.includes('/react/') ||
-              id.includes('/react-dom/') ||
-              id.includes('/react-router/')
-            ) return 'vendor-react'
+            // Match package directory segments exactly. A broad `/react/`
+            // substring also captures `@sentry/react` on clean CI installs,
+            // inflating the initial vendor chunk only in production.
+            if (/\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?(?:react|react-dom|react-router|react-router-dom|scheduler)\//.test(id)) {
+              return 'vendor-react'
+            }
           }
         },
       },

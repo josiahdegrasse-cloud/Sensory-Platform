@@ -15,25 +15,28 @@ type GateStatus = DecisionGate['status'];
 
 const OUTCOME_STYLE = {
   GO: {
-    surface: 'border-emerald-200 bg-emerald-50',
+    surface: 'border-slate-200 bg-white',
     badge: 'bg-emerald-700 text-white',
-    text: 'text-emerald-950',
   },
   TWEAK: {
-    surface: 'border-amber-200 bg-amber-50',
+    surface: 'border-slate-200 bg-white',
     badge: 'bg-amber-600 text-white',
-    text: 'text-amber-950',
   },
   STOP: {
-    surface: 'border-rose-200 bg-rose-50',
+    surface: 'border-slate-200 bg-white',
     badge: 'bg-rose-700 text-white',
-    text: 'text-rose-950',
   },
 };
 
 // Prototype list order: strongest launch candidates first (GO → TWEAK → STOP),
 // matching the STOP < TWEAK < GO decision scale; ties break on ISSF score.
 const DECISION_RANK: Record<GoStopTweakDecision['decision'], number> = { GO: 0, TWEAK: 1, STOP: 2 };
+
+export function orderDecisionsForReview(decisions: GoStopTweakDecision[]) {
+  return [...decisions].sort(
+    (a, b) => DECISION_RANK[a.decision] - DECISION_RANK[b.decision] || b.issfScore - a.issfScore,
+  );
+}
 
 const STATUS_STYLE: Record<GateStatus, string> = {
   pass: 'bg-emerald-50 text-emerald-700',
@@ -156,7 +159,7 @@ function ThresholdTrack({ score, stopThreshold, goThreshold }: {
   return (
     <div aria-label={`ISSF score ${score.toFixed(1)} out of 100. ${distance}.`}>
       <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Decision threshold</p>
+        <p className="text-xs font-semibold text-slate-600">Decision threshold</p>
         <p className="text-xs font-semibold text-slate-700">{distance}</p>
       </div>
       <div className="relative pt-2">
@@ -199,9 +202,7 @@ export function DecisionReviewWorkspace({
   onConfirm: () => void;
 }) {
   const orderedDecisions = useMemo(
-    () => [...decisions].sort(
-      (a, b) => DECISION_RANK[a.decision] - DECISION_RANK[b.decision] || b.issfScore - a.issfScore,
-    ),
+    () => orderDecisionsForReview(decisions),
     [decisions],
   );
   const summary = buildDecisionSummary(selected);
@@ -305,20 +306,19 @@ export function DecisionReviewWorkspace({
         </ProductListPanel>
       </aside>
 
-      <article className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <header className={`border-b px-4 py-3 ${outcomeStyle.surface}`}>
+      <article className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <header className={`border-b px-5 py-4 ${outcomeStyle.surface}`}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge className={outcomeStyle.badge}>{selected.decision}</Badge>
-                <span className="text-xs font-semibold text-slate-700">{summary.confidence} screening evidence</span>
+                <span className="text-xs text-slate-600">{summary.confidence} screening evidence · {scoreBand} band</span>
                 {selected.decisionStatus === 'hold' && (
                   <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800">
                     <AlertTriangle className="size-3.5" aria-hidden />
                     Evidence hold
                   </span>
                 )}
-                <span className="text-xs font-semibold text-slate-700">{scoreBand} score band</span>
                 {hardStopGate && (
                   <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-700">
                     <AlertTriangle className="size-3.5" aria-hidden />
@@ -332,8 +332,8 @@ export function DecisionReviewWorkspace({
                   </span>
                 )}
               </div>
-              <h2 className={`mt-1 text-base font-bold sm:text-lg ${outcomeStyle.text}`}>{selected.sampleName}</h2>
-              <p className="mt-0.5 max-w-3xl text-sm leading-5 text-slate-700">{selected.recommendation}</p>
+              <h2 className="mt-2 text-lg font-semibold text-slate-950">{selected.sampleName}</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-700">{selected.recommendation}</p>
             </div>
             <div className="shrink-0 text-left sm:text-right">
               <p className="text-xs font-medium text-slate-500">ISSF score</p>
@@ -352,8 +352,8 @@ export function DecisionReviewWorkspace({
             </div>
           )}
 
-          <section aria-labelledby="decision-evidence-heading" className="rounded-lg border border-slate-200 bg-white">
-            <div className="border-b border-slate-100 px-3 py-2.5">
+          <section aria-labelledby="decision-evidence-heading" className="border-y border-slate-200 bg-white">
+            <div className="border-b border-slate-100 py-3">
               <h3 id="decision-evidence-heading" className="text-sm font-semibold text-slate-900">Decision evidence details</h3>
               <p className="mt-0.5 text-xs text-slate-500">Acceptance, texture, category fit, defects, confidence, and decision gap.</p>
             </div>
@@ -363,7 +363,7 @@ export function DecisionReviewWorkspace({
                 return (
                   <div
                     key={criterion.id}
-                    className={`flex gap-2.5 px-3 py-2.5 ${index > 1 ? 'md:border-t md:border-slate-100' : ''}`}
+                    className={`flex gap-2.5 py-3 ${index % 2 === 0 ? 'md:pr-4' : 'md:pl-4'} ${index > 1 ? 'md:border-t md:border-slate-100' : ''}`}
                   >
                     <span className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full ${STATUS_STYLE[criterion.status]}`}>
                       <Icon className="size-3" aria-hidden />

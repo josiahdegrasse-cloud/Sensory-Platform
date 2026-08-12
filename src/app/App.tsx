@@ -7,11 +7,20 @@ import { LoginPage } from "./components/login-page.tsx";
 import { SignupPage } from "./components/signup-page.tsx";
 import { ResetPasswordPage } from "./components/reset-password-page.tsx";
 import { PendingAdminAccessPage } from "./components/pending-admin-access-page.tsx";
+import { PublicWorkspaceError } from "./components/public-workspace-error.tsx";
 import { usePublicWorkspaceConfig } from "./lib/hooks.ts";
+import { getTenantSlug } from "./lib/tenant.ts";
 
 function AppContent() {
   const { isAuthenticated, isPasswordRecovery, loading, user } = useAuth();
-  const { data: workspaceConfig, isLoading: workspaceConfigLoading } = usePublicWorkspaceConfig();
+  const {
+    data: workspaceConfig,
+    error: workspaceConfigError,
+    isFetching: workspaceConfigFetching,
+    isLoading: workspaceConfigLoading,
+    refetch: refetchWorkspaceConfig,
+  } = usePublicWorkspaceConfig();
+  const tenantSlug = getTenantSlug();
   const [showSignup, setShowSignup] = useState(false);
   const isPublicLegalRoute = ['/privacy', '/terms', '/panelist-consent'].includes(window.location.pathname);
   const isPublicKitRoute = window.location.pathname === '/join' || window.location.pathname.startsWith('/join/');
@@ -36,6 +45,16 @@ function AppContent() {
   if (isPasswordRecovery) return <ResetPasswordPage branding={publicBranding} />;
 
   if (isPublicLegalRoute || isPublicKitRoute) return <RouterProvider router={router} />;
+
+  if (!isAuthenticated && tenantSlug && workspaceConfigError) {
+    return (
+      <PublicWorkspaceError
+        workspaceSlug={tenantSlug}
+        retrying={workspaceConfigFetching}
+        onRetry={() => { void refetchWorkspaceConfig(); }}
+      />
+    );
+  }
 
   if (!isAuthenticated) {
     if (showSignup && allowSelfSignup) {
