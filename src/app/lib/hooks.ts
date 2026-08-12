@@ -45,7 +45,7 @@ import {
 } from './database'
 import type { TrainingLevel } from '../utils/panelist-metrics'
 import type { Product } from './study-types'
-import { fetchLiteratureImports, uploadLiteratureBatch } from './literature-imports'
+import { fetchLiteratureImports, uploadLiteratureBatch, type LiteratureUploadProgressHandler } from './literature-imports'
 import { getTenantSlug } from './tenant'
 import { buildEvidenceBundle } from './report-evidence-source'
 import {
@@ -397,7 +397,7 @@ export function useLiteratureImports() {
 export function useUploadLiterature() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (file: File) => uploadLiteratureBatch(file),
+    mutationFn: ({ file, onProgress }: { file: File; onProgress?: LiteratureUploadProgressHandler }) => uploadLiteratureBatch(file, onProgress),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.literatureImports })
       qc.invalidateQueries({ queryKey: queryKeys.libraryDocuments })

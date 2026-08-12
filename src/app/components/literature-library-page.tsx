@@ -4,7 +4,7 @@ import { Link } from 'react-router';
 import type { LibraryDocument } from '../lib/nfi-library';
 import { openSourceViewer } from '../lib/tweak-intelligence';
 import { useLibraryDocuments, useLibraryStatus, useLiteratureImports, useReviewLibraryDocument, useReviewLibraryDocuments, useUploadLiterature } from '../lib/hooks';
-import { openStoredLiteratureSource } from '../lib/literature-imports';
+import { openStoredLiteratureSource, type LiteratureUploadProgress } from '../lib/literature-imports';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
@@ -62,6 +62,7 @@ export function LiteratureLibraryPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [manageOpen, setManageOpen] = useState(true);
   const [dragActive, setDragActive] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<LiteratureUploadProgress | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const status = useLibraryStatus();
   const documents = useLibraryDocuments();
@@ -105,7 +106,7 @@ export function LiteratureLibraryPage() {
     }, { onSuccess: () => setSelected(new Set()) });
   };
   const selectPublication = (file?: File) => {
-    if (file && !upload.isPending) upload.mutate(file);
+    if (file && !upload.isPending) upload.mutate({ file, onProgress: setUploadProgress });
   };
   const openPublicationPicker = () => {
     const input = fileInputRef.current;
@@ -146,6 +147,7 @@ export function LiteratureLibraryPage() {
           <Button type="button" size="sm" disabled={upload.isPending} onClick={openPublicationPicker}>{upload.isPending ? 'Processing batch…' : 'Browse files'}</Button>
           <input ref={fileInputRef} type="file" accept="application/pdf,.pdf,application/zip,.zip" className="sr-only" disabled={upload.isPending} aria-label="Choose PDF or ZIP publications" onChange={event => { selectPublication(event.target.files?.[0]); event.currentTarget.value = ''; }} />
         </div>
+        {uploadProgress && <UploadProgressPanel progress={uploadProgress} active={upload.isPending} />}
         {upload.isError && <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">{upload.error instanceof Error ? upload.error.message : 'The publication batch could not be processed.'}</p>}
         {upload.isSuccess && <div className={`rounded-lg border px-3 py-2 text-xs ${upload.data.failed > 0 ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}><p className="font-medium">{upload.data.indexed} of {upload.data.total} publication{upload.data.total === 1 ? '' : 's'} indexed for review.</p>{upload.data.failed > 0 && <ul className="mt-1 list-disc pl-4">{upload.data.failures.slice(0, 5).map(item => <li key={`${item.fileName}-${item.message}`}>{item.fileName}: {item.message}</li>)}{upload.data.failures.length > 5 && <li>{upload.data.failures.length - 5} more failures are recorded in Recent uploads.</li>}</ul>}</div>}
         {(imports.data?.length ?? 0) > 0 && <div className="overflow-hidden rounded-lg border border-slate-200"><div className="bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">Recent uploads</div><ol className="divide-y divide-slate-200">{imports.data!.slice(0, 8).map(item => <li key={item.id} className="flex items-start justify-between gap-3 px-3 py-2"><div className="min-w-0"><p className="truncate text-sm font-medium text-slate-900">{item.title || item.file_name}</p><p className="mt-0.5 text-xs text-slate-600">{item.status}{item.source_quality_score != null ? ` · quality ${item.source_quality_score}/100` : ''}{item.publication_year ? ` · ${item.publication_year}` : ''}{item.doi ? ` · DOI ${item.doi}` : ''}</p>{item.error_message && <p className="mt-1 text-xs text-rose-700">{item.error_message}</p>}</div><FileCheck2 className={`mt-0.5 size-4 shrink-0 ${item.status === 'indexed' ? 'text-emerald-700' : item.status === 'failed' ? 'text-rose-700' : 'text-amber-700'}`} /></li>)}</ol></div>}
@@ -203,3 +205,13 @@ function ReviewControls({ document }: { document: LibraryDocument }) {
 }
 
 function Metric({ label, value }: { label: string; value: number | string }) { return <div className="rounded-lg bg-slate-50 px-3 py-2"><p className="text-xs font-medium text-slate-600">{label}</p><p className="mt-1 text-lg font-semibold text-slate-900">{value}</p></div>; }
+
+function UploadProgressPanel({ progress, active }: { progress: LiteratureUploadProgress; active: boolean }) {
+  const percent = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 5;
+  const stageLabel = progress.stage === 'preparing' ? 'Preparing' : progress.stage === 'checking' ? 'Checking' : progress.stage === 'uploading' ? 'Uploading' : progress.stage === 'indexing' ? 'Indexing' : progress.stage === 'failed' ? 'Failed' : 'Complete';
+  return <section aria-label="Publication upload progress" aria-live="polite" className="rounded-lg border border-slate-300 bg-white p-4">
+    <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="text-sm font-semibold text-slate-900">{stageLabel}: <span className="font-medium">{progress.currentFile}</span></p><p className="mt-1 text-xs text-slate-600">{progress.message}</p></div><p className="text-xs font-medium text-slate-700">{progress.total > 0 ? `${progress.completed}/${progress.total} finished` : 'Reading files'}{progress.failed > 0 ? ` · ${progress.failed} failed` : ''}</p></div>
+    <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-label="Overall upload progress"><div className={`h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none ${progress.stage === 'complete' ? 'bg-emerald-600' : 'bg-slate-900'}`} style={{ width: `${percent}%` }} /></div>
+    <p className="mt-2 text-xs text-slate-600">{active ? 'Keep this page open while the batch is being processed. Completed papers are saved even if a later paper fails.' : 'Processing finished. New papers are now in the review queue.'}</p>
+  </section>;
+}

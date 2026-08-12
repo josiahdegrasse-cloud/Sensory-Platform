@@ -1,6 +1,7 @@
 import { zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
-import { extractLiteratureFiles } from './literature-imports';
+import { extractLiteratureFiles, uploadLiteratureBatch } from './literature-imports';
+import { vi } from 'vitest';
 
 function archive(entries: Record<string, Uint8Array>) {
   return new File([new Uint8Array(zipSync(entries)).buffer], 'papers.zip', { type: 'application/zip' });
@@ -26,5 +27,14 @@ describe('extractLiteratureFiles', () => {
   it('keeps a direct PDF unchanged', async () => {
     const pdf = new File([new Uint8Array([37, 80, 68, 70])], 'paper.pdf', { type: 'application/pdf' });
     await expect(extractLiteratureFiles(pdf)).resolves.toEqual([pdf]);
+  });
+});
+
+describe('upload progress', () => {
+  it('reports preparation before an invalid archive fails', async () => {
+    const onProgress = vi.fn();
+    await expect(uploadLiteratureBatch(archive({ 'readme.txt': new Uint8Array([1]) }), onProgress))
+      .rejects.toThrow('does not contain any PDF');
+    expect(onProgress).toHaveBeenCalledWith(expect.objectContaining({ stage: 'preparing', currentFile: 'papers.zip' }));
   });
 });

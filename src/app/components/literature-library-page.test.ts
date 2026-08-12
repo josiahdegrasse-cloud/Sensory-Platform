@@ -41,5 +41,7 @@ describe('publication picker', () => {
     expect(source).toContain("input.showPicker()");
     expect(source).toContain('onDrop={dropPublication}');
     expect(source).toContain('Browse files');
+    expect(source).toContain('Publication upload progress');
+    expect(source).toContain('Keep this page open');
   });
 });
