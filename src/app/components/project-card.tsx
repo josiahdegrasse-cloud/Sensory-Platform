@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { ArrowRight, AlertTriangle, Check, Pencil, X } from 'lucide-react';
+import { ArrowRight, Check, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -8,6 +8,7 @@ import { ProjectStatusBadge } from './project-status-badge';
 import { ProjectWorkflowPath } from './project-workflow-path';
 import { useRenameProject, useUpdateImportBatchName } from '../lib/hooks';
 import type { ProjectStatusSummary } from '../lib/project-status';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
 
 interface ProjectCardProps {
   projectId: string;
@@ -15,16 +16,17 @@ interface ProjectCardProps {
    *  project's name; without it, renames fall back to the import batch name. */
   realProjectId?: string | null;
   status: ProjectStatusSummary;
-  /** Command Center path for this project; the card title links to it. */
+  /** Data-page path used by the explicit "Open project" action. */
   projectPath?: string;
   onOpen?: () => void;
+  onDeleteRequest?: () => void;
 }
 
 /**
  * Action-oriented summary of a single project / import batch. Answers:
  * what is this, where is it in the workflow, what needs attention, what's next.
  */
-export function ProjectCard({ projectId, realProjectId, status, projectPath, onOpen }: ProjectCardProps) {
+export function ProjectCard({ projectId, realProjectId, status, projectPath, onOpen, onDeleteRequest }: ProjectCardProps) {
   const updateName = useUpdateImportBatchName();
   const renameProjectMutation = useRenameProject();
   const isRenaming = updateName.isPending || renameProjectMutation.isPending;
@@ -139,6 +141,21 @@ export function ProjectCard({ projectId, realProjectId, status, projectPath, onO
                 Open project
               </Link>
             )}
+            {onDeleteRequest && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" size="icon" variant="ghost" aria-label={`More actions for ${status.projectName}`}>
+                    <MoreHorizontal className="size-4" aria-hidden />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem variant="destructive" onSelect={onDeleteRequest}>
+                    <Trash2 className="size-4" aria-hidden />
+                    Delete project
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
 
@@ -167,22 +184,10 @@ export function ProjectCard({ projectId, realProjectId, status, projectPath, onO
           </section>
         </div>
 
-        {status.warnings.length > 0 && (
-          <div className="space-y-1">
-            {status.warnings.map(warning => (
-              <div key={warning} className="flex items-start gap-1.5 text-xs text-amber-700">
-                <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
-                <span>{warning}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
         <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-semibold text-slate-500">Next step</p>
             <p className="mt-0.5 text-sm font-semibold text-slate-900">{status.nextAction.label}</p>
-            <p className="mt-0.5 text-xs leading-5 text-slate-700">{status.nextAction.description}</p>
           </div>
           <Link
             to={status.nextAction.path}

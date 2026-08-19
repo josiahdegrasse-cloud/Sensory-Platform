@@ -80,27 +80,111 @@ export async function ragFetch(path: string, init: RagRequestInit = {}): Promise
   }
 }
 
-/** Open an authenticated source document without placing credentials in a URL. */
-export async function openRagSource(input: {
+type ResearchSourceInput = {
   sourcePath: string;
   title: string;
   excerpt?: string;
-}): Promise<void> {
-  const opened = window.open('about:blank', '_blank');
-  if (opened) opened.opener = null;
+};
+
+class ArticleViewerError extends Error {
+  constructor(readonly status: number) {
+    super(`Article viewer unavailable (${status}).`);
+  }
+}
+
+async function loadIndexedSource(input: ResearchSourceInput, opened: Window | null) {
   const params = new URLSearchParams({ source_path: input.sourcePath, title: input.title });
   if (input.excerpt) params.set('excerpt', input.excerpt);
-  let response: Response;
-  try {
-    response = await ragFetch(`/source?${params.toString()}`, { headers: { Accept: 'text/html' } });
-    if (!response.ok) throw new Error(`Source viewer unavailable (${response.status}).`);
-  } catch (error) {
-    opened?.close();
-    throw error;
-  }
-
+  const response = await ragFetch(`/source?${params.toString()}`, { headers: { Accept: 'text/html' } });
+  if (!response.ok) throw new ArticleViewerError(response.status);
   const objectUrl = URL.createObjectURL(new Blob([await response.text()], { type: 'text/html' }));
   if (opened) opened.location.href = objectUrl;
   else window.open(objectUrl, '_blank', 'noopener,noreferrer');
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+}
+
+/** Open an authenticated source document without placing credentials in a URL. */
+export async function openRagSource(input: ResearchSourceInput): Promise<void> {
+  if (!input.sourcePath.trim()) throw new Error('This article does not have a saved source location.');
+  const opened = window.open('about:blank', '_blank');
+  if (opened) opened.opener = null;
+  try {
+    await loadIndexedSource(input, opened);
+  } catch (error) {
+    opened?.close();
+    throw error;
+  }
+}
+
+function normalizedSourceTitle(value: string) {
+  return value
+    .toLowerCase()
+    .split(/[\\/]/)
+    .pop()
+    ?.replace(/\.(?:pdf|docx?|txt)$/i, '')
+    .replace(/\s*\(\d+\)\s*$/, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim() ?? '';
+}
+
+async function resolveSourcePathByTitle(input: ResearchSourceInput) {
+  const response = await ragFetch('/api/library/documents');
+  if (!response.ok) throw new Error(`Article library unavailable (${response.status}).`);
+  const payload = await response.json() as {
+    documents?: Array<{ title?: string; filename?: string; corpusPath?: string; originalPath?: string }>;
+  };
+  const target = normalizedSourceTitle(input.title);
+  const match = (payload.documents ?? []).find(document => {
+    const candidates = [document.title, document.filename].filter((value): value is string => Boolean(value));
+    return candidates.some(value => {
+      const candidate = normalizedSourceTitle(value);
+      return candidate === target
+        || (candidate.length >= 8 && target.length >= 8
+          && (candidate.includes(target) || target.includes(candidate)));
+    });
+  });
+  const resolved = match?.corpusPath || match?.originalPath || '';
+  if (!resolved) throw new Error('The approved article is no longer linked to a source file.');
+  return resolved;
+}
+
+async function resolveLegacySourcePath(input: ResearchSourceInput) {
+  if (!/^(?:approved nfi literature library|verified local|verified literature|literature source)/i.test(input.sourcePath)) {
+    return input.sourcePath;
+  }
+  return resolveSourcePathByTitle(input);
+}
+
+async function openResolvedResearchSource(input: ResearchSourceInput, opened: Window | null) {
+  const storagePrefix = 'supabase://literature-imports/';
+  if (!input.sourcePath.startsWith(storagePrefix)) {
+    await loadIndexedSource(input, opened);
+    return;
+  }
+  const storagePath = input.sourcePath.slice(storagePrefix.length);
+  const { data, error } = await supabase.storage.from('literature-imports').createSignedUrl(storagePath, 300);
+  if (error) throw error;
+  if (opened) opened.location.href = data.signedUrl;
+  else window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+}
+
+/** Opens either an uploaded publication or an indexed library source. */
+export async function openResearchSource(input: ResearchSourceInput): Promise<void> {
+  if (!input.sourcePath.trim()) throw new Error('This article does not have a saved source location.');
+  const opened = window.open('about:blank', '_blank');
+  if (opened) opened.opener = null;
+  try {
+    const sourcePath = await resolveLegacySourcePath(input);
+    try {
+      await openResolvedResearchSource({ ...input, sourcePath }, opened);
+    } catch (error) {
+      if (!(error instanceof ArticleViewerError) || ![404, 410].includes(error.status)) throw error;
+      const repairedPath = await resolveSourcePathByTitle(input);
+      if (repairedPath === sourcePath) throw error;
+      await openResolvedResearchSource({ ...input, sourcePath: repairedPath }, opened);
+    }
+  } catch (error) {
+    opened?.close();
+    throw error;
+  }
 }

@@ -39,6 +39,9 @@ const StudiesWorkspace = lazy(() => import('./studies-workspace').then(module =>
 const ShipOutsWorkspace = lazy(() => import('./ship-outs-workspace').then(module => ({
   default: module.ShipOutsWorkspace,
 })));
+const PanelistsWorkspace = lazy(() => import('./panelists-workspace').then(module => ({
+  default: module.PanelistsWorkspace,
+})));
 const SurveyAnalysis = lazy(() => import('./survey-analysis').then(module => ({
   default: module.SurveyAnalysis,
 })));
@@ -59,7 +62,11 @@ function ProjectStepContent({ step, substep }: { step: ProjectJourneyStep; subst
     case 'data':
       return <Stage1Instrumental />;
     case 'studies':
-      return substep === 'ship-outs' ? <ShipOutsWorkspace /> : <StudiesWorkspace />;
+      return substep === 'ship-outs'
+        ? <ShipOutsWorkspace />
+        : substep === 'panelists'
+          ? <PanelistsWorkspace />
+          : <StudiesWorkspace />;
     case 'insights':
       return <SurveyAnalysis />;
     case 'decision':
@@ -93,7 +100,7 @@ export function ProjectWorkflowRoute() {
   if (
     substep
     && !(
-      (journeyStep === 'studies' && substep === 'ship-outs')
+      (journeyStep === 'studies' && (substep === 'ship-outs' || substep === 'panelists'))
       || (journeyStep === 'decision' && substep === 'experiments')
     )
   ) {

@@ -1,0 +1,267 @@
+{"kind":"deck","id":"pr/40n1ac","name":"Deck"}
+{"kind":"layout","layoutId":"/ppt/slideMasters/slideMaster1.xml","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout1.xml","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/y90nupkv","slide":1,"title":"Taste Intelligence","textShapes":5}
+{"kind":"textbox","id":"sh/547294r6","slide":1,"text":"Taste Intelligence","textPreview":"Taste Intelligence","textChars":18,"textLines":1,"bbox":[56,52,540,42]}
+{"kind":"textbox","id":"sh/k3yl0zql","slide":1,"text":"From product evidence\nto a defensible decision.","textPreview":"From product evidence | to a defensible decision.","textChars":47,"textLines":2,"bbox":[56,170,570,190]}
+{"kind":"textbox","id":"sh/7qp4be9c","slide":1,"text":"A connected sensory and consumer science workspace for food development teams.","textPreview":"A connected sensory and consumer science workspace for food development teams.","textChars":78,"textLines":1,"bbox":[56,394,535,88]}
+{"kind":"shape","id":"sh/65g3298r","slide":1,"bbox":[56,526,170,6]}
+{"kind":"textbox","id":"sh/ts7md4r2","slide":1,"text":"Built by New Food Innovation","textPreview":"Built by New Food Innovation","textChars":28,"textLines":1,"bbox":[56,554,480,30]}
+{"kind":"textbox","id":"sh/sryl4zqx","slide":1,"text":"tasteintelligence.co.uk","textPreview":"tasteintelligence.co.uk","textChars":23,"textLines":1,"bbox":[56,644,420,26]}
+{"kind":"image","id":"im/6lgjadw3","slide":1,"name":"","geometry":"roundRect","bbox":[668,40,572,592]}
+{"kind":"notes","id":"nt/y90nupkv","slide":1,"text":"Open with the business outcome: better food-development decisions backed by connected evidence. Avoid beginning with a feature tour.\n\n[Sources]\n- Internal product positioning and implemented Sensory Platform workflow.\n- Hero image generated for this deck on 2026-08-19.\n[/Sources]"}
+{"kind":"slide","id":"sl/hwbqtkby","slide":2,"title":"Why this matters","textShapes":15}
+{"kind":"textbox","id":"sh/s72xofmh","slide":2,"text":"Why this matters","textPreview":"Why this matters","textChars":16,"textLines":1,"bbox":[56,38,660,24]}
+{"kind":"textbox","id":"sh/9072xkry","slide":2,"text":"Good evidence loses value when the workflow is fragmented","textPreview":"Good evidence loses value when the workflow is fragmented","textChars":57,"textLines":1,"bbox":[56,68,1168,68]}
+{"kind":"shape","id":"sh/ozy1ofad","slide":2,"bbox":[56,146,1168,1.5]}
+{"kind":"textbox","id":"sh/b29kza94","slide":2,"text":"A product decision may depend on four different evidence streams—yet they are often reviewed in separate files, systems and meetings.","textPreview":"A product decision may depend on four different evidence streams—yet they are often reviewed in separate files, systems and meetings.","textChars":133,"textLines":1,"bbox":[56,184,520,132]}
+{"kind":"textbox","id":"sh/a10jqpsj","slide":2,"text":"The consequence is not simply administration. Teams can lose sample lineage, repeat work, overstate weak findings, or struggle to explain why a product advanced.","textPreview":"The consequence is not simply administration. Teams can lose sample lineage, repeat work, overstate weak findings, or struggle to explain...","textChars":161,"textLines":1,"bbox":[56,346,520,140]}
+{"kind":"textbox","id":"sh/x4r21kru","slide":2,"text":"Technical","textPreview":"Technical","textChars":9,"textLines":1,"bbox":[690,184,180,31]}
+{"kind":"textbox","id":"sh/w3i1sfa9","slide":2,"text":"Instrumental, composition and formulation data","textPreview":"Instrumental, composition and formulation data","textChars":46,"textLines":1,"bbox":[878,186,330,52]}
+{"kind":"shape","id":"sh/r65knqtk","slide":2,"bbox":[690,253,518,1]}
+{"kind":"textbox","id":"sh/q5wjelsz","slide":2,"text":"Sensory","textPreview":"Sensory","textChars":7,"textLines":1,"bbox":[690,275,180,31]}
+{"kind":"textbox","id":"sh/ove9o7yd","slide":2,"text":"Attributes, intensity, liking and open response","textPreview":"Attributes, intensity, liking and open response","textChars":47,"textLines":1,"bbox":[878,277,330,52]}
+{"kind":"shape","id":"sh/9wnqhczy","slide":2,"bbox":[690,344,518,1]}
+{"kind":"textbox","id":"sh/mtwrmxg7","slide":2,"text":"Consumer","textPreview":"Consumer","textChars":8,"textLines":1,"bbox":[690,366,180,31]}
+{"kind":"textbox","id":"sh/nu58f2hs","slide":2,"text":"Concept, usage, price and purchase feedback","textPreview":"Concept, usage, price and purchase feedback","textChars":43,"textLines":1,"bbox":[878,368,330,52]}
+{"kind":"shape","id":"sh/wjy9sry9","slide":2,"bbox":[690,435,518,1]}
+{"kind":"textbox","id":"sh/xk7qlczu","slide":2,"text":"Commercial","textPreview":"Commercial","textChars":10,"textLines":1,"bbox":[690,457,180,31]}
+{"kind":"textbox","id":"sh/ahwrqhgj","slide":2,"text":"GO, TWEAK or STOP—and the evidence behind it","textPreview":"GO, TWEAK or STOP—and the evidence behind it","textChars":44,"textLines":1,"bbox":[878,459,330,52]}
+{"kind":"shape","id":"sh/bip8jmho","slide":2,"bbox":[56,548,1152,76]}
+{"kind":"textbox","id":"sh/cnupgny5","slide":2,"text":"Taste Intelligence keeps the evidence, the decision and the next action connected.","textPreview":"Taste Intelligence keeps the evidence, the decision and the next action connected.","textChars":82,"textLines":1,"bbox":[82,570,1100,34]}
+{"kind":"textbox","id":"sh/do3q9szq","slide":2,"text":"Taste Intelligence · NFI sensory and consumer science hub","textPreview":"Taste Intelligence · NFI sensory and consumer science hub","textChars":57,"textLines":1,"bbox":[56,676,760,18]}
+{"kind":"textbox","id":"sh/t8byxkn2","slide":2,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[1178,676,44,18]}
+{"kind":"notes","id":"nt/hwbqtkby","slide":2,"text":"Use examples the audience recognizes: lab files, survey tools, analysis spreadsheets and separate presentation decks. This is a workflow diagnosis, not a claim that every customer has identical problems.\n\n[Sources]\n- Internal workflow analysis; no external market statistic is asserted.\n[/Sources]"}
+{"kind":"slide","id":"sl/ofy9wn61","slide":3,"title":"Inside the platform","textShapes":11}
+{"kind":"textbox","id":"sh/e10f2twf","slide":3,"text":"Inside the platform","textPreview":"Inside the platform","textChars":19,"textLines":1,"bbox":[56,38,660,24]}
+{"kind":"textbox","id":"sh/cza94vmx","slide":3,"text":"One workspace shows where the project is—and what happens next","textPreview":"One workspace shows where the project is—and what happens next","textChars":62,"textLines":1,"bbox":[56,68,1168,68]}
+{"kind":"shape","id":"sh/d0jax03i","slide":3,"bbox":[56,146,1168,1.5]}
+{"kind":"shape","id":"sh/3ah8rqlg","slide":3,"bbox":[56,176,760,432]}
+{"kind":"shape","id":"sh/obq90bml","slide":3,"bbox":[614.6,181,171,24]}
+{"kind":"textbox","id":"sh/pcjqtg36","slide":3,"text":"REPRESENTATIVE INTERFACE · ILLUSTRATIVE PROJECT DATA","textPreview":"REPRESENTATIVE INTERFACE · ILLUSTRATIVE PROJECT DATA","textChars":52,"textLines":1,"bbox":[58,618,430,18]}
+{"kind":"textbox","id":"sh/m5cra54z","slide":3,"text":"Project continuity","textPreview":"Project continuity","textChars":18,"textLines":1,"bbox":[866,188,330,38]}
+{"kind":"shape","id":"sh/n6ls3alk","slide":3,"bbox":[870,260,9,9]}
+{"kind":"textbox","id":"sh/n2l4fq98","slide":3,"text":"A visible path from Data to Report","textPreview":"A visible path from Data to Report","textChars":34,"textLines":1,"bbox":[894,252,310,52]}
+{"kind":"shape","id":"sh/m1c3mlsn","slide":3,"bbox":[870,330,9,9]}
+{"kind":"textbox","id":"sh/943mhgre","slide":3,"text":"Current status and evidence gaps","textPreview":"Current status and evidence gaps","textChars":32,"textLines":1,"bbox":[894,322,310,52]}
+{"kind":"shape","id":"sh/83ulovat","slide":3,"bbox":[870,400,9,9]}
+{"kind":"textbox","id":"sh/v6l4jq94","slide":3,"text":"A specific next action for the team","textPreview":"A specific next action for the team","textChars":35,"textLines":1,"bbox":[894,392,310,52]}
+{"kind":"shape","id":"sh/a5c3ql8z","slide":3,"bbox":[870,470,9,9]}
+{"kind":"textbox","id":"sh/x8nml0ra","slide":3,"text":"Project context retained across stages","textPreview":"Project context retained across stages","textChars":38,"textLines":1,"bbox":[894,462,310,52]}
+{"kind":"textbox","id":"sh/w7ulsvqp","slide":3,"text":"The interface is designed to support the working process—not create another disconnected output.","textPreview":"The interface is designed to support the working process—not create another disconnected output.","textChars":96,"textLines":1,"bbox":[866,548,330,78]}
+{"kind":"textbox","id":"sh/ja54na9g","slide":3,"text":"Taste Intelligence · NFI sensory and consumer science hub","textPreview":"Taste Intelligence · NFI sensory and consumer science hub","textChars":57,"textLines":1,"bbox":[56,676,760,18]}
+{"kind":"textbox","id":"sh/i9w3u58v","slide":3,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[1178,676,44,18]}
+{"kind":"image","id":"im/o32dw321","slide":3,"name":"","geometry":"roundRect","bbox":[56,176,760,432]}
+{"kind":"notes","id":"nt/ofy9wn61","slide":3,"text":"This is genuine product proof. Explain that the Overview is the operating layer: it shows the active project, its stage, evidence status and next recommended action.\n\n[Sources]\n- Internal product screenshot captured from the implemented Sensory Platform, 2026-08-19.\n[/Sources]"}
+{"kind":"slide","id":"sl/jyx0ra1s","slide":4,"title":"The working model","textShapes":18}
+{"kind":"textbox","id":"sh/et0reh8f","slide":4,"text":"The working model","textPreview":"The working model","textChars":17,"textLines":1,"bbox":[56,38,660,24]}
+{"kind":"textbox","id":"sh/1cj2d8b6","slide":4,"text":"One evidence chain from sample to recommendation","textPreview":"One evidence chain from sample to recommendation","textChars":48,"textLines":1,"bbox":[56,68,1168,68]}
+{"kind":"shape","id":"sh/0ba143al","slide":4,"bbox":[56,146,1168,1.5]}
+{"kind":"shape","id":"sh/rm1k7yt4","slide":4,"bbox":[108,322,1048,3]}
+{"kind":"textbox","id":"sh/ql8jytsj","slide":4,"text":"Data","textPreview":"Data","textChars":4,"textLines":1,"bbox":[58,246,150,30]}
+{"kind":"shape","id":"sh/doj29oba","slide":4,"bbox":[114,304,38,38]}
+{"kind":"textbox","id":"sh/sna103ap","slide":4,"text":"Sample, formulation and instrumental evidence","textPreview":"Sample, formulation and instrumental evidence","textChars":45,"textLines":1,"bbox":[56,372,164,94]}
+{"kind":"textbox","id":"sh/3ihk3et8","slide":4,"text":"Studies","textPreview":"Studies","textChars":7,"textLines":1,"bbox":[257,246,150,30]}
+{"kind":"shape","id":"sh/ih8ju9sn","slide":4,"bbox":[313,304,38,38]}
+{"kind":"textbox","id":"sh/kbm987y5","slide":4,"text":"Sensory, discrimination and concept tests","textPreview":"Sensory, discrimination and concept tests","textChars":41,"textLines":1,"bbox":[255,372,164,94]}
+{"kind":"textbox","id":"sh/5cva1cfq","slide":4,"text":"Insights","textPreview":"Insights","textChars":8,"textLines":1,"bbox":[456,246,150,30]}
+{"kind":"shape","id":"sh/i94r6xgz","slide":4,"bbox":[512,304,38,38]}
+{"kind":"textbox","id":"sh/jadsz2xk","slide":4,"text":"Patterns, comparisons and evidence limits","textPreview":"Patterns, comparisons and evidence limits","textChars":41,"textLines":1,"bbox":[454,372,164,94]}
+{"kind":"textbox","id":"sh/w72947yt","slide":4,"text":"Decision","textPreview":"Decision","textChars":8,"textLines":1,"bbox":[655,246,150,30]}
+{"kind":"shape","id":"sh/x8vaxsfe","slide":4,"bbox":[711,304,38,38]}
+{"kind":"textbox","id":"sh/a5kr2xg3","slide":4,"text":"GO, TWEAK or STOP with rationale","textPreview":"GO, TWEAK or STOP with rationale","textChars":32,"textLines":1,"bbox":[653,372,164,94]}
+{"kind":"textbox","id":"sh/v6tsv2xo","slide":4,"text":"Concept","textPreview":"Concept","textChars":7,"textLines":1,"bbox":[854,246,150,30]}
+{"kind":"shape","id":"sh/g36tgryd","slide":4,"bbox":[910,304,38,38]}
+{"kind":"textbox","id":"sh/h4fa9wfy","slide":4,"text":"Validated direction becomes a stimulus","textPreview":"Validated direction becomes a stimulus","textChars":38,"textLines":1,"bbox":[852,372,164,94]}
+{"kind":"textbox","id":"sh/p0batw72","slide":4,"text":"Report","textPreview":"Report","textChars":6,"textLines":1,"bbox":[1053,246,150,30]}
+{"kind":"shape","id":"sh/oz29krqh","slide":4,"bbox":[1109,304,38,38]}
+{"kind":"textbox","id":"sh/3ytsrmpw","slide":4,"text":"Versioned, reviewable commercial output","textPreview":"Versioned, reviewable commercial output","textChars":39,"textLines":1,"bbox":[1051,372,164,94]}
+{"kind":"textbox","id":"sh/2xkrih8b","slide":4,"text":"Human review remains the gate at every consequential step.","textPreview":"Human review remains the gate at every consequential step.","textChars":58,"textLines":1,"bbox":[190,538,900,46]}
+{"kind":"textbox","id":"sh/1wbapc7q","slide":4,"text":"The platform makes the evidence chain visible; it does not substitute software output for scientific judgment.","textPreview":"The platform makes the evidence chain visible; it does not substitute software output for scientific judgment.","textChars":110,"textLines":1,"bbox":[210,592,860,38]}
+{"kind":"textbox","id":"sh/gv29g7q5","slide":4,"text":"Taste Intelligence · NFI sensory and consumer science hub","textPreview":"Taste Intelligence · NFI sensory and consumer science hub","textChars":57,"textLines":1,"bbox":[56,676,760,18]}
+{"kind":"textbox","id":"sh/fu9sn2p0","slide":4,"text":"4","textPreview":"4","textChars":1,"textLines":1,"bbox":[1178,676,44,18]}
+{"kind":"notes","id":"nt/jyx0ra1s","slide":4,"text":"Walk left to right. The critical distinction is continuity: later outputs inherit the approved evidence and decision record instead of starting from a blank page.\n\n[Sources]\n- Implemented Sensory Platform workflow and internal product documentation.\n[/Sources]"}
+{"kind":"slide","id":"sl/i107q5of","slide":5,"title":"Evidence in","textShapes":9}
+{"kind":"textbox","id":"sh/j6dwfqds","slide":5,"text":"Evidence in","textPreview":"Evidence in","textChars":11,"textLines":1,"bbox":[56,38,660,24]}
+{"kind":"textbox","id":"sh/dgbulwnm","slide":5,"text":"Sample identity stays intact from measurement to study","textPreview":"Sample identity stays intact from measurement to study","textChars":54,"textLines":1,"bbox":[56,68,1168,68]}
+{"kind":"shape","id":"sh/cf2tcr61","slide":5,"bbox":[56,146,1168,1.5]}
+{"kind":"shape","id":"sh/yhkbe1o7","slide":5,"bbox":[56,178,554,340]}
+{"kind":"shape","id":"sh/032tgr6d","slide":5,"bbox":[670,178,554,340]}
+{"kind":"shape","id":"sh/n6dcr65o","slide":5,"bbox":[463.19,183,124.65,24]}
+{"kind":"shape","id":"sh/m5kbi1oj","slide":5,"bbox":[1077.19,183,124.65,24]}
+{"kind":"textbox","id":"sh/w32dkbuh","slide":5,"text":"1 · Organise evidence by project and sample","textPreview":"1 · Organise evidence by project and sample","textChars":43,"textLines":1,"bbox":[56,542,554,34]}
+{"kind":"textbox","id":"sh/x4vedgvm","slide":5,"text":"Import technical data, retain version context and compare the correct prototypes.","textPreview":"Import technical data, retain version context and compare the correct prototypes.","textChars":81,"textLines":1,"bbox":[56,582,530,55]}
+{"kind":"textbox","id":"sh/ahkvi1cb","slide":5,"text":"2 · Configure the right study and eligible panel","textPreview":"2 · Configure the right study and eligible panel","textChars":48,"textLines":1,"bbox":[670,542,554,34]}
+{"kind":"textbox","id":"sh/v2twb6dw","slide":5,"text":"Use sensory, triangle or concept studies with formulation and allergen-safety checks.","textPreview":"Use sensory, triangle or concept studies with formulation and allergen-safety checks.","textChars":85,"textLines":1,"bbox":[670,582,530,55]}
+{"kind":"textbox","id":"sh/k7mxovud","slide":5,"text":"REPRESENTATIVE INTERFACE · ILLUSTRATIVE PROJECT DATA","textPreview":"REPRESENTATIVE INTERFACE · ILLUSTRATIVE PROJECT DATA","textChars":52,"textLines":1,"bbox":[56,646,430,18]}
+{"kind":"textbox","id":"sh/58vehgvy","slide":5,"text":"Taste Intelligence · NFI sensory and consumer science hub","textPreview":"Taste Intelligence · NFI sensory and consumer science hub","textChars":57,"textLines":1,"bbox":[56,676,760,18]}
+{"kind":"textbox","id":"sh/i54fmlc7","slide":5,"text":"5","textPreview":"5","textChars":1,"textLines":1,"bbox":[1178,676,44,18]}
+{"kind":"image","id":"im/vitwz65k","slide":5,"name":"","geometry":"roundRect","bbox":[56,178,554,340]}
+{"kind":"image","id":"im/uhkvq14z","slide":5,"name":"","geometry":"roundRect","bbox":[670,178,554,340]}
+{"kind":"notes","id":"nt/i107q5of","slide":5,"text":"For ingredient and food-development companies, emphasize sample lineage, formulation context, comparison and panelist eligibility. Avoid implying that software replaces the formal safety review.\n\n[Sources]\n- Internal product screenshots captured from the implemented Sensory Platform, 2026-08-19.\n[/Sources]"}
+{"kind":"slide","id":"sl/x8f69ofe","slide":6,"title":"Evidence to action","textShapes":9}
+{"kind":"textbox","id":"sh/i54bylor","slide":6,"text":"Evidence to action","textPreview":"Evidence to action","textChars":18,"textLines":1,"bbox":[56,38,660,24]}
+{"kind":"textbox","id":"sh/yhg7epsj","slide":6,"text":"A recommendation that shows the evidence—and the gap","textPreview":"A recommendation that shows the evidence—and the gap","textChars":52,"textLines":1,"bbox":[56,68,1168,68]}
+{"kind":"shape","id":"sh/zi98nu94","slide":6,"bbox":[56,146,1168,1.5]}
+{"kind":"shape","id":"sh/98rqt4r6","slide":6,"bbox":[56,178,554,344]}
+{"kind":"shape","id":"sh/7m98ru9g","slide":6,"bbox":[670,178,554,344]}
+{"kind":"shape","id":"sh/oryp8fah","slide":6,"bbox":[463.19,183,124.65,24]}
+{"kind":"shape","id":"sh/pc76hkr2","slide":6,"bbox":[1077.19,183,124.65,24]}
+{"kind":"textbox","id":"sh/h4bupgn6","slide":6,"text":"Understand what changed","textPreview":"Understand what changed","textChars":23,"textLines":1,"bbox":[56,548,554,34]}
+{"kind":"textbox","id":"sh/w32twb6l","slide":6,"text":"Compare prototypes, inspect dimensions and keep uncertainty visible.","textPreview":"Compare prototypes, inspect dimensions and keep uncertainty visible.","textChars":68,"textLines":1,"bbox":[56,587,530,52]}
+{"kind":"textbox","id":"sh/v2tcn650","slide":6,"text":"Make the action explicit","textPreview":"Make the action explicit","textChars":24,"textLines":1,"bbox":[670,548,554,34]}
+{"kind":"textbox","id":"sh/u1kbu1ov","slide":6,"text":"Record GO, TWEAK or STOP with method, confidence, evidence status and rationale.","textPreview":"Record GO, TWEAK or STOP with method, confidence, evidence status and rationale.","textChars":80,"textLines":1,"bbox":[670,587,530,52]}
+{"kind":"textbox","id":"sh/5svutgni","slide":6,"text":"REPRESENTATIVE INTERFACE · ILLUSTRATIVE PROJECT DATA","textPreview":"REPRESENTATIVE INTERFACE · ILLUSTRATIVE PROJECT DATA","textChars":52,"textLines":1,"bbox":[56,646,430,18]}
+{"kind":"textbox","id":"sh/47mt0b6x","slide":6,"text":"Taste Intelligence · NFI sensory and consumer science hub","textPreview":"Taste Intelligence · NFI sensory and consumer science hub","textChars":57,"textLines":1,"bbox":[56,676,760,18]}
+{"kind":"textbox","id":"sh/j6dcr65c","slide":6,"text":"6","textPreview":"6","textChars":1,"textLines":1,"bbox":[1178,676,44,18]}
+{"kind":"image","id":"im/a5sbipcr","slide":6,"name":"","geometry":"roundRect","bbox":[56,178,554,344]}
+{"kind":"image","id":"im/b61sbutc","slide":6,"name":"","geometry":"roundRect","bbox":[670,178,554,344]}
+{"kind":"notes","id":"nt/x8f69ofe","slide":6,"text":"The score is not a black box. The decision view is intended to show the threshold, evidence strength and what remains incomplete before a reviewer confirms the decision.\n\n[Sources]\n- Internal product screenshots captured from the implemented Sensory Platform, 2026-08-19.\n[/Sources]"}
+{"kind":"slide","id":"sl/gnmp4jqx","slide":7,"title":"Decision to market","textShapes":9}
+{"kind":"textbox","id":"sh/o761ov2t","slide":7,"text":"Decision to market","textPreview":"Decision to market","textChars":18,"textLines":1,"bbox":[56,38,660,24]}
+{"kind":"textbox","id":"sh/cb2tkvap","slide":7,"text":"Concepts and reports keep the evidence trail intact","textPreview":"Concepts and reports keep the evidence trail intact","textChars":51,"textLines":1,"bbox":[56,68,1168,68]}
+{"kind":"shape","id":"sh/dcbud0ra","slide":7,"bbox":[56,146,1168,1.5]}
+{"kind":"shape","id":"sh/zedcfa9g","slide":7,"bbox":[56,178,554,344]}
+{"kind":"shape","id":"sh/l0vuh0rm","slide":7,"bbox":[670,178,554,344]}
+{"kind":"shape","id":"sh/eh0ba1sr","slide":7,"bbox":[463.19,183,124.65,24]}
+{"kind":"shape","id":"sh/fi9c369c","slide":7,"bbox":[1077.19,183,124.65,24]}
+{"kind":"textbox","id":"sh/baxkjqlk","slide":7,"text":"Concept work starts from an approved direction","textPreview":"Concept work starts from an approved direction","textChars":46,"textLines":1,"bbox":[56,548,554,34]}
+{"kind":"textbox","id":"sh/a9ojq5kz","slide":7,"text":"Brief, stimulus, survey and panel remain linked to the confirmed product evidence.","textPreview":"Brief, stimulus, survey and panel remain linked to the confirmed product evidence.","textChars":82,"textLines":1,"bbox":[56,588,530,54]}
+{"kind":"textbox","id":"sh/xcz2l03q","slide":7,"text":"Reports remain reviewable before release","textPreview":"Reports remain reviewable before release","textChars":40,"textLines":1,"bbox":[670,548,554,34]}
+{"kind":"textbox","id":"sh/cbq1sv25","slide":7,"text":"Draft history, checks and PDF preview support a controlled hand-off to clients or decision-makers.","textPreview":"Draft history, checks and PDF preview support a controlled hand-off to clients or decision-makers.","textChars":98,"textLines":1,"bbox":[670,588,530,54]}
+{"kind":"textbox","id":"sh/n6x0fqlo","slide":7,"text":"REPRESENTATIVE INTERFACE · ILLUSTRATIVE PROJECT DATA","textPreview":"REPRESENTATIVE INTERFACE · ILLUSTRATIVE PROJECT DATA","textChars":52,"textLines":1,"bbox":[56,646,430,18]}
+{"kind":"textbox","id":"sh/25ojml43","slide":7,"text":"Taste Intelligence · NFI sensory and consumer science hub","textPreview":"Taste Intelligence · NFI sensory and consumer science hub","textChars":57,"textLines":1,"bbox":[56,676,760,18]}
+{"kind":"textbox","id":"sh/p8fih03e","slide":7,"text":"7","textPreview":"7","textChars":1,"textLines":1,"bbox":[1178,676,44,18]}
+{"kind":"image","id":"im/8rqxsni1","slide":7,"name":"","geometry":"roundRect","bbox":[56,178,554,344]}
+{"kind":"image","id":"im/tsze1szm","slide":7,"name":"","geometry":"roundRect","bbox":[670,178,554,344]}
+{"kind":"notes","id":"nt/gnmp4jqx","slide":7,"text":"Concept and report stages are gated by the confirmed decision. This prevents an attractive output from quietly outrunning the underlying evidence.\n\n[Sources]\n- Internal product screenshots captured from the implemented Sensory Platform, 2026-08-19.\n[/Sources]"}
+{"kind":"slide","id":"sl/fu1gfa1s","slide":8,"title":"Bakery development example","textShapes":20}
+{"kind":"textbox","id":"sh/jq5w365o","slide":8,"text":"Bakery development example","textPreview":"Bakery development example","textChars":26,"textLines":1,"bbox":[56,38,660,24]}
+{"kind":"textbox","id":"sh/18byd4zy","slide":8,"text":"Turn an ingredient change into a customer-ready evidence story","textPreview":"Turn an ingredient change into a customer-ready evidence story","textChars":62,"textLines":1,"bbox":[56,68,1168,68]}
+{"kind":"shape","id":"sh/g72x4zyd","slide":8,"bbox":[56,146,1168,1.5]}
+{"kind":"textbox","id":"sh/ri9g7uhw","slide":8,"text":"Example question","textPreview":"Example question","textChars":16,"textLines":1,"bbox":[56,184,280,26]}
+{"kind":"textbox","id":"sh/6h0fypgb","slide":8,"text":"Does the new ingredient system improve finished-product performance without compromising consumer acceptance?","textPreview":"Does the new ingredient system improve finished-product performance without compromising consumer acceptance?","textChars":109,"textLines":1,"bbox":[56,220,640,112]}
+{"kind":"textbox","id":"sh/tkby9kzm","slide":8,"text":"A practical study could connect formulation and instrumental evidence to blinded sensory comparison, liking, diagnostic attributes and an explicit advancement decision.","textPreview":"A practical study could connect formulation and instrumental evidence to blinded sensory comparison, liking, diagnostic attributes and an...","textChars":168,"textLines":1,"bbox":[56,360,620,118]}
+{"kind":"textbox","id":"sh/sjix0zy1","slide":8,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[758,178,44,32]}
+{"kind":"textbox","id":"sh/je9g3ahk","slide":8,"text":"Compare","textPreview":"Compare","textChars":7,"textLines":1,"bbox":[820,176,180,32]}
+{"kind":"textbox","id":"sh/id0fu50z","slide":8,"text":"Control vs new ingredient system","textPreview":"Control vs new ingredient system","textChars":32,"textLines":1,"bbox":[820,212,370,47]}
+{"kind":"shape","id":"sh/o7ydoret","slide":8,"bbox":[758,266,446,1]}
+{"kind":"textbox","id":"sh/98rehwve","slide":8,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[758,286,44,32]}
+{"kind":"textbox","id":"sh/m5gvmhwn","slide":8,"text":"Diagnose","textPreview":"Diagnose","textChars":8,"textLines":1,"bbox":[820,284,180,32]}
+{"kind":"textbox","id":"sh/n6pwfmd8","slide":8,"text":"Identify drivers, penalties and evidence gaps","textPreview":"Identify drivers, penalties and evidence gaps","textChars":45,"textLines":1,"bbox":[820,320,370,47]}
+{"kind":"shape","id":"sh/0jydkreh","slide":8,"bbox":[758,374,446,1]}
+{"kind":"textbox","id":"sh/1k7edwv2","slide":8,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[758,394,44,32]}
+{"kind":"textbox","id":"sh/ehgvihwr","slide":8,"text":"Decide","textPreview":"Decide","textChars":6,"textLines":1,"bbox":[820,392,180,32]}
+{"kind":"textbox","id":"sh/zipwbmdc","slide":8,"text":"Advance, refine or stop with rationale","textPreview":"Advance, refine or stop with rationale","textChars":38,"textLines":1,"bbox":[820,428,370,47]}
+{"kind":"shape","id":"sh/kfixwbe1","slide":8,"bbox":[758,482,446,1]}
+{"kind":"textbox","id":"sh/lgbepgvm","slide":8,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[758,502,44,32]}
+{"kind":"textbox","id":"sh/tw7e9gnq","slide":8,"text":"Communicate","textPreview":"Communicate","textChars":11,"textLines":1,"bbox":[820,500,180,32]}
+{"kind":"textbox","id":"sh/svydgb65","slide":8,"text":"Create a traceable customer-facing report","textPreview":"Create a traceable customer-facing report","textChars":41,"textLines":1,"bbox":[820,536,370,47]}
+{"kind":"shape","id":"sh/7u5w765k","slide":8,"bbox":[56,548,620,75]}
+{"kind":"textbox","id":"sh/6twve1oz","slide":8,"text":"Outcome: a clearer next experiment and a more defensible technical-commercial conversation.","textPreview":"Outcome: a clearer next experiment and a more defensible technical-commercial conversation.","textChars":91,"textLines":1,"bbox":[80,570,575,40]}
+{"kind":"textbox","id":"sh/5sne5wne","slide":8,"text":"Taste Intelligence · NFI sensory and consumer science hub","textPreview":"Taste Intelligence · NFI sensory and consumer science hub","textChars":57,"textLines":1,"bbox":[56,676,760,18]}
+{"kind":"textbox","id":"sh/kredcr6t","slide":8,"text":"8","textPreview":"8","textChars":1,"textLines":1,"bbox":[1178,676,44,18]}
+{"kind":"notes","id":"nt/fu1gfa1s","slide":8,"text":"This is deliberately illustrative, not a claim about Cain Food Industries or any completed study. Tailor the product format and decision question during the first working session.\n\n[Sources]\n- Illustrative workflow derived from the platform capabilities and the user-supplied bakery-ingredient audience context.\n[/Sources]"}
+{"kind":"slide","id":"sl/udsvah03","slide":9,"title":"Who it serves","textShapes":16}
+{"kind":"textbox","id":"sh/u9sja98z","slide":9,"text":"Who it serves","textPreview":"Who it serves","textChars":13,"textLines":1,"bbox":[56,38,660,24]}
+{"kind":"textbox","id":"sh/1cfmhgne","slide":9,"text":"One evidence base. Different value for each role.","textPreview":"One evidence base. Different value for each role.","textChars":49,"textLines":1,"bbox":[56,68,1168,68]}
+{"kind":"shape","id":"sh/0b65obm9","slide":9,"bbox":[56,146,1168,1.5]}
+{"kind":"textbox","id":"sh/nex4jq5k","slide":9,"text":"FOOD & INGREDIENT COMPANY","textPreview":"FOOD & INGREDIENT COMPANY","textChars":25,"textLines":1,"bbox":[56,188,480,24]}
+{"kind":"textbox","id":"sh/mdonql4z","slide":9,"text":"Strengthen the decision behind the product","textPreview":"Strengthen the decision behind the product","textChars":42,"textLines":1,"bbox":[56,226,510,70]}
+{"kind":"shape","id":"sh/9gzml0nq","slide":9,"bbox":[58,332,9,9]}
+{"kind":"textbox","id":"sh/ofq5svm5","slide":9,"text":"Compare prototypes and reformulations against a defined control","textPreview":"Compare prototypes and reformulations against a defined control","textChars":63,"textLines":1,"bbox":[82,324,510,52]}
+{"kind":"shape","id":"sh/bih4na5w","slide":9,"bbox":[58,400,9,9]}
+{"kind":"textbox","id":"sh/ah8nu54b","slide":9,"text":"Connect ingredient performance to the finished product experience","textPreview":"Connect ingredient performance to the finished product experience","textChars":65,"textLines":1,"bbox":[82,392,510,52]}
+{"kind":"shape","id":"sh/oza1gfyh","slide":9,"bbox":[58,468,9,9]}
+{"kind":"textbox","id":"sh/p0ji9kf2","slide":9,"text":"Give internal teams and customers a traceable evidence story","textPreview":"Give internal teams and customers a traceable evidence story","textChars":60,"textLines":1,"bbox":[82,460,510,52]}
+{"kind":"shape","id":"sh/2xsjepgb","slide":9,"bbox":[58,536,9,9]}
+{"kind":"textbox","id":"sh/3y107axw","slide":9,"text":"Focus the next experiment on the most important uncertainty","textPreview":"Focus the next experiment on the most important uncertainty","textChars":59,"textLines":1,"bbox":[82,528,510,52]}
+{"kind":"shape","id":"sh/cnu1kzyd","slide":9,"bbox":[640,184,1,1.5]}
+{"kind":"textbox","id":"sh/do3id4fy","slide":9,"text":"INNOVATION ADVISER OR COMMERCIAL PARTNER","textPreview":"INNOVATION ADVISER OR COMMERCIAL PARTNER","textChars":40,"textLines":1,"bbox":[690,188,520,24]}
+{"kind":"textbox","id":"sh/qlcjipgn","slide":9,"text":"Make the recommendation easier to act on","textPreview":"Make the recommendation easier to act on","textChars":40,"textLines":1,"bbox":[690,226,510,70]}
+{"kind":"shape","id":"sh/bml0buxs","slide":9,"bbox":[692,332,9,9]}
+{"kind":"textbox","id":"sh/0ru1ozyp","slide":9,"text":"Structure discovery around the decision that must be made","textPreview":"Structure discovery around the decision that must be made","textChars":57,"textLines":1,"bbox":[716,324,500,52]}
+{"kind":"shape","id":"sh/lsn2h4fa","slide":9,"bbox":[692,400,9,9]}
+{"kind":"textbox","id":"sh/98ji147e","slide":9,"text":"Connect technical performance with sensory and consumer relevance","textPreview":"Connect technical performance with sensory and consumer relevance","textChars":65,"textLines":1,"bbox":[716,392,500,52]}
+{"kind":"shape","id":"sh/87a18zqt","slide":9,"bbox":[692,468,9,9]}
+{"kind":"textbox","id":"sh/76h0zup8","slide":9,"text":"Keep stakeholder conversations anchored to the evidence","textPreview":"Keep stakeholder conversations anchored to the evidence","textChars":55,"textLines":1,"bbox":[716,460,500,52]}
+{"kind":"shape","id":"sh/ml8j6p8n","slide":9,"bbox":[692,536,9,9]}
+{"kind":"textbox","id":"sh/hcji5o7a","slide":9,"text":"Translate findings into practical product and market next steps","textPreview":"Translate findings into practical product and market next steps","textChars":63,"textLines":1,"bbox":[716,528,500,52]}
+{"kind":"textbox","id":"sh/wba1cjqp","slide":9,"text":"Taste Intelligence · NFI sensory and consumer science hub","textPreview":"Taste Intelligence · NFI sensory and consumer science hub","textChars":57,"textLines":1,"bbox":[56,676,760,18]}
+{"kind":"textbox","id":"sh/va103ep4","slide":9,"text":"9","textPreview":"9","textChars":1,"textLines":1,"bbox":[1178,676,44,18]}
+{"kind":"notes","id":"nt/udsvah03","slide":9,"text":"For Alessandro, lead with ingredient performance, finished-product evidence and customer conversations. For Mike, lead with structured discovery and actionable innovation recommendations.\n\n[Sources]\n- Audience roles supplied by the user; value framing derived from implemented platform capabilities.\n[/Sources]"}
+{"kind":"slide","id":"sl/m90b6t0r","slide":10,"title":"What makes it different","textShapes":18}
+{"kind":"textbox","id":"sh/0nut8rul","slide":10,"text":"What makes it different","textPreview":"What makes it different","textChars":23,"textLines":1,"bbox":[56,38,660,24]}
+{"kind":"textbox","id":"sh/xc3mho32","slide":10,"text":"More than a survey tool, dashboard or report generator","textPreview":"More than a survey tool, dashboard or report generator","textChars":54,"textLines":1,"bbox":[56,68,1168,68]}
+{"kind":"shape","id":"sh/cbu58j2h","slide":10,"bbox":[56,146,1168,1.5]}
+{"kind":"textbox","id":"sh/zelojyl8","slide":10,"text":"Not just data capture","textPreview":"Not just data capture","textChars":21,"textLines":1,"bbox":[56,180,300,32]}
+{"kind":"textbox","id":"sh/ydcnatkn","slide":10,"text":"Project, sample and formulation lineage stays attached to the evidence.","textPreview":"Project, sample and formulation lineage stays attached to the evidence.","textChars":71,"textLines":1,"bbox":[368,181,430,57]}
+{"kind":"shape","id":"sh/l036l83y","slide":10,"bbox":[56,250,742,1]}
+{"kind":"textbox","id":"sh/kzu5c32t","slide":10,"text":"Not just a score","textPreview":"Not just a score","textChars":16,"textLines":1,"bbox":[56,271,300,32]}
+{"kind":"textbox","id":"sh/725onyl4","slide":10,"text":"Thresholds, confidence, limitations and the human confirmation are visible.","textPreview":"Thresholds, confidence, limitations and the human confirmation are visible.","textChars":75,"textLines":1,"bbox":[368,272,430,57]}
+{"kind":"shape","id":"sh/m1cnetkj","slide":10,"bbox":[56,341,742,1]}
+{"kind":"textbox","id":"sh/s7yt4b21","slide":10,"text":"Not just AI output","textPreview":"Not just AI output","textChars":18,"textLines":1,"bbox":[56,362,300,32]}
+{"kind":"textbox","id":"sh/d87uxg3m","slide":10,"text":"Draft assistance remains grounded in approved evidence and controlled by review gates.","textPreview":"Draft assistance remains grounded in approved evidence and controlled by review gates.","textChars":86,"textLines":1,"bbox":[368,363,430,57]}
+{"kind":"shape","id":"sh/q5gb21kb","slide":10,"bbox":[56,432,742,1]}
+{"kind":"textbox","id":"sh/r6pcv6lw","slide":10,"text":"Not just a final report","textPreview":"Not just a final report","textChars":23,"textLines":1,"bbox":[56,453,300,32]}
+{"kind":"textbox","id":"sh/0bit8b2d","slide":10,"text":"The report inherits the decision history, version context and source trail.","textPreview":"The report inherits the decision history, version context and source trail.","textChars":75,"textLines":1,"bbox":[368,454,430,57]}
+{"kind":"shape","id":"sh/1cru1g3y","slide":10,"bbox":[850,178,358,430]}
+{"kind":"textbox","id":"sh/e9gb61k7","slide":10,"text":"Designed for governed work","textPreview":"Designed for governed work","textChars":26,"textLines":1,"bbox":[884,216,292,70]}
+{"kind":"shape","id":"sh/fapcz6ls","slide":10,"bbox":[886,316,8,8]}
+{"kind":"textbox","id":"sh/ozitcv29","slide":10,"text":"Tenant and project separation","textPreview":"Tenant and project separation","textChars":29,"textLines":1,"bbox":[910,307,260,38]}
+{"kind":"shape","id":"sh/p0ru503u","slide":10,"bbox":[886,369,8,8]}
+{"kind":"textbox","id":"sh/xwnupgvy","slide":10,"text":"Sample and formulation provenance","textPreview":"Sample and formulation provenance","textChars":33,"textLines":1,"bbox":[910,360,260,38]}
+{"kind":"shape","id":"sh/wvetgbud","slide":10,"bbox":[886,422,8,8]}
+{"kind":"textbox","id":"sh/bu5cnqd8","slide":10,"text":"Panelist allergen eligibility controls","textPreview":"Panelist allergen eligibility controls","textChars":38,"textLines":1,"bbox":[910,413,260,38]}
+{"kind":"shape","id":"sh/atwbelcn","slide":10,"bbox":[886,475,8,8]}
+{"kind":"textbox","id":"sh/lk7ut0va","slide":10,"text":"Decision and report audit trail","textPreview":"Decision and report audit trail","textChars":31,"textLines":1,"bbox":[910,466,260,38]}
+{"kind":"shape","id":"sh/kjytkvup","slide":10,"bbox":[886,528,8,8]}
+{"kind":"textbox","id":"sh/jypcrqd4","slide":10,"text":"Review before concept or release","textPreview":"Review before concept or release","textChars":32,"textLines":1,"bbox":[910,519,260,38]}
+{"kind":"textbox","id":"sh/yxgbilcj","slide":10,"text":"Taste Intelligence · NFI sensory and consumer science hub","textPreview":"Taste Intelligence · NFI sensory and consumer science hub","textChars":57,"textLines":1,"bbox":[56,676,760,18]}
+{"kind":"textbox","id":"sh/1o3ahwvq","slide":10,"text":"10","textPreview":"10","textChars":2,"textLines":1,"bbox":[1178,676,44,18]}
+{"kind":"notes","id":"nt/m90b6t0r","slide":10,"text":"This is the differentiation slide. Do not position the product as replacing a sensory scientist or consultant. Position it as the operating and governance layer that makes expert work more consistent and traceable.\n\n[Sources]\n- Internal product architecture, safety controls and workflow gates.\n[/Sources]"}
+{"kind":"slide","id":"sl/jetc3ut0","slide":11,"title":"A practical first engagement","textShapes":20}
+{"kind":"textbox","id":"sh/eh8fex47","slide":11,"text":"A practical first engagement","textPreview":"A practical first engagement","textChars":28,"textLines":1,"bbox":[56,38,660,24]}
+{"kind":"textbox","id":"sh/xcryxg7y","slide":11,"text":"Start with one live product question—not a platform rollout","textPreview":"Start with one live product question—not a platform rollout","textChars":59,"textLines":1,"bbox":[56,68,1168,68]}
+{"kind":"shape","id":"sh/wbih4b6d","slide":11,"bbox":[56,146,1168,1.5]}
+{"kind":"textbox","id":"sh/n69grmpw","slide":11,"text":"YOU BRING","textPreview":"YOU BRING","textChars":9,"textLines":1,"bbox":[56,190,330,28]}
+{"kind":"textbox","id":"sh/250zy18b","slide":11,"text":"A current product or ingredient question","textPreview":"A current product or ingredient question","textChars":40,"textLines":1,"bbox":[56,238,330,90]}
+{"kind":"shape","id":"sh/98rytw72","slide":11,"bbox":[56,370,9,9]}
+{"kind":"textbox","id":"sh/o7ih0r6h","slide":11,"text":"Samples or formulations","textPreview":"Samples or formulations","textChars":23,"textLines":1,"bbox":[80,362,300,52]}
+{"kind":"shape","id":"sh/72t03qp0","slide":11,"bbox":[56,434,9,9]}
+{"kind":"textbox","id":"sh/61kzalof","slide":11,"text":"Existing technical evidence","textPreview":"Existing technical evidence","textChars":27,"textLines":1,"bbox":[80,426,300,52]}
+{"kind":"shape","id":"sh/ofqtgnyt","slide":11,"bbox":[56,498,9,9]}
+{"kind":"textbox","id":"sh/9gza9sze","slide":11,"text":"The decision and audience","textPreview":"The decision and audience","textChars":25,"textLines":1,"bbox":[80,490,300,52]}
+{"kind":"shape","id":"sh/mdobedg3","slide":11,"bbox":[426,190,1,1.5]}
+{"kind":"textbox","id":"sh/nehs7iho","slide":11,"text":"NFI CONFIGURES","textPreview":"NFI CONFIGURES","textChars":14,"textLines":1,"bbox":[454,190,330,28]}
+{"kind":"textbox","id":"sh/0b6tc3yx","slide":11,"text":"A focused evidence workflow","textPreview":"A focused evidence workflow","textChars":27,"textLines":1,"bbox":[454,238,330,90]}
+{"kind":"shape","id":"sh/1cfa58zi","slide":11,"bbox":[454,370,9,9]}
+{"kind":"textbox","id":"sh/epobatgr","slide":11,"text":"Project and sample structure","textPreview":"Project and sample structure","textChars":28,"textLines":1,"bbox":[478,362,300,52]}
+{"kind":"shape","id":"sh/zaxs3yhc","slide":11,"bbox":[454,434,9,9]}
+{"kind":"textbox","id":"sh/cn6t83y1","slide":11,"text":"Appropriate study and panel","textPreview":"Appropriate study and panel","textChars":27,"textLines":1,"bbox":[478,426,300,52]}
+{"kind":"shape","id":"sh/dofa18z6","slide":11,"bbox":[454,498,9,9]}
+{"kind":"textbox","id":"sh/tsnip0ny","slide":11,"text":"Review points and decision gate","textPreview":"Review points and decision gate","textChars":31,"textLines":1,"bbox":[478,490,300,52]}
+{"kind":"shape","id":"sh/87ehgv6d","slide":11,"bbox":[824,190,1,1.5]}
+{"kind":"textbox","id":"sh/7650nq5s","slide":11,"text":"TOGETHER YOU LEAVE WITH","textPreview":"TOGETHER YOU LEAVE WITH","textChars":23,"textLines":1,"bbox":[852,190,330,28]}
+{"kind":"textbox","id":"sh/65wzelo7","slide":11,"text":"A usable decision package","textPreview":"A usable decision package","textChars":25,"textLines":1,"bbox":[852,238,330,90]}
+{"kind":"shape","id":"sh/l43ilgn2","slide":11,"bbox":[852,370,9,9]}
+{"kind":"textbox","id":"sh/k3uhcb6h","slide":11,"text":"Evidence summary","textPreview":"Evidence summary","textChars":16,"textLines":1,"bbox":[876,362,300,52]}
+{"kind":"shape","id":"sh/j2lgjq5w","slide":11,"bbox":[852,434,9,9]}
+{"kind":"textbox","id":"sh/y1czalob","slide":11,"text":"Prioritised next action","textPreview":"Prioritised next action","textChars":23,"textLines":1,"bbox":[876,426,300,52]}
+{"kind":"shape","id":"sh/p07ixkn6","slide":11,"bbox":[852,498,9,9]}
+{"kind":"textbox","id":"sh/4zyhofml","slide":11,"text":"Client-ready, reviewable report","textPreview":"Client-ready, reviewable report","textChars":31,"textLines":1,"bbox":[876,490,300,52]}
+{"kind":"shape","id":"sh/m58fih43","slide":11,"bbox":[180,570,920,66]}
+{"kind":"textbox","id":"sh/n61wbmlo","slide":11,"text":"The pilot scope, study design, timing and commercial terms are agreed around the real decision.","textPreview":"The pilot scope, study design, timing and commercial terms are agreed around the real decision.","textChars":95,"textLines":1,"bbox":[214,591,852,30]}
+{"kind":"textbox","id":"sh/o7axk7m9","slide":11,"text":"Taste Intelligence · NFI sensory and consumer science hub","textPreview":"Taste Intelligence · NFI sensory and consumer science hub","textChars":57,"textLines":1,"bbox":[56,676,760,18]}
+{"kind":"textbox","id":"sh/98jedc3u","slide":11,"text":"11","textPreview":"11","textChars":2,"textLines":1,"bbox":[1178,676,44,18]}
+{"kind":"notes","id":"nt/jetc3ut0","slide":11,"text":"Invite the prospect to bring one current problem for a private working session. Do not promise a fixed timeline until the samples, study method, panel and evidence requirements are understood.\n\n[Sources]\n- Proposed pilot engagement model; timing and commercial terms intentionally left to scoping.\n[/Sources]"}
+{"kind":"slide","id":"sl/8f2psfyx","slide":12,"title":"Taste Intelligence","textShapes":7}
+{"kind":"textbox","id":"sh/a543mx4r","slide":12,"text":"Taste Intelligence","textPreview":"Taste Intelligence","textChars":18,"textLines":1,"bbox":[56,52,500,38]}
+{"kind":"textbox","id":"sh/1gbm9s3a","slide":12,"text":"Bring one product question.\nBuild the evidence around the decision.","textPreview":"Bring one product question. | Build the evidence around the decision.","textChars":67,"textLines":2,"bbox":[56,170,1080,220]}
+{"kind":"textbox","id":"sh/0f2lgnmp","slide":12,"text":"Next step: a private demonstration using a representative development question.","textPreview":"Next step: a private demonstration using a representative development question.","textChars":79,"textLines":1,"bbox":[56,446,820,60]}
+{"kind":"textbox","id":"sh/ra943il8","slide":12,"text":"tasteintelligence.co.uk","textPreview":"tasteintelligence.co.uk","textChars":23,"textLines":1,"bbox":[56,548,600,52]}
+{"kind":"textbox","id":"sh/q903ad4n","slide":12,"text":"tasteintelligences.com","textPreview":"tasteintelligences.com","textChars":22,"textLines":1,"bbox":[694,558,510,34]}
+{"kind":"shape","id":"sh/dcbm583y","slide":12,"bbox":[56,630,1168,5]}
+{"kind":"textbox","id":"sh/sb2lcnmd","slide":12,"text":"Taste Intelligence · NFI sensory and consumer science hub","textPreview":"Taste Intelligence · NFI sensory and consumer science hub","textChars":57,"textLines":1,"bbox":[56,676,760,18]}
+{"kind":"textbox","id":"sh/b6d4f2lc","slide":12,"text":"12","textPreview":"12","textChars":2,"textLines":1,"bbox":[1178,676,44,18]}
+{"kind":"notes","id":"nt/8f2psfyx","slide":12,"text":"Close on a specific ask: select one representative product-development question for a private demonstration or scoped pilot. The singular domain should be the primary public address; the plural domain can redirect.\n\n[Sources]\n- Domain ownership and audience context supplied by the user.\n[/Sources]"}

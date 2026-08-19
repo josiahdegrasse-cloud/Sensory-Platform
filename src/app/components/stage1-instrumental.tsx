@@ -6,10 +6,11 @@ import { useAuth } from "../contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { Checkbox } from "./ui/checkbox";
 import { Textarea } from "./ui/textarea";
-import { FlaskConical, AlertCircle, Upload, X, Check, BarChart3, ClipboardList, Lightbulb, ArrowRight, Pencil, Save } from "lucide-react";
-import { formatFoodTypeLabel, slugifyFoodType } from "../lib/food-intelligence";
-import { useInsertInstrumentalImport, useInstrumentalDataset, useUpdateIngredientStatement } from "../lib/hooks";
+import { FlaskConical, AlertCircle, Upload, X, Check, BarChart3, ClipboardList, Lightbulb, ArrowRight, Pencil, Save, ShieldCheck, Plus } from "lucide-react";
+import { formatFoodTypeLabel, getDefaultCataAttributesForFoodType, slugifyFoodType } from "../lib/food-intelligence";
+import { useCreateImportSurveys, useInsertInstrumentalImport, useInstrumentalDataset, useUpdateIngredientStatement } from "../lib/hooks";
 import { isMissingFoodImportSchema, downloadPendingImportFile, markPendingImportImported } from "../lib/database";
 import {
   ScatterChart,
@@ -29,6 +30,19 @@ import {
 import { ProductListItem, ProductListPanel } from './product-list';
 import { applyImportMappings, inferImportMappings } from "../lib/csv-import-mapping";
 import { encodeBatchSelection } from "../lib/project-identity";
+import {
+  MAX_INSTRUMENTAL_COMPARISON_SAMPLES,
+  instrumentalComparisonColor,
+  toggleInstrumentalComparisonSample,
+} from '../lib/instrumental-comparison';
+import {
+  DEFAULT_SURVEY_SECTIONS,
+  mergeSurveyAttributes,
+  SURVEY_SECTION_IDS,
+  SURVEY_SECTION_LABELS,
+  toggleSurveySection,
+  type SurveySection,
+} from '../lib/survey-sections';
 
 
 import {
@@ -44,6 +58,8 @@ import {
 } from './stage1-instrumental-hooks';
 import { WorkflowPageHeader } from "./workflow-page-header";
 import { FormulationProfilePanel } from './formulation-profile-panel';
+import { projectPath, projectStudiesPath } from '../lib/project-journey-routes';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 
 
 export function Stage1Instrumental() {
@@ -54,18 +70,24 @@ export function Stage1Instrumental() {
     pendingImportId?: string;
     pendingStoragePath?: string;
     matchedBatchName?: string;
+    initialCsvFile?: File;
+    configureSurveysImportBatchId?: string;
   } | null;
   const locationState = location.state as LocationState;
   const retestImport = locationState?.retestImport;
   const pendingImportId = locationState?.pendingImportId;
   const pendingStoragePath = locationState?.pendingStoragePath;
   const pendingMatchedBatchName = locationState?.matchedBatchName;
+  const initialCsvFile = locationState?.initialCsvFile;
+  const [configureSurveysImportBatchId] = useState(locationState?.configureSurveysImportBatchId ?? null);
+  const [showConfigureSurveysPrompt, setShowConfigureSurveysPrompt] = useState(Boolean(locationState?.configureSurveysImportBatchId));
   const searchParams = new URLSearchParams(location.search);
   const newProjectIntent = searchParams.get('new') === 'project';
   const retestQuery = searchParams.get('retest');
   const { user } = useAuth();
   const instrumentalDatasetQuery = useInstrumentalDataset(user?.role === 'admin');
   const insertInstrumentalImport = useInsertInstrumentalImport();
+  const createImportSurveys = useCreateImportSurveys();
   const updateIngredientStatement = useUpdateIngredientStatement();
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<Record<string, string>[]>([]);
@@ -83,6 +105,10 @@ export function Stage1Instrumental() {
   const [instrumentSummaryHeight, setInstrumentSummaryHeight] = useState<number | null>(null);
   const [editingIngredientSampleId, setEditingIngredientSampleId] = useState<string | null>(null);
   const [ingredientDraft, setIngredientDraft] = useState('');
+  const [surveySections, setSurveySections] = useState<SurveySection[]>(DEFAULT_SURVEY_SECTIONS);
+  const [surveyAttributes, setSurveyAttributes] = useState<string[]>([]);
+  const [newSurveyAttributes, setNewSurveyAttributes] = useState('');
+  const [surveysSent, setSurveysSent] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const instrumentSummaryRef = useRef<HTMLDivElement>(null);
@@ -166,6 +192,7 @@ export function Stage1Instrumental() {
     setProjectNameEdited(false);
     setImportSuccess(null);
     setLastImportSummary(null);
+    setSurveysSent(false);
 
     if (!file.name.toLowerCase().endsWith(".csv")) {
       setImportError("Only .csv files are supported. Please export your data as CSV first.");
@@ -184,6 +211,23 @@ export function Stage1Instrumental() {
     // explicit UTF-8 — handles most exports; guards against Windows-1252 garbling
     reader.readAsText(file, "UTF-8");
   };
+
+  // The Overview opens the native file picker directly. Once a file is chosen,
+  // this screen receives it and moves straight into import review.
+  useEffect(() => {
+    if (!initialCsvFile) return;
+    handleFile(initialCsvFile);
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+    // The file is intentionally consumed once from navigation state on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!configureSurveysImportBatchId) return;
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+    // The prompt remains open in local state while its one-time navigation flag is consumed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Function declaration (hoisted) so the queued-import effect above can call it
   // without a use-before-declaration warning from the compiler.
@@ -319,7 +363,7 @@ export function Stage1Instrumental() {
 
     setImportSuccess(
       savedPermanently
-        ? `Imported ${parts.join(", ")} into ${parsed.detection.label} and created panel surveys for the samples.`
+        ? `Imported ${parts.join(", ")} into ${parsed.detection.label}. Review the questionnaire setup before sending surveys.`
         : `${parsed.detection.label} imported locally. Apply the Supabase food intelligence migration to make it permanent for everyone.`
     );
     setLastImportSummary({
@@ -333,6 +377,10 @@ export function Stage1Instrumental() {
       importBatchId: importedBatchId ?? null,
       retestParentDecisionId: retestImport?.parentDecisionId ?? null,
     });
+    setSurveySections([...DEFAULT_SURVEY_SECTIONS]);
+    setSurveyAttributes(getDefaultCataAttributesForFoodType(parsed.detection.slug));
+    setNewSurveyAttributes('');
+    setSurveysSent(false);
     setShowPreview(false);
     setUploadedFile(null);
     setColumnReport(null);
@@ -344,6 +392,13 @@ export function Stage1Instrumental() {
 
     // reset file input so the same file can be re-uploaded
     if (fileInputRef.current) fileInputRef.current.value = "";
+
+    if (savedPermanently && importedBatchId) {
+      navigate(projectPath(importedBatchId, 'data'), {
+        replace: true,
+        state: { configureSurveysImportBatchId: importedBatchId },
+      });
+    }
   };
 
   const cancelPreview = () => {
@@ -396,6 +451,8 @@ export function Stage1Instrumental() {
     ? instrumentalDatasetQuery.data?.formulationVersions?.[selectedSampleData.sampleId] ?? []
     : [];
   const ingredientEditing = Boolean(selectedSampleData && editingIngredientSampleId === selectedSampleData.sampleId);
+  const comparisonLimit = Math.min(MAX_INSTRUMENTAL_COMPARISON_SAMPLES, Math.max(1, displayedSamples.length));
+  const comparisonLimitReached = compareMode && selectedSamples.length >= comparisonLimit;
 
   const beginIngredientEdit = () => {
     if (!selectedSampleData) return;
@@ -465,10 +522,93 @@ export function Stage1Instrumental() {
     });
   };
 
+  const handleSendImportSurveys = async (summary: ImportCompletionSummary) => {
+    if (!summary.importBatchId) {
+      setImportError('This import is local-only, so draft surveys cannot be created until the database import is available.');
+      return;
+    }
+    if (surveySections.length === 0) {
+      setImportError('Select at least one questionnaire section.');
+      return;
+    }
+    if (surveySections.includes('cata') && surveyAttributes.length === 0) {
+      setImportError('Select at least one flavor and aroma attribute.');
+      return;
+    }
+    setImportError(null);
+    try {
+      const result = await createImportSurveys.mutateAsync({
+        batchId: summary.importBatchId,
+        surveySections,
+        customAttributes: surveySections.includes('cata') ? surveyAttributes : [],
+      });
+      setSurveysSent(true);
+      setImportSuccess(
+        `${result.surveyNames.length} draft survey${result.surveyNames.length === 1 ? '' : 's'} created. Check allergens once in Studies, select the eligible panel, preview, and launch.`,
+      );
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Failed to create draft surveys.');
+    }
+  };
+
+  const addSurveyAttributes = (summary: ImportCompletionSummary) => {
+    if (!newSurveyAttributes.trim()) return;
+    setSurveyAttributes(current => mergeSurveyAttributes(
+      current,
+      newSurveyAttributes,
+      getDefaultCataAttributesForFoodType(summary.foodTypeSlug),
+    ));
+    setNewSurveyAttributes('');
+  };
+
+  const configureImportedSurveys = async () => {
+    if (!configureSurveysImportBatchId) return;
+    setImportError(null);
+    try {
+      const result = await createImportSurveys.mutateAsync({
+        batchId: configureSurveysImportBatchId,
+        surveySections: [...DEFAULT_SURVEY_SECTIONS],
+        customAttributes: getDefaultCataAttributesForFoodType(foodType),
+      });
+      const firstSurveyId = result.surveyIds[0];
+      if (!firstSurveyId) throw new Error('No sample surveys were created for this import.');
+      setShowConfigureSurveysPrompt(false);
+      navigate(projectStudiesPath(configureSurveysImportBatchId, 'studies', `?batchSurveySetup=${encodeURIComponent(configureSurveysImportBatchId)}`));
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : 'Unable to prepare the surveys.');
+    }
+  };
+
   // ── render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
+      <Dialog open={showConfigureSurveysPrompt} onOpenChange={setShowConfigureSurveysPrompt}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="mb-1 flex size-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+              <ClipboardList className="size-5" aria-hidden />
+            </div>
+            <DialogTitle>Configure surveys</DialogTitle>
+            <DialogDescription className="leading-6 text-slate-600">
+              Your data is imported. Continue to verify the sample allergens, review the questionnaire, and choose eligible panelists.
+            </DialogDescription>
+          </DialogHeader>
+          {importError && <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{importError}</p>}
+          <DialogFooter className="mt-2">
+            <Button type="button" variant="outline" onClick={() => setShowConfigureSurveysPrompt(false)} disabled={createImportSurveys.isPending}>Not now</Button>
+            <Button
+              type="button"
+              className="bg-slate-900 hover:bg-slate-800"
+              onClick={configureImportedSurveys}
+              disabled={createImportSurveys.isPending}
+            >
+              {createImportSurveys.isPending ? 'Preparing surveys…' : 'Configure surveys'}
+              {!createImportSurveys.isPending && <ArrowRight className="size-4" aria-hidden />}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {isLoadingFromQueue && (
         <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
           <div className="size-4 animate-spin rounded-full border-2 border-blue-300 border-t-blue-600" />
@@ -599,48 +739,147 @@ export function Stage1Instrumental() {
             </button>
           </div>
           {lastImportSummary && (
-            <Card className="border-emerald-200 bg-white shadow-sm">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-600">
-                        <Check className="size-4 text-white" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-slate-900">{lastImportSummary.foodTypeLabel} project is ready</p>
-                        <p className="text-xs text-slate-500">{lastImportSummary.projectName}</p>
-                      </div>
+            <Card className="border-slate-300 bg-white">
+              <CardContent className="space-y-5 p-4 sm:p-5">
+                <div className="flex flex-col gap-4 border-b border-slate-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-600">
+                      <Check className="size-4 text-white" />
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                      <span className="rounded-full border border-slate-200 px-2.5 py-1 font-semibold text-slate-700">{lastImportSummary.sampleCount} surveys</span>
-                      <span className="rounded-full border border-slate-200 px-2.5 py-1 font-semibold text-slate-700">{lastImportSummary.gcmsCount} GC-MS</span>
-                      <span className="rounded-full border border-slate-200 px-2.5 py-1 font-semibold text-slate-700">{lastImportSummary.compositionCount} composition</span>
-                      <span className={`rounded-full px-2.5 py-1 font-semibold ${lastImportSummary.savedPermanently ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                        {lastImportSummary.savedPermanently ? 'Saved to platform' : 'Local only'}
-                      </span>
+                    <div>
+                      <p className="text-sm font-bold text-slate-900">{lastImportSummary.foodTypeLabel} project imported</p>
+                      <p className="mt-0.5 text-xs text-slate-600">{lastImportSummary.projectName}</p>
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                        <span className="rounded-md border border-slate-200 px-2.5 py-1 font-semibold text-slate-700">{lastImportSummary.sampleCount} samples</span>
+                        <span className="rounded-md border border-slate-200 px-2.5 py-1 font-semibold text-slate-700">{lastImportSummary.gcmsCount} GC-MS</span>
+                        <span className="rounded-md border border-slate-200 px-2.5 py-1 font-semibold text-slate-700">{lastImportSummary.compositionCount} composition</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1.5">
-                    <span className="text-[11px] font-bold uppercase tracking-wide text-blue-600">Recommended next step</span>
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <Button size="sm" onClick={() => openImportedWorkflow(lastImportSummary, '/admin')}>
-                        <ClipboardList className="size-4 mr-1.5" />Send surveys to your panel
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => viewImportedCharts(lastImportSummary)}>
-                        <BarChart3 className="size-4 mr-1.5" />View charts
-                      </Button>
-                      {lastImportSummary.retestParentDecisionId && (
-                        <Button variant="outline" size="sm" onClick={() => openImportedWorkflow(lastImportSummary, '/decision')}>
-                          <ArrowRight className="size-4 mr-1.5" />Re-run decision
-                        </Button>
-                      )}
-                      <Button variant="outline" size="sm" className="text-slate-500" onClick={() => openImportedWorkflow(lastImportSummary, '/concept-testing')}>
-                        <Lightbulb className="size-4 mr-1.5" />Concepts (after panel feedback)
-                      </Button>
-                    </div>
-                  </div>
+                  <Button variant="outline" size="sm" onClick={() => viewImportedCharts(lastImportSummary)}>
+                    <BarChart3 className="size-4" />View machine data
+                  </Button>
                 </div>
+
+                {!surveysSent ? (
+                  <div className="space-y-5">
+                    <div>
+                      <div className="flex items-start gap-2">
+                        <ClipboardList className="mt-0.5 size-4 text-blue-700" />
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-900">Choose what panelists will answer</h3>
+                          <p className="mt-1 text-sm text-slate-700">This creates private drafts. Panelists see nothing until each study passes safety review and is launched.</p>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                        {SURVEY_SECTION_IDS.map(section => (
+                          <label key={section} className={`flex cursor-pointer items-start gap-2 rounded-lg border p-3 transition-colors ${surveySections.includes(section) ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+                            <Checkbox
+                              checked={surveySections.includes(section)}
+                              onCheckedChange={() => setSurveySections(current => toggleSurveySection(current, section))}
+                              aria-label={SURVEY_SECTION_LABELS[section]}
+                            />
+                            <span>
+                              <span className="block text-sm font-semibold text-slate-900">{SURVEY_SECTION_LABELS[section]}</span>
+                              {section === 'intensity' && <span className="mt-0.5 block text-xs text-slate-600">Includes CATA automatically</span>}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {surveySections.includes('cata') && (
+                      <div className="border-t border-slate-200 pt-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <h3 className="text-sm font-bold text-slate-900">Flavor and aroma attributes</h3>
+                            <p className="mt-1 text-xs text-slate-600">Select the cues shown in every sample questionnaire.</p>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button type="button" size="sm" variant="ghost" onClick={() => setSurveyAttributes(getDefaultCataAttributesForFoodType(lastImportSummary.foodTypeSlug))}>Select defaults</Button>
+                            <Button type="button" size="sm" variant="ghost" onClick={() => setSurveyAttributes([])}>Clear</Button>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                          <Input
+                            aria-label="Add CATA attributes"
+                            placeholder="Add one or more attributes, separated by commas"
+                            value={newSurveyAttributes}
+                            onChange={event => setNewSurveyAttributes(event.target.value)}
+                            onKeyDown={event => {
+                              if (event.key === 'Enter') {
+                                event.preventDefault();
+                                addSurveyAttributes(lastImportSummary);
+                              }
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => addSurveyAttributes(lastImportSummary)}
+                            disabled={!newSurveyAttributes.trim()}
+                            className="shrink-0"
+                          >
+                            <Plus className="size-4" />Add attributes
+                          </Button>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between gap-3 text-xs text-slate-600">
+                          <span>{surveyAttributes.length} selected</span>
+                          <span>Press Enter to add</span>
+                        </div>
+                        <div className="mt-3 grid max-h-64 gap-2 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {Array.from(new Set([
+                            ...getDefaultCataAttributesForFoodType(lastImportSummary.foodTypeSlug),
+                            ...surveyAttributes,
+                          ])).map(attribute => (
+                            <label key={attribute} className="flex cursor-pointer items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-800 hover:border-blue-300">
+                              <Checkbox
+                                checked={surveyAttributes.includes(attribute)}
+                                onCheckedChange={() => setSurveyAttributes(current => current.includes(attribute) ? current.filter(value => value !== attribute) : [...current, attribute])}
+                              />
+                              {attribute}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="border-t border-slate-200 pt-4">
+                      <div className="flex gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
+                        <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-700" aria-hidden />
+                        <div><h3 className="text-sm font-semibold text-slate-900">Safety before launch</h3><p className="mt-1 text-xs leading-5 text-slate-600">Create these drafts, then check allergens once for the imported sample in Studies. Only eligible panelists can be selected.</p></div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm text-slate-700">
+                        <strong>{lastImportSummary.sampleCount}</strong> surveys · <strong>{surveySections.length}</strong> sections · <strong>{surveyAttributes.length}</strong> CATA attributes
+                      </p>
+                      <Button
+                        onClick={() => handleSendImportSurveys(lastImportSummary)}
+                        disabled={createImportSurveys.isPending || !lastImportSummary.savedPermanently}
+                        className="bg-slate-900 hover:bg-slate-800"
+                      >
+                        <Save className="size-4" />
+                        {createImportSurveys.isPending ? 'Creating drafts…' : 'Create draft surveys'}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-emerald-800">Draft surveys created</p>
+                      <p className="mt-1 text-sm text-slate-700">Open Studies to check allergens once and assign the full survey set.</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" onClick={() => openImportedWorkflow(lastImportSummary, '/admin')}><ClipboardList className="size-4" />Open Studies</Button>
+                      {lastImportSummary.retestParentDecisionId && (
+                        <Button variant="outline" size="sm" onClick={() => openImportedWorkflow(lastImportSummary, '/decision')}><ArrowRight className="size-4" />Re-run decision</Button>
+                      )}
+                      <Button variant="outline" size="sm" onClick={() => openImportedWorkflow(lastImportSummary, '/concept-testing')}><Lightbulb className="size-4" />Concepts</Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -716,7 +955,7 @@ export function Stage1Instrumental() {
                         : 'This food type will appear after the import saves.'}
                     </p>
                     <p className="mt-2 rounded bg-white px-2 py-1 text-[11px] font-semibold text-blue-800 ring-1 ring-blue-200">
-                      {importSummary.sampleCount} sample survey{importSummary.sampleCount === 1 ? '' : 's'} will be created
+                      {importSummary.sampleCount} sample{importSummary.sampleCount === 1 ? '' : 's'} will be ready for survey setup
                     </p>
                   </div>
                 )}
@@ -802,7 +1041,7 @@ export function Stage1Instrumental() {
             {/* Name and confirm */}
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
               <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Name this food project</p>
-              <p className="text-xs text-slate-500">Detected as {importSummary?.detection.label ?? 'this category'}. Keep that project name or edit it before creating the surveys.</p>
+              <p className="text-xs text-slate-500">Detected as {importSummary?.detection.label ?? 'this category'}. Keep that project name or edit it before importing the data.</p>
               <input
                 type="text"
                 value={batchName}
@@ -830,6 +1069,7 @@ export function Stage1Instrumental() {
         </Card>
       )}
 
+      {!showPreview && (<>
       <div id="machine-results" className="grid grid-cols-4 gap-6 scroll-mt-6">
         <div
           className="min-h-0"
@@ -839,7 +1079,9 @@ export function Stage1Instrumental() {
             title="Samples"
             className="h-full min-h-0"
             description={compareMode
-              ? `Select one comparison sample (${selectedSamples.length}/2 selected)`
+              ? comparisonLimitReached
+                ? `${selectedSamples.length}/${comparisonLimit} selected · Remove one to choose another`
+                : `Choose up to ${comparisonLimit} samples (${selectedSamples.length}/${comparisonLimit} selected)`
               : 'Choose a sample to view detailed measurements'}
             actions={(
               <Button
@@ -863,6 +1105,8 @@ export function Stage1Instrumental() {
             <div className="h-full min-h-0 space-y-1 overflow-y-auto pr-1">
               {displayedSamples.map((sample) => {
                 const isSelected = selectedSamples.includes(sample.id);
+                const comparisonIndex = selectedSamples.indexOf(sample.id);
+                const selectionDisabled = comparisonLimitReached && !isSelected;
 
                 return (
                   <ProductListItem
@@ -870,22 +1114,25 @@ export function Stage1Instrumental() {
                     active={isSelected}
                     title={sample.name}
                     meta={sample.id}
+                    disabled={selectionDisabled}
                     trailing={compareMode && isSelected && (
-                      <span className="flex size-5 items-center justify-center rounded-full bg-slate-900">
-                        <Check className="size-3 text-white" />
+                      <span
+                        aria-label={`Comparison series ${comparisonIndex + 1}`}
+                        className="flex size-5 items-center justify-center rounded-full text-[11px] font-bold text-white"
+                        style={{ backgroundColor: instrumentalComparisonColor(comparisonIndex) }}
+                      >
+                        {comparisonIndex + 1}
                       </span>
                     )}
                     onClick={() => {
                       setAromaOpen(false);
                       cancelIngredientEdit();
                       if (compareMode) {
-                        if (isSelected) {
-                          if (selectedSamples.length > 1)
-                            setSelectedSamples(selectedSamples.filter((id) => id !== sample.id));
-                        } else {
-                          if (selectedSamples.length === 0) setSelectedSamples([sample.id]);
-                          else setSelectedSamples([selectedSamples[0], sample.id]);
-                        }
+                        setSelectedSamples(toggleInstrumentalComparisonSample(
+                          selectedSamples,
+                          sample.id,
+                          comparisonLimit,
+                        ));
                       } else {
                         setSelectedSamples([sample.id]);
                       }
@@ -1034,8 +1281,8 @@ export function Stage1Instrumental() {
                           dataKey={series.dataKey}
                           stroke={series.color}
                           fill={series.color}
-                          fillOpacity={0.15}
-                          strokeWidth={2}
+                          fillOpacity={compareRadarSeries.length > 2 ? 0.07 : 0.12}
+                          strokeWidth={2.25}
                         />
                       ))
                     ) : (
@@ -1327,6 +1574,7 @@ export function Stage1Instrumental() {
           })()}
         </CardContent>
       </Card>
+      </>)}
 
     </div>
   );

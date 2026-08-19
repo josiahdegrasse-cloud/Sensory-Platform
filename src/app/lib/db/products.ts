@@ -2,6 +2,7 @@ import { supabase } from '../supabase';
 import type { Product, HedonicReferenceScores } from '../study-types';
 import { asJson, dbError, fromJson } from './shared';
 import type { Database } from './database.types';
+import { normalizeSurveySections } from '../survey-sections';
 
 type Tables = Database['public']['Tables'];
 type ProductRow = Tables['products']['Row'] & {
@@ -25,6 +26,7 @@ function toProduct(row: ProductRow): Product {
     createdDate: row.created_at as string,
     status: row.status as Product['status'],
     customAttributes: (row.custom_attributes as string[] | null) ?? undefined,
+    surveySections: normalizeSurveySections(row.survey_sections),
     isMultiSample: row.is_multi_sample ?? false,
     samples: fromJson<Product['samples']>(row.samples) ?? undefined,
     isCalibration: row.is_calibration ?? false,
@@ -45,6 +47,7 @@ function fromProduct(p: Omit<Product, 'id' | 'createdDate'>): ProductInsert {
     category: p.category,
     status: p.status,
     custom_attributes: p.customAttributes ?? null,
+    survey_sections: p.surveySections ?? undefined,
     is_multi_sample: p.isMultiSample ?? false,
     samples: asJson(p.samples ?? null),
     is_calibration: p.isCalibration ?? false,
@@ -107,6 +110,7 @@ export async function updateProduct(
   if (updates.category !== undefined) patch.category = updates.category;
   if (updates.status !== undefined) patch.status = updates.status;
   if (updates.customAttributes !== undefined) patch.custom_attributes = updates.customAttributes;
+  if (updates.surveySections !== undefined) patch.survey_sections = updates.surveySections;
   if (updates.isMultiSample !== undefined) patch.is_multi_sample = updates.isMultiSample;
   if (updates.samples !== undefined) patch.samples = asJson(updates.samples);
   if (updates.isCalibration !== undefined) patch.is_calibration = updates.isCalibration;
@@ -134,11 +138,10 @@ export async function updateProductAssignments(
   assignedPanelistIds: string[],
 ): Promise<Product[]> {
   if (productIds.length === 0) return [];
-  const { data, error } = await supabase
-    .from('products')
-    .update({ assigned_panelist_ids: assignedPanelistIds })
-    .in('id', productIds)
-    .select();
+  const { data, error } = await supabase.rpc('replace_product_panelist_assignments', {
+    p_product_ids: productIds,
+    p_panelist_ids: assignedPanelistIds,
+  });
   if (error) throw dbError(error);
   return (data ?? []).map(toProduct);
 }

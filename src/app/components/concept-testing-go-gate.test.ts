@@ -6,6 +6,10 @@ const source = readFileSync(
   fileURLToPath(new URL('./concept-testing.tsx', import.meta.url)),
   'utf8',
 );
+const draftSelectionSource = readFileSync(
+  fileURLToPath(new URL('./concept-testing/draft-selection.ts', import.meta.url)),
+  'utf8',
+);
 
 describe('Concept Lab GO gate', () => {
   it('does not expose an unlinked concept-work path', () => {
@@ -20,8 +24,8 @@ describe('Concept Lab GO gate', () => {
     expect(source).toContain(
       'if (!seed.sourceDecision?.id || !seed.sourceDecision.evidenceBundleId)',
     );
-    expect(source).toContain(
-      'saved.sourceDecision?.id && saved.sourceDecision.evidenceBundleId',
+    expect(draftSelectionSource).toContain(
+      '!saved.sourceDecision?.id || !saved.sourceDecision.evidenceBundleId',
     );
   });
 });

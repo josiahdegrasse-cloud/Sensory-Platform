@@ -23,7 +23,9 @@ export function corsHeaders(requestOrigin: string | null): Record<string, string
     : configuredOrigins.values().next().value ?? '';
   return {
     'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, idempotency-key, x-request-id',
+    'Access-Control-Max-Age': '86400',
     'Vary': 'Origin',
   };
 }

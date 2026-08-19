@@ -136,6 +136,17 @@ export type RagStatus = {
   llm_message: string;
 };
 
+export function filterTweakDisplayWarnings(warnings: string[]) {
+  return warnings.filter(warning => {
+    const isEmptyConceptWarning = /concept evidence is n\s*=\s*0/i.test(warning)
+      && /consumer preference/i.test(warning)
+      && /packaging claims remain blocked/i.test(warning);
+    const isInternalDecisionVerificationWarning = /project decision facts were not verified against the tenant database/i.test(warning)
+      && /no product-specific evidence card was produced/i.test(warning);
+    return !isEmptyConceptWarning && !isInternalDecisionVerificationWarning;
+  });
+}
+
 export function buildTweakDiagnosisRequest(input: {
   question?: string;
   decision: GoStopTweakDecision;

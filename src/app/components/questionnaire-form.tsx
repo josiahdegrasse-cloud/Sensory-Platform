@@ -8,7 +8,7 @@ import { Progress } from './ui/progress';
 import { useAuth } from '../contexts/auth-context';
 import { SURVEY_EMOTIONS, getDefaultCataAttributes, type Product } from '../data/survey-domain';
 import { fetchProduct, fetchLatestUserResponse, insertResponse, markPanelistKitSubmitted } from '../lib/database';
-import { CATA_DEFINITIONS, INTENSITY_DEFINITIONS, HEDONIC_DEFINITIONS, EMOTION_DEFINITIONS } from '../data/attribute-definitions';
+import { CATA_DEFINITIONS, INTENSITY_DEFINITIONS, HEDONIC_DEFINITIONS, EMOTION_DEFINITIONS, getCataDefinition } from '../data/attribute-definitions';
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Edit2 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { AttributeTooltip } from './attribute-tooltip';
@@ -16,6 +16,8 @@ import { getBlindStudyDisplayName } from '../lib/blind-study';
 import { useScrollToTop } from '../lib/use-scroll-to-top';
 import { queryClient } from '../lib/query-client';
 import { queryKeys } from '../lib/hooks';
+import { DEFAULT_SURVEY_SECTIONS, SURVEY_SECTION_LABELS, type SurveySection } from '../lib/survey-sections';
+import { PanelistSubmissionSuccess, PanelistTaskLoading, PanelistTaskUnavailable } from './panelist-task-state';
 
 function sliderFill(value: number, min: number, max: number, color: string): React.CSSProperties {
   const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
@@ -48,6 +50,9 @@ export function QuestionnaireForm() {
 
   const [product, setProduct] = useState<Product | null>(null);
   const [productLoading, setProductLoading] = useState(true);
+  const [productError, setProductError] = useState('');
+  const [responseCheckLoading, setResponseCheckLoading] = useState(true);
+  const [responseCheckError, setResponseCheckError] = useState('');
   const [showIntro, setShowIntro] = useState(true);
   const [currentStep, setCurrentStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
@@ -72,19 +77,27 @@ export function QuestionnaireForm() {
 
   const initialLoadComplete = useRef(false);
   const [submitError, setSubmitError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [completionWarning, setCompletionWarning] = useState('');
 
   const cataAttributes = product?.customAttributes || getDefaultCataAttributes(product?.category ?? '');
   // Intensity only shows attributes the panelist selected in CATA
   const intensityAttributes = formData.selectedCata.length > 0 ? formData.selectedCata : [];
   const emotionAttributes = [...SURVEY_EMOTIONS.positive, ...SURVEY_EMOTIONS.negative];
-  const totalSteps = 5;
+  const configuredSections = product?.surveySections ?? DEFAULT_SURVEY_SECTIONS;
+  const questionnaireSteps: Array<SurveySection | 'review'> = [...configuredSections, 'review'];
+  const totalSteps = questionnaireSteps.length;
+  const currentSection = questionnaireSteps[currentStep - 1] ?? 'review';
 
   // Load product from Supabase
   useEffect(() => {
     if (!productId) return;
     fetchProduct(productId)
       .then(p => { setProduct(p); setProductLoading(false); })
-      .catch(() => setProductLoading(false));
+      .catch(() => {
+        setProductError('This study could not be loaded. Check your connection, or return to your task list and try again.');
+        setProductLoading(false);
+      });
   }, [productId]);
 
   // Load existing response or draft — DB check runs first; draft restore only fires if no DB response
@@ -96,7 +109,7 @@ export function QuestionnaireForm() {
         setFormData({
           selectedCata: existing.cataAttributes || [],
           intensityRatings: existing.intensityRatings || {},
-          hedonicScores: existing.hedonicScores || { overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 },
+          hedonicScores: { overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5, ...existing.hedonicScores },
           emotions: existing.emotionalProfile || {},
           comments: existing.comments || '',
         });
@@ -113,8 +126,11 @@ export function QuestionnaireForm() {
           } catch { /* ignore invalid JSON */ }
         }
       }
+    }).catch(() => {
+      setResponseCheckError('We could not verify whether you already completed this task. Refresh before entering answers so a previous response is not duplicated.');
     }).finally(() => {
       initialLoadComplete.current = true;
+      setResponseCheckLoading(false);
     });
   }, [productId, user?.id]);
 
@@ -170,56 +186,77 @@ export function QuestionnaireForm() {
 
   const handleSubmit = async () => {
     if (!user?.id || !productId) return;
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     setSubmitError('');
     if (user.role !== 'panelist') {
       setSubmitError('Preview mode only. Sign in as a panelist to submit a response.');
+      setIsSubmitting(false);
       return;
     }
-    const completedIntensityRatings = Object.fromEntries(
-      intensityAttributes.map(attr => [attr, formData.intensityRatings[attr] ?? SLIDER_MIDPOINT]),
-    );
-    const completedEmotionalProfile = Object.fromEntries(
-      emotionAttributes.map(emotion => [emotion, formData.emotions[emotion] ?? SLIDER_MIDPOINT]),
-    );
+    const completedIntensityRatings = configuredSections.includes('intensity')
+      ? Object.fromEntries(intensityAttributes.map(attr => [attr, formData.intensityRatings[attr] ?? SLIDER_MIDPOINT]))
+      : {};
+    const completedEmotionalProfile = configuredSections.includes('emotions')
+      ? Object.fromEntries(emotionAttributes.map(emotion => [emotion, formData.emotions[emotion] ?? SLIDER_MIDPOINT]))
+      : {};
     try {
+      let hasCompletionWarning = false;
       await insertResponse({
         userId: user.id,
         productId,
-        cataAttributes: formData.selectedCata,
+        cataAttributes: configuredSections.includes('cata') ? formData.selectedCata : [],
         intensityRatings: completedIntensityRatings,
-        hedonicScores: formData.hedonicScores,
+        hedonicScores: configuredSections.includes('hedonic') ? formData.hedonicScores : {},
         emotionalProfile: completedEmotionalProfile,
-        comments: formData.comments,
+        comments: configuredSections.includes('comments') ? formData.comments : '',
         sampleCode: product?.blinded ? product.blindCode ?? undefined : undefined,
         presentationOrder: product?.blinded && product.blindCode ? [product.blindCode] : undefined,
       });
       const kitToken = sessionStorage.getItem(`panelist_kit_token_${productId}`);
       const manualCode = sessionStorage.getItem(`panelist_kit_manual_code_${productId}`);
       if (kitToken || manualCode) {
-        await markPanelistKitSubmitted({ token: kitToken, manualCode });
-        sessionStorage.removeItem(`panelist_kit_token_${productId}`);
-        sessionStorage.removeItem(`panelist_kit_manual_code_${productId}`);
+        try {
+          await markPanelistKitSubmitted({ token: kitToken, manualCode });
+          sessionStorage.removeItem(`panelist_kit_token_${productId}`);
+          sessionStorage.removeItem(`panelist_kit_manual_code_${productId}`);
+        } catch {
+          hasCompletionWarning = true;
+          setCompletionWarning('Your answers are saved, but the box status could not be updated. Keep the insert and tell the study team your box code.');
+        }
       }
       sessionStorage.removeItem(`qs_draft_${user?.id}_${productId}`);
       localStorage.removeItem(`qs_draft_${user?.id}_${productId}`);
-      await Promise.all([
+      void Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.userResponses(user.id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.allResponses }),
       ]);
       setSubmitted(true);
-      setTimeout(() => navigate('/panelist'), 3000);
+      if (!hasCompletionWarning) setTimeout(() => navigate('/panelist'), 3000);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Failed to save response. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const jumpToStep = (step: number) => {
+  const jumpToStep = (section: SurveySection) => {
+    const step = questionnaireSteps.indexOf(section) + 1;
+    if (step <= 0) return;
     setCurrentStep(step);
     window.scrollTo(0, 0);
   };
 
   if (productLoading) {
-    return <div className="max-w-4xl mx-auto p-8 text-slate-500">Loading…</div>;
+    return <PanelistTaskLoading message="Loading your tasting task…" />;
+  }
+
+  if (responseCheckLoading) {
+    return <PanelistTaskLoading message="Checking your saved progress…" />;
+  }
+
+  if (responseCheckError) {
+    return <PanelistTaskUnavailable message={responseCheckError} onRetry={() => window.location.reload()} onBack={() => navigate('/panelist')} />;
   }
 
   if (showIntro && product) {
@@ -234,7 +271,7 @@ export function QuestionnaireForm() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+              {configuredSections.includes('cata') && <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
                 <div className="font-bold text-slate-900 mb-2">Step 1 — Flavor Attributes</div>
                 <p className="text-sm text-slate-700 mb-3">Check every attribute you can perceive in the sample. There are no right or wrong answers.</p>
                 <div className="flex gap-2 flex-wrap">
@@ -243,35 +280,35 @@ export function QuestionnaireForm() {
                   ))}
                   <span className="text-xs text-slate-500 self-center">etc.</span>
                 </div>
-              </div>
-              <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                <div className="font-bold text-slate-900 mb-2">Steps 2 & 3 — Rating Scales</div>
-                <p className="text-sm text-slate-700 mb-3">Intensity and liking use a <strong>1–9 scale</strong>. Left end is lowest, right end is highest.</p>
+              </div>}
+              {(configuredSections.includes('intensity') || configuredSections.includes('hedonic')) && <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="font-bold text-slate-900 mb-2">Rating scales</div>
+                <p className="text-sm text-slate-700 mb-3">Selected intensity and liking questions use a <strong>1–9 scale</strong>. Left end is lowest, right end is highest.</p>
                 <div className="space-y-2">
-                  <div>
+                  {configuredSections.includes('intensity') && <div>
                     <div className="text-xs font-medium text-slate-500 mb-1">Intensity example (1–9):</div>
                     <div className="flex justify-between text-xs text-slate-700">
                       <span>1 = Not present</span><span>9 = Extremely intense</span>
                     </div>
                     <div className="w-full bg-slate-200 rounded-full h-2 mt-1"><div className="bg-slate-700 h-2 rounded-full w-1/2" /></div>
-                  </div>
-                  <div>
+                  </div>}
+                  {configuredSections.includes('hedonic') && <div>
                     <div className="text-xs font-medium text-slate-500 mb-1">Liking example (1–9):</div>
                     <div className="flex justify-between text-xs text-slate-700">
                       <span>1 = Dislike</span><span>9 = Like</span>
                     </div>
                     <div className="w-full bg-slate-200 rounded-full h-2 mt-1"><div className="bg-slate-700 h-2 rounded-full w-8/9" /></div>
-                  </div>
+                  </div>}
                 </div>
-              </div>
-              <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                <div className="font-bold text-slate-900 mb-2">Step 4 — Emotions</div>
+              </div>}
+              {configuredSections.includes('emotions') && <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="font-bold text-slate-900 mb-2">Emotions</div>
                 <p className="text-sm text-slate-700 mb-3">Rate how strongly you feel each emotion <em>right now</em>, after tasting.</p>
                 <div className="flex justify-between text-xs text-slate-700 mb-1">
                   <span>1 = Not at all</span><span>9 = Very strongly</span>
                 </div>
                 <p className="text-xs text-slate-500 mt-2">Higher = you feel it more strongly. This applies to both positive and negative emotions.</p>
-              </div>
+              </div>}
             </div>
             <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-sm text-slate-700">
               <strong>Tip:</strong> Hover over any underlined term <span className="underline decoration-dotted cursor-help" title="Exactly — this is how definitions appear.">like this</span> to see its definition.
@@ -289,14 +326,7 @@ export function QuestionnaireForm() {
   }
 
   if (!product) {
-    return (
-      <div className="max-w-4xl mx-auto">
-        <Alert variant="destructive">
-          <AlertCircle className="size-4" />
-          <AlertDescription>Product not found</AlertDescription>
-        </Alert>
-      </div>
-    );
+    return <PanelistTaskUnavailable message={productError || 'This tasting task is not available. Return to your task list or contact the study team.'} onBack={() => navigate('/panelist')} />;
   }
 
   const displayName = getBlindStudyDisplayName(product);
@@ -328,22 +358,12 @@ export function QuestionnaireForm() {
 
   if (submitted) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <Card className="border-2 border-emerald-300 bg-emerald-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle2 className="size-6 text-emerald-600" />
-              Response Submitted Successfully!
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-slate-700 mb-2">
-              Thank you for completing the evaluation for <strong>{displayName}</strong>.
-            </p>
-            <p className="text-sm text-slate-700">Redirecting to dashboard...</p>
-          </CardContent>
-        </Card>
-      </div>
+      <PanelistSubmissionSuccess
+        title="Response submitted"
+        message={<>Thank you for completing the evaluation for <strong>{displayName}</strong>.</>}
+        warning={completionWarning}
+        onBack={() => navigate('/panelist')}
+      />
     );
   }
 
@@ -372,11 +392,7 @@ export function QuestionnaireForm() {
           <div className="space-y-2">
             <Progress value={progressPercent} className="h-2" />
             <div className="text-xs text-slate-700 text-center">
-              {currentStep === 1 && 'CATA Attributes'}
-              {currentStep === 2 && 'Intensity Ratings'}
-              {currentStep === 3 && 'Hedonic Scores'}
-              {currentStep === 4 && 'Emotional Response'}
-              {currentStep === 5 && 'Review & Submit'}
+              {currentSection === 'review' ? 'Review & Submit' : SURVEY_SECTION_LABELS[currentSection]}
             </div>
           </div>
         </CardHeader>
@@ -414,10 +430,10 @@ export function QuestionnaireForm() {
       )}
 
       {/* Step 1: CATA */}
-      {currentStep === 1 && (
+      {currentSection === 'cata' && (
         <Card>
           <CardHeader>
-            <CardTitle>Step 1: Flavor & Aroma Attributes (CATA)</CardTitle>
+            <CardTitle>Step {questionnaireSteps.indexOf('cata') + 1}: Flavor & Aroma Attributes (CATA)</CardTitle>
             <p className="text-sm text-slate-700">
               Select ALL attributes that you perceive in this sample. Hover over any attribute for its definition.
             </p>
@@ -434,7 +450,7 @@ export function QuestionnaireForm() {
                   <Label htmlFor={`cata-${attr}`} className="text-sm cursor-pointer">
                     <AttributeTooltip
                       term={attr}
-                      definition={CATA_DEFINITIONS[attr] || 'Sensory attribute'}
+                      definition={getCataDefinition(attr, product?.category)}
                     />
                   </Label>
                 </div>
@@ -450,10 +466,10 @@ export function QuestionnaireForm() {
       )}
 
       {/* Step 2: Intensity */}
-      {currentStep === 2 && (
+      {currentSection === 'intensity' && (
         <Card>
           <CardHeader>
-            <CardTitle>Step 2: Intensity Ratings</CardTitle>
+            <CardTitle>Step {questionnaireSteps.indexOf('intensity') + 1}: Intensity Ratings</CardTitle>
             <p className="text-sm text-slate-700">
               Rate how intense each attribute is. These are the attributes you selected in Step 1.
             </p>
@@ -505,10 +521,10 @@ export function QuestionnaireForm() {
       )}
 
       {/* Step 3: Hedonic */}
-      {currentStep === 3 && (
+      {currentSection === 'hedonic' && (
         <Card>
           <CardHeader>
-            <CardTitle>Step 3: Overall Liking</CardTitle>
+            <CardTitle>Step {questionnaireSteps.indexOf('hedonic') + 1}: Overall Liking</CardTitle>
             <p className="text-sm text-slate-700">
               Rate how much you like or dislike each aspect of the product.
             </p>
@@ -552,10 +568,10 @@ export function QuestionnaireForm() {
       )}
 
       {/* Step 4: Emotions */}
-      {currentStep === 4 && (
+      {currentSection === 'emotions' && (
         <Card>
           <CardHeader>
-            <CardTitle>Step 4: Emotional Response</CardTitle>
+            <CardTitle>Step {questionnaireSteps.indexOf('emotions') + 1}: Emotional Response</CardTitle>
             <p className="text-sm text-slate-700">
               Rate how strongly you feel each emotion <strong>right now</strong>, after tasting this product.
             </p>
@@ -640,13 +656,32 @@ export function QuestionnaireForm() {
       )}
 
       {/* Step 5: Review */}
-      {currentStep === 5 && (
+      {currentSection === 'comments' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Step {questionnaireSteps.indexOf('comments') + 1}: Additional comments</CardTitle>
+            <p className="text-sm text-slate-700">Share anything important that the structured questions did not capture.</p>
+          </CardHeader>
+          <CardContent>
+            <textarea
+              className="w-full resize-none rounded-lg border border-slate-200 p-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              rows={5}
+              maxLength={2000}
+              placeholder="Describe anything else you noticed about this product…"
+              value={formData.comments}
+              onChange={(event) => setFormData(previous => ({ ...previous, comments: event.target.value }))}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {currentSection === 'review' && (
         <div className="space-y-6">
           <Card className="border-2 border-emerald-300">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CheckCircle2 className="size-6 text-emerald-600" />
-                Step 5: Review Your Responses
+                Review your responses
               </CardTitle>
               <p className="text-sm text-slate-700">
                 Please review your answers. Click on any section number to go back and make changes.
@@ -655,11 +690,11 @@ export function QuestionnaireForm() {
           </Card>
 
           {/* Review CATA */}
-          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => jumpToStep(1)}>
+          {configuredSections.includes('cata') && <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => jumpToStep('cata')}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-full bg-slate-50 text-slate-700 flex items-center justify-center text-sm font-bold">1</span>
+                  <span className="w-8 h-8 rounded-full bg-slate-50 text-slate-700 flex items-center justify-center text-sm font-bold">{questionnaireSteps.indexOf('cata') + 1}</span>
                   CATA Attributes
                 </CardTitle>
                 <Edit2 className="size-4 text-slate-500" />
@@ -678,14 +713,14 @@ export function QuestionnaireForm() {
                 )}
               </div>
             </CardContent>
-          </Card>
+          </Card>}
 
           {/* Review Intensity */}
-          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => jumpToStep(2)}>
+          {configuredSections.includes('intensity') && <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => jumpToStep('intensity')}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-full bg-slate-50 text-slate-700 flex items-center justify-center text-sm font-bold">2</span>
+                  <span className="w-8 h-8 rounded-full bg-slate-50 text-slate-700 flex items-center justify-center text-sm font-bold">{questionnaireSteps.indexOf('intensity') + 1}</span>
                   Intensity Ratings
                 </CardTitle>
                 <Edit2 className="size-4 text-slate-500" />
@@ -703,14 +738,14 @@ export function QuestionnaireForm() {
                 )}
               </div>
             </CardContent>
-          </Card>
+          </Card>}
 
           {/* Review Hedonic */}
-          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => jumpToStep(3)}>
+          {configuredSections.includes('hedonic') && <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => jumpToStep('hedonic')}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-full bg-slate-50 text-slate-700 flex items-center justify-center text-sm font-bold">3</span>
+                  <span className="w-8 h-8 rounded-full bg-slate-50 text-slate-700 flex items-center justify-center text-sm font-bold">{questionnaireSteps.indexOf('hedonic') + 1}</span>
                   Hedonic Scores
                 </CardTitle>
                 <Edit2 className="size-4 text-slate-500" />
@@ -726,14 +761,14 @@ export function QuestionnaireForm() {
                 ))}
               </div>
             </CardContent>
-          </Card>
+          </Card>}
 
           {/* Review Emotions */}
-          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => jumpToStep(4)}>
+          {configuredSections.includes('emotions') && <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => jumpToStep('emotions')}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-sm font-bold">4</span>
+                  <span className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-sm font-bold">{questionnaireSteps.indexOf('emotions') + 1}</span>
                   Emotional Response
                 </CardTitle>
                 <Edit2 className="size-4 text-slate-500" />
@@ -765,28 +800,21 @@ export function QuestionnaireForm() {
                 </div>
               </div>
             </CardContent>
-          </Card>
+          </Card>}
 
           {/* Open-ended comments */}
-          <Card>
+          {configuredSections.includes('comments') && <Card className="cursor-pointer transition-colors hover:bg-slate-50" onClick={() => jumpToStep('comments')}>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <span className="w-8 h-8 rounded-full bg-slate-50 text-slate-700 flex items-center justify-center text-sm font-bold">5</span>
+                <span className="w-8 h-8 rounded-full bg-slate-50 text-slate-700 flex items-center justify-center text-sm font-bold">{questionnaireSteps.indexOf('comments') + 1}</span>
                 Additional Comments <span className="text-sm font-normal text-slate-500">(optional)</span>
               </CardTitle>
               <p className="text-sm text-slate-500">Anything else you'd like to share about this product? Explain your ratings or describe anything not captured above.</p>
             </CardHeader>
             <CardContent>
-              <textarea
-                className="w-full border border-slate-200 rounded-lg p-3 text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
-                rows={4}
-                maxLength={2000}
-                placeholder="e.g. The texture was unusual compared to what I expected, or the coconut note was very subtle at first but grew stronger..."
-                value={formData.comments}
-                onChange={(e) => setFormData(prev => ({ ...prev, comments: e.target.value }))}
-              />
+              <p className="whitespace-pre-wrap text-sm text-slate-700">{formData.comments || 'No additional comments.'}</p>
             </CardContent>
-          </Card>
+          </Card>}
 
           {/* Final Confirmation */}
         <div className="sticky bottom-0 z-20 -mx-3 space-y-3 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:mx-0 sm:rounded-t-lg sm:border">
@@ -804,10 +832,11 @@ export function QuestionnaireForm() {
               )}
               <Button
                 onClick={handleSubmit}
+                disabled={isSubmitting}
                 className="w-full bg-slate-900 hover:bg-slate-800 text-base py-6 sm:text-lg"
               >
                 <CheckCircle2 className="size-5 mr-2" />
-                {alreadyCompleted ? 'Submit New Run' : 'Submit Questionnaire'}
+                {isSubmitting ? 'Saving your answers…' : alreadyCompleted ? 'Submit New Run' : 'Submit Questionnaire'}
               </Button>
           </div>
         </div>

@@ -12,6 +12,7 @@ import {
 import { useConceptTest, useInsertConceptResponse } from '../lib/hooks';
 import { CheckCircle2, ChevronLeft, ChevronRight, Image as ImageIcon, AlertCircle, Megaphone } from 'lucide-react';
 import { useScrollToTop } from '../lib/use-scroll-to-top';
+import { PanelistTaskLoading, PanelistTaskUnavailable } from './panelist-task-state';
 
 const SCALE_MIDPOINT = 5;
 
@@ -37,6 +38,10 @@ export function ConceptSurvey() {
 
   const handleSubmit = async () => {
     if (!user?.id || !conceptId) return;
+    if (user.role !== 'panelist') {
+      setError('Preview mode only. Sign in as an assigned panelist to submit feedback.');
+      return;
+    }
     const completedAnswers = { ...answers };
     test?.questions.forEach(question => {
       if (question.type === 'scale' && completedAnswers[question.id] === undefined) {
@@ -61,16 +66,11 @@ export function ConceptSurvey() {
   };
 
   if (loading) {
-    return <div className="text-center py-16 text-slate-500">Loading concept test…</div>;
+    return <PanelistTaskLoading message="Loading your concept task…" />;
   }
 
   if (!test) {
-    return (
-      <div className="max-w-2xl mx-auto py-16 text-center space-y-4">
-        <p className="text-slate-500">Concept test not found.</p>
-        <Button variant="outline" onClick={() => navigate('/panelist')}>Back to Dashboard</Button>
-      </div>
-    );
+    return <PanelistTaskUnavailable message={isError ? 'We could not load this concept task. Check your connection and try again.' : 'This concept task is not available.'} onBack={() => navigate('/panelist')} />;
   }
 
   if (test.status !== 'active') {
@@ -121,12 +121,11 @@ export function ConceptSurvey() {
           <Badge variant="outline" className="text-xs">{test.category}</Badge>
         </div>
         <h1 className="text-2xl font-bold text-slate-900">{test.name}</h1>
-        {test.description && <p className="text-slate-700 mt-2 leading-relaxed">{test.description}</p>}
-        <div className="flex flex-wrap gap-4 mt-3 text-xs text-slate-500">
-          {test.targetMarket && <span><strong>Target market:</strong> {test.targetMarket}</span>}
-          {test.pricePoint && <span><strong>Expected price:</strong> {test.pricePoint}</span>}
-          {test.keyBenefits && <span><strong>Key benefits:</strong> {test.keyBenefits}</span>}
-        </div>
+        {test.pricePoint && (
+          <div className="mt-3 text-xs text-slate-500">
+            <span><strong>Expected price:</strong> {test.pricePoint}</span>
+          </div>
+        )}
       </div>
 
       {shownError && (
@@ -247,6 +246,20 @@ function QuestionCard({
         <div className="flex gap-3">
           <span className="text-sm font-bold text-slate-500 mt-0.5 w-6 flex-shrink-0">{index + 1}.</span>
           <div className="flex-1 space-y-3">
+            {question.imageIndex !== undefined && images[question.imageIndex] && (
+              <div className="max-w-sm overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                <img
+                  src={images[question.imageIndex]}
+                  alt={`Concept visual ${question.imageIndex + 1} being rated`}
+                  loading="lazy"
+                  decoding="async"
+                  className="aspect-square w-full object-contain"
+                />
+                <p className="border-t border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600">
+                  Visual {question.imageIndex + 1}
+                </p>
+              </div>
+            )}
             <div className="flex items-start justify-between gap-2">
               <p className="text-sm font-medium text-slate-900 leading-snug">{question.text}</p>
               {question.required && (

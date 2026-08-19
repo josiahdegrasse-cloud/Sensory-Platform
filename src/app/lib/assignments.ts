@@ -1,4 +1,4 @@
-export type AssignmentMode = 'open' | 'selected' | 'unassigned';
+export type AssignmentMode = 'selected' | 'unassigned';
 export type AssignableType = 'product' | 'concept';
 
 export interface AssignablePanelist {
@@ -21,7 +21,7 @@ export interface AssignmentSummary {
 }
 
 export function getProductAssignmentMode(product: AssignmentTarget): AssignmentMode {
-  return (product.assignedPanelistIds?.length ?? 0) > 0 ? 'selected' : 'open';
+  return (product.assignedPanelistIds?.length ?? 0) > 0 ? 'selected' : 'unassigned';
 }
 
 export function getConceptTestAssignmentMode(conceptTest: AssignmentTarget): AssignmentMode {
@@ -33,8 +33,8 @@ export function filterAssignablePanelists<T extends AssignablePanelist>(panelist
 }
 
 export function isPanelistAssignedToProduct(product: AssignmentTarget, panelistId: string): boolean {
-  return getProductAssignmentMode(product) === 'open'
-    || (product.assignedPanelistIds ?? []).includes(panelistId);
+  return getProductAssignmentMode(product) === 'selected'
+    && (product.assignedPanelistIds ?? []).includes(panelistId);
 }
 
 export function isPanelistAssignedToConceptTest(conceptTest: AssignmentTarget, panelistId: string): boolean {
@@ -55,12 +55,8 @@ export function getAssignmentSummary(
   const mode = type === 'product'
     ? getProductAssignmentMode(assignable)
     : getConceptTestAssignmentMode(assignable);
-  const accessiblePanelistCount = mode === 'open'
-    ? activePanelists.length
-    : activeAssignedIds.length;
-  const ready = mode === 'open'
-    ? activePanelists.length > 0
-    : mode === 'selected' && activeAssignedIds.length > 0;
+  const accessiblePanelistCount = activeAssignedIds.length;
+  const ready = mode === 'selected' && activeAssignedIds.length > 0;
 
   return {
     mode,
@@ -69,10 +65,8 @@ export function getAssignmentSummary(
     activePanelistCount: activePanelists.length,
     accessiblePanelistCount,
     ready,
-    label: mode === 'open'
-      ? `Open to all ${activePanelists.length} active panelist${activePanelists.length === 1 ? '' : 's'}`
-      : mode === 'selected'
-        ? `Assigned to ${activeAssignedIds.length} active panelist${activeAssignedIds.length === 1 ? '' : 's'}`
-        : 'No panelists assigned',
+    label: mode === 'selected'
+      ? `Assigned to ${activeAssignedIds.length} active panelist${activeAssignedIds.length === 1 ? '' : 's'}`
+      : 'No panelists assigned',
   };
 }

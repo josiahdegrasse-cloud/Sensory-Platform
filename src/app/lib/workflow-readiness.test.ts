@@ -49,7 +49,7 @@ describe('workflow readiness', () => {
     expect(readiness.stages.every(stage => stage.state === 'complete')).toBe(true);
   });
 
-  it('treats an open product survey as assigned under legacy product semantics', () => {
+  it('blocks an unassigned product survey from fielding', () => {
     const readiness = assessSampleWorkflow({
       sample,
       product: {
@@ -67,10 +67,10 @@ describe('workflow readiness', () => {
       hasComposition: true,
     });
 
-    expect(readiness.blockers).not.toContain('Assign the questionnaire to panelists.');
+    expect(readiness.blockers).toContain('Assign the questionnaire to panelists.');
     expect(readiness.stages.find(stage => stage.id === 'assignment')).toMatchObject({
-      state: 'complete',
-      detail: 'Open to all active panelists.',
+      state: 'blocked',
+      detail: 'No panelists assigned.',
     });
   });
 

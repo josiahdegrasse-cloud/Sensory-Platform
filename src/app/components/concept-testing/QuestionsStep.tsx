@@ -156,8 +156,9 @@ export function QuestionsStep({
   ].filter((s): s is string => Boolean(s));
   const draftWarnings = [
     !draft.description.trim() && 'The brief has no consumer description — questions lean on category norms.',
-    briefBenefits.length === 0 && 'No key benefits listed in the brief — benefit-motivation questions were omitted.',
-    validImageCount < 2 && 'Fewer than two concept visuals provided — the visual-preference question is optional.',
+    briefBenefits.length === 0 && 'No key benefits listed in the brief — visual cue choices lean on the category profile.',
+    validImageCount === 0 && 'No concept visuals provided — visual-rating and preference questions were omitted.',
+    validImageCount === 1 && 'Only one concept visual provided — the comparative preference question was omitted.',
   ].filter((w): w is string => Boolean(w));
 
   const surveyEditor = (
@@ -245,6 +246,11 @@ export function QuestionsStep({
                     className="border-0 px-0 py-0 h-auto text-sm font-medium text-slate-900 focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-slate-500"
                   />
                   <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                    {q.imageIndex !== undefined && (
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                        Visual {q.imageIndex + 1}
+                      </span>
+                    )}
                     <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${CATEGORY_COLORS[q.category]}`}>
                       {q.category}
                     </span>

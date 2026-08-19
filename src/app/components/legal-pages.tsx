@@ -55,13 +55,13 @@ export function PrivacyPolicy() {
       icon={ShieldCheck}
     >
       <Section title="Information We Collect">
-        <p>We collect account details such as name and email, panelist identifiers, assigned study activity, questionnaire responses, product ratings, comments, concept feedback, timestamps, and technical metadata needed to operate the platform.</p>
+        <p>We collect account details such as name and email, panelist identifiers, food-allergy and medically required avoidance declarations, assigned study activity, questionnaire responses, product ratings, comments, concept feedback, timestamps, and technical metadata needed to operate the platform.</p>
       </Section>
       <Section title="How We Use Information">
         <p>Data is used to administer sensory studies, assign surveys, analyze food product performance, generate reports, improve study design, and maintain platform security and reliability.</p>
       </Section>
       <Section title="Who Can Access It">
-        <p>Authorized administrators may access panelist and study data for research operations. Panelists can access their own assigned questionnaires and submissions where the product allows it.</p>
+        <p>Authorized study administrators may access panelist and study data for research operations. They may review a panelist's safety declaration when preparing or verifying a study; each declaration view is logged. Panelists can access their own assigned questionnaires and submissions where the product allows it.</p>
       </Section>
       <Section title="Retention and Deletion">
         <p>Study data is retained while it is needed for research, quality, audit, or business purposes. Panelists may contact the study administrator to ask about access, correction, or deletion of their data.</p>
@@ -102,13 +102,9 @@ export function TermsOfUse() {
   );
 }
 
-export function PanelistConsent() {
+export function PanelistConsentContent() {
   return (
-    <LegalShell
-      title="Panelist Consent"
-      subtitle="What panelists agree to before completing questionnaires and concept surveys."
-      icon={FileText}
-    >
+    <>
       <Section title="Purpose">
         <p>You are being asked to participate in food sensory research. Your responses help evaluate products, compare samples, improve concepts, and guide product development decisions.</p>
       </Section>
@@ -124,9 +120,24 @@ export function PanelistConsent() {
       <Section title="Confidentiality">
         <p>Your responses are used for research and reporting by authorized administrators. Reports may combine responses across panelists when evaluating product performance.</p>
       </Section>
+      <Section title="Food Safety Information">
+        <p>Your allergy and medically required avoidance declaration is used to exclude unsuitable samples automatically. Authorized study administrators may also review it when preparing or verifying a study. Each declaration view is logged, and viewing the record does not allow an administrator to override the safety filters.</p>
+      </Section>
       <Section title="Agreement">
         <p>By accepting consent in the platform, you confirm that you understand this information and agree to participate under these terms.</p>
       </Section>
+    </>
+  );
+}
+
+export function PanelistConsent() {
+  return (
+    <LegalShell
+      title="Panelist Consent"
+      subtitle="What panelists agree to before completing questionnaires and concept surveys."
+      icon={FileText}
+    >
+      <PanelistConsentContent />
     </LegalShell>
   );
 }

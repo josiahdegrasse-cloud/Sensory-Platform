@@ -24,6 +24,8 @@ export interface LiteratureCitation {
   title: string;
   excerpt: string;
   source: string;
+  /** Authenticated locator used only by the source viewer; never rendered. */
+  sourcePath?: string;
 }
 
 export type ReportAgentRole =

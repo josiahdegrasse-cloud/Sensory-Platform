@@ -4,6 +4,7 @@ import {
   getDefaultCataAttributesForFoodType,
   getDefaultIntensityAttributesForFoodType,
 } from '../lib/food-intelligence';
+import type { SurveySection } from '../lib/survey-sections';
 
 export interface HedonicReferenceScores {
   overall: number;
@@ -18,8 +19,9 @@ export interface Product {
   name: string;
   category: string;
   createdDate: string;
-  status: 'active' | 'completed' | 'archived';
+  status: 'draft' | 'active' | 'completed' | 'archived';
   customAttributes?: string[];
+  surveySections?: SurveySection[];
   isMultiSample?: boolean;
   samples?: { id: string; code: string; label: string }[];
   isCalibration?: boolean;
@@ -41,13 +43,7 @@ export interface QuestionnaireResponse {
   runNumber: number;
   cataAttributes: string[];
   intensityRatings: Record<string, number>;
-  hedonicScores: {
-    overall: number;
-    appearance: number;
-    aroma: number;
-    flavor: number;
-    texture: number;
-  };
+  hedonicScores: Partial<HedonicReferenceScores>;
   emotionalProfile: Record<string, number>;
   comments?: string;
   sessionType?: string;

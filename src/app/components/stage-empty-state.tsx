@@ -4,10 +4,19 @@ import { ChevronRight, Lock } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 
-interface StageEmptyStateCta {
+interface StageEmptyStateLinkCta {
   label: string;
   to: string;
+  onClick?: never;
 }
+
+interface StageEmptyStateActionCta {
+  label: string;
+  onClick: () => void;
+  to?: never;
+}
+
+type StageEmptyStateCta = StageEmptyStateLinkCta | StageEmptyStateActionCta;
 
 /**
  * The platform's one empty-state pattern: what's missing, why it matters in
@@ -21,7 +30,7 @@ export function StageEmptyState({ icon: Icon, headline, body, cta, secondaryCta,
   body: string;
   /** Primary path forward. Omit only when `locked` explains the unlock condition. */
   cta?: StageEmptyStateCta;
-  secondaryCta?: StageEmptyStateCta;
+  secondaryCta?: StageEmptyStateLinkCta;
   /** Renders the lock treatment: the body should state the unlock condition. */
   locked?: boolean;
   className?: string;
@@ -39,11 +48,17 @@ export function StageEmptyState({ icon: Icon, headline, body, cta, secondaryCta,
         {(cta || secondaryCta) && (
           <div className="mt-4 flex items-center justify-center gap-3 flex-wrap">
             {cta && (
-              <Button asChild size="sm">
-                <Link to={cta.to}>
+              cta.to ? (
+                <Button asChild size="sm">
+                  <Link to={cta.to}>
+                    {cta.label} <ChevronRight className="size-3.5" aria-hidden />
+                  </Link>
+                </Button>
+              ) : (
+                <Button type="button" size="sm" onClick={cta.onClick}>
                   {cta.label} <ChevronRight className="size-3.5" aria-hidden />
-                </Link>
-              </Button>
+                </Button>
+              )
             )}
             {secondaryCta && (
               <Link

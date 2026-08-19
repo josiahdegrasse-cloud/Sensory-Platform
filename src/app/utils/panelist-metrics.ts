@@ -65,7 +65,9 @@ function buildPanelMeans(
 ): Record<string, number> {
   const sums: Record<string, { sum: number; count: number }> = {};
   responses.forEach(r => {
-    (sums[r.productId] ??= { sum: 0, count: 0 }).sum += r.hedonicScores[key];
+    const value = r.hedonicScores[key];
+    if (!Number.isFinite(value)) return;
+    (sums[r.productId] ??= { sum: 0, count: 0 }).sum += value!;
     sums[r.productId].count++;
   });
   const out: Record<string, number> = {};
@@ -82,14 +84,15 @@ export function computePanelistMetrics(
   // Exclude calibration products from performance metrics
   const nonCalib = allResponses.filter(r => !calibrationProductIds.has(r.productId));
   const mine = nonCalib.filter(r => r.userId === userId);
+  const mineWithOverall = mine.filter(r => Number.isFinite(r.hedonicScores.overall));
   const completedCount = mine.length;
 
   // ── Repeatability: Pearson r between run 1 and run 2 across products ─────────
   const run1: Record<string, number> = {};
   const run2: Record<string, number> = {};
-  mine.forEach(r => {
-    if (r.runNumber === 1) run1[r.productId] = r.hedonicScores.overall;
-    else if (r.runNumber === 2) run2[r.productId] = r.hedonicScores.overall;
+  mineWithOverall.forEach(r => {
+    if (r.runNumber === 1) run1[r.productId] = r.hedonicScores.overall!;
+    else if (r.runNumber === 2) run2[r.productId] = r.hedonicScores.overall!;
   });
   const repPids = Object.keys(run1).filter(pid => pid in run2);
   const repeatability = pearsonR(repPids.map(p => run1[p]), repPids.map(p => run2[p]));
@@ -97,10 +100,10 @@ export function computePanelistMetrics(
   // ── Discrimination F-ratio: one-way ANOVA across products ────────────────────
   let discriminationFRatio: number | null = null;
   const myByProduct: Record<string, number[]> = {};
-  mine.forEach(r => (myByProduct[r.productId] ??= []).push(r.hedonicScores.overall));
+  mineWithOverall.forEach(r => (myByProduct[r.productId] ??= []).push(r.hedonicScores.overall!));
   const pids = Object.keys(myByProduct);
   if (pids.length >= 3) {
-    const grandMean = mean(mine.map(r => r.hedonicScores.overall));
+    const grandMean = mean(mineWithOverall.map(r => r.hedonicScores.overall!));
     const ssBetween = pids.reduce((s, pid) => {
       const pm = mean(myByProduct[pid]);
       return s + myByProduct[pid].length * (pm - grandMean) ** 2;
@@ -110,7 +113,7 @@ export function computePanelistMetrics(
       return s + myByProduct[pid].reduce((ss, v) => ss + (v - pm) ** 2, 0);
     }, 0);
     const dfB = pids.length - 1;
-    const dfW = mine.length - pids.length;
+    const dfW = mineWithOverall.length - pids.length;
     if (dfW > 0 && ssWithin > 0) discriminationFRatio = (ssBetween / dfB) / (ssWithin / dfW);
   }
 
@@ -122,7 +125,9 @@ export function computePanelistMetrics(
   HEDONIC_KEYS.forEach(key => {
     const pm = buildPanelMeans(nonCalib, key);
     panelMeanCache[key] = pm;
-    const devs = mine.filter(r => pm[r.productId] !== undefined).map(r => Math.abs(r.hedonicScores[key] - pm[r.productId]));
+    const devs = mine
+      .filter(r => pm[r.productId] !== undefined && Number.isFinite(r.hedonicScores[key]))
+      .map(r => Math.abs(r.hedonicScores[key]! - pm[r.productId]));
     if (devs.length >= 3) {
       attributeDeviations[key] = mean(devs);
       if (key === 'overall') meanDeviation = attributeDeviations.overall!;
@@ -130,7 +135,7 @@ export function computePanelistMetrics(
   });
 
   // ── Scale usage ───────────────────────────────────────────────────────────────
-  const allScores = mine.map(r => r.hedonicScores.overall);
+  const allScores = mineWithOverall.map(r => r.hedonicScores.overall!);
   const scaleDistribution: number[] = Array(9).fill(0);
   allScores.forEach(s => scaleDistribution[Math.min(8, Math.max(0, Math.round(s) - 1))]++);
   const scaleUsageRange = allScores.length >= 3 ? Math.max(...allScores) - Math.min(...allScores) : null;
@@ -141,8 +146,8 @@ export function computePanelistMetrics(
   const driftData: DriftPoint[] = [];
   const myByDate: Record<string, number[]> = {};
   const allByDate: Record<string, number[]> = {};
-  mine.forEach(r => (myByDate[r.timestamp.slice(0, 10)] ??= []).push(r.hedonicScores.overall));
-  nonCalib.forEach(r => (allByDate[r.timestamp.slice(0, 10)] ??= []).push(r.hedonicScores.overall));
+  mineWithOverall.forEach(r => (myByDate[r.timestamp.slice(0, 10)] ??= []).push(r.hedonicScores.overall!));
+  nonCalib.filter(r => Number.isFinite(r.hedonicScores.overall)).forEach(r => (allByDate[r.timestamp.slice(0, 10)] ??= []).push(r.hedonicScores.overall!));
   Object.keys(myByDate).sort().forEach((date, idx) => {
     driftData.push({
       session: idx + 1,
@@ -160,7 +165,9 @@ export function computePanelistMetrics(
     const allDevMeans: number[] = [];
     userIds.forEach(uid => {
       const uResps = nonCalib.filter(r => r.userId === uid);
-      const devs = uResps.filter(r => pm[r.productId] !== undefined).map(r => Math.abs(r.hedonicScores[key] - pm[r.productId]));
+      const devs = uResps
+        .filter(r => pm[r.productId] !== undefined && Number.isFinite(r.hedonicScores[key]))
+        .map(r => Math.abs(r.hedonicScores[key]! - pm[r.productId]));
       if (devs.length >= 3) allDevMeans.push(mean(devs));
     });
     if (allDevMeans.length < 2) return;
@@ -180,7 +187,8 @@ export function computePanelistMetrics(
       if (!ref) return;
       HEDONIC_KEYS.forEach(key => {
         const refVal = ref[key];
-        if (refVal !== undefined) calibDevs.push(Math.abs(r.hedonicScores[key] - refVal));
+        const responseValue = r.hedonicScores[key];
+        if (refVal !== undefined && Number.isFinite(responseValue)) calibDevs.push(Math.abs(responseValue! - refVal));
       });
     });
     if (calibDevs.length > 0) calibrationDeviation = mean(calibDevs);

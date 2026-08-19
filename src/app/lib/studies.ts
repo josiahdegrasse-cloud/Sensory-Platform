@@ -80,9 +80,14 @@ export function validateProductStudy(product: Product): StudyBlocker[] {
       label: 'Add food type or category',
       severity: 'blocker' as const,
     },
-    !(product.customAttributes?.length) && {
+    (product.surveySections ?? ['cata']).includes('cata') && !(product.customAttributes?.length) && {
       id: 'sensory-attributes',
-      label: 'Select sensory attributes',
+      label: 'Select CATA attributes',
+      severity: 'blocker' as const,
+    },
+    (product.assignedPanelistIds?.length ?? 0) === 0 && {
+      id: 'assigned-panelists',
+      label: 'Assign eligible panelists before launch',
       severity: 'blocker' as const,
     },
   ]);
@@ -183,6 +188,9 @@ function getProductNextAction(
   if (blockers.some(blocker => blocker.severity === 'blocker')) {
     return { label: 'Finish setup', description: blockers.find(blocker => blocker.severity === 'blocker')?.label ?? 'Resolve launch blockers.' };
   }
+  if (normalizeProductStatus(product.status) === 'draft') {
+    return { label: 'Review and launch', description: 'Preview the panelist flow, then launch the reviewed draft.' };
+  }
   if (responseCount === 0) {
     return { label: 'Preview as panelist', description: 'Check the questionnaire before inviting responses.', href: product.isMultiSample ? `/multi-sample-info/${product.id}` : `/questionnaire-info/${product.id}` };
   }
@@ -205,7 +213,7 @@ export function adaptProductToStudySummary(
   product: Product,
   responses: QuestionnaireResponse[],
   importBatches: ImportBatchRecord[] = [],
-  activePanelistCount = 0,
+  _activePanelistCount = 0,
 ): StudySummary {
   const responseCount = responses.filter(response => response.productId === product.id).length;
   const completedCount = getUniqueCompletedPanelistCount(product, responses);
@@ -216,7 +224,7 @@ export function adaptProductToStudySummary(
   const multiBlockers = product.isMultiSample ? validateMultiSampleStudy(product) : [];
   const blockers = [...productBlockers, ...multiBlockers];
   const assignedCount = product.assignedPanelistIds?.length ?? 0;
-  const invitedCount = Math.max(assignedCount > 0 ? assignedCount : activePanelistCount, completedCount);
+  const invitedCount = Math.max(assignedCount, completedCount);
 
   return {
     id: product.id,
@@ -228,9 +236,9 @@ export function adaptProductToStudySummary(
       : product.category,
     sourceImportBatchId: product.sourceImportBatchId,
     sourceImportBatchName: sourceBatch?.fileName ?? null,
-    assignmentLabel: assignedCount > 0 ? `${assignedCount} assigned` : 'Open to all panelists',
+    assignmentLabel: assignedCount > 0 ? `${assignedCount} assigned` : 'No panelists assigned',
     assignedPanelistCount: assignedCount > 0 ? assignedCount : null,
-    openToAll: assignedCount === 0,
+    openToAll: false,
     responseCount,
     invitedCount,
     completedCount,

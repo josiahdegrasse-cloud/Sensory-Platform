@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   fetchProducts, fetchActiveProducts, fetchTemplates,
-  fetchPanelists, fetchPanelistReliability, invitePanelistAccount,
+  fetchPanelists, fetchOwnPanelistProfileSetup, fetchPanelistReliability, invitePanelistAccount,
   fetchAllResponses, fetchResponseCountsByProduct, fetchResponsesForProducts, fetchUserResponses,
   fetchConceptTestsForPanelist, fetchUserConceptResponses,
   fetchConceptTestsForAdmin, fetchConceptTestsForStudyDashboard, fetchConceptResponsesForTest,
@@ -12,7 +12,7 @@ import {
   fetchConceptImageUsage,
   fetchConceptImageGenerations, fetchConceptProjectSummaries, fetchConceptLabDiagnostics,
   fetchFoodTypes, fetchInstrumentalDataset, fetchFormulationVersions, fetchImportBatches,
-  fetchProjects, createProject, renameProject, assignBatchToProject,
+  fetchProjects, createProject, renameProject, deleteProject, assignBatchToProject,
   fetchWorkspaceSettings, updateWorkspaceSettings, fetchAuditEvents,
   fetchIsPlatformOperator, provisionPlatformOrganization,
   fetchWorkspaceOperationalHealth, fetchPrototypeLineageIssues,
@@ -28,10 +28,11 @@ import {
   insertProduct, updateProduct, updateProductAssignments, deleteProduct,
   insertTemplate, deleteTemplate, updatePanelistId, updatePanelistTrainingLevel, updatePanelistStatus,
   insertConceptTest, updateConceptTestStatus, insertConceptResponse,
-  insertInstrumentalImport, archiveFoodTypeRecord, restoreFoodTypeRecord, deleteFoodTypeRecord, updateImportBatchStatus, updateImportBatchName, deleteImportBatch, updateIngredientStatement, reviewFormulationVersion,
+  insertInstrumentalImport, createSurveysForImportBatch, archiveFoodTypeRecord, restoreFoodTypeRecord, deleteFoodTypeRecord, updateImportBatchStatus, updateImportBatchName, deleteImportBatch, updateIngredientStatement, reviewFormulationVersion,
   fetchPendingImports, dismissPendingImport, markPendingImportImported, uploadAndQueueImport,
   rejectPendingImport, listDriveFiles, importDriveFiles,
   type ConceptTest, type InstrumentalImportInput, type ConceptGenerationSettings,
+  type CreateImportSurveysInput,
   type WorkspaceSettings, type PanelistInfo,
   type PlatformOrganizationInput,
   type CommercializationReportRecord,
@@ -42,6 +43,8 @@ import {
   addFormulationExperimentArm, deleteFormulationExperimentArm, lockFormulationExperiment,
   advanceFormulationExperiment, recordFormulationEvaluation, fetchDecisionFreshness,
   markDecisionResearchRefreshed, saveFormulationExperimentLearning,
+  fetchEligiblePanelists, fetchEligiblePanelistsForProducts, fetchPanelistSafetyDeclaration, fetchSampleAllergenDeclaration, fetchSampleAllergenDeclarationsForProducts, saveSampleAllergenDeclaration, saveSampleAllergenDeclarationsForProducts,
+  type SampleEligibilityTarget,
 } from './database'
 import type { TrainingLevel } from '../utils/panelist-metrics'
 import type { Product } from './study-types'
@@ -79,6 +82,12 @@ export const queryKeys = {
   activeProducts: ['activeProducts'] as const,
   templates: ['templates'] as const,
   panelists: ['panelists'] as const,
+  ownPanelistProfileSetup: ['ownPanelistProfileSetup'] as const,
+  eligiblePanelists: (target: SampleEligibilityTarget) => ['eligiblePanelists', target.productId ?? '', target.formulationVersionId ?? ''] as const,
+  eligiblePanelistsForProducts: (productIds: readonly string[]) => ['eligiblePanelistsForProducts', ...productIds] as const,
+  sampleAllergenDeclaration: (target: SampleEligibilityTarget) => ['sampleAllergenDeclaration', target.productId ?? '', target.formulationVersionId ?? ''] as const,
+  sampleAllergenDeclarationsForProducts: (productIds: readonly string[]) => ['sampleAllergenDeclarationsForProducts', ...productIds] as const,
+  panelistSafetyDeclaration: (panelistId: string) => ['panelistSafetyDeclaration', panelistId] as const,
   panelistReliability: ['panelistReliability'] as const,
   allResponses: ['allResponses'] as const,
   responseCountsByProduct: ['responseCountsByProduct'] as const,
@@ -274,6 +283,91 @@ export function useTemplates() {
 
 export function usePanelists() {
   return useQuery({ queryKey: queryKeys.panelists, queryFn: fetchPanelists })
+}
+
+export function useOwnPanelistProfileSetup(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.ownPanelistProfileSetup,
+    queryFn: fetchOwnPanelistProfileSetup,
+    enabled,
+  })
+}
+
+export function useEligiblePanelists(target: SampleEligibilityTarget, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.eligiblePanelists(target),
+    queryFn: () => fetchEligiblePanelists(target),
+    enabled: enabled && Boolean(target.productId || target.formulationVersionId),
+  })
+}
+
+export function useEligiblePanelistsForProducts(productIds: string[], enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.eligiblePanelistsForProducts(productIds),
+    queryFn: () => fetchEligiblePanelistsForProducts(productIds),
+    enabled: enabled && productIds.length > 0,
+  })
+}
+
+export function useSampleAllergenDeclaration(target: SampleEligibilityTarget, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.sampleAllergenDeclaration(target),
+    queryFn: () => fetchSampleAllergenDeclaration(target),
+    enabled: enabled && Boolean(target.productId || target.formulationVersionId),
+  })
+}
+
+export function useSampleAllergenDeclarationsForProducts(productIds: string[], enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.sampleAllergenDeclarationsForProducts(productIds),
+    queryFn: () => fetchSampleAllergenDeclarationsForProducts(productIds),
+    enabled: enabled && productIds.length > 0,
+  })
+}
+
+export function usePanelistSafetyDeclaration(panelistId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.panelistSafetyDeclaration(panelistId ?? ''),
+    queryFn: () => fetchPanelistSafetyDeclaration(panelistId!),
+    enabled: Boolean(panelistId),
+  })
+}
+
+export function useSaveSampleAllergenDeclaration(target: SampleEligibilityTarget) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: saveSampleAllergenDeclaration,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.sampleAllergenDeclaration(target) })
+      qc.invalidateQueries({ queryKey: ['sampleAllergenDeclarationsForProducts'] })
+      qc.invalidateQueries({ queryKey: queryKeys.eligiblePanelists(target) })
+      qc.invalidateQueries({ queryKey: ['eligiblePanelistsForProducts'] })
+      qc.invalidateQueries({ queryKey: queryKeys.products })
+      qc.invalidateQueries({ queryKey: queryKeys.activeProducts })
+      qc.invalidateQueries({ queryKey: queryKeys.adminConceptTests })
+      qc.invalidateQueries({ queryKey: queryKeys.studyConceptTests })
+      qc.invalidateQueries({ queryKey: ['conceptTests'] })
+    },
+  })
+}
+
+export function useSaveSampleAllergenDeclarationsForProducts(productIds: string[]) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: Omit<Parameters<typeof saveSampleAllergenDeclarationsForProducts>[0], 'productIds'>) => (
+      saveSampleAllergenDeclarationsForProducts({ ...input, productIds })
+    ),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['sampleAllergenDeclaration'] }),
+        qc.invalidateQueries({ queryKey: ['sampleAllergenDeclarationsForProducts'] }),
+        qc.invalidateQueries({ queryKey: ['eligiblePanelists'] }),
+        qc.invalidateQueries({ queryKey: ['eligiblePanelistsForProducts'] }),
+        qc.invalidateQueries({ queryKey: queryKeys.products }),
+        qc.invalidateQueries({ queryKey: queryKeys.activeProducts }),
+      ])
+    },
+  })
 }
 
 export function useInvitePanelist() {
@@ -1048,10 +1142,13 @@ export function useInsertInstrumentalImport() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (input: InstrumentalImportInput) => insertInstrumentalImport(input),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.foodTypes })
-      qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
-      qc.invalidateQueries({ queryKey: queryKeys.importBatches })
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: queryKeys.foodTypes }),
+        qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset }),
+        qc.invalidateQueries({ queryKey: queryKeys.importBatches }),
+        qc.invalidateQueries({ queryKey: queryKeys.projects }),
+      ])
     },
   })
 }
@@ -1164,6 +1261,20 @@ export function useDeleteImportBatch() {
   })
 }
 
+export function useCreateImportSurveys() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: CreateImportSurveysInput) => createSurveysForImportBatch(input),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: queryKeys.products }),
+        qc.invalidateQueries({ queryKey: queryKeys.activeProducts }),
+        qc.invalidateQueries({ queryKey: queryKeys.importBatches }),
+      ])
+    },
+  })
+}
+
 export function useProjects(enabled = true) {
   return useQuery({
     queryKey: queryKeys.projects,
@@ -1190,6 +1301,22 @@ export function useRenameProject() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.projects })
       qc.invalidateQueries({ queryKey: queryKeys.importBatches })
+    },
+  })
+}
+
+export function useDeleteProject() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: deleteProject,
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: queryKeys.projects }),
+        qc.invalidateQueries({ queryKey: queryKeys.importBatches }),
+        qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset }),
+        qc.invalidateQueries({ queryKey: queryKeys.products }),
+        qc.invalidateQueries({ queryKey: queryKeys.activeProducts }),
+      ])
     },
   })
 }

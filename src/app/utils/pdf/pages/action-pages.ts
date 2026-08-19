@@ -7,6 +7,7 @@ import {
   SLATE_700,
   SLATE_950,
   WHITE,
+  fittedParagraph,
   imageFormat,
   lighten,
   paragraph,
@@ -91,7 +92,7 @@ export function renderConceptPackagingPage(
   doc.roundedRect(margin, y, contentWidth, 58, 8, 8, 'F');
   setText(doc, accent, 6.8, 'bold');
   doc.text('CONCEPT EVIDENCE BOUNDARY', margin + 14, y + 19);
-  paragraph(
+  fittedParagraph(
     doc,
     consumer.responseCount < 5
       ? `Concept test n=${consumer.responseCount}. The observed response is retained in the project record but is not interpreted as preference, demand, price acceptance, purchase intent, or packaging validation.`
@@ -99,7 +100,8 @@ export function renderConceptPackagingPage(
     margin + 14,
     y + 36,
     contentWidth - 28,
-    { color: SLATE_950, size: 7.5, weight: 'bold', lineHeight: 9.5 },
+    15,
+    { color: SLATE_950, size: 7.5, minSize: 5.6, weight: 'bold', lineHeight: 9.5 },
   );
   y += 68;
   const validationBoundary = data.validationQuestions.length
@@ -183,7 +185,7 @@ export function renderCommercializationPlanPage(
   const { doc, margin, contentWidth, primary, accent } = ctx;
   let y = reportPageHeading(ctx, 7, 'Validation roadmap', 'Three workstreams convert product GO into launch readiness', data.intro);
   data.rows.slice(0, 3).forEach((row, index) => {
-    const cardHeight = 164;
+    const cardHeight = 172;
     doc.setFillColor(...(index % 2 === 0 ? SLATE_50 : WHITE));
     doc.setDrawColor(...SLATE_200);
     doc.roundedRect(margin, y, contentWidth, cardHeight, 8, 8, 'FD');
@@ -203,26 +205,26 @@ export function renderCommercializationPlanPage(
     const colWidth = (contentWidth - 32 - colGap * 2) / 3;
     [
       ['WHY THIS WORK', row.rationale],
-      ['PROTOCOL', `${row.protocol} Evidence: ${row.completionEvidence}`],
+      ['PROTOCOL', row.protocol],
       ['PASS / NEXT GATE', `${row.passingCriteria} ${row.sampleSizeRationale} Next gate: ${row.nextGate}.`],
     ].forEach(([label, value], column) => {
       const x = margin + 16 + column * (colWidth + colGap);
-      setText(doc, column === 1 ? accent : SLATE_500, 6.7, 'bold');
+      setText(doc, column === 1 ? accent : SLATE_500, 7.2, 'bold');
       doc.text(label, x, y + 52);
-      paragraph(doc, value, x, y + 68, colWidth, {
+      fittedParagraph(doc, value, x, y + 68, colWidth, 58, {
         color: SLATE_700,
-        size: 6.6,
+        size: 8,
+        minSize: 7.2,
         weight: column === 1 ? 'bold' : 'normal',
-        lineHeight: 8.4,
+        lineHeight: 9.6,
       });
     });
-    setText(doc, SLATE_500, 6.5, 'bold');
-    doc.text(`Owner: ${row.owner}`, margin + 16, y + 128);
-    doc.text(`Timing: ${row.timing}`, margin + contentWidth * 0.38, y + 128);
-    doc.text(`Budget: ${row.budget}`, margin + contentWidth * 0.7, y + 128);
-    setText(doc, AMBER, 6.2, 'bold');
-    doc.text('IF NOT MET', margin + 16, y + 146);
-    paragraph(doc, row.failureDecision, margin + 70, y + 146, contentWidth - 86, { color: SLATE_700, size: 6.1, lineHeight: 7.4 });
+    fittedParagraph(doc, `Owner: ${row.owner}`, margin + 16, y + 138, contentWidth * 0.32, 10, { color: SLATE_500, size: 7.2, minSize: 6.8, weight: 'bold', lineHeight: 8.6 });
+    fittedParagraph(doc, `Timing: ${row.timing}`, margin + contentWidth * 0.38, y + 138, contentWidth * 0.27, 10, { color: SLATE_500, size: 7.2, minSize: 6.8, weight: 'bold', lineHeight: 8.6 });
+    fittedParagraph(doc, `Budget: ${row.budget}`, margin + contentWidth * 0.7, y + 138, contentWidth * 0.3, 10, { color: SLATE_500, size: 7.2, minSize: 6.8, weight: 'bold', lineHeight: 8.6 });
+    setText(doc, AMBER, 6.8, 'bold');
+    doc.text('IF NOT MET', margin + 16, y + 158);
+    fittedParagraph(doc, row.failureDecision, margin + 76, y + 158, contentWidth - 92, 10, { color: SLATE_700, size: 7, minSize: 6.6, lineHeight: 8.2 });
     y += cardHeight + 8;
   });
 
@@ -230,9 +232,10 @@ export function renderCommercializationPlanPage(
   doc.roundedRect(margin, y, contentWidth, 58, 8, 8, 'F');
   setText(doc, WHITE, 7, 'bold');
   doc.text('NFI VIEW · NEXT DECISION GATE', margin + 15, y + 20);
-  paragraph(doc, data.decisionGate, margin + 15, y + 39, contentWidth - 30, {
+  fittedParagraph(doc, data.decisionGate, margin + 15, y + 39, contentWidth - 30, 13, {
     color: WHITE,
     size: 9,
+    minSize: 5.8,
     weight: 'bold',
     lineHeight: 12,
   });
@@ -240,21 +243,21 @@ export function renderCommercializationPlanPage(
 
 export function renderClaimsMatrixPage(ctx: PdfContext, data: ClaimsMatrixData) {
   const { doc, margin, contentWidth, primary, accent } = ctx;
-  let y = reportPageHeading(ctx, 8, 'Claims governance', 'Two claims are supported; four remain unavailable for release', data.intro);
+  let y = reportPageHeading(ctx, 8, 'Claims governance', 'Claims release status by evidence level', data.intro);
 
   data.rows.forEach(row => {
     const statusTone = row.status === 'Supported' ? GREEN : row.status === 'Directional' ? [180, 83, 9] as [number, number, number] : [190, 18, 60] as [number, number, number];
-    const rowHeight = 78;
+    const rowHeight = 97;
     doc.setFillColor(...WHITE);
     doc.setDrawColor(...SLATE_200);
     doc.roundedRect(margin, y, contentWidth, rowHeight, 7, 7, 'FD');
     doc.setFillColor(...statusTone);
     doc.roundedRect(margin + 12, y + 12, 64, 19, 9.5, 9.5, 'F');
-    setText(doc, WHITE, 6.2, 'bold');
+    setText(doc, WHITE, 7, 'bold');
     doc.text(row.status.toUpperCase(), margin + 44, y + 25, { align: 'center' });
-    setText(doc, SLATE_950, 8.2, 'bold');
+    setText(doc, SLATE_950, 9, 'bold');
     doc.text(row.claim, margin + 88, y + 25);
-    setText(doc, SLATE_500, 5.7, 'bold');
+    setText(doc, SLATE_500, 6.8, 'bold');
     doc.text(row.scope.toUpperCase(), margin + contentWidth - 14, y + 25, { align: 'right' });
 
     const gap = 14;
@@ -265,20 +268,26 @@ export function renderClaimsMatrixPage(ctx: PdfContext, data: ClaimsMatrixData) 
       ['REQUIREMENT', row.requirement],
     ].forEach(([label, value], index) => {
       const x = margin + 14 + index * (columnWidth + gap);
-      setText(doc, index === 2 ? statusTone : SLATE_500, 6.1, 'bold');
+      setText(doc, index === 2 ? statusTone : SLATE_500, 7, 'bold');
       doc.text(label, x, y + 44);
-      paragraph(doc, value, x, y + 57, columnWidth, { color: SLATE_700, size: 6.3, lineHeight: 7.8 });
+      fittedParagraph(doc, value, x, y + 60, columnWidth, rowHeight - 68, {
+        color: SLATE_700,
+        size: 7.8,
+        minSize: 7,
+        lineHeight: 9.4,
+      });
     });
-    y += rowHeight + 7;
+    y += rowHeight + 5;
   });
 
   doc.setFillColor(...primary);
   doc.roundedRect(margin, y + 4, contentWidth, 68, 8, 8, 'F');
   setText(doc, accent, 6.8, 'bold');
   doc.text(`NFI RELEASE VIEW · REPORT STATUS · ${data.reportStatus.toUpperCase()}`, margin + 15, y + 25);
-  paragraph(doc, data.releaseDecision, margin + 15, y + 44, contentWidth - 30, {
+  fittedParagraph(doc, data.releaseDecision, margin + 15, y + 44, contentWidth - 30, 17, {
     color: WHITE,
     size: 9,
+    minSize: 5.8,
     weight: 'bold',
     lineHeight: 12,
   });

@@ -172,14 +172,16 @@ describe('commercialization report section safety', () => {
     expect(concept.usageOccasion).toContain('Bagels, crackers, dips, sandwiches');
     expect(concept.productPromise).toBe('Smooth, creamy, familiar plant-based cream cheese.');
     expect(plan.rows.map(row => row.workstream)).toEqual([
-      'Pilot manufacturing, product confirmation, and shelf life',
+      'Pilot manufacturing and product confirmation',
       'Consumer, competition, price, and commercial economics',
       'Packaging, regulatory, claims, and launch approval',
     ]);
     expect(plan.rows.every(row => !/not assigned|readiness gap/i.test(row.owner))).toBe(true);
-    expect(plan.rows.every(row => row.owner === 'To assign')).toBe(true);
+    expect(plan.rows.map(row => row.owner)).toEqual(['Product + Quality', 'Insights + Commercial', 'Packaging + Regulatory']);
     expect(claims.rows.slice(0, 2).every(row => row.scope === 'Internal decision statement')).toBe(true);
     expect(claims.rows.slice(2).every(row => row.scope === 'External claim')).toBe(true);
+    expect(claims.rows).toHaveLength(5);
+    expect(claims.rows.map(row => row.claim)).toContain('Consumer demand, price, and purchase intent');
     expect(risks.notPermitted).toEqual([
       'Consumer preference',
       'Purchase demand',
@@ -194,7 +196,6 @@ describe('commercialization report section safety', () => {
       'Sensory performance',
       'Instrumental confirmation',
       'Pilot manufacturing',
-      'Shelf life and food safety',
       'Packaging compatibility',
       'Regulatory, labeling, and nutrition',
     ]);
@@ -202,7 +203,7 @@ describe('commercialization report section safety', () => {
     expect(commercialReadiness.rows.map(row => row.area)).toContain('Channel and buyer strategy');
     expect(commercialReadiness.rows.find(row => row.area === 'Target-consumer validation')?.status).toBe('Requires validation');
     expect(commercialReadiness.rows.find(row => row.area === 'Demand and launch forecast')?.status).toBe('Evidence gap');
-    expect(productReadiness.rows.find(row => row.area === 'Shelf life and food safety')?.status).toBe('Evidence gap');
+    expect(productReadiness.rows.map(row => row.area).join(' ')).not.toMatch(/shelf life/i);
     expect([...productReadiness.rows, ...commercialReadiness.rows].map(row => row.status)).not.toContain('Not assessed');
   });
 });

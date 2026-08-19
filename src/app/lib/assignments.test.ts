@@ -15,13 +15,13 @@ const panelists = [
 ];
 
 describe('assignment semantics', () => {
-  it('maps empty product assignments to open and empty concept assignments to unassigned', () => {
-    expect(getProductAssignmentMode({ assignedPanelistIds: [] })).toBe('open');
+  it('maps empty product and concept assignments to unassigned', () => {
+    expect(getProductAssignmentMode({ assignedPanelistIds: [] })).toBe('unassigned');
     expect(getConceptTestAssignmentMode({ assignedPanelistIds: [] })).toBe('unassigned');
   });
 
   it('preserves product and concept panelist visibility rules', () => {
-    expect(isPanelistAssignedToProduct({ assignedPanelistIds: [] }, 'active-1')).toBe(true);
+    expect(isPanelistAssignedToProduct({ assignedPanelistIds: [] }, 'active-1')).toBe(false);
     expect(isPanelistAssignedToProduct({ assignedPanelistIds: ['active-1'] }, 'active-1')).toBe(true);
     expect(isPanelistAssignedToProduct({ assignedPanelistIds: ['active-1'] }, 'other')).toBe(false);
     expect(isPanelistAssignedToConceptTest({ assignedPanelistIds: [] }, 'active-1')).toBe(false);
@@ -45,8 +45,8 @@ describe('assignment semantics', () => {
     expect(summary.ready).toBe(true);
   });
 
-  it('requires at least one active panelist for open or selected access', () => {
-    expect(getAssignmentSummary('product', { assignedPanelistIds: [] }, panelists).ready).toBe(true);
+  it('requires at least one active selected panelist for access', () => {
+    expect(getAssignmentSummary('product', { assignedPanelistIds: [] }, panelists).ready).toBe(false);
     expect(getAssignmentSummary('concept', { assignedPanelistIds: ['inactive-1'] }, panelists).ready).toBe(false);
     expect(getAssignmentSummary('product', { assignedPanelistIds: [] }, []).ready).toBe(false);
   });

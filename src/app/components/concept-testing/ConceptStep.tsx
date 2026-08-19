@@ -1,10 +1,13 @@
-import { useState } from 'react';
-import { ChevronDown, SlidersHorizontal } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { ChevronDown, SlidersHorizontal, WandSparkles } from 'lucide-react';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import type { ConceptDraft, VariantDimensions } from './types';
+import { detectFoodType } from '../../lib/food-intelligence';
+import { getFoodProductForms } from '../../lib/food-product-forms';
+import { buildConsumerBriefSuggestions } from './consumer-brief-defaults';
 
 // ─── Shared section heading ───────────────────────────────────────────────────
 
@@ -13,6 +16,83 @@ function SectionHeading({ title, description }: { title: string; description: st
     <div>
       <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
       <p className="mt-1 text-xs text-slate-500">{description}</p>
+    </div>
+  );
+}
+
+function ProductFormSelector({ draft, onChange }: { draft: ConceptDraft; onChange: (draft: ConceptDraft) => void }) {
+  const [customOpen, setCustomOpen] = useState(false);
+  const detection = detectFoodType(draft.category, draft.name);
+  const options = getFoodProductForms(detection.slug);
+  const selected = draft.variantDimensions.productForm;
+  const customSelected = Boolean(selected && !options.some(option => option.value === selected));
+  const showCustom = customOpen || customSelected;
+  const setProductForm = (productForm: string | null) => onChange({
+    ...draft,
+    variantDimensions: { ...draft.variantDimensions, productForm },
+  });
+
+  return (
+    <div className="space-y-2">
+      <div>
+        <Label className="font-medium">Product form</Label>
+        <p className="mt-1 text-xs text-slate-500">Suggested for {detection.label}. This controls how the food itself appears, separately from its packaging.</p>
+      </div>
+      <div className="flex flex-wrap gap-2" role="group" aria-label={`${detection.label} product form`}>
+        {options.map(option => {
+          const active = selected === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={active}
+              onClick={() => {
+                setProductForm(active ? null : option.value);
+                setCustomOpen(false);
+              }}
+              className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+                active
+                  ? 'border-blue-600 bg-blue-600 text-white'
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-800'
+              }`}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          aria-pressed={showCustom}
+          onClick={() => setCustomOpen(true)}
+          className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+            showCustom
+              ? 'border-blue-500 bg-blue-50 text-blue-800'
+              : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-800'
+          }`}
+        >
+          Other
+        </button>
+      </div>
+      {showCustom && (
+        <div className="flex max-w-md items-center gap-2">
+          <Input
+            value={customSelected ? selected ?? '' : ''}
+            onChange={event => setProductForm(event.target.value.trim() ? event.target.value : null)}
+            placeholder="Describe the product form"
+            className="h-9 bg-white text-sm"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setProductForm(null);
+              setCustomOpen(false);
+            }}
+            className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          >
+            Clear
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -334,6 +414,23 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
   const set = (field: keyof ConceptDraft) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     onChange({ ...draft, [field]: event.target.value });
   const setVariantDimensions = (variantDimensions: VariantDimensions) => onChange({ ...draft, variantDimensions });
+  const consumerBriefSuggestions = useMemo(() => buildConsumerBriefSuggestions({
+    name: draft.name,
+    category: draft.category,
+    productForm: draft.variantDimensions.productForm,
+    sensorySignals: draft.keyBenefits.split(/[,\n]+/).map(value => value.trim()).filter(Boolean),
+  }), [draft.category, draft.keyBenefits, draft.name, draft.variantDimensions.productForm]);
+  const suggestedBriefIsApplied = draft.targetMarket === consumerBriefSuggestions.audience
+    && draft.targetOccasion === consumerBriefSuggestions.occasions[0]
+    && draft.description === consumerBriefSuggestions.promise
+    && draft.keyBenefits === consumerBriefSuggestions.proofCues.join(', ');
+  const applyConsumerBriefSuggestions = () => onChange({
+    ...draft,
+    targetMarket: consumerBriefSuggestions.audience,
+    targetOccasion: consumerBriefSuggestions.occasions[0] ?? draft.targetOccasion,
+    description: consumerBriefSuggestions.promise,
+    keyBenefits: consumerBriefSuggestions.proofCues.join(', '),
+  });
   const applyPreset = (preset: QuickPreset) => {
     const { variantDimensions, ...fields } = preset.fields;
     onChange({
@@ -363,6 +460,31 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
             <Label htmlFor="concept-category" className="font-medium">Category <span className="text-rose-500">*</span></Label>
             <Input id="concept-category" value={draft.category} onChange={set('category')} placeholder="e.g. Plant-based cheese" />
           </div>
+        </div>
+
+        <ProductFormSelector draft={draft} onChange={onChange} />
+
+        <div className="flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50/60 p-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-blue-950">
+              <WandSparkles className="size-3.5" aria-hidden />
+              Smart brief suggestion
+            </p>
+            <p className="mt-1 text-xs leading-5 text-blue-900/80">
+              {consumerBriefSuggestions.audience} Best fit: {consumerBriefSuggestions.occasions.slice(0, 2).join(' or ')}.
+            </p>
+            <p className="mt-1 text-xs text-blue-800">
+              Uses the category, selected product form, and available sensory cues. Review before using.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={applyConsumerBriefSuggestions}
+            disabled={suggestedBriefIsApplied}
+            className="shrink-0 rounded-md border border-blue-300 bg-white px-3 py-1.5 text-xs font-semibold text-blue-800 transition-colors hover:bg-blue-100 disabled:cursor-default disabled:border-blue-200 disabled:bg-blue-50 disabled:text-blue-500"
+          >
+            {suggestedBriefIsApplied ? 'Suggestions applied' : 'Use suggestions'}
+          </button>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">

@@ -48,8 +48,8 @@ const fallbackSettings: WorkspaceSettings = {
   allowPanelistComments: true,
   requireAllSamplesBeforeSubmit: true,
   autoCreateFoodTypes: true,
-  autoCreateSurveysFromImports: true,
-  requireImportReview: false,
+  autoCreateSurveysFromImports: false,
+  requireImportReview: true,
   duplicateSamplePolicy: 'skip',
   requirePanelistId: false,
   allowPanelistsViewHistory: false,
@@ -343,8 +343,10 @@ export function AdminSettings() {
               <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Database className="size-5 text-slate-500" />Import rules</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <ToggleRow title="Auto-create food types" detail="New CSV food categories become food type folders." checked={draft.autoCreateFoodTypes} onChange={checked => updateDraft('autoCreateFoodTypes', checked)} />
-                <ToggleRow title="Auto-create surveys" detail="Imported machine samples become panelist-ready questionnaires." checked={draft.autoCreateSurveysFromImports} onChange={checked => updateDraft('autoCreateSurveysFromImports', checked)} />
-                <ToggleRow title="Require import review" detail="Hold generated surveys for admin review before launch." checked={draft.requireImportReview} onChange={checked => updateDraft('requireImportReview', checked)} />
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">
+                  <p className="font-semibold">Surveys require review before launch</p>
+                  <p className="mt-1 leading-5 text-blue-800">CSV imports save machine data first. An administrator then selects questionnaire sections, attributes, and recipients before sending surveys.</p>
+                </div>
                 <div className="space-y-2">
                   <Label>Duplicate sample policy</Label>
                   <Select value={draft.duplicateSamplePolicy} onValueChange={value => updateDraft('duplicateSamplePolicy', value as WorkspaceSettings['duplicateSamplePolicy'])}>

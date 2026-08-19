@@ -70,7 +70,7 @@ export function projectPath(projectId: string, step: ProjectJourneyStep = 'overv
   return search ? `${base}${search.startsWith('?') ? search : `?${search}`}` : base;
 }
 
-export function projectStudiesPath(projectId: string, view: 'studies' | 'ship-outs' = 'studies', search = ''): string {
+export function projectStudiesPath(projectId: string, view: 'studies' | 'panelists' | 'ship-outs' = 'studies', search = ''): string {
   const base = projectPath(projectId, 'studies');
   const path = view === 'studies' ? base : `${base}/${view}`;
   return search ? `${path}${search.startsWith('?') ? search : `?${search}`}` : path;

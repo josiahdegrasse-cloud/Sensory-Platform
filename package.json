@@ -32,6 +32,7 @@
     "db:types": "supabase gen types typescript --linked > src/app/lib/db/database.types.ts"
   },
   "dependencies": {
+    "@mlc-ai/web-llm": "^0.2.84",
     "@popperjs/core": "2.11.8",
     "@radix-ui/react-accordion": "1.2.3",
     "@radix-ui/react-alert-dialog": "1.1.6",

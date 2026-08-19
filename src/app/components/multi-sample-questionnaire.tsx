@@ -6,8 +6,8 @@ import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
 import { useAuth } from '../contexts/auth-context';
 import { SURVEY_EMOTIONS, getDefaultCataAttributes, type Product } from '../data/survey-domain';
-import { fetchProduct, fetchLatestUserResponse, insertResponse, markPanelistKitSubmitted } from '../lib/database';
-import { CATA_DEFINITIONS, INTENSITY_DEFINITIONS, HEDONIC_DEFINITIONS, EMOTION_DEFINITIONS } from '../data/attribute-definitions';
+import { fetchProduct, fetchLatestUserResponse, insertResponseBatch, markPanelistKitSubmitted } from '../lib/database';
+import { CATA_DEFINITIONS, INTENSITY_DEFINITIONS, HEDONIC_DEFINITIONS, EMOTION_DEFINITIONS, getCataDefinition } from '../data/attribute-definitions';
 import { AlertCircle, CheckCircle2, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
@@ -16,6 +16,8 @@ import { getBlindStudyCategoryLabel, getBlindStudyDisplayName, getPanelistSample
 import { useScrollToTop } from '../lib/use-scroll-to-top';
 import { queryClient } from '../lib/query-client';
 import { queryKeys } from '../lib/hooks';
+import { DEFAULT_SURVEY_SECTIONS } from '../lib/survey-sections';
+import { PanelistSubmissionSuccess, PanelistTaskLoading, PanelistTaskUnavailable } from './panelist-task-state';
 
 function sliderFill(value: number, min: number, max: number, color: string): React.CSSProperties {
   const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
@@ -40,14 +42,21 @@ interface SampleResponse {
   sampleCode: string;
   cataAttributes: string[];
   intensityRatings: Record<string, number>;
-  hedonicScores: {
-    overall: number;
-    appearance: number;
-    aroma: number;
-    flavor: number;
-    texture: number;
-  };
+  hedonicScores: Partial<{ overall: number; appearance: number; aroma: number; flavor: number; texture: number }>;
   emotions: Record<string, number>;
+  comments: string;
+}
+
+interface MultiSampleDraft {
+  currentStep: Exclude<Step, 'submitted'>;
+  currentSampleIndex: number;
+  sampleResponses: SampleResponse[];
+  selectedCata: string[];
+  intensityRatings: Record<string, number>;
+  hedonicScores: Record<string, number>;
+  emotions: Record<string, number>;
+  comments: string;
+  differentSample: string;
 }
 
 export function MultiSampleQuestionnaire() {
@@ -57,10 +66,17 @@ export function MultiSampleQuestionnaire() {
   useScrollToTop(productId);
   
   const [product, setProduct] = useState<Product | null>(null);
+  const [productLoading, setProductLoading] = useState(true);
+  const [productError, setProductError] = useState('');
+  const [completionCheckLoading, setCompletionCheckLoading] = useState(true);
+  const [completionCheckError, setCompletionCheckError] = useState('');
 
   useEffect(() => {
     if (!productId) return;
-    fetchProduct(productId).then(setProduct).catch(console.error);
+    fetchProduct(productId)
+      .then(setProduct)
+      .catch(() => setProductError('This study could not be loaded. Check your connection, or return to your task list and try again.'))
+      .finally(() => setProductLoading(false));
   }, [productId]);
 
   // Multi-sample flow state
@@ -88,6 +104,7 @@ export function MultiSampleQuestionnaire() {
     texture: 5
   });
   const [emotions, setEmotions] = useState<Record<string, number>>({});
+  const [comments, setComments] = useState('');
   
   // Discrimination question state
   const [differentSample, setDifferentSample] = useState<string>('');
@@ -97,7 +114,9 @@ export function MultiSampleQuestionnaire() {
   const cleanseIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [completionWarning, setCompletionWarning] = useState('');
   const [discriminationError, setDiscriminationError] = useState('');
+  const draftLoadComplete = useRef(false);
 
   useEffect(() => {
     if (currentStep !== 'cleanse') return;
@@ -116,6 +135,7 @@ export function MultiSampleQuestionnaire() {
   }, [currentStep]);
 
   const cataAttributes = product?.customAttributes || getDefaultCataAttributes(product?.category ?? '');
+  const configuredSections = product?.surveySections ?? DEFAULT_SURVEY_SECTIONS;
   // Intensity shows only what the panelist selected in CATA (same pattern as single-sample form)
   const intensityAttributes = selectedCata.length > 0 ? selectedCata : cataAttributes.slice(0, 8);
   const emotionAttributes = [...SURVEY_EMOTIONS.positive, ...SURVEY_EMOTIONS.negative];
@@ -123,9 +143,50 @@ export function MultiSampleQuestionnaire() {
   useEffect(() => {
     if (!user?.id || !productId) return;
     fetchLatestUserResponse(user.id, productId).then(existing => {
-      if (existing) setAlreadyCompleted(true);
+      if (existing) {
+        setAlreadyCompleted(true);
+        sessionStorage.removeItem(`multi_qs_draft_${user.id}_${productId}`);
+        return;
+      }
+      const saved = sessionStorage.getItem(`multi_qs_draft_${user.id}_${productId}`);
+      if (!saved) return;
+      try {
+        const draft = JSON.parse(saved) as MultiSampleDraft;
+        setCurrentStep(draft.currentStep);
+        setCurrentSampleIndex(draft.currentSampleIndex);
+        setSampleResponses(draft.sampleResponses);
+        setSelectedCata(draft.selectedCata);
+        setIntensityRatings(draft.intensityRatings);
+        setHedonicScores(previous => ({ ...previous, ...draft.hedonicScores }));
+        setEmotions(draft.emotions);
+        setComments(draft.comments);
+        setDifferentSample(draft.differentSample);
+      } catch {
+        sessionStorage.removeItem(`multi_qs_draft_${user.id}_${productId}`);
+      }
+    }).catch(() => {
+      setCompletionCheckError('We could not verify whether you already completed this task. Refresh before entering answers so a previous triangle result is not duplicated.');
+    }).finally(() => {
+      draftLoadComplete.current = true;
+      setCompletionCheckLoading(false);
     });
   }, [productId, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || !productId || !draftLoadComplete.current || currentStep === 'intro' || currentStep === 'submitted' || alreadyCompleted) return;
+    const draft: MultiSampleDraft = {
+      currentStep,
+      currentSampleIndex,
+      sampleResponses,
+      selectedCata,
+      intensityRatings,
+      hedonicScores,
+      emotions,
+      comments,
+      differentSample,
+    };
+    sessionStorage.setItem(`multi_qs_draft_${user.id}_${productId}`, JSON.stringify(draft));
+  }, [alreadyCompleted, comments, currentSampleIndex, currentStep, differentSample, emotions, hedonicScores, intensityRatings, productId, sampleResponses, selectedCata, user?.id]);
 
   const handleCataToggle = (attr: string) => {
     setSelectedCata(prev => 
@@ -142,19 +203,20 @@ export function MultiSampleQuestionnaire() {
   };
 
   const saveSampleResponse = () => {
-    const completedIntensityRatings = Object.fromEntries(
-      intensityAttributes.map(attr => [attr, intensityRatings[attr] ?? SLIDER_MIDPOINT]),
-    );
-    const completedEmotions = Object.fromEntries(
-      emotionAttributes.map(emotion => [emotion, emotions[emotion] ?? SLIDER_MIDPOINT]),
-    );
+    const completedIntensityRatings = configuredSections.includes('intensity')
+      ? Object.fromEntries(intensityAttributes.map(attr => [attr, intensityRatings[attr] ?? SLIDER_MIDPOINT]))
+      : {};
+    const completedEmotions = configuredSections.includes('emotions')
+      ? Object.fromEntries(emotionAttributes.map(emotion => [emotion, emotions[emotion] ?? SLIDER_MIDPOINT]))
+      : {};
     const response: SampleResponse = {
       sampleId: samples[currentSampleIndex].id,
       sampleCode: samples[currentSampleIndex].code,
-      cataAttributes: selectedCata,
+      cataAttributes: configuredSections.includes('cata') ? selectedCata : [],
       intensityRatings: completedIntensityRatings,
-      hedonicScores,
-      emotions: completedEmotions
+      hedonicScores: configuredSections.includes('hedonic') ? hedonicScores : {},
+      emotions: completedEmotions,
+      comments: configuredSections.includes('comments') ? comments : '',
     };
     
     setSampleResponses(prev => [...prev, response]);
@@ -170,6 +232,7 @@ export function MultiSampleQuestionnaire() {
       texture: 5
     });
     setEmotions({});
+    setComments('');
   };
 
   const handleContinueFromSample = () => {
@@ -205,8 +268,8 @@ export function MultiSampleQuestionnaire() {
       return;
     }
     try {
-      for (const response of sampleResponses) {
-        await insertResponse({
+      let hasCompletionWarning = false;
+      await insertResponseBatch(sampleResponses.map(response => ({
           userId: user.id,
           productId,
           cataAttributes: response.cataAttributes,
@@ -218,22 +281,27 @@ export function MultiSampleQuestionnaire() {
           differentSample,
           ranking: [],
           presentationOrder: samples.map(sample => sample.code),
-          comments: '',
-        });
-      }
+          comments: response.comments,
+      })));
       const kitToken = sessionStorage.getItem(`panelist_kit_token_${productId}`);
       const manualCode = sessionStorage.getItem(`panelist_kit_manual_code_${productId}`);
       if (kitToken || manualCode) {
-        await markPanelistKitSubmitted({ token: kitToken, manualCode });
-        sessionStorage.removeItem(`panelist_kit_token_${productId}`);
-        sessionStorage.removeItem(`panelist_kit_manual_code_${productId}`);
+        try {
+          await markPanelistKitSubmitted({ token: kitToken, manualCode });
+          sessionStorage.removeItem(`panelist_kit_token_${productId}`);
+          sessionStorage.removeItem(`panelist_kit_manual_code_${productId}`);
+        } catch {
+          hasCompletionWarning = true;
+          setCompletionWarning('Your answers are saved, but the box status could not be updated. Keep the insert and tell the study team your box code.');
+        }
       }
-      await Promise.all([
+      sessionStorage.removeItem(`multi_qs_draft_${user.id}_${productId}`);
+      void Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.userResponses(user.id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.allResponses }),
       ]);
       setCurrentStep('submitted');
-      setTimeout(() => navigate('/panelist'), 3000);
+      if (!hasCompletionWarning) setTimeout(() => navigate('/panelist'), 3000);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Submission failed. Please check your connection and try again.');
     } finally {
@@ -241,15 +309,20 @@ export function MultiSampleQuestionnaire() {
     }
   };
 
+  if (productLoading) {
+    return <PanelistTaskLoading message="Loading your tasting task…" />;
+  }
+
+  if (completionCheckLoading) {
+    return <PanelistTaskLoading message="Checking your saved progress…" />;
+  }
+
+  if (completionCheckError) {
+    return <PanelistTaskUnavailable message={completionCheckError} onRetry={() => window.location.reload()} onBack={() => navigate('/panelist')} />;
+  }
+
   if (!product) {
-    return (
-      <div className="max-w-4xl mx-auto">
-        <Alert variant="destructive">
-          <AlertCircle className="size-4" />
-          <AlertDescription>Product not found</AlertDescription>
-        </Alert>
-      </div>
-    );
+    return <PanelistTaskUnavailable message={productError || 'This tasting task is not available. Return to your task list or contact the study team.'} onBack={() => navigate('/panelist')} />;
   }
 
   const displayName = getBlindStudyDisplayName(product);
@@ -391,7 +464,7 @@ export function MultiSampleQuestionnaire() {
         </Card>
 
         {/* CATA */}
-        <Card>
+        {configuredSections.includes('cata') && <Card>
           <CardHeader>
             <CardTitle>1. Flavor & Aroma Attributes (CATA)</CardTitle>
             <p className="text-sm text-slate-700">
@@ -413,17 +486,17 @@ export function MultiSampleQuestionnaire() {
                   >
                     <AttributeTooltip
                       term={attr}
-                      definition={CATA_DEFINITIONS[attr] || 'Sensory attribute'}
+                      definition={getCataDefinition(attr, product?.category)}
                     />
                   </Label>
                 </div>
               ))}
             </div>
           </CardContent>
-        </Card>
+        </Card>}
 
         {/* Intensity */}
-        <Card>
+        {configuredSections.includes('intensity') && <Card>
           <CardHeader>
             <CardTitle>2. Intensity Ratings</CardTitle>
             <p className="text-sm text-slate-700">
@@ -464,10 +537,10 @@ export function MultiSampleQuestionnaire() {
               ))}
             </div>
           </CardContent>
-        </Card>
+        </Card>}
 
         {/* Hedonic */}
-        <Card>
+        {configuredSections.includes('hedonic') && <Card>
           <CardHeader>
             <CardTitle>3. Hedonic Scores (Overall Liking)</CardTitle>
             <p className="text-sm text-slate-700">
@@ -506,10 +579,10 @@ export function MultiSampleQuestionnaire() {
               ))}
             </div>
           </CardContent>
-        </Card>
+        </Card>}
 
         {/* Emotions */}
-        <Card>
+        {configuredSections.includes('emotions') && <Card>
           <CardHeader>
             <CardTitle>4. Emotional Response</CardTitle>
             <p className="text-sm text-slate-700">
@@ -580,7 +653,24 @@ export function MultiSampleQuestionnaire() {
               </div>
             </div>
           </CardContent>
-        </Card>
+        </Card>}
+
+        {configuredSections.includes('comments') && <Card>
+          <CardHeader>
+            <CardTitle>Additional comments</CardTitle>
+            <p className="text-sm text-slate-700">Share anything important that the structured questions did not capture for this sample.</p>
+          </CardHeader>
+          <CardContent>
+            <textarea
+              className="w-full resize-none rounded-lg border border-slate-200 p-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              rows={4}
+              maxLength={2000}
+              value={comments}
+              onChange={event => setComments(event.target.value)}
+              placeholder="Describe anything else you noticed…"
+            />
+          </CardContent>
+        </Card>}
 
         <div className="sticky bottom-0 z-20 -mx-3 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:mx-0 sm:rounded-t-lg sm:border">
           <Button 
@@ -726,15 +816,15 @@ export function MultiSampleQuestionnaire() {
             </CardHeader>
             <CardContent className="pt-4">
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <div>
+                {configuredSections.includes('cata') && <div>
                   <h4 className="font-bold text-slate-900 mb-2">CATA Attributes Selected:</h4>
                   <div className="flex flex-wrap gap-2">
                     {response.cataAttributes.map(attr => (
                       <Badge key={attr} variant="outline" className="border-slate-200 text-slate-700">{attr}</Badge>
                     ))}
                   </div>
-                </div>
-                <div>
+                </div>}
+                {configuredSections.includes('hedonic') && <div>
                   <h4 className="font-bold text-slate-900 mb-2">Hedonic Scores:</h4>
                   <div className="space-y-1 text-sm">
                     {Object.entries(response.hedonicScores).map(([aspect, value]) => (
@@ -744,7 +834,11 @@ export function MultiSampleQuestionnaire() {
                       </div>
                     ))}
                   </div>
-                </div>
+                </div>}
+                {configuredSections.includes('comments') && response.comments && <div className="md:col-span-2">
+                  <h4 className="mb-2 font-bold text-slate-900">Additional comments:</h4>
+                  <p className="whitespace-pre-wrap text-sm text-slate-700">{response.comments}</p>
+                </div>}
               </div>
             </CardContent>
           </Card>
@@ -797,24 +891,12 @@ export function MultiSampleQuestionnaire() {
   // Submitted screen
   if (currentStep === 'submitted') {
     return (
-      <div className="max-w-4xl mx-auto">
-        <Card className="border border-slate-200 bg-slate-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle2 className="size-6 text-emerald-600" />
-              Triangle Test Submitted Successfully!
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-slate-700 mb-2">
-              Thank you for completing the triangle test for <strong>{displayName}</strong>.
-            </p>
-            <p className="text-sm text-slate-700">
-              Redirecting to dashboard...
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <PanelistSubmissionSuccess
+        title="Triangle test submitted"
+        message={<>Thank you for completing the triangle test for <strong>{displayName}</strong>.</>}
+        warning={completionWarning}
+        onBack={() => navigate('/panelist')}
+      />
     );
   }
 

@@ -250,7 +250,7 @@ export function MainLayout() {
 
       <div className="mx-auto flex max-w-[1600px] items-start px-4 py-6 sm:px-6 lg:py-8">
         <main className="flex-1 min-w-0">
-          {user?.role === 'panelist' && (workspaceSettings?.requirePanelistConsent ?? true) && !user.consentAcceptedAt ? <ConsentGate /> : <Outlet />}
+          {user?.role === 'panelist' && location.pathname !== '/panelist/profile' && (workspaceSettings?.requirePanelistConsent ?? true) && !user.consentAcceptedAt ? <ConsentGate /> : <Outlet />}
         </main>
       </div>
     </div>

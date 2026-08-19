@@ -6,7 +6,7 @@
   "evidenceMaturity": "limited",
   "conceptResponses": 0,
   "approvalStatus": "draft",
-  "totalScore": 100,
+  "totalScore": 92,
   "clientReady": false,
   "exportAllowed": true,
   "categoryScores": {
@@ -15,18 +15,21 @@
     "claimSupport": 15,
     "commercialUsefulness": 15,
     "actionability": 10,
-    "writingQuality": 10,
+    "writingQuality": 2,
     "visualReadability": 5,
     "governance": 10
   },
   "blockers": [],
-  "warnings": [],
+  "warnings": [
+    "undefined-acronym: Decision: undefined acronym \"REQUIRES\".",
+    "undefined-acronym: Commercial readiness: undefined acronym \"COGS\"."
+  ],
   "recommendedFixes": [],
   "missingEvidence": [
     "Reference/demo evidence must be replaced with collected client evidence before approval or external use.",
     "Concept-test responses (n=0): consumer preference and purchase intent cannot be validated.",
     "Texture performance (43/100) is below the 60/100 readiness line.",
-    "Claims and legal approval not on file."
+    "Claims/legal review is not approved. Complete and record a signed claims/legal review before external distribution."
   ],
   "blockedUnsupportedClaims": []
 }

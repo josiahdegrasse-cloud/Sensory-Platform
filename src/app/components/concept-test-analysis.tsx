@@ -507,7 +507,7 @@ function groupConceptQuestions(questions: ConceptQuestion[]) {
       id: 'appeal',
       title: 'Appeal and purchase read',
       description: 'Scale questions that show whether the concept is liked and commercially interesting.',
-      matches: (question: ConceptQuestion) => question.type === 'scale',
+      matches: (question: ConceptQuestion) => question.type === 'scale' && question.imageIndex === undefined,
     },
     {
       id: 'message',
@@ -518,8 +518,8 @@ function groupConceptQuestions(questions: ConceptQuestion[]) {
     {
       id: 'visual',
       title: 'Visual direction',
-      description: 'Packaging or image choices tied to the concept shown to panelists.',
-      matches: (question: ConceptQuestion) => question.type === 'image_choice',
+      description: 'Ratings and preferences tied to the exact concept visuals shown to panelists.',
+      matches: (question: ConceptQuestion) => question.type === 'image_choice' || question.imageIndex !== undefined,
     },
     {
       id: 'comments',

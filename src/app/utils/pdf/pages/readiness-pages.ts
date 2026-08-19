@@ -9,9 +9,9 @@ import {
   SLATE_700,
   SLATE_950,
   WHITE,
+  fittedParagraph,
   imageFormat,
   nfiViewBand,
-  paragraph,
   reportPageHeading,
   setDisplayText,
   setText,
@@ -30,7 +30,7 @@ function statusColor(status: ReadinessStatus): Rgb {
 
 function renderRows(ctx: PdfContext, rows: ReadinessRow[], startY: number) {
   const { doc, margin, contentWidth } = ctx;
-  const rowHeight = rows.length > 6 ? 70 : 77;
+  const rowHeight = rows.length > 6 ? 82 : 96;
   let y = startY;
   rows.forEach((row, index) => {
     const tone = statusColor(row.status);
@@ -38,27 +38,32 @@ function renderRows(ctx: PdfContext, rows: ReadinessRow[], startY: number) {
     doc.setDrawColor(...SLATE_200);
     doc.roundedRect(margin, y, contentWidth, rowHeight, 6, 6, 'FD');
 
-    setText(doc, SLATE_950, 8.2, 'bold');
-    doc.text(row.area, margin + 13, y + 20);
+    setText(doc, SLATE_950, 9, 'bold');
+    doc.text(row.area, margin + 15, y + 22);
     const pillWidth = Math.max(48, doc.getTextWidth(row.status.toUpperCase()) + 18);
     doc.setFillColor(...tone);
     doc.roundedRect(margin + contentWidth - pillWidth - 12, y + 9, pillWidth, 18, 9, 9, 'F');
-    setText(doc, WHITE, 5.8, 'bold');
+    setText(doc, WHITE, 6.8, 'bold');
     doc.text(row.status.toUpperCase(), margin + contentWidth - 12 - pillWidth / 2, y + 21, { align: 'center' });
 
-    const gap = 13;
-    const columnWidth = (contentWidth - 26 - gap * 2) / 3;
+    const titleWidth = 142;
+    const gap = 16;
+    const columnWidth = (contentWidth - titleWidth - gap * 2 - 30) / 2;
     [
       ['CURRENT EVIDENCE', row.currentEvidence],
-      ['DECISION IMPACT', row.decisionImpact],
       ['REQUIRED NEXT EVIDENCE', row.requiredEvidence],
     ].forEach(([label, value], column) => {
-      const x = margin + 13 + column * (columnWidth + gap);
-      setText(doc, column === 2 ? tone : SLATE_500, 5.8, 'bold');
-      doc.text(label, x, y + 39);
-      paragraph(doc, value, x, y + 52, columnWidth, { color: SLATE_700, size: 6.65, lineHeight: 8.1 });
+      const x = margin + 15 + titleWidth + gap + column * (columnWidth + gap);
+      setText(doc, column === 1 ? tone : SLATE_500, 7, 'bold');
+      doc.text(label, x, y + 22);
+      fittedParagraph(doc, value, x, y + 40, columnWidth, rowHeight - 50, {
+        color: SLATE_700,
+        size: 8,
+        minSize: 7.2,
+        lineHeight: 10.2,
+      });
     });
-    y += rowHeight + 7;
+    y += rowHeight + 8;
   });
   return y;
 }
@@ -68,9 +73,9 @@ function renderSummary(ctx: PdfContext, y: number, label: string, summary: strin
 }
 
 export function renderProductReadinessPage(ctx: PdfContext, data: ProductReadinessData) {
-  const y = reportPageHeading(ctx, 5, 'Product readiness', 'Product readiness: sensory GO, production release pending', data.intro);
+  const y = reportPageHeading(ctx, 5, 'Product readiness', 'Product readiness: sensory GO, technical checks pending', data.intro);
   const bottom = renderRows(ctx, data.rows, y);
-  renderSummary(ctx, bottom + 2, 'PRODUCT READINESS CONCLUSION', data.summary);
+  renderSummary(ctx, bottom + 2, 'PRODUCT READINESS CONCLUSION', data.summary, 58);
 }
 
 export function renderCommercialStrategyPage(
@@ -92,20 +97,30 @@ export function renderCommercialStrategyPage(
   const imageSize = 158;
   const imageX = width - margin - imageSize;
   const copyWidth = contentWidth - imageSize - 22;
-  setText(doc, ctx.template === 'editorial-sage' ? NFI_AQUA_DARK : accent, 6.4, 'bold');
+  setText(doc, ctx.template === 'editorial-sage' ? NFI_AQUA_DARK : accent, 7, 'bold');
   doc.text('WORKING PROPOSITION', margin, y);
   setDisplayText(doc, SLATE_950, 14, 'bold');
   doc.text(concept.conceptName, margin, y + 22);
-  paragraph(doc, concept.positioning, margin, y + 42, copyWidth, { color: SLATE_700, size: 7.4, lineHeight: 9.2 });
+  fittedParagraph(doc, concept.positioning, margin, y + 42, copyWidth, 34, {
+    color: SLATE_700,
+    size: 8.2,
+    minSize: 7.4,
+    lineHeight: 10.4,
+  });
   [
     ['PRIORITY CONSUMER', concept.targetConsumer],
     ['PROMISE', concept.productPromise],
     ['PRICE HYPOTHESIS', concept.pricePoint],
   ].forEach(([label, value], index) => {
     const factY = y + 86 + index * 36;
-    setText(doc, SLATE_500, 5.8, 'bold');
+    setText(doc, SLATE_500, 7, 'bold');
     doc.text(label, margin, factY);
-    paragraph(doc, value, margin, factY + 12, copyWidth, { color: SLATE_950, size: 6.8, lineHeight: 8.2 });
+    fittedParagraph(doc, value, margin, factY + 12, copyWidth, 21, {
+      color: SLATE_950,
+      size: 8,
+      minSize: 7.2,
+      lineHeight: 10,
+    });
   });
 
   if (packaging) {
@@ -119,10 +134,17 @@ export function renderCommercialStrategyPage(
     setText(doc, SLATE_500, 7, 'bold');
     doc.text('DIRECTIONAL VISUAL NOT ATTACHED', imageX + imageSize / 2, y + imageSize / 2, { align: 'center' });
   }
-  setText(doc, SLATE_500, 5.8, 'bold');
-  doc.text(`DIRECTIONAL CONCEPT VISUAL · CONCEPT EVIDENCE BOUNDARY N=${consumer.responseCount}`, imageX, y + imageSize + 14);
+  fittedParagraph(
+    doc,
+    `DIRECTIONAL CONCEPT VISUAL · CONCEPT EVIDENCE BOUNDARY · Concept test n=${consumer.responseCount}`,
+    imageX,
+    y + imageSize + 14,
+    imageSize,
+    14,
+    { color: SLATE_500, size: 5.4, minSize: 4.8, weight: 'bold', lineHeight: 6.5 },
+  );
 
-  y += 178;
+  y += 186;
   const counts = readiness.rows.reduce<Record<ReadinessStatus, number>>((totals, row) => {
     totals[row.status] += 1;
     return totals;
@@ -130,9 +152,9 @@ export function renderCommercialStrategyPage(
   const chartItems = (Object.entries(counts) as Array<[ReadinessStatus, number]>).filter(([, count]) => count > 0);
   const activeCount = counts['In progress'] + counts.Pending;
   const gapCount = counts['Evidence gap'] + counts['Requires validation'];
-  setText(doc, SLATE_500, 5.8, 'bold');
+  setText(doc, SLATE_500, 7, 'bold');
   doc.text('COMMERCIAL EVIDENCE COVERAGE', margin, y);
-  setText(doc, SLATE_700, 6.2, 'bold');
+  setText(doc, SLATE_700, 7.2, 'bold');
   doc.text(`${counts.Ready} ready · ${activeCount} active · ${gapCount} evidence gap${gapCount === 1 ? '' : 's'}`, margin + contentWidth, y, { align: 'right' });
   y += 10;
   const chartWidth = contentWidth;
@@ -147,31 +169,60 @@ export function renderCommercialStrategyPage(
   chartItems.forEach(([status, count]) => {
     doc.setFillColor(...statusColor(status));
     doc.circle(legendX + 3, y + 27, 2.5, 'F');
-    setText(doc, SLATE_700, 6.2);
+    setText(doc, SLATE_700, 7.2);
     const label = `${status} ${count}`;
     doc.text(label, legendX + 10, y + 29);
     legendX += doc.getTextWidth(label) + 28;
   });
   y += 45;
 
-  setText(doc, SLATE_500, 5.8, 'bold');
-  doc.text('CURRENT EVIDENCE', margin + 145, y - 3);
-  doc.text('REQUIRED NEXT EVIDENCE', margin + 310, y - 3);
+  setText(doc, SLATE_500, 7, 'bold');
+  doc.text('CURRENT STATUS', margin + 15, y - 4);
+  doc.text('REQUIRED NEXT EVIDENCE', margin + contentWidth / 2 + 10, y - 4);
 
-  readiness.rows.forEach((row, index) => {
-    const rowY = y + index * 42;
+  const commercialGroups = [
+    { title: 'Consumer proposition', rows: readiness.rows.slice(0, 2), next: 'Test proposition clarity and fit with matched target consumers.' },
+    { title: 'Competition and price', rows: readiness.rows.slice(2, 4), next: 'Benchmark named alternatives and validate price and value.' },
+    { title: 'Economics and route to market', rows: readiness.rows.slice(4, 6), next: 'Approve unit economics, priority channel, and buyer requirements.' },
+    { title: 'Demand plan', rows: readiness.rows.slice(6, 7), next: 'Build a documented forecast from validated demand inputs.' },
+  ].filter(group => group.rows.length > 0);
+  const groupGap = 10;
+  const groupWidth = (contentWidth - groupGap) / 2;
+  const groupHeight = 92;
+  commercialGroups.forEach((group, index) => {
+    const column = index % 2;
+    const rowIndex = Math.floor(index / 2);
+    const rowY = y + rowIndex * (groupHeight + groupGap);
+    const x = margin + column * (groupWidth + groupGap);
+    const status = group.rows.some(row => row.status === 'Evidence gap')
+      ? 'Evidence gap'
+      : group.rows.some(row => row.status === 'Requires validation')
+        ? 'Requires validation'
+        : group.rows[0].status;
     doc.setFillColor(...(index % 2 === 0 ? SLATE_50 : WHITE));
     doc.setDrawColor(...SLATE_200);
-    doc.roundedRect(margin, rowY, contentWidth, 37, 5, 5, 'FD');
-    doc.setFillColor(...statusColor(row.status));
-    doc.circle(margin + 12, rowY + 14, 3, 'F');
-    setText(doc, SLATE_950, 7, 'bold');
-    doc.text(row.area, margin + 22, rowY + 15);
-    setText(doc, statusColor(row.status), 5.8, 'bold');
-    doc.text(row.status.toUpperCase(), margin + 22, rowY + 29);
-    paragraph(doc, row.currentEvidence, margin + 145, rowY + 14, 150, { color: SLATE_700, size: 6.2, lineHeight: 7.5 });
-    paragraph(doc, row.requiredEvidence, margin + 310, rowY + 14, contentWidth - 324, { color: SLATE_700, size: 6.2, lineHeight: 7.5 });
+    doc.roundedRect(x, rowY, groupWidth, groupHeight, 7, 7, 'FD');
+    doc.setFillColor(...statusColor(status));
+    doc.circle(x + 15, rowY + 18, 3.5, 'F');
+    setText(doc, SLATE_950, 9, 'bold');
+    doc.text(group.title, x + 26, rowY + 21);
+    setText(doc, statusColor(status), 6.8, 'bold');
+    doc.text(status.toUpperCase(), x + 15, rowY + 39);
+    const current = group.rows.map(row => `${row.area}: ${row.status}`).join(' · ');
+    const next = group.next;
+    fittedParagraph(doc, current, x + 15, rowY + 55, groupWidth * 0.42, 27, {
+      color: SLATE_700,
+      size: 7.7,
+      minSize: 7,
+      lineHeight: 9.4,
+    });
+    fittedParagraph(doc, next, x + groupWidth * 0.48, rowY + 55, groupWidth * 0.46, 27, {
+      color: SLATE_700,
+      size: 7.7,
+      minSize: 7,
+      lineHeight: 9.4,
+    });
   });
-  y += readiness.rows.length * 42 + 3;
+  y += Math.ceil(commercialGroups.length / 2) * (groupHeight + groupGap) + 2;
   renderSummary(ctx, y, 'COMMERCIAL CONCLUSION', readiness.summary, 52);
 }

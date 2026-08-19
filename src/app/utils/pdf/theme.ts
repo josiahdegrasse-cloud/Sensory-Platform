@@ -121,6 +121,79 @@ export function paragraph(doc: PdfDocument, text: string, x: number, y: number, 
   return y + lines.length * lineHeight;
 }
 
+export interface FittedParagraphResult {
+  bottom: number;
+  fontSize: number;
+  lineHeight: number;
+  lines: string[];
+  truncated: boolean;
+}
+
+/**
+ * Draws copy inside a bounded region. Fixed-height report cards must use this
+ * instead of `paragraph`, otherwise wrapped copy can cross the card boundary.
+ * The type is reduced gradually and only ellipsized as a last-resort guard for
+ * unexpectedly large imported or authored fields.
+ */
+export function fittedParagraph(
+  doc: PdfDocument,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  maxHeight: number,
+  options?: {
+    color?: Rgb;
+    size?: number;
+    minSize?: number;
+    weight?: 'normal' | 'bold';
+    lineHeight?: number;
+  },
+): FittedParagraphResult {
+  const initialSize = options?.size ?? 10;
+  const minimumSize = Math.min(initialSize, options?.minSize ?? Math.max(5.2, initialSize - 2));
+  const lineHeightRatio = (options?.lineHeight ?? initialSize * 1.35) / initialSize;
+  const value = text || 'Not available.';
+  let fontSize = initialSize;
+  let lineHeight = fontSize * lineHeightRatio;
+  let lines: string[] = [];
+
+  while (fontSize >= minimumSize - 0.001) {
+    setText(doc, options?.color ?? SLATE_700, fontSize, options?.weight);
+    lines = doc.splitTextToSize(value, maxWidth) as string[];
+    lineHeight = fontSize * lineHeightRatio;
+    if (lines.length * lineHeight <= maxHeight) break;
+    fontSize = Math.max(minimumSize, fontSize - 0.25);
+    if (fontSize === minimumSize) {
+      setText(doc, options?.color ?? SLATE_700, fontSize, options?.weight);
+      lines = doc.splitTextToSize(value, maxWidth) as string[];
+      lineHeight = fontSize * lineHeightRatio;
+      break;
+    }
+  }
+
+  const maxLines = Math.max(1, Math.floor(maxHeight / lineHeight));
+  const truncated = lines.length > maxLines;
+  if (truncated) {
+    lines = lines.slice(0, maxLines);
+    let finalLine = `${lines[maxLines - 1].replace(/[\s.]+$/g, '')}…`;
+    while (doc.getTextWidth(finalLine) > maxWidth && finalLine.length > 1) {
+      finalLine = `${finalLine.slice(0, -2).trimEnd()}…`;
+    }
+    lines[maxLines - 1] = finalLine;
+  }
+
+  setText(doc, options?.color ?? SLATE_700, fontSize, options?.weight);
+  doc.text(lines, x, y, { lineHeightFactor: lineHeight / fontSize });
+  return {
+    bottom: y + lines.length * lineHeight,
+    fontSize,
+    lineHeight,
+    lines,
+    truncated,
+  };
+}
+
 export function sectionTitle(ctx: PdfContext, title: string, y: number) {
   const { doc, margin, contentWidth, primary } = ctx;
   setDisplayText(doc, primary, 17, 'bold');
@@ -245,9 +318,10 @@ export function nfiViewBand(
   doc.line(margin, y, margin + contentWidth, y);
   setText(doc, labelTone, 6.6, 'bold');
   doc.text(`NFI VIEW · ${label.toUpperCase()}`, margin + 14, y + 19);
-  paragraph(doc, text, margin + 14, y + 38, contentWidth - 28, {
+  fittedParagraph(doc, text, margin + 14, y + 38, contentWidth - 28, height - 36, {
     color: textTone,
     size: 7.7,
+    minSize: 5.8,
     weight: 'bold',
     lineHeight: 9.8,
   });

@@ -55,3 +55,10 @@ uri = "pg-functions://postgres/public/custom_access_token_hook"
 
 [edge_runtime]
 enabled = false
+
+# Authentication is enforced inside this function with auth.getUser(jwt),
+# followed by active-admin and organization checks. Disabling the legacy
+# gateway verifier avoids rejecting current Supabase Auth tokens before the
+# handler can validate them.
+[functions.generate-concept-images]
+verify_jwt = false

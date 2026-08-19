@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Bot, CheckCircle2, Clock3, ShieldAlert } from 'lucide-react';
+import { Bot, CheckCircle2, Clock3, Cpu, ShieldAlert } from 'lucide-react';
 import { hashReportContext } from '../lib/report-agents';
 import type { CommercializationReportPdfInput } from '../utils/commercialization-report-export';
 
@@ -25,7 +25,7 @@ export function ReportAgentReviewPanel({
           <div>
             <h2 className="font-semibold text-amber-950">No agent generation record</h2>
             <p className="mt-1 text-sm text-amber-900">
-              This older version was not created by the complete Ollama workflow. Use New version in the report header to generate a replacement.
+              This older version has no local writing record. Use New version in the report header to generate a checked replacement.
             </p>
           </div>
         </div>
@@ -41,6 +41,18 @@ export function ReportAgentReviewPanel({
       ? 'border-rose-200 bg-rose-50 text-rose-900'
       : 'border-amber-200 bg-amber-50 text-amber-900';
   const runTimestamp = review.runTimestamp ?? review.runAt;
+  const artifacts = review.artifacts ?? {};
+  const localLlama = artifacts.engine === 'local_llama_webgpu';
+  const repairPasses = typeof artifacts.repairPasses === 'number' ? artifacts.repairPasses : 0;
+  const evidenceAssist = artifacts.evidenceAssist && typeof artifacts.evidenceAssist === 'object'
+    ? artifacts.evidenceAssist as Record<string, unknown>
+    : null;
+  const literatureSourceCount = input.snapshot.literatureCitations?.length ?? 0;
+  const literatureStatus = evidenceAssist?.status === 'unavailable'
+    ? 'Unavailable for this version'
+    : literatureSourceCount > 0
+      ? `${literatureSourceCount} approved source${literatureSourceCount === 1 ? '' : 's'}`
+      : 'No matching source included';
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-5">
@@ -48,11 +60,13 @@ export function ReportAgentReviewPanel({
         <div>
           <div className="flex items-center gap-2">
             <Bot className="size-5 text-slate-700" />
-            <h2 className="font-semibold text-slate-900">Ollama generation record</h2>
+            <h2 className="font-semibold text-slate-900">{localLlama ? 'On-device writing record' : 'Report generation record'}</h2>
           </div>
           <p className="mt-1 text-sm text-slate-600">
-            {completeWorkflow
-              ? 'The complete document was generated through the specialist agent workflow and deterministic release QC.'
+            {localLlama
+              ? 'This report was written in the administrator’s browser. Automated checks then verified evidence, numbers, decision language, claims, and limitations.'
+              : completeWorkflow
+              ? 'The complete document was generated through the legacy specialist workflow and deterministic release QC.'
               : 'This legacy version used the earlier partial drafting workflow. Generate a new version to run the complete specialist workflow.'}
           </p>
         </div>
@@ -61,14 +75,18 @@ export function ReportAgentReviewPanel({
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 border-y border-slate-200 py-4 sm:grid-cols-3">
+      <div className="mt-5 grid gap-4 border-y border-slate-200 py-4 sm:grid-cols-4">
         <div>
-          <p className="text-xs text-slate-500">Specialist stages</p>
-          <p className="mt-1 font-semibold text-slate-900">{review.agentsRun?.length ?? 0}</p>
+          <p className="text-xs text-slate-500">Writer</p>
+          <p className="mt-1 flex items-center gap-1.5 font-semibold text-slate-900"><Cpu className="size-4 text-slate-500" />{localLlama ? 'On-device writer' : `${review.agentsRun?.length ?? 0} stages`}</p>
         </div>
         <div>
-          <p className="text-xs text-slate-500">Verified literature sources</p>
-          <p className="mt-1 font-semibold text-slate-900">{input.snapshot.literatureCitations?.length ?? 0}</p>
+          <p className="text-xs text-slate-500">Correction passes</p>
+          <p className="mt-1 font-semibold text-slate-900">{localLlama ? repairPasses : '—'}</p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-500">External literature</p>
+          <p className="mt-1 font-semibold text-slate-900">{literatureStatus}</p>
         </div>
         <div>
           <p className="text-xs text-slate-500">Generated</p>
@@ -87,7 +105,7 @@ export function ReportAgentReviewPanel({
 
       {!completeWorkflow && !contextChanged && (
         <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Use Generate new version in the report header to replace this legacy draft with a complete agent-generated document.
+          Use Generate new version in the report header to replace this legacy draft with a fully checked report.
         </div>
       )}
 
@@ -104,7 +122,7 @@ export function ReportAgentReviewPanel({
 
       {(review.criticalBlockers?.length ?? 0) === 0 && (
         <p className="mt-4 flex items-center gap-2 text-sm text-emerald-700">
-          <CheckCircle2 className="size-4" />No agent-reported critical blockers remain on this saved version.
+          <CheckCircle2 className="size-4" />No deterministic release blockers remain on this saved version.
         </p>
       )}
     </section>

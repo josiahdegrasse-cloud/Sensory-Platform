@@ -5,6 +5,7 @@ import type { EnhancedSensoryProfile } from '../data/enhanced-sensory';
 import {
   buildTweakDiagnosisRequest,
   buildTweakEvidenceChain,
+  filterTweakDisplayWarnings,
   type TweakDiagnosisResponse,
   type TweakEvidenceChain,
 } from '../lib/tweak-intelligence';
@@ -28,22 +29,9 @@ type Props = {
   embedded?: boolean;
 };
 
-const CONFIDENCE_STYLE: Record<string, string> = {
-  direct: 'bg-emerald-50 text-emerald-700',
-  supporting: 'bg-blue-50 text-blue-700',
-  method: 'bg-slate-100 text-slate-700',
-  context: 'bg-amber-50 text-amber-700',
-};
-
 type DecisionConnection = {
   focusLabel: string;
 };
-
-function isTemporarilyHiddenConceptWarning(warning: string) {
-  return /concept evidence is n\s*=\s*0/i.test(warning)
-    && /consumer preference/i.test(warning)
-    && /packaging claims remain blocked/i.test(warning);
-}
 
 export function TweakIntelligencePanel({ decision, profile, foodType, goThreshold = 75, embedded = false }: Props) {
   const { projectId } = useParams<{ projectId?: string }>();
@@ -72,7 +60,7 @@ export function TweakIntelligencePanel({ decision, profile, foodType, goThreshol
   ), [decision, foodType, formulation, persistedDecision?.evidenceBundleId, persistedDecision?.formulationVersionId, persistedDecision?.id, profile, projectId]);
   const diagnosis = useTweakDiagnosis(request);
   const data = diagnosis.data;
-  const visibleWarnings = data?.warnings.filter(warning => !isTemporarilyHiddenConceptWarning(warning)) ?? [];
+  const visibleWarnings = filterTweakDisplayWarnings(data?.warnings ?? []);
   const connection = profile ? buildDecisionConnection(decision) : null;
   const evidenceChain = useMemo(() => (
     profile ? buildTweakEvidenceChain({ decision, profile, foodType, goThreshold }) : null
@@ -132,7 +120,6 @@ export function TweakIntelligencePanel({ decision, profile, foodType, goThreshol
             {evidenceChain && <EvidenceChainSection chain={evidenceChain} />}
             <RecommendationAndDiagnosis data={data} connection={connection} />
             {evidenceChain && <ActionFirstSection data={data} chain={evidenceChain} />}
-            <EvidenceGroups data={data} />
             <CitationsOnly data={data} />
           </div>
         )}
@@ -339,7 +326,7 @@ function RecommendationAndDiagnosis({ data, connection }: { data: TweakDiagnosis
         <p className="mt-2 text-base leading-7 text-slate-800">{data.summary}</p>
         {data.diagnosis[0] && (
           <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <p className="text-xs font-semibold text-slate-600">RAG rationale</p>
+            <p className="text-xs font-semibold text-slate-600">Evidence rationale</p>
             <p className="mt-1 text-sm leading-6 text-slate-700">{data.diagnosis[0].body}</p>
             {data.diagnosis[0].citationIds.length > 0 && (
               <p className="mt-1 text-xs font-semibold text-slate-500">Evidence: {data.diagnosis[0].citationIds.join(', ')}</p>
@@ -369,31 +356,6 @@ function humanizeSignal(value: string) {
     .trim()
     .toLowerCase()
     .replace(/^\w/, char => char.toUpperCase());
-}
-
-function EvidenceGroups({ data }: { data: TweakDiagnosisResponse }) {
-  if (data.evidenceGroups.length === 0) return null;
-  return (
-    <section className="bg-slate-50 px-5 py-4">
-      <div className="rounded-lg border border-slate-200 bg-white">
-        <div className="border-b border-slate-100 px-4 py-3">
-          <h3 className="text-sm font-semibold text-slate-900">Source relevance</h3>
-          <p className="mt-0.5 text-xs text-slate-500">Directness of the literature behind the workplan</p>
-        </div>
-        <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
-          {data.evidenceGroups.map(group => (
-            <div key={group.label} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <Badge className={`${CONFIDENCE_STYLE[group.confidence] ?? CONFIDENCE_STYLE.supporting} border-0`}>
-                {group.confidence}
-              </Badge>
-              <p className="mt-2 text-sm font-semibold text-slate-900">{group.label}</p>
-              <p className="mt-1 text-xs leading-5 text-slate-500">{group.sources.slice(0, 6).join(', ')}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
 }
 
 function CitationsOnly({ data }: { data: TweakDiagnosisResponse }) {

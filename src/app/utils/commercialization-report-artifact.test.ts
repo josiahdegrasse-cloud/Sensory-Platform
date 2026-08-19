@@ -85,13 +85,13 @@ function sampleInput(): CommercializationReportPdfInput {
         {
           id: 'L1',
           title: 'Texture drivers in plant-based cheese alternatives',
-          source: 'Verified local RAG source · texture-review.pdf',
+          source: 'Approved NFI literature library',
           excerpt: 'Protein and hydrocolloid structure influence firmness, melt behavior, and perceived creaminess in plant-based cheese systems.',
         },
         {
           id: 'L2',
           title: 'Consumer acceptance of plant-based foods',
-          source: 'Verified local RAG source · consumer-acceptance.pdf',
+          source: 'Approved NFI literature library',
           excerpt: 'Familiar sensory cues and clear usage expectations can support acceptance, while representative consumer validation remains necessary.',
         },
       ],
@@ -137,6 +137,9 @@ describe('commercialization report quality evaluation', { timeout: 20_000 }, () 
     expect(evaluation.pageTexts[1]).toContain('NFI VIEW');
     expect(evaluation.pageTexts[7]).toContain('NFI RELEASE VIEW');
     expect(evaluation.pageTexts.every(page => page.includes('Prepared by New Food Innovation'))).toBe(true);
+    expect(evaluation.pageTexts.join(' ')).not.toContain('…');
+    expect(evaluation.pageTexts.join(' ')).not.toMatch(/shelf[- ]?life/i);
+    expect(evaluation.pageTexts.join(' ')).not.toMatch(/deterministic decision context|client-safe summary|study type not captured/i);
   });
 
   it('rejects launch-blocking language and raw numeric artifacts in a GO report', async () => {
@@ -174,7 +177,7 @@ describe('commercialization report quality evaluation', { timeout: 20_000 }, () 
     expect(normalizeClientFacingNumbers('Score 77.60000000000001')).toBe('Score 77.6');
   });
 
-  it('renders one concept response as a directional log and hides raw RAG metadata', async () => {
+  it('renders one concept response as a directional log and hides raw retrieval metadata', async () => {
     const input = sampleInput();
     input.snapshot.evidence = {
       responseCount: 1,
@@ -195,7 +198,7 @@ describe('commercialization report quality evaluation', { timeout: 20_000 }, () 
     const scientificPage = evaluation.pageTexts[3];
     const conceptPage = evaluation.pageTexts[5];
 
-    expect(scientificPage).toContain('Scientific guidance applied to the next study');
+    expect(scientificPage).toContain('Evidence-led recommendations for the next study');
     expect(scientificPage).toContain('Study design and reporting');
     expect(scientificPage).toMatch(/Sources:/i);
     expect(scientificPage).not.toMatch(/nfi_publications|sensory_rag_bulk_pack|\.pdf|\.txt/i);
@@ -236,14 +239,59 @@ describe('commercialization report quality evaluation', { timeout: 20_000 }, () 
     expect(instrumentalPage).toContain('E-tongue / composition model');
     expect(instrumentalPage).toContain('GC-MS / GC-O');
     expect(instrumentalPage).toContain('Internal-standard QC');
-    expect(instrumentalPage).toContain('Scientific guidance applied to the next study');
+    expect(instrumentalPage).toContain('Evidence-led recommendations for the next study');
     expect(instrumentalPage).toMatch(/Sources:/i);
     expect(instrumentalPage).not.toMatch(/nfi_publications|sensory_rag_bulk_pack|\.pdf|\.txt/i);
+    expect(evaluation.pageTexts.join(' ')).not.toContain('…');
+    expect(evaluation.pageTexts.join(' ')).not.toMatch(/shelf[- ]?life/i);
+    expect(evaluation.pageTexts[2]).toContain(`concept test n=${input.snapshot.evidence.responseCount}`);
 
     if (process.env.GENERATE_REPORT_ARTIFACTS === '1') {
       const outputDir = path.join(process.cwd(), 'output/pdf');
       mkdirSync(outputDir, { recursive: true });
       writeFileSync(path.join(outputDir, 'commercialization-report-literature-guidance-preview.pdf'), Buffer.from(doc.output('arraybuffer')));
+    }
+  });
+
+  it('renders report-safe Evidence Assist guidance with approved source provenance', async () => {
+    const input = sampleInput();
+    input.reportContext = coconutCheddarContext();
+    input.snapshot.evidenceCards = [{
+      id: 'ea-texture-1',
+      citationLabel: 'L1',
+      topic: 'pilot texture confirmation',
+      evidenceUse: 'validation_guidance',
+      appliesTo: ['texture'],
+      supports: ['controlled pilot validation'],
+      doesNotSupport: ['product preference', 'product superiority'],
+      safeReportLanguage: 'Confirm texture and melt performance at pilot scale using the same controlled sensory measures.',
+      claimPermission: 'context_only',
+      confidence: 'high',
+      limitations: ['External literature is not product-specific proof.'],
+      contentFingerprint: 'sha256:evidence-assist-preview',
+    }];
+    input.snapshot.literatureCitations = [{
+      id: 'L1',
+      title: 'Texture confirmation in plant-based cheese',
+      excerpt: '',
+      source: 'Approved NFI literature library',
+    }];
+
+    const { doc } = await buildCommercializationReportPdf(input);
+    const evaluation = evaluateCommercializationReport(doc, input);
+    const scientificPage = evaluation.pageTexts[3];
+
+    expect(scientificPage).toContain('Pilot Texture Confirmation');
+    expect(scientificPage).toContain('NFI recommends this as the next validation step');
+    expect(scientificPage).toContain('Texture performance is 43/100');
+    expect(scientificPage).toContain('Texture confirmation in plant-based cheese');
+    expect(evaluation.pageTexts.join(' ')).not.toMatch(/chunkId|retrievedExcerpt|sourcePath|retrievalScore|\bRAG\b/i);
+    expect(evaluation.passed).toBe(true);
+
+    if (process.env.GENERATE_REPORT_ARTIFACTS === '1') {
+      const outputDir = path.join(process.cwd(), 'output/pdf');
+      mkdirSync(outputDir, { recursive: true });
+      writeFileSync(path.join(outputDir, 'commercialization-report-evidence-led-preview.pdf'), Buffer.from(doc.output('arraybuffer')));
     }
   });
 

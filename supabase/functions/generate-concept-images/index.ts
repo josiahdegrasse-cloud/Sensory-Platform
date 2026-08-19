@@ -53,10 +53,12 @@ interface GenerateConceptImagesBody {
   referenceImageIds?: string[];
   /** Set false to skip applying the org brand kit for this batch. */
   useBrandKit?: boolean;
-  /** 'refine' = single-image targeted revision of baseImageId. */
+  /** 'refine' = single-image targeted revision; 'diagnostic' = charge-free dependency check. */
   intent?: string;
   baseImageId?: string;
   refineInstruction?: string;
+  /** Return after the generation row is queued; render and storage continue in the background. */
+  async?: boolean;
 }
 
 const DEFAULT_IMAGE_COUNT = 4;
@@ -177,13 +179,6 @@ Deno.serve(async (req: Request) => {
   const imageModel = Deno.env.get('OPENAI_IMAGE_MODEL') ?? 'gpt-image-1.5';
   const imageQuality = Deno.env.get('OPENAI_IMAGE_QUALITY') ?? 'medium';
 
-  if (!openAiKey) {
-    return new Response(JSON.stringify({ error: 'OPENAI_API_KEY is not configured for this Supabase project.' }), {
-      status: 500,
-      headers: { ...headers, 'Content-Type': 'application/json' },
-    });
-  }
-
   const callerToken = authHeader.replace(/^Bearer\s+/i, '');
 
   // A plain client (no global authorization header) avoids sending both a
@@ -230,6 +225,68 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json() as GenerateConceptImagesBody;
+    if (clean(body.intent) === 'diagnostic') {
+      const edgeRuntimeAvailable = Boolean((globalThis as unknown as {
+        EdgeRuntime?: { waitUntil(promise: Promise<unknown>): void };
+      }).EdgeRuntime);
+      const [settingsCheck, workspaceCheck, generationsCheck, storageCheck] = await Promise.all([
+        serviceClient
+          .from('concept_generation_settings')
+          .select('id')
+          .eq('org_id', orgId)
+          .limit(1),
+        serviceClient
+          .from('workspace_settings')
+          .select('org_id')
+          .eq('org_id', orgId)
+          .limit(1),
+        serviceClient
+          .from('concept_image_generations')
+          .select('id')
+          .eq('org_id', orgId)
+          .limit(1),
+        serviceClient.storage.from('concept-images').list('', { limit: 1 }),
+      ]);
+      const dependencyErrors = [
+        ['concept settings', settingsCheck.error],
+        ['workspace settings', workspaceCheck.error],
+        ['generation records', generationsCheck.error],
+        ['image storage', storageCheck.error],
+      ].flatMap(([label, error]) => error
+        ? [`${label}: ${(error as { message?: string }).message ?? String(error)}`]
+        : []);
+      const missing = [
+        !openAiKey ? 'OpenAI API key' : '',
+        !edgeRuntimeAvailable ? 'background task runtime' : '',
+      ].filter(Boolean);
+
+      if (dependencyErrors.length > 0 || missing.length > 0) {
+        return new Response(JSON.stringify({
+          error: [...dependencyErrors, ...missing.map(item => `${item} is unavailable`)].join('; '),
+          phase: 'readiness',
+          functionVersion: 26,
+        }), {
+          status: 503,
+          headers: { ...headers, 'Content-Type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify({
+        ok: true,
+        phase: 'ready',
+        functionVersion: 26,
+      }), {
+        headers: { ...headers, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!openAiKey) {
+      return new Response(JSON.stringify({ error: 'OPENAI_API_KEY is not configured for this Supabase project.' }), {
+        status: 500,
+        headers: { ...headers, 'Content-Type': 'application/json' },
+      });
+    }
+
     const { data: settings } = await serviceClient
       .from('concept_generation_settings')
       .select('*')
@@ -498,104 +555,129 @@ Deno.serve(async (req: Request) => {
 
     if (generationError) throw generationError;
 
-    // One request per angle (n: 1 each) so every image is art-directed from a
-    // genuinely distinct prompt — a single shared prompt with n > 1 just
-    // produces near-duplicate renders of the same shot. When reference images
-    // are present (locked design / brand kit / refine base), the shared helper
-    // switches to the image-edit endpoint so the design carries across angles.
-    const angleResponses = await Promise.all(angledPrompts.map(async ({ angle, size, prompt: anglePrompt, summary }) => {
-      const res = await requestOpenAiImage({
-        openAiKey,
-        model,
-        prompt: anglePrompt,
-        size,
-        quality,
-        references: referenceFiles,
-      });
-      const json = await res.json();
-      return { angle, size, prompt: anglePrompt, summary, ok: res.ok, status: res.status, json };
-    }));
+    const processGeneration = async () => {
+      try {
+        // One request per angle (n: 1 each) so every image is art-directed from
+        // a distinct prompt. The async path returns before this provider call.
+        const angleResponses = await Promise.all(angledPrompts.map(async ({ angle, size, prompt: anglePrompt, summary }) => {
+          const res = await requestOpenAiImage({
+            openAiKey,
+            model,
+            prompt: anglePrompt,
+            size,
+            quality,
+            references: referenceFiles,
+          });
+          const json = await res.json();
+          return { angle, size, prompt: anglePrompt, summary, ok: res.ok, status: res.status, json };
+        }));
 
-    const failed = angleResponses.find(r => !r.ok);
-    if (failed) {
-      const message = failed.json?.error?.message ?? `OpenAI image generation failed with status ${failed.status}`;
-      await serviceClient
-        .from('concept_image_generations')
-        .update({ status: 'failed', error_message: message, completed_at: new Date().toISOString() })
-        .eq('id', generation.id);
-      throw new Error(message);
-    }
+        const failed = angleResponses.find(r => !r.ok);
+        if (failed) {
+          throw new Error(failed.json?.error?.message ?? `OpenAI image generation failed with status ${failed.status}`);
+        }
 
-    const imageResults = [] as Array<{
-      id: string; url: string; storagePath: string;
-      mode: string; size: string; promptStyle: string; summary: string; revisedPrompt?: string;
-    }>;
-    for (let index = 0; index < angleResponses.length; index++) {
-      const { angle, size, prompt: anglePrompt, summary, json } = angleResponses[index];
-      const item = ((json.data ?? [])[0] ?? {}) as { b64_json?: string; url?: string; revised_prompt?: string };
-      let signedUrl = '';
-      let storagePath = '';
-      let bytes: Uint8Array | null = null;
-      if (item.b64_json) bytes = decodeBase64Image(item.b64_json);
-      if (!bytes && item.url) {
-        const remoteImage = await fetch(item.url);
-        if (!remoteImage.ok) throw new Error(`Unable to secure generated image ${index + 1}`);
-        bytes = new Uint8Array(await remoteImage.arrayBuffer());
+        const imageResults = [] as Array<{
+          id: string; url: string; storagePath: string;
+          mode: string; size: string; promptStyle: string; summary: string; revisedPrompt?: string;
+        }>;
+        for (let index = 0; index < angleResponses.length; index++) {
+          const { angle, size, prompt: anglePrompt, summary, json } = angleResponses[index];
+          const item = ((json.data ?? [])[0] ?? {}) as { b64_json?: string; url?: string; revised_prompt?: string };
+          let storagePath = '';
+          let bytes: Uint8Array | null = null;
+          if (item.b64_json) bytes = decodeBase64Image(item.b64_json);
+          if (!bytes && item.url) {
+            const remoteImage = await fetch(item.url);
+            if (!remoteImage.ok) throw new Error(`Unable to secure generated image ${index + 1}`);
+            bytes = new Uint8Array(await remoteImage.arrayBuffer());
+          }
+          if (!bytes) throw new Error(`OpenAI returned no image data for visual ${index + 1}.`);
+
+          storagePath = `${generation.id}/concept-${index + 1}.png`;
+          const { error: uploadError } = await serviceClient.storage
+            .from('concept-images')
+            .upload(storagePath, bytes, {
+              contentType: 'image/png',
+              upsert: true,
+            });
+          if (uploadError) throw uploadError;
+
+          const { data: imageRow, error: imageError } = await serviceClient
+            .from('concept_images')
+            .insert({
+              org_id: orgId,
+              generation_id: generation.id,
+              concept_test_id: body.conceptTestId || null,
+              image_url: storagePath,
+              storage_path: storagePath,
+              selected_for_panelists: !Boolean(workspaceSettings?.concept_require_approval),
+              sort_order: index,
+              mode: angle,
+              prompt: anglePrompt,
+              prompt_style: configuredStyle,
+              review_status: workspaceSettings?.concept_require_approval ? 'draft' : 'selected',
+              model,
+              quality,
+            })
+            .select()
+            .single();
+
+          if (imageError) throw imageError;
+          const { data: signedData, error: signedError } = await serviceClient.storage
+            .from('concept-images')
+            .createSignedUrl(storagePath, 60 * 60);
+          if (signedError) throw signedError;
+          imageResults.push({
+            id: imageRow.id,
+            url: signedData.signedUrl,
+            storagePath,
+            mode: angle,
+            size,
+            promptStyle: configuredStyle,
+            summary,
+            revisedPrompt: item.revised_prompt,
+          });
+        }
+
+        await serviceClient
+          .from('concept_image_generations')
+          .update({ status: 'completed', error_message: null, completed_at: new Date().toISOString() })
+          .eq('id', generation.id);
+
+        return imageResults;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`Concept image generation ${generation.id} failed: ${message}`);
+        await serviceClient
+          .from('concept_image_generations')
+          .update({ status: 'failed', error_message: message, completed_at: new Date().toISOString() })
+          .eq('id', generation.id);
+        throw error;
       }
-      if (!bytes) continue;
+    };
 
-      storagePath = `${generation.id}/concept-${index + 1}.png`;
-      const { error: uploadError } = await serviceClient.storage
-        .from('concept-images')
-        .upload(storagePath, bytes, {
-          contentType: 'image/png',
-          upsert: true,
-        });
-      if (uploadError) throw uploadError;
-
-      const { data: imageRow, error: imageError } = await serviceClient
-        .from('concept_images')
-        .insert({
-          org_id: orgId,
-          generation_id: generation.id,
-          concept_test_id: body.conceptTestId || null,
-          image_url: storagePath,
-          storage_path: storagePath,
-          selected_for_panelists: !Boolean(workspaceSettings?.concept_require_approval),
-          sort_order: index,
-          mode: angle,
-          prompt: anglePrompt,
-          prompt_style: configuredStyle,
-          review_status: workspaceSettings?.concept_require_approval ? 'draft' : 'selected',
-          model,
-          quality,
-        })
-        .select()
-        .single();
-
-      if (imageError) throw imageError;
-      const { data: signedData, error: signedError } = await serviceClient.storage
-        .from('concept-images')
-        .createSignedUrl(storagePath, 60 * 60);
-      if (signedError) throw signedError;
-      signedUrl = signedData.signedUrl;
-      imageResults.push({
-        id: imageRow.id,
-        url: signedUrl,
-        storagePath,
-        mode: angle,
-        size,
-        promptStyle: configuredStyle,
-        summary,
-        revisedPrompt: item.revised_prompt,
+    if (body.async === true) {
+      const edgeRuntime = (globalThis as unknown as {
+        EdgeRuntime?: { waitUntil(promise: Promise<unknown>): void };
+      }).EdgeRuntime;
+      if (!edgeRuntime) {
+        throw new Error('Background image generation is unavailable in this runtime.');
+      }
+      edgeRuntime.waitUntil(processGeneration().catch(() => undefined));
+      return new Response(JSON.stringify({
+        generationId: generation.id,
+        status: 'generating',
+        model,
+        quality,
+        mode: primaryMode,
+      }), {
+        status: 202,
+        headers: { ...headers, 'Content-Type': 'application/json' },
       });
     }
 
-    await serviceClient
-      .from('concept_image_generations')
-      .update({ status: 'completed', completed_at: new Date().toISOString() })
-      .eq('id', generation.id);
-
+    const imageResults = await processGeneration();
     return new Response(JSON.stringify({
       generationId: generation.id,
       images: imageResults,

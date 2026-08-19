@@ -8,15 +8,12 @@ import {
   ChevronRight,
   Circle,
   FileText,
-  FlaskConical,
   GitBranch,
-  LayoutDashboard,
   Lock,
   Search,
   ShieldCheck,
   TestTube2,
   TriangleAlert,
-  Users,
 } from 'lucide-react';
 import type { AuditEventRecord } from '../lib/database';
 import type {
@@ -28,8 +25,6 @@ import type {
 } from '../lib/project-decision-room';
 import { ProjectStatusBadge } from './project-status-badge';
 import { Input } from './ui/input';
-
-type DecisionRoomView = 'rd' | 'executive' | 'client';
 
 interface ProjectDecisionRoomProps {
   prototypes: DecisionRoomPrototype[];
@@ -318,67 +313,6 @@ function RDWorkspace({
   );
 }
 
-function StakeholderView({
-  view,
-  prototype,
-  eligibility,
-  lineage,
-  nextAction,
-}: {
-  view: 'executive' | 'client';
-  prototype: DecisionRoomPrototype;
-  eligibility: DecisionRoomEligibility;
-  lineage: DecisionRoomLineageItem[];
-  nextAction: DecisionRoomAction;
-}) {
-  const decision = prototype.decision;
-  const recorded = lineage.filter(item => item.status === 'complete');
-  const open = lineage.filter(item => ['blocked', 'needs_review', 'not_started'].includes(item.status));
-  return (
-    <main className="col-span-1 min-w-0 p-5 sm:p-7 lg:col-span-2">
-      <div className="max-w-4xl">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{view === 'executive' ? 'Executive decision brief' : 'Client evidence brief'}</p>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h2 className="text-2xl font-semibold tracking-tight text-slate-950">{prototype.sampleName}</h2>
-          <ProjectStatusBadge label={decision?.decision ?? 'Decision required'} tone={decisionTone(decision)} showIcon={false} />
-        </div>
-        <p className="mt-4 max-w-3xl text-base leading-7 text-slate-700">
-          {decision
-            ? `${decision.decision} is the latest recorded product decision at ISSF ${decision.issfScore.toFixed(1)}, supported by ${decision.confidence.toFixed(0)}% screening evidence strength.`
-            : 'No product decision has been recorded for this prototype yet.'}
-          {' '}{eligibility.detail}
-        </p>
-
-        <div className="mt-7 grid gap-6 border-y border-slate-200 py-6 md:grid-cols-2">
-          <section>
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-950"><CheckCircle2 className="size-4 text-emerald-700" aria-hidden />Evidence on record</h3>
-            <ul className="mt-3 space-y-2 text-sm text-slate-700">
-              {recorded.slice(0, 5).map(item => <li key={item.id}>• {item.label}: {item.artifact}</li>)}
-            </ul>
-          </section>
-          <section>
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-950"><TriangleAlert className="size-4 text-amber-700" aria-hidden />Boundary and open work</h3>
-            <ul className="mt-3 space-y-2 text-sm text-slate-700">
-              {open.length > 0 ? open.slice(0, 5).map(item => <li key={item.id}>• {item.label}: {item.detail}</li>) : <li>• No open lineage gate is recorded.</li>}
-              {view === 'client' && <li>• Product evidence does not establish demand, purchase intent, or commercial success.</li>}
-            </ul>
-          </section>
-        </div>
-
-        <div className="mt-6 flex flex-col gap-3 rounded-lg bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Next gate</p>
-            <p className="mt-1 font-semibold text-slate-950">{nextAction.label}</p>
-          </div>
-          <Link to={nextAction.route} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-900 hover:bg-slate-100">
-            Review record <ArrowRight className="size-4" aria-hidden />
-          </Link>
-        </div>
-      </div>
-    </main>
-  );
-}
-
 export function ProjectDecisionRoom({
   prototypes,
   selectedPrototype,
@@ -390,40 +324,12 @@ export function ProjectDecisionRoom({
   projectScopedEvents,
   batchCount,
 }: ProjectDecisionRoomProps) {
-  const [view, setView] = useState<DecisionRoomView>('rd');
-  const views: Array<{ id: DecisionRoomView; label: string; icon: typeof FlaskConical }> = [
-    { id: 'rd', label: 'R&D workspace', icon: FlaskConical },
-    { id: 'executive', label: 'Executive brief', icon: LayoutDashboard },
-    { id: 'client', label: 'Client brief', icon: Users },
-  ];
-
   return (
     <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm" aria-labelledby="decision-room-title">
-      <header className="flex flex-col gap-4 border-b border-slate-200 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+      <header className="border-b border-slate-200 px-4 py-4 sm:px-5">
         <div>
           <h2 id="decision-room-title" className="text-base font-semibold text-slate-950">Project decision room</h2>
           <p className="mt-0.5 text-xs text-slate-500">{prototypes.length} prototype{prototypes.length === 1 ? '' : 's'} across {batchCount} active batch{batchCount === 1 ? '' : 'es'}</p>
-        </div>
-        <div className="grid grid-cols-3 rounded-lg border border-slate-200 bg-slate-50 p-1" role="tablist" aria-label="Decision room view">
-          {views.map(item => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                id={`decision-room-tab-${item.id}`}
-                type="button"
-                role="tab"
-                aria-selected={view === item.id}
-                aria-controls="decision-room-tabpanel"
-                onClick={() => setView(item.id)}
-                className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md px-2.5 text-xs font-semibold transition-colors ${
-                  view === item.id ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-600 hover:text-slate-950'
-                }`}
-              >
-                <Icon className="hidden size-3.5 sm:block" aria-hidden /> {item.label}
-              </button>
-            );
-          })}
         </div>
       </header>
 
@@ -434,25 +340,16 @@ export function ProjectDecisionRoom({
           <p className="mt-1 text-sm text-slate-500">Import instrumental sample data to build the project decision room.</p>
         </div>
       ) : (
-        <div
-          id="decision-room-tabpanel"
-          role="tabpanel"
-          aria-labelledby={`decision-room-tab-${view}`}
-          className="grid lg:grid-cols-[260px_minmax(0,1fr)_310px]"
-        >
+        <div className="grid lg:grid-cols-[260px_minmax(0,1fr)_310px]">
           <PrototypeList prototypes={prototypes} selectedId={selectedPrototype.key} onSelect={onSelectPrototype} />
-          {view === 'rd' ? (
-            <RDWorkspace
-              prototype={selectedPrototype}
-              lineage={lineage}
-              eligibility={eligibility}
-              nextAction={nextAction}
-              projectEvents={projectEvents}
-              projectScopedEvents={projectScopedEvents}
-            />
-          ) : (
-            <StakeholderView view={view} prototype={selectedPrototype} eligibility={eligibility} lineage={lineage} nextAction={nextAction} />
-          )}
+          <RDWorkspace
+            prototype={selectedPrototype}
+            lineage={lineage}
+            eligibility={eligibility}
+            nextAction={nextAction}
+            projectEvents={projectEvents}
+            projectScopedEvents={projectScopedEvents}
+          />
         </div>
       )}
     </section>

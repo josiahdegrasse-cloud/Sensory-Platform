@@ -1,7 +1,10 @@
 import { expect, type Page, test } from '@playwright/test';
+import { createClient } from '@supabase/supabase-js';
 
 const email = process.env.E2E_ADMIN_EMAIL;
 const password = process.env.E2E_ADMIN_PASSWORD;
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
 
 async function loginAsAdmin(page: Page) {
   await page.goto('/');
@@ -80,9 +83,124 @@ test.describe('authenticated admin workflow', () => {
 
     await page.goto('/concept-testing');
     await expect(page.getByRole('heading', { name: 'Concept Lab' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Start concept work from confirmed evidence' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'GO prototypes ready for concept work' })).toBeVisible();
     await expect(page.getByRole('button', { name: /Start without decision/i })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Review decisions' })).toBeVisible();
+  });
+
+  test('Concept Lab saves progress, returns to drafts, and resumes the exact survey step', async ({ page }) => {
+    test.skip(!supabaseUrl || !supabaseAnonKey, 'VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required.');
+    const client = createClient(supabaseUrl!, supabaseAnonKey!);
+    const { data: auth, error: authError } = await client.auth.signInWithPassword({ email: email!, password: password! });
+    expect(authError).toBeNull();
+    const userId = auth.user?.id;
+    expect(userId).toBeTruthy();
+
+    const [{ data: profile }, { data: existingDrafts }, { data: decisions }] = await Promise.all([
+      client.from('profiles').select('org_id').eq('id', userId!).single(),
+      client.from('concept_workspace_drafts').select('decision_record_id'),
+      client
+        .from('decision_records')
+        .select('id, project_id, evidence_bundle_id, formulation_version_id, sample_id, sample_name, issf_score, confidence, created_at')
+        .eq('decision', 'GO')
+        .not('project_id', 'is', null)
+        .not('evidence_bundle_id', 'is', null)
+        .order('created_at', { ascending: false }),
+    ]);
+    const occupiedDecisionIds = new Set((existingDrafts ?? []).map(item => item.decision_record_id));
+    const decision = (decisions ?? []).find(item => !occupiedDecisionIds.has(item.id));
+    test.skip(!decision || !profile?.org_id, 'A confirmed GO decision without an existing draft is required.');
+
+    const initialName = `E2E concept ${Date.now()}`;
+    const editedName = `${initialName} edited`;
+    const savedAt = new Date().toISOString();
+    const draftPayload = {
+      version: 2,
+      draft: {
+        name: initialName,
+        category: 'Cheese',
+        projectName: 'E2E draft persistence',
+        description: 'A familiar creamy cheese made for everyday lunches.',
+        marketingImages: ['https://placehold.co/600x600/png'],
+        marketingImageIds: [],
+        marketingImageReviews: [{ imageId: 'e2e-visual', status: 'approved', qa: {}, notes: '', source: 'external' }],
+        targetMarket: 'Households looking for familiar everyday cheese.',
+        targetOccasion: 'Everyday lunches',
+        productAppearance: 'A believable cheese product.',
+        packageFormat: 'Retail pack',
+        visualSetting: 'Kitchen',
+        colorDirection: 'Natural',
+        mustShow: 'Product and serving suggestion',
+        pricePoint: '',
+        keyBenefits: 'Creamy, familiar flavour',
+        technicalChallenges: '',
+        promptStyle: 'balanced',
+        visualNotes: '',
+        forbiddenClaims: '',
+        approvalStatus: 'draft',
+        variantDimensions: {
+          productForm: 'slices', positioning: null, visualComplexity: null, appeal: null,
+          channel: null, packagingFormat: null, brandColorScheme: null,
+          targetDemographic: null, pricePositioning: null,
+        },
+        brandReference: null,
+      },
+      questions: [{ id: 'e2e-q1', text: 'How appealing is this concept?', type: 'scale', required: true, category: 'appeal' }],
+      questionsReviewState: 'approved',
+      panelSize: 12,
+      segments: [],
+      assignedPanelistIds: [],
+      sourceDecision: {
+        id: decision!.id,
+        sampleId: decision!.sample_id,
+        sampleName: decision!.sample_name,
+        issfScore: decision!.issf_score,
+        confidence: decision!.confidence,
+        timestamp: decision!.created_at,
+        likedSignals: ['Creamy'],
+        formulationVersionId: decision!.formulation_version_id,
+        evidenceBundleId: decision!.evidence_bundle_id,
+      },
+      conceptSourceChosen: true,
+      step: 'concept',
+      savedAt,
+    };
+
+    const { data: seededDraft, error: seedError } = await client
+      .from('concept_workspace_drafts')
+      .insert({
+        org_id: profile!.org_id,
+        project_id: decision!.project_id!,
+        decision_record_id: decision!.id,
+        evidence_bundle_id: decision!.evidence_bundle_id!,
+        formulation_version_id: decision!.formulation_version_id,
+        created_by: userId!,
+        current_step: 'concept',
+        draft_payload: draftPayload,
+      })
+      .select('id')
+      .single();
+    expect(seedError).toBeNull();
+
+    try {
+      await loginAsAdmin(page);
+      await page.goto(`/project/${decision!.project_id}/concept`);
+      await expect(page.getByRole('heading', { name: 'In-progress concepts' })).toBeVisible();
+      await page.getByRole('button', { name: `Continue ${initialName}` }).click();
+      await page.getByLabel('Product name').fill(editedName);
+      await page.getByRole('button', { name: 'Continue to Survey' }).click();
+      await expect(page.getByRole('heading', { name: 'Design your survey' })).toBeVisible();
+      await expect(page.getByText(/Saved to workspace/)).toBeVisible({ timeout: 10_000 });
+
+      await page.goto(`/project/${decision!.project_id}/data`);
+      await page.goto(`/project/${decision!.project_id}/concept`);
+      await expect(page.getByRole('button', { name: `Continue ${editedName}` })).toBeVisible();
+      await page.getByRole('button', { name: `Continue ${editedName}` }).click();
+      await expect(page.getByRole('heading', { name: 'Design your survey' })).toBeVisible();
+    } finally {
+      if (seededDraft?.id) await client.from('concept_workspace_drafts').delete().eq('id', seededDraft.id);
+      await client.auth.signOut();
+    }
   });
 
   test('unknown routes render the 404 page once authenticated', async ({ page }) => {

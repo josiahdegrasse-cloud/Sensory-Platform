@@ -8,7 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { WorkflowPageHeader } from './workflow-page-header';
 import { StudiesNavigation } from './studies-navigation';
 import { PanelistKitInserts } from './panelist-kit-inserts';
-import { FormulationContextStrip } from './formulation-context-strip';
 
 export function ShipOutsWorkspace() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -49,13 +48,11 @@ export function ShipOutsWorkspace() {
     <div className="space-y-5">
       <WorkflowPageHeader
         title="Panelist shipments"
-        description="Prepare physical tasting boxes, generate one secure QR pass per recipient, and track every box through fieldwork."
+        description="Prepare physical tasting boxes, add tasks to each panelist’s account, provide an optional mobile QR pass, and track every box through fieldwork."
         status={<Badge variant="outline" className="border-slate-300 text-slate-700">Project scoped</Badge>}
       />
 
       <StudiesNavigation projectId={projectId} active="ship-outs" />
-
-      <FormulationContextStrip projectId={projectId} sampleId={selectedProduct?.sourceSampleId} context="ship-outs" />
 
       {loading ? (
         <div className="space-y-3" aria-label="Loading shipment studies">

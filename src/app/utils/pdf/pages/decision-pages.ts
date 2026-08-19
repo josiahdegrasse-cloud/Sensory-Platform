@@ -16,6 +16,7 @@ import {
   SLATE_700,
   SLATE_950,
   WHITE,
+  fittedParagraph,
   imageFormat,
   lighten,
   paragraph,
@@ -165,9 +166,10 @@ export function renderDecisionSnapshotPage(
   const halfWidth = (contentWidth - 28) / 2;
   setText(doc, aquaDark, 6.8, 'bold');
   doc.text('CORE STRENGTH', margin, evidenceY);
-  paragraph(doc, data.coreStrength, margin, evidenceY + 20, halfWidth, {
+  fittedParagraph(doc, data.coreStrength, margin, evidenceY + 20, halfWidth, 43, {
     color: ink,
     size: 8.5,
+    minSize: 5.8,
     weight: 'bold',
     lineHeight: 11,
   });
@@ -176,9 +178,10 @@ export function renderDecisionSnapshotPage(
   const watchX = margin + halfWidth + 28;
   setText(doc, NFI_CORAL_DARK, 6.8, 'bold');
   doc.text('MAIN WATCH POINT', watchX, evidenceY);
-  paragraph(doc, data.mainWatchPoint, watchX, evidenceY + 20, halfWidth, {
+  fittedParagraph(doc, data.mainWatchPoint, watchX, evidenceY + 20, halfWidth, 43, {
     color: ink,
     size: 8.5,
+    minSize: 5.8,
     weight: 'bold',
     lineHeight: 11,
   });
@@ -229,8 +232,9 @@ export function renderExecutiveReadoutPage(ctx: PdfContext, data: ExecutiveReado
 
 export function renderPerformanceDashboardPage(ctx: PdfContext, data: PerformanceDashboardData) {
   const { doc, margin, contentWidth, accent } = ctx;
-  let y = reportPageHeading(ctx, 3, 'Sensory diagnostic', 'All four sensory dimensions clear the readiness line', 'Measured sensory performance, study basis, benchmark context, and the implications to protect through scale-up.');
+  let y = reportPageHeading(ctx, 3, 'Sensory diagnostic', 'Sensory performance against the readiness line', 'Measured sensory performance, study basis, benchmark context, and the implications to protect through scale-up.');
   const sensoryMetrics = data.metrics.filter(metric => metric.score !== null).slice(0, 4);
+  const passingMetrics = sensoryMetrics.filter(metric => (metric.score ?? 0) >= data.readinessThreshold).length;
   setDisplayText(doc, SLATE_950, 13, 'bold');
   doc.text('Dimension performance', margin, y);
   y = renderThresholdBarChart(
@@ -248,7 +252,7 @@ export function renderPerformanceDashboardPage(ctx: PdfContext, data: Performanc
 
   const gap = 12;
   const cardWidth = (contentWidth - gap) / 2;
-  const cardHeight = 100;
+  const cardHeight = 108;
   const conceptMetric = data.metrics.find(metric => metric.score === null);
   sensoryMetrics.forEach((metric, index) => {
     const column = index % 2;
@@ -258,26 +262,29 @@ export function renderPerformanceDashboardPage(ctx: PdfContext, data: Performanc
     doc.setFillColor(...WHITE);
     doc.setDrawColor(...SLATE_200);
     doc.roundedRect(x, cardY, cardWidth, cardHeight, 9, 9, 'FD');
-    setText(doc, SLATE_500, 7.2, 'bold');
+    setText(doc, SLATE_500, 7.8, 'bold');
     doc.text(metric.label.toUpperCase(), x + 15, cardY + 22);
-    paragraph(doc, metric.evidence, x + 15, cardY + 39, cardWidth - 30, {
+    fittedParagraph(doc, metric.evidence, x + 15, cardY + 39, cardWidth - 30, 14, {
       color: SLATE_700,
-      size: 7.2,
-      lineHeight: 9,
+      size: 8,
+      minSize: 7.2,
+      lineHeight: 9.8,
     });
     const evidenceDetail = metric.benchmark ?? `Readiness line ${data.readinessThreshold}/100`;
     if (evidenceDetail) {
-      paragraph(doc, evidenceDetail, x + 15, cardY + 56, cardWidth - 30, {
+      fittedParagraph(doc, evidenceDetail, x + 15, cardY + 58, cardWidth - 30, 12, {
         color: SLATE_500,
-        size: 6.5,
-        lineHeight: 8,
+        size: 7.4,
+        minSize: 6.8,
+        lineHeight: 8.8,
       });
     }
-    paragraph(doc, metric.implication, x + 15, cardY + (evidenceDetail ? 75 : 61), cardWidth - 30, {
+    fittedParagraph(doc, metric.implication, x + 15, cardY + (evidenceDetail ? 77 : 61), cardWidth - 30, evidenceDetail ? 23 : 39, {
       color: SLATE_950,
-      size: 7.1,
+      size: 8,
+      minSize: 7.2,
       weight: 'bold',
-      lineHeight: 8.8,
+      lineHeight: 9.6,
     });
   });
   const rows = Math.ceil(sensoryMetrics.length / 2);
@@ -288,9 +295,13 @@ export function renderPerformanceDashboardPage(ctx: PdfContext, data: Performanc
   doc.roundedRect(margin, y, summaryWidth, 92, 8, 8, 'F');
   setText(doc, ctx.template === 'editorial-sage' ? NFI_CORAL_DARK : accent, 7, 'bold');
   doc.text('NFI VIEW · WHAT THE EVIDENCE SUPPORTS', margin + 14, y + 19);
-  paragraph(doc, 'The product cleared the internal sensory screen. Acceptance, texture, descriptor fit, and emotional response support launch preparation and pilot-scale confirmation.', margin + 14, y + 38, summaryWidth - 28, {
+  const supportSummary = passingMetrics === sensoryMetrics.length
+    ? 'The product cleared the internal sensory screen. Acceptance, texture, descriptor fit, and emotional response support launch preparation and pilot-scale confirmation.'
+    : `${passingMetrics} of ${sensoryMetrics.length} sensory dimensions clear the readiness line. Continue product work, but correct and retest every below-line dimension before relying on the sensory result.`;
+  fittedParagraph(doc, supportSummary, margin + 14, y + 38, summaryWidth - 28, 45, {
     color: SLATE_950,
     size: 8,
+    minSize: 5.6,
     weight: 'bold',
     lineHeight: 11,
   });
@@ -303,15 +314,16 @@ export function renderPerformanceDashboardPage(ctx: PdfContext, data: Performanc
   const conceptText = conceptMetric
     ? `Concept response is n=${conceptMetric.evidence.match(/\d+/)?.[0] ?? '0'}. Do not treat purchase intent, price feedback, packaging preference, or concept descriptors as representative market evidence.`
     : data.evidenceNote;
-  paragraph(doc, conceptText, boundaryX + 14, y + 38, summaryWidth - 28, {
+  fittedParagraph(doc, conceptText, boundaryX + 14, y + 38, summaryWidth - 28, 45, {
     color: SLATE_700,
     size: 8,
+    minSize: 5.6,
     lineHeight: 11,
   });
   paragraph(doc, data.definitions, margin, y + 116, contentWidth, {
     color: SLATE_500,
-    size: 7.2,
-    lineHeight: 9,
+    size: 8,
+    lineHeight: 10,
   });
 }
 

@@ -265,7 +265,7 @@ export function ReportPdfSectionsPanel({ input }: { input: CommercializationRepo
         </div>
       </PdfPageCard>}
 
-      {activePage === 2 && <PdfPageCard page={2} title="The product clears the GO threshold and all critical product gates" accent={accent}>
+      {activePage === 2 && <PdfPageCard page={2} title="Decision basis, evidence strength, and product gates" accent={accent}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <LabelValue label="Decision" value={basis.decision} />
           <LabelValue label="ISSF / GO threshold" value={`${basis.issfScore} / ${basis.goThreshold}`} />
@@ -278,7 +278,7 @@ export function ReportPdfSectionsPanel({ input }: { input: CommercializationRepo
         <LabelValue label={`Management decision · ${basis.reportStatus}`} value={basis.managementDecision} />
       </PdfPageCard>}
 
-      {activePage === 3 && <PdfPageCard page={3} title="All four sensory dimensions clear the readiness line" accent={accent}>
+      {activePage === 3 && <PdfPageCard page={3} title="Sensory performance against the readiness line" accent={accent}>
         <p>{performance.intro}</p>
         <div className="space-y-4 rounded-lg border border-slate-200 p-4">
           {performance.metrics.map(metric => (
@@ -302,7 +302,7 @@ export function ReportPdfSectionsPanel({ input }: { input: CommercializationRepo
         <p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-700">{performance.evidenceNote}</p>
       </PdfPageCard>}
 
-      {activePage === 4 && <PdfPageCard page={4} title="Instrumental Evidence and Product Risk" accent={accent}>
+      {activePage === 4 && <PdfPageCard page={4} title="Instrumental evidence, scientific guidance, and product risk" accent={accent}>
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
           <p className="font-semibold text-slate-900">{scientific.instrumentalAvailable ? 'Project instrumental evidence' : 'Instrumental evidence not available'}</p>
           <p className="mt-1 text-sm text-slate-600">{scientific.instrumentalNote}</p>
@@ -349,7 +349,7 @@ export function ReportPdfSectionsPanel({ input }: { input: CommercializationRepo
         <LabelValue label="Next decision gate" value={plan.decisionGate} />
       </PdfPageCard>}
 
-      {activePage === 8 && <PdfPageCard page={8} title="Claims Matrix and Approval Decision" accent={accent}>
+      {activePage === 8 && <PdfPageCard page={8} title="Claims release status by evidence level" accent={accent}>
         <p>{claims.intro}</p>
         <ClaimsReview rows={claims.rows} />
         <LabelValue label={`Report status · ${claims.reportStatus}`} value={claims.releaseDecision} />

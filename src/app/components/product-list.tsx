@@ -50,6 +50,7 @@ export function ProductListItem({
   signal,
   signalTone = 'neutral',
   trailing,
+  disabled = false,
   onClick,
 }: {
   active?: boolean;
@@ -61,15 +62,17 @@ export function ProductListItem({
   signal?: ReactNode;
   signalTone?: 'neutral' | 'success' | 'warning' | 'critical';
   trailing?: ReactNode;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       aria-current={active ? 'true' : undefined}
+      disabled={disabled}
       onClick={onClick}
       className={cn(
-        'relative block w-full rounded-md px-3 py-2.5 text-left transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]',
+        'relative block w-full rounded-md px-3 py-2.5 text-left transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-45',
         active ? 'bg-slate-50 ring-1 ring-inset ring-slate-300' : 'hover:bg-slate-50',
       )}
     >

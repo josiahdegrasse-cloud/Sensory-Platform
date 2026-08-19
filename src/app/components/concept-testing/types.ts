@@ -6,6 +6,7 @@ export type QuestionType = 'scale' | 'multiple_choice' | 'open_text' | 'ranking'
  * presets for cross-concept comparison; custom strings from "Other" are allowed
  * when a concept needs a more specific positioning cue. */
 export interface VariantDimensions {
+  productForm:       string | null;
   positioning:       string | null;
   visualComplexity:  string | null;
   appeal:            string | null;
@@ -17,6 +18,7 @@ export interface VariantDimensions {
 }
 
 export const EMPTY_VARIANT_DIMENSIONS: VariantDimensions = {
+  productForm:       null,
   positioning:       null,
   visualComplexity:  null,
   appeal:            null,
@@ -32,6 +34,8 @@ export interface Question {
   text: string;
   type: QuestionType;
   options?: string[];
+  /** Zero-based index of the concept visual shown with this question. */
+  imageIndex?: number;
   required: boolean;
   category: 'appeal' | 'purchase' | 'price' | 'attributes' | 'demographics' | 'usage';
 }

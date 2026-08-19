@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Bot, CheckCircle2, PackageCheck, ShieldCheck, Sparkles } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { BookOpenCheck, CheckCircle2, Cpu, ExternalLink, PackageCheck, ShieldCheck, Sparkles, X } from 'lucide-react';
 import type { GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
 import {
   buildCommercializationSnapshot,
@@ -22,11 +22,14 @@ import {
 import { updateConceptImageReviewStatus, type WorkspaceSettings } from '../lib/database';
 import { buildReportContext, type SensoryAugmentation } from '../lib/report-qc';
 import {
-  createMeteredReportAgentRunner,
-  estimateReportAgentCost,
-  hasGeneratedReportDraft,
-  runCommercializationReportOrchestrator,
-} from '../lib/report-agents';
+  inspectLocalLlamaCapability,
+  LOCAL_LLAMA_MODELS,
+  runLocalLlamaReportWriter,
+  type LocalLlamaCapability,
+  type LocalLlamaModelId,
+} from '../lib/local-llama';
+import { fetchReportGrounding, type ReportGrounding } from '../lib/evidence-assist';
+import { openResearchSource } from '../lib/rag-client';
 import { getConceptImageMode } from '../../../supabase/functions/_shared/concept-image-catalog.ts';
 import { preferredConceptImageIndex } from './concept-testing/smart-defaults';
 import { Button } from './ui/button';
@@ -56,7 +59,18 @@ export function CommercializationReportBuilder({
   const [imageIndexOverride, setImageIndex] = useState<number | null>(null);
   const [generating, setGenerating] = useState(false);
   const [generationStatus, setGenerationStatus] = useState('');
+  const [generationProgress, setGenerationProgress] = useState(0);
   const [error, setError] = useState('');
+  const [checkingLiterature, setCheckingLiterature] = useState(false);
+  const [groundingReview, setGroundingReview] = useState<{
+    key: string;
+    grounding: ReportGrounding | null;
+    warning: string;
+  } | null>(null);
+  const [capability, setCapability] = useState<LocalLlamaCapability | null>(null);
+  const [modelId, setModelId] = useState<LocalLlamaModelId>(LOCAL_LLAMA_MODELS[0].id);
+  const generationAbort = useRef<AbortController | null>(null);
+  const literatureAbort = useRef<AbortController | null>(null);
 
   const { data: decisions = [] } = useDecisionRecords();
   const { data: concepts = [] } = useAdminConceptTests();
@@ -92,19 +106,37 @@ export function CommercializationReportBuilder({
     && responsesQuery.isSuccess
     && evidenceBundle
     && userId
-    && decisionFreshness?.allowed === true,
+    && decisionFreshness?.allowed === true
+    && capability?.supported
   );
-
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot open after async decision eligibility resolves
     if (initiallyOpen && canOpen) setOpen(true);
   }, [canOpen, initiallyOpen]);
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    void inspectLocalLlamaCapability().then(result => {
+      if (!active) return;
+      setCapability(result);
+      setModelId(result.recommendedModelId);
+    });
+    return () => { active = false; };
+  }, [open]);
 
   const nextVersion = selectedConcept && confirmedGo
     ? Math.max(0, ...reports
         .filter(report => report.decisionRecordId === confirmedGo.id && report.conceptTestId === selectedConcept.id)
         .map(report => report.version)) + 1
     : 1;
+  const groundingReviewKey = [
+    confirmedGo?.id ?? '',
+    effectiveConceptId,
+    evidenceBundle?.sourceDataVersion ?? '',
+    responses.length,
+  ].join(':');
+  const reviewedGrounding = groundingReview?.key === groundingReviewKey ? groundingReview : null;
 
   const buildDraft = (): CommercializationReportSnapshot | null => {
     if (!confirmedGo || !selectedConcept) return null;
@@ -156,8 +188,37 @@ export function CommercializationReportBuilder({
     });
   };
 
+  const prepareLiteratureReview = async () => {
+    const draft = buildDraft();
+    if (!draft) return;
+    const reportContext = buildContext(draft);
+    if (!reportContext) return;
+    setCheckingLiterature(true);
+    setError('');
+    const abortController = new AbortController();
+    literatureAbort.current = abortController;
+    try {
+      const grounding = await fetchReportGrounding(reportContext, { signal: abortController.signal });
+      setGroundingReview({ key: groundingReviewKey, grounding, warning: '' });
+    } catch {
+      if (abortController.signal.aborted) return;
+      setGroundingReview({
+        key: groundingReviewKey,
+        grounding: null,
+        warning: 'Approved external literature could not be retrieved. You can continue with project evidence only.',
+      });
+    } finally {
+      setCheckingLiterature(false);
+      literatureAbort.current = null;
+    }
+  };
+
   const generateCompleteReport = async () => {
     if (!confirmedGo || !selectedConcept || !evidenceBundle || !userId) return;
+    if (!reviewedGrounding) {
+      await prepareLiteratureReview();
+      return;
+    }
     const draft = buildDraft();
     if (!draft) return;
     const reportContext = buildContext(draft);
@@ -165,33 +226,51 @@ export function CommercializationReportBuilder({
 
     setGenerating(true);
     setError('');
-    setGenerationStatus('NFI is bringing together the product, sensory, instrumental, concept, and scientific evidence for your complete report...');
-    const metered = createMeteredReportAgentRunner();
+    setGenerationProgress(0);
+    setGenerationStatus('Preparing the verified evidence packet…');
+    const abortController = new AbortController();
+    generationAbort.current = abortController;
     try {
-      const orchestrated = await runCommercializationReportOrchestrator({
-        mode: 'full_release_review',
-        reportInput: {
-          snapshot: draft,
-          organizationName: settings?.organizationName ?? DEFAULT_REPORT_ORGANIZATION_NAME,
-          workspaceName: settings?.workspaceName ?? DEFAULT_REPORT_WORKSPACE_NAME,
-          reportFooter: settings?.reportFooter,
-          version: nextVersion,
-          status: 'draft',
-          logoUrl: resolveReportLogoUrl(
-            settings?.organizationName ?? DEFAULT_REPORT_ORGANIZATION_NAME,
-            settings?.logoUrl,
-          ),
-          primaryColor: settings?.primaryColor,
-          accentColor: settings?.accentColor,
-          reportTemplate: settings?.reportTemplate,
-          reportContext,
+      const groundingStatus = reviewedGrounding.grounding?.status ?? 'unavailable';
+      const groundingWarnings = reviewedGrounding.grounding?.warnings.length
+        ? reviewedGrounding.grounding.warnings
+        : reviewedGrounding.warning ? [reviewedGrounding.warning] : [];
+      const evidenceCards = reviewedGrounding.grounding?.evidenceCards ?? [];
+      const literatureCitations = reviewedGrounding.grounding?.literatureCitations ?? [];
+
+      const groundedDraft: CommercializationReportSnapshot = {
+        ...draft,
+        literatureCitations,
+        evidenceCards,
+      };
+      const reportInput = {
+        snapshot: groundedDraft,
+        organizationName: settings?.organizationName ?? DEFAULT_REPORT_ORGANIZATION_NAME,
+        workspaceName: settings?.workspaceName ?? DEFAULT_REPORT_WORKSPACE_NAME,
+        reportFooter: settings?.reportFooter,
+        version: nextVersion,
+        status: 'draft' as const,
+        logoUrl: resolveReportLogoUrl(
+          settings?.organizationName ?? DEFAULT_REPORT_ORGANIZATION_NAME,
+          settings?.logoUrl,
+        ),
+        primaryColor: settings?.primaryColor,
+        accentColor: settings?.accentColor,
+        reportTemplate: settings?.reportTemplate,
+        reportContext,
+      };
+      const localReport = await runLocalLlamaReportWriter({
+        context: reportContext,
+        snapshot: groundedDraft,
+        reportInput,
+        modelId,
+        evidenceCards,
+        signal: abortController.signal,
+        onProgress: progress => {
+          setGenerationStatus(progress.message);
+          setGenerationProgress(progress.progress);
         },
-        runner: metered.runner,
       });
-      if (!hasGeneratedReportDraft(orchestrated)) {
-        throw new Error(orchestrated.qc.criticalBlockers[0] ?? 'The agent workflow stopped before the document could be drafted.');
-      }
-      const estimatedCostUsd = estimateReportAgentCost(metered.usage);
       const formulation = formulationVersions.find(version => version.id === confirmedGo.formulationVersionId)
         ?? formulationVersions.find(version => version.sampleId === decision.sampleId && version.isCurrent)
         ?? null;
@@ -203,7 +282,7 @@ export function CommercializationReportBuilder({
         verifiedIngredients.some(ingredient => !ingredient.specification) ? 'One or more ingredient specifications are not recorded.' : null,
       ].filter((gap): gap is string => Boolean(gap)) : ['No formulation snapshot is linked.'];
       const reportSnapshot: CommercializationReportSnapshot = {
-        ...orchestrated.snapshot,
+        ...localReport.snapshot,
         formulation: formulation ? {
           versionId: formulation.id,
           versionNumber: formulation.versionNumber,
@@ -214,29 +293,42 @@ export function CommercializationReportBuilder({
           verifiedAllergens: [...new Set(verifiedIngredients.flatMap(ingredient => ingredient.allergenTags))],
           readinessGaps: formulationGaps,
         } : undefined,
-        literatureCitations: orchestrated.literatureCitations,
-        evidenceCards: orchestrated.evidenceCards,
+        literatureCitations,
+        evidenceCards,
         agentReview: {
           mode: 'full_release_review',
-          runTimestamp: orchestrated.generatedAt,
-          reportContextHash: orchestrated.reportContextHash,
-          status: orchestrated.status,
-          exportStatus: orchestrated.status,
-          qualityScore: orchestrated.qc.qualityScore,
-          agentsRun: orchestrated.metadata.agentsRun,
-          criticalBlockers: orchestrated.qc.criticalBlockers,
-          warnings: orchestrated.qc.warnings,
-          polishSuggestions: orchestrated.qc.polishSuggestions,
-          evidenceAudit: orchestrated.evidenceAudit as unknown as Record<string, unknown>,
-          modelUsage: metered.usage,
-          estimatedCostUsd,
-          usage: metered.usage.map(item => ({
-            role: item.role,
-            model: item.model,
-            inputTokens: item.inputTokens,
-            outputTokens: item.outputTokens,
-          })),
-          artifacts: orchestrated as unknown as Record<string, unknown>,
+          runTimestamp: localReport.generatedAt,
+          reportContextHash: localReport.reportContextHash,
+          status: localReport.status,
+          exportStatus: localReport.status,
+          qualityScore: localReport.qc.qualityScore,
+          agentsRun: ['professional_report_writer', 'deterministic_qc'],
+          criticalBlockers: localReport.qc.criticalBlockers,
+          warnings: [...localReport.qc.warnings, ...groundingWarnings],
+          polishSuggestions: localReport.qc.polishSuggestions,
+          evidenceAudit: localReport.evidenceAudit as unknown as Record<string, unknown>,
+          modelUsage: [{ engine: 'webllm', model: localReport.model, location: 'browser', costUsd: 0 }],
+          estimatedCostUsd: 0,
+          usage: [{
+            role: 'professional_report_writer',
+            model: `local:${localReport.model}`,
+            inputTokens: localReport.usage.promptTokens,
+            outputTokens: localReport.usage.completionTokens,
+          }],
+          artifacts: {
+            engine: 'local_llama_webgpu',
+            model: localReport.model,
+            executionLocation: 'browser',
+            externalModelCostUsd: 0,
+            repairPasses: localReport.repairs,
+            draft: localReport.draft,
+            evidenceAssist: {
+              status: groundingStatus,
+              acceptedCount: evidenceCards.length,
+              sourceCount: literatureCitations.length,
+              warnings: groundingWarnings,
+            },
+          },
         },
       };
 
@@ -271,13 +363,21 @@ export function CommercializationReportBuilder({
         await updateConceptImageReviewStatus([reportSnapshot.concept.packagingImageId], 'approved').catch(() => {});
       }
       setGenerationStatus('Complete. Opening the report...');
+      setGenerationProgress(1);
       setOpen(false);
       onSaved?.(report.id);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'The report workflow could not create the document.');
+      if (reason instanceof DOMException && reason.name === 'AbortError') {
+        setError('Local report generation was cancelled. No report was saved.');
+      } else {
+        const detail = reason instanceof Error && !/llama/i.test(reason.message) ? reason.message : '';
+        setError(detail || 'The on-device writer could not create the report.');
+      }
       setGenerationStatus('');
+      setGenerationProgress(0);
     } finally {
       setGenerating(false);
+      generationAbort.current = null;
     }
   };
 
@@ -293,12 +393,12 @@ export function CommercializationReportBuilder({
         <PackageCheck className="size-4" />
         {triggerLabel}
       </Button>
-      <Dialog open={open} onOpenChange={value => !generating && setOpen(value)}>
+      <Dialog open={open} onOpenChange={value => !generating && !checkingLiterature && setOpen(value)}>
         <DialogContent className="!w-[calc(100vw-2rem)] !max-w-5xl overflow-hidden p-0 sm:!max-w-5xl">
           <DialogHeader className="border-b border-slate-200 px-6 py-5 pr-14">
-            <DialogTitle className="text-xl text-slate-900">Generate complete report</DialogTitle>
+            <DialogTitle className="text-xl text-slate-900">Write commercialization report</DialogTitle>
             <DialogDescription className="max-w-3xl">
-              Choose the concept and packaging direction. NFI will bring together the available evidence, draft and review the report, run quality checks, and save the complete document.
+              Choose the concept and packaging direction. The report is written on this device and checked against the approved evidence before it is saved.
             </DialogDescription>
           </DialogHeader>
 
@@ -352,7 +452,7 @@ export function CommercializationReportBuilder({
             </aside>
 
             <section className="flex min-h-[460px] flex-col p-6">
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-md border border-slate-200 p-4">
                   <ShieldCheck className="size-4 text-emerald-600" />
                   <p className="mt-3 text-xs text-slate-500">Decision</p>
@@ -364,39 +464,86 @@ export function CommercializationReportBuilder({
                   <p className="mt-1 font-semibold text-slate-900">{evidenceQuery.isLoading ? 'Loading...' : evidenceBundle ? 'Ready' : 'Unavailable'}</p>
                 </div>
                 <div className="rounded-md border border-slate-200 p-4">
-                  <Bot className="size-4 text-blue-600" />
-                  <p className="mt-3 text-xs text-slate-500">Concept responses</p>
-                  <p className="mt-1 font-semibold text-slate-900">{responses.length}</p>
+                  <Cpu className="size-4 text-blue-600" />
+                  <p className="mt-3 text-xs text-slate-500">Local writer</p>
+                  <p className={`mt-1 font-semibold ${capability?.supported ? 'text-slate-900' : 'text-amber-700'}`}>
+                    {capability === null ? 'Checking device…' : capability.supported ? 'WebGPU ready' : 'Unavailable'}
+                  </p>
                 </div>
-              </div>
-
-              <div className="mt-6 border-y border-slate-200 py-5">
-                <h3 className="font-semibold text-slate-900">Complete agent workflow</h3>
-                <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
-                  <p>Evidence and calculation audit</p>
-                  <p>Sensory and instrumental review</p>
-                  <p>Consumer and claims review</p>
-                  <p>Professional writing and RAG citations</p>
-                  <p>Editorial and visual quality review</p>
-                  <p>Deterministic release QC</p>
+                <div className="rounded-md border border-slate-200 p-4">
+                  <BookOpenCheck className="size-4 text-blue-600" />
+                  <p className="mt-3 text-xs text-slate-500">External literature</p>
+                  <p className="mt-1 font-semibold text-slate-900">Approved sources checked</p>
                 </div>
               </div>
 
               {generationStatus && (
-                <div className="mt-5 rounded-md border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-                  {generationStatus}
+                <div className="mt-5 rounded-md border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900" aria-live="polite">
+                  <div className="flex items-center justify-between gap-3">
+                    <span>{generationStatus}</span>
+                    <span className="shrink-0 font-semibold tabular-nums">{Math.round(generationProgress * 100)}%</span>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-blue-100">
+                    <div className="h-full rounded-full bg-blue-600 transition-[width] duration-200" style={{ width: `${generationProgress * 100}%` }} />
+                  </div>
+                </div>
+              )}
+              {reviewedGrounding && !generating && (
+                <div className="mt-5 rounded-md border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-semibold text-slate-900">External literature review</p>
+                  {reviewedGrounding.grounding?.status === 'included' ? (
+                    <>
+                      <p className="mt-1 text-xs leading-5 text-slate-600">
+                        These approved sources will provide scientific or validation context only. They will not be treated as proof about this product.
+                      </p>
+                      <ul className="mt-3 space-y-2">
+                        {reviewedGrounding.grounding.literatureCitations.map((citation, index) => (
+                          <li key={citation.id} className="rounded-md border border-slate-200 bg-white px-3 py-2">
+                            <button
+                              type="button"
+                              onClick={() => void openResearchSource({
+                                sourcePath: citation.sourcePath ?? '',
+                                title: citation.title,
+                                excerpt: citation.excerpt,
+                              }).catch(() => setError('This article is not available from its saved source. Try again, or re-index it in the Literature Library.'))}
+                              className="inline-flex items-start gap-1.5 text-left text-sm font-medium text-blue-800 hover:text-blue-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+                            >
+                              <span>[{citation.id}] {citation.title}</span><ExternalLink className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                            </button>
+                            <p className="mt-0.5 text-xs text-slate-500">{reviewedGrounding.grounding?.evidenceCards[index]?.topic}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : (
+                    <p className="mt-1 text-xs leading-5 text-amber-700">
+                      {reviewedGrounding.warning || 'No matching approved source was found. The report will use project evidence only.'}
+                    </p>
+                  )}
                 </div>
               )}
               {error && <p role="alert" className="mt-5 rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</p>}
 
               <div className="mt-auto pt-6">
-                <Button className="h-11 w-full" disabled={!canGenerate || generating} onClick={() => void generateCompleteReport()}>
-                  <Sparkles className="size-4" />
-                  {generating ? 'Generating complete report...' : 'Generate complete report'}
-                </Button>
-                {!canGenerate && !generating && (
+                <div className="flex gap-2">
+                  {(generating || checkingLiterature) && (
+                    <Button type="button" variant="outline" className="h-11" onClick={() => {
+                      generationAbort.current?.abort();
+                      literatureAbort.current?.abort();
+                    }}>
+                      <X className="size-4" />Cancel
+                    </Button>
+                  )}
+                  <Button className="h-11 flex-1" disabled={!canGenerate || generating || checkingLiterature} onClick={() => void generateCompleteReport()}>
+                    <Sparkles className="size-4" />
+                    {checkingLiterature ? 'Checking literature…' : generating ? 'Writing report…' : reviewedGrounding ? 'Write report' : 'Review literature'}
+                  </Button>
+                </div>
+                {!canGenerate && !generating && !checkingLiterature && (
                   <p className="mt-2 text-center text-xs text-slate-500">
-                    Select a concept and packaging direction and wait for the current evidence to load.
+                    {capability && !capability.supported
+                      ? capability.reason
+                      : 'Select a concept and packaging direction, then wait for the evidence and device check.'}
                   </p>
                 )}
               </div>

@@ -37,6 +37,7 @@ export function assessSampleWorkflow(input: {
   const assignedCount = product?.assignedPanelistIds?.length ?? 0;
   const blockers: string[] = [];
   if (!product) blockers.push('Create a questionnaire for this sample.');
+  if (product && assignmentMode === 'unassigned') blockers.push('Assign the questionnaire to panelists.');
   if (product && responseCount < minimumResponses) {
     blockers.push(`${minimumResponses - responseCount} more completed response${minimumResponses - responseCount === 1 ? '' : 's'} required.`);
   }
@@ -61,11 +62,11 @@ export function assessSampleWorkflow(input: {
       {
         id: 'assignment',
         label: 'Assignment',
-        state: product ? 'complete' : 'blocked',
+        state: product && assignmentMode === 'selected' ? 'complete' : 'blocked',
         detail: !product
           ? 'Create the questionnaire first.'
-          : assignmentMode === 'open'
-            ? 'Open to all active panelists.'
+          : assignmentMode === 'unassigned'
+            ? 'No panelists assigned.'
             : `${assignedCount} selected panelist${assignedCount === 1 ? '' : 's'} assigned.`,
       },
       {

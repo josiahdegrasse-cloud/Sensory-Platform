@@ -11,6 +11,8 @@ export interface ConceptQuestion {
   text: string;
   type: 'scale' | 'multiple_choice' | 'open_text' | 'ranking' | 'image_choice';
   options?: string[];
+  /** Zero-based index of the concept visual shown with this question. */
+  imageIndex?: number;
   required: boolean;
   category: string;
 }
@@ -332,35 +334,17 @@ export async function fetchConceptTest(id: string): Promise<ConceptTest | null> 
 }
 
 export async function fetchConceptTestsForPanelist(userId: string): Promise<ConceptTest[]> {
-  // Two targeted queries are cheaper than fetching all active tests and
-  // filtering client-side: one for tests with no assignment (global), one for
-  // tests explicitly assigned to this user.
-  const [globalResult, assignedResult] = await Promise.all([
-    supabase
-      .from('concept_tests')
-      .select('*')
-      .eq('status', 'active')
-      .filter('assigned_panelist_ids', 'eq', '{}')
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('concept_tests')
-      .select('*')
-      .eq('status', 'active')
-      .contains('assigned_panelist_ids', [userId])
-      .order('created_at', { ascending: false }),
-  ]);
-  if (globalResult.error) throw dbError(globalResult.error);
+  // Sample-bearing concept tests are always explicitly assigned. The database
+  // additionally rechecks the current safety declaration before returning rows.
+  const assignedResult = await supabase
+    .from('concept_tests')
+    .select('*')
+    .eq('status', 'active')
+    .contains('assigned_panelist_ids', [userId])
+    .order('created_at', { ascending: false });
   if (assignedResult.error) throw dbError(assignedResult.error);
 
-  const seen = new Set<string>();
-  const tests = [...(globalResult.data ?? []), ...(assignedResult.data ?? [])]
-    .filter(row => {
-      const id = row.id as string;
-      if (seen.has(id)) return false;
-      seen.add(id);
-      return true;
-    })
-    .map(toConceptTest);
+  const tests = (assignedResult.data ?? []).map(toConceptTest);
   return Promise.all(tests.map(test => hydrateConceptTestImages(test)));
 }
 

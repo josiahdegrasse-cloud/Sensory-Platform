@@ -193,50 +193,69 @@ export async function fetchUserResponseAtRun(
   return data ? toResponse(data) : null;
 }
 
-export async function insertResponse(
-  response: Omit<QuestionnaireResponse, 'id' | 'timestamp' | 'runNumber'>,
-): Promise<QuestionnaireResponse> {
+type NewQuestionnaireResponse = Omit<QuestionnaireResponse, 'id' | 'timestamp' | 'runNumber'>;
+
+function toInsertPayload(response: NewQuestionnaireResponse, runNumber: number): ResponseInsert {
+  return {
+    user_id: response.userId,
+    product_id: response.productId,
+    run_number: runNumber,
+    cata_attributes: response.cataAttributes,
+    intensity_ratings: response.intensityRatings,
+    hedonic_scores: response.hedonicScores,
+    emotional_profile: response.emotionalProfile,
+    comments: response.comments ?? null,
+    session_type: response.sessionType ?? null,
+    sample_code: response.sampleCode ?? null,
+    different_sample: response.differentSample ?? null,
+    ranking: response.ranking ?? null,
+    presentation_order: response.presentationOrder ?? null,
+  };
+}
+
+export async function insertResponseBatch(
+  responses: NewQuestionnaireResponse[],
+): Promise<QuestionnaireResponse[]> {
+  if (responses.length === 0) return [];
+  const { userId, productId } = responses[0];
+  if (responses.some(response => response.userId !== userId || response.productId !== productId)) {
+    throw new Error('A response batch must belong to one panelist and one study.');
+  }
+
   // Retry loop handles the race condition where two concurrent submissions
   // read the same max run_number and both try to insert it.
   // The unique constraint on (user_id, product_id, run_number) will reject
-  // the second insert (error code 23505) and we retry with a fresh read.
+  // the whole atomic batch (error code 23505), then we retry with a fresh read.
   for (let attempt = 0; attempt < 5; attempt++) {
     const { data: existing } = await supabase
       .from('responses')
       .select('run_number')
-      .eq('user_id', response.userId)
-      .eq('product_id', response.productId)
+      .eq('user_id', userId)
+      .eq('product_id', productId)
       .order('run_number', { ascending: false })
       .limit(1);
 
-    const runNumber =
+    const firstRunNumber =
       existing && existing.length > 0 ? (existing[0].run_number as number) + 1 : 1;
-
-    const insertPayload: ResponseInsert = {
-      user_id: response.userId,
-      product_id: response.productId,
-      run_number: runNumber,
-      cata_attributes: response.cataAttributes,
-      intensity_ratings: response.intensityRatings,
-      hedonic_scores: response.hedonicScores,
-      emotional_profile: response.emotionalProfile,
-      comments: response.comments ?? null,
-      session_type: response.sessionType ?? null,
-      sample_code: response.sampleCode ?? null,
-      different_sample: response.differentSample ?? null,
-      ranking: response.ranking ?? null,
-      presentation_order: response.presentationOrder ?? null,
-    };
+    const insertPayload = responses.map((response, index) =>
+      toInsertPayload(response, firstRunNumber + index));
 
     const { data, error } = await supabase
       .from('responses')
-      .insert(insertPayload as Tables['responses']['Insert'])
-      .select()
-      .single();
+      .insert(insertPayload as Tables['responses']['Insert'][])
+      .select(RESPONSE_SELECT);
 
-    if (!error) return toResponse(data);
+    if (!error) return (data ?? []).map(toResponse);
     if (error.code !== '23505') throw dbError(error);
     // Unique constraint violation — another insert raced us, retry with next run_number
   }
-  throw new Error('Failed to insert response: too many concurrent submissions for the same user/product');
+  throw new Error('Failed to insert responses: too many concurrent submissions for the same user/product');
+}
+
+export async function insertResponse(
+  response: NewQuestionnaireResponse,
+): Promise<QuestionnaireResponse> {
+  const [inserted] = await insertResponseBatch([response]);
+  if (!inserted) throw new Error('The response was not saved. Please try again.');
+  return inserted;
 }

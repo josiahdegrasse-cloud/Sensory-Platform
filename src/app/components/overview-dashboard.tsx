@@ -1,17 +1,23 @@
-import { useState } from 'react';
-import { Link } from "react-router";
+import { useRef, useState, type ChangeEvent } from 'react';
+import { Link, useNavigate } from "react-router";
 import {
-  FolderKanban, Plus, ArrowRight, Search,
+  FolderKanban, Plus, ArrowRight, Search, MoreHorizontal, Trash2,
 } from "lucide-react";
 import { useFoodType } from "../contexts/food-type-context";
-import { encodeBatchSelection, projectRoutePath } from "../lib/project-identity";
-import { useFormulationVersions, useWorkspaceSettings } from "../lib/hooks";
+import { encodeBatchSelection } from "../lib/project-identity";
+import { projectPath } from "../lib/project-journey-routes";
+import { useDeleteProject, useFormulationVersions, useWorkspaceSettings } from "../lib/hooks";
 import { useProjectStatusList, type ProjectStatusListEntry } from "../lib/use-project-status";
 import { ProjectCard } from "./project-card";
 import { ProjectWorkflowPath } from "./project-workflow-path";
-import { NextActionCard } from "./next-action-card";
 import { ProjectStatusBadge, toneSolidClasses } from "./project-status-badge";
 import { StageEmptyState } from "./stage-empty-state";
+import { Alert, AlertDescription } from "./ui/alert";
+import { Button } from "./ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 
 /** Next actions a human must take (not "wait for panelists"): AI output or
  * data sitting in review, or a decision/report waiting on the admin. */
@@ -22,37 +28,14 @@ function needsHumanAttention(entry: ProjectStatusListEntry): boolean {
   );
 }
 
-function AttentionRail({ entries, onOpen }: {
-  entries: ProjectStatusListEntry[];
-  onOpen: (entry: ProjectStatusListEntry) => void;
-}) {
-  if (entries.length === 0) return null;
-  return (
-    <div className="space-y-3">
-      <h2 className="text-sm font-bold text-slate-900">
-        Waiting on you
-        <span className="ml-2 text-xs font-normal text-slate-500">
-          {entries.length} project{entries.length === 1 ? '' : 's'} need{entries.length === 1 ? 's' : ''} a decision
-        </span>
-      </h2>
-      <div className="space-y-2">
-        {entries.slice(0, 3).map(entry => (
-          <NextActionCard
-            key={entry.batch.id}
-            projectName={entry.status.projectName}
-            action={entry.status.nextAction}
-            projectPath={projectRoutePath(entry.batch)}
-            onNavigate={() => onOpen(entry)}
-          />
-        ))}
-      </div>
-    </div>
-  );
+function projectDataPath(entry: ProjectStatusListEntry): string {
+  return projectPath(entry.batch.projectId ?? entry.batch.id, 'data');
 }
 
-function ProjectTable({ entries, onOpen }: {
+function ProjectTable({ entries, onOpen, onDeleteRequest }: {
   entries: ProjectStatusListEntry[];
   onOpen: (entry: ProjectStatusListEntry) => void;
+  onDeleteRequest: (entry: ProjectStatusListEntry) => void;
 }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
@@ -66,7 +49,7 @@ function ProjectTable({ entries, onOpen }: {
             <th className="px-3 py-2 font-semibold">Responses</th>
             <th className="px-3 py-2 font-semibold">Report</th>
             <th className="px-3 py-2 font-semibold">Imported</th>
-            <th className="px-3 py-2 font-semibold sr-only">Next action</th>
+            <th className="px-3 py-2 font-semibold sr-only">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -75,7 +58,7 @@ function ProjectTable({ entries, onOpen }: {
             return (
               <tr key={batch.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-3 py-2.5 font-bold text-slate-900">
-                  <Link to={projectRoutePath(batch)} onClick={() => onOpen(entry)} className="transition-colors hover:text-slate-900">
+                  <Link to={projectDataPath(entry)} onClick={() => onOpen(entry)} className="transition-colors hover:text-slate-900">
                     {status.projectName}
                   </Link>
                 </td>
@@ -94,14 +77,29 @@ function ProjectTable({ entries, onOpen }: {
                 </td>
                 <td className="px-3 py-2.5 text-slate-500">{new Date(batch.createdAt).toLocaleDateString()}</td>
                 <td className="px-3 py-2.5">
-                  <Link
-                    to={status.nextAction.path}
-                    onClick={() => onOpen(entry)}
-                    title={status.nextAction.label}
-                    className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold transition-colors hover:opacity-90 ${toneSolidClasses(status.nextAction.tone)}`}
-                  >
-                    Go <ArrowRight className="size-3" />
-                  </Link>
+                  <div className="flex items-center gap-1">
+                    <Link
+                      to={status.nextAction.path}
+                      onClick={() => onOpen(entry)}
+                      title={status.nextAction.label}
+                      className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold transition-colors hover:opacity-90 ${toneSolidClasses(status.nextAction.tone)}`}
+                    >
+                      Go <ArrowRight className="size-3" />
+                    </Link>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button type="button" size="icon" variant="ghost" className="size-7" aria-label={`More actions for ${status.projectName}`}>
+                          <MoreHorizontal className="size-4" aria-hidden />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-44">
+                        <DropdownMenuItem variant="destructive" onSelect={() => onDeleteRequest(entry)}>
+                          <Trash2 className="size-4" aria-hidden />
+                          Delete project
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </td>
               </tr>
             );
@@ -112,24 +110,57 @@ function ProjectTable({ entries, onOpen }: {
   );
 }
 
-function ActiveProjects() {
+function ActiveProjects({ onNewProject }: { onNewProject: () => void }) {
   const { setSelection } = useFoodType();
   const projects = useProjectStatusList();
   const { data: formulationVersions = [] } = useFormulationVersions();
   const [query, setQuery] = useState('');
   const [formulationFilter, setFormulationFilter] = useState<'all' | 'reviewed' | 'needs-review'>('all');
+  const [projectToDelete, setProjectToDelete] = useState<ProjectStatusListEntry | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const deleteProjectMutation = useDeleteProject();
 
   if (projects.length === 0) {
     return (
       <div>
         <ProjectSectionHeader count={0} query={query} onQueryChange={setQuery} formulationFilter={formulationFilter} onFilterChange={setFormulationFilter} />
-        <ActiveProjectsEmptyState />
+        <ActiveProjectsEmptyState onNewProject={onNewProject} />
       </div>
     );
   }
 
   const open = (entry: ProjectStatusListEntry) =>
     setSelection(entry.batch.foodTypeSlug, encodeBatchSelection(entry.batch.id));
+
+  const requestDelete = (entry: ProjectStatusListEntry) => {
+    setProjectToDelete(entry);
+    setDeleteConfirmation('');
+    setDeleteError('');
+  };
+
+  const closeDeleteDialog = () => {
+    if (deleteProjectMutation.isPending) return;
+    setProjectToDelete(null);
+    setDeleteConfirmation('');
+    setDeleteError('');
+  };
+
+  const confirmDelete = async () => {
+    if (!projectToDelete || deleteConfirmation !== projectToDelete.status.projectName) return;
+    setDeleteError('');
+    try {
+      await deleteProjectMutation.mutateAsync({
+        projectId: projectToDelete.batch.projectId,
+        fallbackBatchId: projectToDelete.batch.id,
+      });
+      setProjectToDelete(null);
+      setDeleteConfirmation('');
+      setDeleteError('');
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Unable to delete this project.');
+    }
+  };
 
   // Needs-attention projects first, then most recently imported.
   const sorted = [...projects].sort((a, b) => {
@@ -161,19 +192,16 @@ function ActiveProjects() {
         .includes(normalized);
     });
   })();
-  const attention = visible.filter(needsHumanAttention);
-
   return (
     <div className="space-y-5">
       <ProjectSectionHeader count={projects.length} visibleCount={visible.length} query={query} onQueryChange={setQuery} formulationFilter={formulationFilter} onFilterChange={setFormulationFilter} />
-      <AttentionRail entries={attention} onOpen={open} />
       {visible.length === 0 ? (
         <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
           <p className="text-sm font-bold text-slate-900">No projects match this formulation search</p>
           <p className="mt-1 text-xs text-slate-600">Try a project name, category, ingredient, functional role, or a different review filter.</p>
         </div>
       ) : visible.length > 8 ? (
-        <ProjectTable entries={visible} onOpen={open} />
+        <ProjectTable entries={visible} onOpen={open} onDeleteRequest={requestDelete} />
       ) : (
         <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2">
           {visible.map(entry => (
@@ -182,12 +210,55 @@ function ActiveProjects() {
               projectId={entry.batch.id}
               realProjectId={entry.batch.projectId}
               status={entry.status}
-              projectPath={projectRoutePath(entry.batch)}
+              projectPath={projectDataPath(entry)}
               onOpen={() => open(entry)}
+              onDeleteRequest={() => requestDelete(entry)}
             />
           ))}
         </div>
       )}
+
+      <Dialog open={Boolean(projectToDelete)} onOpenChange={open => !open && closeDeleteDialog()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete project?</DialogTitle>
+            <DialogDescription className="leading-6 text-slate-600">
+              This removes <strong className="font-semibold text-slate-900">{projectToDelete?.status.projectName}</strong> and its linked imports from the active workspace. Generated surveys from those imports will be deleted. This cannot be undone in the app.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Label htmlFor="delete-project-confirmation">
+              Type <strong>{projectToDelete?.status.projectName}</strong> to confirm
+            </Label>
+            <Input
+              id="delete-project-confirmation"
+              value={deleteConfirmation}
+              onChange={event => setDeleteConfirmation(event.target.value)}
+              onKeyDown={event => {
+                if (event.key === 'Enter' && deleteConfirmation === projectToDelete?.status.projectName) void confirmDelete();
+              }}
+              autoComplete="off"
+              disabled={deleteProjectMutation.isPending}
+            />
+          </div>
+
+          {deleteError && <Alert variant="destructive"><AlertDescription>{deleteError}</AlertDescription></Alert>}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={closeDeleteDialog} disabled={deleteProjectMutation.isPending}>Cancel</Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void confirmDelete()}
+              disabled={!projectToDelete || deleteConfirmation !== projectToDelete.status.projectName || deleteProjectMutation.isPending}
+            >
+              <Trash2 className="size-4" aria-hidden />
+              {deleteProjectMutation.isPending ? 'Deleting…' : 'Delete project'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -244,22 +315,42 @@ function ProjectSectionHeader({
   );
 }
 
-function ActiveProjectsEmptyState() {
+function ActiveProjectsEmptyState({ onNewProject }: { onNewProject: () => void }) {
   return (
     <StageEmptyState
       icon={FolderKanban}
       headline="No live projects yet"
       body="Name a project and upload an instrumental CSV to begin the workflow."
-      cta={{ label: 'New project', to: '/stage1?new=project' }}
+      cta={{ label: 'Choose project CSV', onClick: onNewProject }}
     />
   );
 }
 
 export function OverviewDashboard() {
   const { data: workspaceSettings } = useWorkspaceSettings();
+  const navigate = useNavigate();
+  const newProjectFileRef = useRef<HTMLInputElement>(null);
+
+  const chooseProjectCsv = () => newProjectFileRef.current?.click();
+
+  const openProjectImport = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    event.target.value = '';
+    navigate('/stage1?new=project', { state: { initialCsvFile: file } });
+  };
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
+      <input
+        ref={newProjectFileRef}
+        type="file"
+        accept=".csv,text/csv"
+        onChange={openProjectImport}
+        className="hidden"
+        aria-hidden="true"
+        tabIndex={-1}
+      />
       {/* Header — tenant identity, never a hardcoded client name */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
@@ -270,16 +361,17 @@ export function OverviewDashboard() {
             One project, one continuous journey — from raw instrumental data to a commercialization report.
           </p>
         </div>
-        <Link
-          to="/stage1?new=project"
+        <button
+          type="button"
+          onClick={chooseProjectCsv}
           className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-slate-800"
         >
           <Plus className="size-3.5" aria-hidden /> New project
-        </Link>
+        </button>
       </div>
 
       {/* Active projects — the action-oriented home view */}
-      <ActiveProjects />
+      <ActiveProjects onNewProject={chooseProjectCsv} />
 
     </div>
   );

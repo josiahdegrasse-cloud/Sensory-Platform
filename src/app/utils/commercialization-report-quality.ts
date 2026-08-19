@@ -177,8 +177,9 @@ export function evaluateCommercializationReport(
     },
     {
       id: 'product-readiness',
-      passed: includesAll(pageTexts[4] ?? '', ['Pilot manufacturing', 'Shelf life and food safety', 'Packaging compatibility', 'Regulatory, labeling, and nutrition', 'Required next evidence']),
-      detail: 'Product readiness covers manufacturing, shelf life and safety, packaging, regulatory, labeling, and nutrition evidence.',
+      passed: includesAll(pageTexts[4] ?? '', ['Pilot manufacturing', 'Packaging compatibility', 'Regulatory, labeling, and nutrition', 'Required next evidence'])
+        && !/shelf[- ]?life/i.test(pageTexts[4] ?? ''),
+      detail: 'Product readiness covers manufacturing, packaging, regulatory, labeling, and nutrition evidence without the deferred shelf-life workstream.',
     },
     {
       id: 'commercial-readiness',
@@ -203,7 +204,7 @@ export function evaluateCommercializationReport(
     },
     {
       id: 'scientific-context-separation',
-      passed: includesAll(pageTexts[3] ?? '', ['Instrumental status', 'Technical and execution risks', 'Scientific guidance applied to the next study', 'Sources']),
+      passed: includesAll(pageTexts[3] ?? '', ['Instrumental status', 'Technical and execution risks', 'Evidence-led recommendations for the next study', 'Sources']),
       detail: 'Project instrumental evidence, product risks, and citation-backed scientific context must remain visibly separate.',
     },
     {
@@ -218,7 +219,7 @@ export function evaluateCommercializationReport(
     },
     {
       id: 'final-summary',
-      passed: includesAll(pageTexts[7] ?? '', ['Two claims are supported; four remain unavailable for release', 'Client-safe summary', 'Internal decision statement', 'External claim', 'Permitted wording', 'Requirement', 'Report status']),
+      passed: includesAll(pageTexts[7] ?? '', ['Claims release status by evidence level', 'Current release boundary', 'Internal decision statement', 'External claim', 'Permitted wording', 'Requirement', 'Report status']),
       detail: 'Final page closes with a claim-by-claim release matrix and report status.',
     },
     {

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -13,16 +13,17 @@ import { parseBatchSelection } from '../lib/project-identity';
 import {
   useProducts, usePanelists,
   useInsertProduct, useUpdateProduct, useDeleteProduct,
-  useUpdatePanelistId, useAllResponses, useImportBatches,
+  useAllResponses, useImportBatches,
   useUpdateImportBatchStatus, useDeleteImportBatch,
   useStudyConceptTests, useConceptResponseCounts,
   useUpdateConceptTestStatus,
+  useCreateImportSurveys, useUpdateProductAssignments,
 } from '../lib/hooks';
 import type { ConceptTest } from '../lib/database';
 import {
   Plus, Settings, Trash2, Save, CheckCircle2, Layers,
   ClipboardList, Users, AlertCircle, Search, Activity, Archive, RotateCcw,
-  Upload, Database, Eye, ArrowRight, Lightbulb, Edit2,
+  Upload, Database, Eye, ArrowRight, Lightbulb, Edit2, ShieldCheck,
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Progress } from './ui/progress';
@@ -40,6 +41,9 @@ import {
 import { generateBlindCode, isValidBlindCode, withBlindSampleCodes } from '../lib/blind-study';
 import { WorkflowPageHeader } from './workflow-page-header';
 import { PanelistInviteForm } from './panelist-invite-form';
+import { PanelistDirectory } from './panelist-directory';
+import { ImportedSurveyBatchConfiguration } from './imported-survey-batch-configuration';
+import { DEFAULT_SURVEY_SECTIONS, toggleSurveySection, type SurveySection } from '../lib/survey-sections';
 
 type AdminTab = 'products' | 'panelists' | 'imports';
 type StudyStatusFilter = 'all' | StudyLifecycleStatus;
@@ -94,7 +98,7 @@ function getStudyTypeMeta(type: StudyType): {
   return {
     label: 'Product Sensory Survey',
     shortLabel: 'Product',
-    description: 'Evaluates one product sample with CATA, intensity, liking, and emotional response.',
+    description: 'Evaluates one product sample with administrator-selected questionnaire sections.',
     className: 'border-blue-300 bg-blue-50 text-blue-800',
     iconClassName: 'bg-blue-600 text-white',
     cardClassName: 'border-blue-200 hover:border-blue-400',
@@ -108,13 +112,17 @@ export function AdminConfig({
   mode = 'studies',
   secondaryNavigation,
 }: {
-  mode?: 'studies' | 'responses' | 'admin';
+  mode?: 'studies' | 'responses' | 'admin' | 'panelists';
   secondaryNavigation?: React.ReactNode;
 }) {
   const isResponsesMode = mode === 'responses';
+  const isPanelistsMode = mode === 'panelists';
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const requestedTab = searchParams.get('tab');
-  const initialTab: AdminTab = mode === 'admin' && requestedTab === 'imports'
+  const initialTab: AdminTab = isPanelistsMode
+    ? 'panelists'
+    : mode === 'admin' && requestedTab === 'imports'
     ? 'imports'
     : mode === 'admin' && requestedTab === 'panelists'
       ? 'panelists'
@@ -129,18 +137,20 @@ export function AdminConfig({
 
   const insertProductMutation = useInsertProduct();
   const updateProductMutation = useUpdateProduct();
+  const updateProductAssignmentsMutation = useUpdateProductAssignments();
   const deleteProductMutation = useDeleteProduct();
-  const updatePanelistIdMutation = useUpdatePanelistId();
   const updateImportBatchStatusMutation = useUpdateImportBatchStatus();
   const deleteImportBatchMutation = useDeleteImportBatch();
   const updateConceptStatusMutation = useUpdateConceptTestStatus();
+  const createImportSurveysMutation = useCreateImportSurveys();
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmImportDeleteId, setConfirmImportDeleteId] = useState<string | null>(null);
 
-  const [editingPanelistId, setEditingPanelistId] = useState<string | null>(null);
-  const [panelistIdInput, setPanelistIdInput] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<string | null>(() => searchParams.get('survey'));
+  const [batchSurveySetupId, setBatchSurveySetupId] = useState<string | null>(() => searchParams.get('batchSurveySetup'));
   const [customAttributes, setCustomAttributes] = useState<string[]>([]);
+  const [surveySections, setSurveySections] = useState<SurveySection[]>(DEFAULT_SURVEY_SECTIONS);
+  const [draftPanelistIds, setDraftPanelistIds] = useState<string[]>([]);
   const [newAttribute, setNewAttribute] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
   const [mutationError, setMutationError] = useState('');
@@ -170,12 +180,14 @@ export function AdminConfig({
   // Reset the editable attribute set when the selected product changes.
   // React's render-phase "adjust state on change" pattern — no effect needed,
   // and unlike the old effect a products refetch no longer clobbers edits.
-  const [attrSeedProduct, setAttrSeedProduct] = useState<string | null>(selectedProduct);
+  const [attrSeedProduct, setAttrSeedProduct] = useState<string | null>(null);
   if (selectedProduct !== attrSeedProduct) {
     setAttrSeedProduct(selectedProduct);
     if (selectedProduct) {
       const product = products.find(p => p.id === selectedProduct);
       setCustomAttributes(product?.customAttributes || getDefaultCataAttributes(product?.category ?? ''));
+      setSurveySections(product?.surveySections ?? DEFAULT_SURVEY_SECTIONS);
+      setDraftPanelistIds(product?.assignedPanelistIds ?? []);
     }
   }
 
@@ -202,6 +214,14 @@ export function AdminConfig({
   const selectedProjectId = selectedBatchId
     ? importBatches.find(batch => batch.id === selectedBatchId)?.projectId ?? null
     : null;
+  const batchesAwaitingSurveySetup = importBatches.filter(batch =>
+    batch.status === 'active'
+    && batch.sampleCount > 0
+    && (!selectedBatchId || batch.id === selectedBatchId)
+    && !products.some(product => product.sourceImportBatchId === batch.id),
+  );
+  const batchSurveySetup = importBatches.find(batch => batch.id === batchSurveySetupId) ?? null;
+  const batchSurveyProducts = products.filter(product => product.sourceImportBatchId === batchSurveySetupId);
 
   const allStudySummaries = useMemo(() => buildStudySummaries({
     products,
@@ -382,8 +402,9 @@ export function AdminConfig({
       name: newProductName,
       category: newProductCategory,
       createdDate: new Date().toISOString(),
-      status: 'active',
+      status: 'draft',
       customAttributes: getDefaultCataAttributes(newProductCategory),
+      surveySections: [...DEFAULT_SURVEY_SECTIONS],
       isMultiSample: productType === 'multi',
       samples: configuredSamples,
       isCalibration: false,
@@ -398,32 +419,30 @@ export function AdminConfig({
     };
     setPendingProduct(p);
     setCustomAttributes(getDefaultCataAttributes(newProductCategory));
+    setSurveySections([...DEFAULT_SURVEY_SECTIONS]);
     setCreateStep('review');
   };
 
   const finalizeProductCreation = async () => {
     if (!pendingProduct) return;
     setMutationError('');
-    const recipientIds = pendingProduct.assignedPanelistIds?.length
-      ? pendingProduct.assignedPanelistIds
-      : activePanelists.map(panelist => panelist.id);
     try {
       await insertProductMutation.mutateAsync({
         name: pendingProduct.name,
         category: pendingProduct.category,
-        status: 'active',
+        status: 'draft',
         customAttributes,
+        surveySections,
         isMultiSample: pendingProduct.isMultiSample,
         samples: pendingProduct.samples,
         isCalibration: pendingProduct.isCalibration,
         referenceScores: pendingProduct.referenceScores,
         blinded: pendingProduct.blinded,
         blindCode: pendingProduct.blindCode,
-        assignedPanelistIds: recipientIds,
+        assignedPanelistIds: [],
         sourceImportBatchId: pendingProduct.sourceImportBatchId,
         sourceSampleId: pendingProduct.sourceSampleId,
       });
-      await notifyPanelistsOfSurveys(recipientIds, [pendingProduct.name]);
       closeCreateModal();
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
@@ -434,15 +453,74 @@ export function AdminConfig({
 
   // ── Attribute handlers ────────────────────────────────────────────────────────
 
-  const handleSaveAttributes = async () => {
-    if (!selectedProduct) return;
+  const persistSelectedProductConfiguration = async (panelistIds: string[]) => {
+    if (!selectedProduct) throw new Error('Select a study before saving.');
+    await updateProductMutation.mutateAsync({ id: selectedProduct, updates: { customAttributes, surveySections } });
+    await updateProductAssignmentsMutation.mutateAsync({
+      productIds: [selectedProduct],
+      assignedPanelistIds: panelistIds,
+    });
+    setDraftPanelistIds(panelistIds);
+  };
+
+  const handleSaveAttributes = async (panelistIds: string[]) => {
     setMutationError('');
     try {
-      await updateProductMutation.mutateAsync({ id: selectedProduct, updates: { customAttributes } });
+      await persistSelectedProductConfiguration(panelistIds);
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
       setMutationError(err instanceof Error ? err.message : 'Failed to save attributes.');
+    }
+  };
+
+  const handleLaunchProduct = async (panelistIds: string[]) => {
+    if (!selectedProduct || !selectedProductRecord) return;
+    setMutationError('');
+    try {
+      await persistSelectedProductConfiguration(panelistIds);
+      await updateProductMutation.mutateAsync({ id: selectedProduct, updates: { status: 'active' } });
+      void notifyPanelistsOfSurveys(panelistIds, [selectedProductRecord.name]);
+      setShowSuccess(true);
+      setSelectedProduct(null);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : 'Failed to launch the study.');
+    }
+  };
+
+  const handlePreviewProduct = async (panelistIds: string[]) => {
+    if (!selectedProduct || !selectedProductRecord) return;
+    setMutationError('');
+    try {
+      await persistSelectedProductConfiguration(panelistIds);
+      const previewPath = selectedProductRecord.isMultiSample
+        ? `/multi-sample-info/${selectedProduct}`
+        : `/questionnaire-info/${selectedProduct}`;
+      setSelectedProduct(null);
+      navigate(previewPath);
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : 'Failed to save the draft before preview.');
+    }
+  };
+
+  const startImportedBatchConfiguration = async (batchId: string) => {
+    const batch = importBatches.find(item => item.id === batchId);
+    if (!batch) return;
+    setMutationError('');
+    try {
+      const result = await createImportSurveysMutation.mutateAsync({
+        batchId,
+        surveySections: [...DEFAULT_SURVEY_SECTIONS],
+        customAttributes: getDefaultCataAttributes(batch.foodTypeSlug),
+      });
+      if (result.surveyIds.length === 0) throw new Error('No sample surveys were created for this import.');
+      setBatchSurveySetupId(batchId);
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.set('batchSurveySetup', batchId);
+      setSearchParams(nextParams, { replace: true });
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : 'Failed to prepare the imported surveys.');
     }
   };
 
@@ -461,10 +539,13 @@ export function AdminConfig({
   const handleToggleProductStatus = async (productId: string) => {
     const product = products.find(p => p.id === productId);
     if (!product) return;
-    const newStatus: 'active' | 'completed' = product.status === 'active' ? 'completed' : 'active';
+    if (product.status !== 'active') {
+      setSelectedProduct(productId);
+      return;
+    }
     setMutationError('');
     try {
-      await updateProductMutation.mutateAsync({ id: productId, updates: { status: newStatus } });
+      await updateProductMutation.mutateAsync({ id: productId, updates: { status: 'completed' } });
     } catch (err) {
       setMutationError(err instanceof Error ? err.message : 'Failed to update status.');
     }
@@ -507,53 +588,9 @@ export function AdminConfig({
   const handleUnarchiveProduct = async (productId: string) => {
     setMutationError('');
     try {
-      await updateProductMutation.mutateAsync({ id: productId, updates: { status: 'active' } });
+      await updateProductMutation.mutateAsync({ id: productId, updates: { status: 'draft' } });
     } catch (err) {
       setMutationError(err instanceof Error ? err.message : 'Failed to restore product.');
-    }
-  };
-
-  const handleToggleSurveyAssignment = async (productId: string, panelistUserId: string) => {
-    const product = products.find(p => p.id === productId);
-    if (!product) return;
-    const current = product.assignedPanelistIds ?? [];
-    if (current.length === 1 && current[0] === panelistUserId) {
-      setMutationError('A selected assignment cannot be empty because an empty product assignment means open to all. Use “Open to all” if that is your intent.');
-      return;
-    }
-    const adding = !current.includes(panelistUserId);
-    const next = adding
-      ? [...current, panelistUserId]
-      : current.filter(id => id !== panelistUserId);
-    setMutationError('');
-    try {
-      await updateProductMutation.mutateAsync({ id: productId, updates: { assignedPanelistIds: next } });
-      if (adding) void notifyPanelistsOfSurveys([panelistUserId], [product.name]);
-    } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Failed to update panel assignments.');
-    }
-  };
-
-  const handleAssignAllPanelists = async (productId: string) => {
-    setMutationError('');
-    try {
-      await updateProductMutation.mutateAsync({
-        id: productId,
-        updates: { assignedPanelistIds: activePanelists.map(panelist => panelist.id) },
-      });
-      const product = products.find(p => p.id === productId);
-      if (product) void notifyPanelistsOfSurveys(activePanelists.map(panelist => panelist.id), [product.name]);
-    } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Failed to assign panelists.');
-    }
-  };
-
-  const handleClearPanelAssignments = async (productId: string) => {
-    setMutationError('');
-    try {
-      await updateProductMutation.mutateAsync({ id: productId, updates: { assignedPanelistIds: [] } });
-    } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Failed to clear panel assignments.');
     }
   };
 
@@ -588,22 +625,6 @@ export function AdminConfig({
     }
   };
 
-  const handleEditPanelistId = (userId: string, currentId: string | null) => {
-    setEditingPanelistId(userId);
-    setPanelistIdInput(currentId ?? '');
-  };
-
-  const handleSavePanelistId = async (userId: string) => {
-    setMutationError('');
-    try {
-      await updatePanelistIdMutation.mutateAsync({ userId, panelistId: panelistIdInput });
-      setEditingPanelistId(null);
-      setPanelistIdInput('');
-    } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Failed to update panelist ID.');
-    }
-  };
-
   const selectTab = (tab: AdminTab) => {
     setActiveTab(tab);
     if (mode !== 'admin') return;
@@ -619,6 +640,8 @@ export function AdminConfig({
     { id: 'products',  label: 'Studies',  icon: ClipboardList },
     { id: 'panelists', label: 'Panelists', icon: Users },
     { id: 'imports',   label: 'Data & imports', icon: Upload },
+  ] : isPanelistsMode ? [
+    { id: 'panelists', label: 'Panelists', icon: Users },
   ] : [
     { id: 'products', label: isResponsesMode ? 'Responses' : 'Studies', icon: isResponsesMode ? Activity : ClipboardList },
   ];
@@ -626,9 +649,11 @@ export function AdminConfig({
   return (
     <div className="space-y-6">
       <WorkflowPageHeader
-        title={isResponsesMode ? 'Responses' : 'Studies'}
+        title={isResponsesMode ? 'Responses' : isPanelistsMode ? 'Panelists' : 'Studies'}
         description={isResponsesMode
           ? 'Track fielding progress, response targets, and blockers before insights are used for decision review.'
+          : isPanelistsMode
+            ? 'Invite panelists and track required research, safety, consent, and delivery-profile completion before study assignment.'
           : 'Create, configure, launch, and review product sensory studies and triangle tests.'}
       />
 
@@ -698,6 +723,26 @@ export function AdminConfig({
           <p className="mt-1 text-xs leading-5 text-teal-800">Market-facing idea validation: claims, imagery, pricing, and purchase intent.</p>
         </Link>
       </div>}
+
+      {!isResponsesMode && batchesAwaitingSurveySetup.length > 0 && (
+        <section className="rounded-lg border border-blue-200 bg-blue-50 p-4" aria-labelledby="imports-awaiting-surveys-heading">
+          <div className="flex items-start gap-3">
+            <ClipboardList className="mt-0.5 size-5 shrink-0 text-blue-700" />
+            <div className="min-w-0 flex-1">
+              <h2 id="imports-awaiting-surveys-heading" className="text-sm font-bold text-blue-950">Imported samples awaiting survey setup</h2>
+              <p className="mt-1 text-sm text-blue-800">Choose sections and recipients before these questionnaires become visible to panelists.</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {batchesAwaitingSurveySetup.map(batch => (
+                  <Button key={batch.id} type="button" size="sm" variant="outline" onClick={() => void startImportedBatchConfiguration(batch.id)} disabled={createImportSurveysMutation.isPending} className="border-blue-300 bg-white text-blue-900 hover:bg-blue-100">
+                    Configure {batch.projectName ?? batch.fileName.replace(/\.csv$/i, '')}
+                    <ArrowRight className="size-3.5" />
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {isResponsesMode && (
         <div className="grid gap-3 md:grid-cols-3">
@@ -890,14 +935,20 @@ export function AdminConfig({
                             </>
                           ) : (
                             <>
-                              <Button size="sm" variant="outline" onClick={() => handleToggleProductStatus(product.id)} className="h-8 text-xs">
-                                {product.status === 'active' ? 'Close study' : 'Reopen study'}
-                              </Button>
+                              {product.status === 'active' ? (
+                                <Button size="sm" variant="outline" onClick={() => handleToggleProductStatus(product.id)} className="h-8 text-xs">
+                                  Close study
+                                </Button>
+                              ) : (
+                                <Button size="sm" variant="outline" onClick={() => setSelectedProduct(product.id)} className="h-8 text-xs">
+                                  Configure &amp; {product.status === 'draft' ? 'launch' : 'reopen'}
+                                </Button>
+                              )}
                               <Button size="sm" variant="outline" onClick={() => handleArchiveProduct(product.id)} className="h-8 text-xs border-amber-300 text-amber-700 hover:bg-amber-50">
                                 <Archive className="mr-1 size-3.5" />Archive
                               </Button>
                               <Button size="sm" onClick={() => setSelectedProduct(product.id)} className="h-8 text-xs bg-slate-900 hover:bg-slate-800">
-                                <Edit2 className="mr-1 size-3.5" />Edit survey
+                                <Edit2 className="mr-1 size-3.5" />{product.status === 'active' ? 'View setup' : 'Edit draft'}
                               </Button>
                             </>
                           )}
@@ -956,9 +1007,18 @@ export function AdminConfig({
         panelists={activePanelists}
         standardAttributes={selectedProductStdAttrs}
         customAttributes={customAttributes}
+        surveySections={surveySections}
+        assignedPanelistIds={draftPanelistIds}
         newAttribute={newAttribute}
         onOpenChange={open => {
-          if (!open) setSelectedProduct(null);
+          if (!open) {
+            setSelectedProduct(null);
+            if (searchParams.has('survey')) {
+              const nextParams = new URLSearchParams(searchParams);
+              nextParams.delete('survey');
+              setSearchParams(nextParams, { replace: true });
+            }
+          }
         }}
         onNewAttributeChange={setNewAttribute}
         onAddAttribute={handleAddCustomAttribute}
@@ -966,18 +1026,36 @@ export function AdminConfig({
         onToggleAttribute={handleToggleAttribute}
         onResetAttributes={() => setCustomAttributes(selectedProductStdAttrs)}
         onClearAttributes={() => setCustomAttributes([])}
-        onSaveAttributes={handleSaveAttributes}
-        onTogglePanelist={panelistId => {
-          if (selectedProduct) void handleToggleSurveyAssignment(selectedProduct, panelistId);
-        }}
-        onAssignAll={() => {
-          if (selectedProduct) void handleAssignAllPanelists(selectedProduct);
-        }}
-        onOpenToAll={() => {
-          if (selectedProduct) void handleClearPanelAssignments(selectedProduct);
-        }}
-        saving={updateProductMutation.isPending}
+        onToggleSection={section => setSurveySections(current => toggleSurveySection(current, section))}
+        onSaveAttributes={panelistIds => void handleSaveAttributes(panelistIds)}
+        onPreview={panelistIds => void handlePreviewProduct(panelistIds)}
+        onLaunch={panelistIds => void handleLaunchProduct(panelistIds)}
+        onSetPanelists={setDraftPanelistIds}
+        saving={updateProductMutation.isPending || updateProductAssignmentsMutation.isPending}
       />
+
+      {batchSurveySetup && batchSurveyProducts.length > 0 && (
+        <ImportedSurveyBatchConfiguration
+          batchName={batchSurveySetup.projectName ?? batchSurveySetup.fileName.replace(/\.csv$/i, '')}
+          products={batchSurveyProducts}
+          onClose={() => {
+            setBatchSurveySetupId(null);
+            if (searchParams.has('batchSurveySetup')) {
+              const nextParams = new URLSearchParams(searchParams);
+              nextParams.delete('batchSurveySetup');
+              setSearchParams(nextParams, { replace: true });
+            }
+          }}
+          onAssigned={() => {
+            setBatchSurveySetupId(null);
+            const nextParams = new URLSearchParams(searchParams);
+            nextParams.delete('batchSurveySetup');
+            setSearchParams(nextParams, { replace: true });
+            setShowSuccess(true);
+            setTimeout(() => setShowSuccess(false), 3000);
+          }}
+        />
+      )}
 
       </> /* end products tab */}
 
@@ -994,38 +1072,7 @@ export function AdminConfig({
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Users className="size-4 text-slate-500" />
-              Panelist accounts
-            </CardTitle>
-            <p className="text-sm text-slate-600">Completed accounts can be selected when preparing box QR sheets. Invited accounts remain pending until the panelist adds delivery details.</p>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {panelists.map(p => (
-                <div key={p.id} className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 sm:w-auto">
-                  <span className="min-w-0 break-all text-sm font-medium text-slate-700">{p.name}</span>
-                  <Badge variant="outline" className={p.profileCompletedAt ? 'border-emerald-300 text-emerald-700' : 'border-amber-300 text-amber-800'}>{p.profileCompletedAt ? 'Ready' : 'Invite pending'}</Badge>
-                  {editingPanelistId === p.id ? (
-                    <div className="flex gap-1">
-                      {/* eslint-disable-next-line jsx-a11y/no-autofocus -- inline edit field appears on user action; focusing it is the expected behaviour */}
-                      <Input value={panelistIdInput} onChange={e => setPanelistIdInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSavePanelistId(p.id)} className="h-6 text-xs w-24" maxLength={20} autoFocus />
-                      <Button size="sm" className="h-6 text-xs px-2 bg-emerald-600 hover:bg-emerald-700" onClick={() => handleSavePanelistId(p.id)}>Save</Button>
-                      <Button size="sm" variant="ghost" className="h-6 text-xs px-1" onClick={() => setEditingPanelistId(null)}>×</Button>
-                    </div>
-                  ) : (
-                    <>
-                      <span className={`font-mono text-xs ${p.panelistId ? 'text-slate-700' : 'text-slate-500 italic'}`}>{p.panelistId ?? 'no ID'}</span>
-                      <Button size="sm" variant="ghost" className="h-6 text-xs px-1" onClick={() => handleEditPanelistId(p.id, p.panelistId)}>Edit</Button>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <PanelistDirectory panelists={panelists} />
       )}
 
       <PanelistPerformancePanel />
@@ -1445,9 +1492,9 @@ export function AdminConfig({
 
                   <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
                     <div className="flex items-start gap-3">
-                      <CheckCircle2 className="size-5 text-slate-500 flex-shrink-0 mt-0.5" />
+                      <ShieldCheck className="size-5 text-emerald-700 flex-shrink-0 mt-0.5" />
                       <div className="text-sm text-slate-700">
-                        <strong>Ready to send:</strong> Study will be created with {customAttributes.length} attributes and assigned to {activePanelists.length} active panelist{activePanelists.length === 1 ? '' : 's'}.
+                        <strong>Ready to save:</strong> The study will remain private as a draft with {customAttributes.length} attributes. Open it next to verify the exact sample declaration, choose eligible panelists, preview, and launch.
                       </div>
                     </div>
                   </div>
@@ -1456,18 +1503,13 @@ export function AdminConfig({
                   <Button variant="outline" onClick={closeCreateModal} className="flex-1">Cancel</Button>
                   <Button
                     onClick={finalizeProductCreation}
-                    disabled={insertProductMutation.isPending || activePanelists.length === 0}
+                    disabled={insertProductMutation.isPending}
                     className="flex-1 bg-slate-900 hover:bg-slate-800 disabled:opacity-60"
                   >
                     <Save className="size-5 mr-2" />
-                    {insertProductMutation.isPending ? 'Sending…' : 'Create study and send to panelists'}
+                    {insertProductMutation.isPending ? 'Creating draft…' : 'Create draft study'}
                   </Button>
                 </div>
-                {activePanelists.length === 0 && (
-                  <p className="px-6 pb-6 text-sm font-medium text-amber-700">
-                    Add at least one active panelist before sending this study.
-                  </p>
-                )}
               </>
             )}
           </div>

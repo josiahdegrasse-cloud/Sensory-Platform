@@ -12,6 +12,7 @@ import {
   SLATE_700,
   SLATE_950,
   WHITE,
+  fittedParagraph,
   lighten,
   nfiViewBand,
   paragraph,
@@ -35,7 +36,7 @@ export function renderDecisionBasisPage(ctx: PdfContext, data: DecisionBasisData
     ctx,
     2,
     'Decision basis',
-    'The product clears the GO threshold and all critical product gates',
+    'Decision basis, evidence strength, and product gates',
     'Why the decision was reached, how strong the evidence is, and which changes would require a new review.',
   );
 
@@ -51,11 +52,12 @@ export function renderDecisionBasisPage(ctx: PdfContext, data: DecisionBasisData
     doc.setFillColor(...SLATE_50);
     doc.setDrawColor(...SLATE_200);
     doc.roundedRect(x, y, metricWidth, 62, 7, 7, 'FD');
-    setText(doc, index === 0 ? accent : SLATE_500, 6.2, 'bold');
+    setText(doc, index === 0 ? accent : SLATE_500, 7, 'bold');
     doc.text(label, x + 10, y + 17);
-    paragraph(doc, value, x + 10, y + 36, metricWidth - 20, {
+    fittedParagraph(doc, value, x + 10, y + 36, metricWidth - 20, 19, {
       color: SLATE_950,
       size: value.length > 18 ? 7.2 : 12,
+      minSize: 6.8,
       weight: 'bold',
       lineHeight: 9,
     });
@@ -89,11 +91,16 @@ export function renderDecisionBasisPage(ctx: PdfContext, data: DecisionBasisData
     doc.setFillColor(...WHITE);
     doc.setDrawColor(...SLATE_200);
     doc.roundedRect(x, y, popWidth, 67, 7, 7, 'FD');
-    setText(doc, SLATE_500, 6.3, 'bold');
+    setText(doc, SLATE_500, 7, 'bold');
     doc.text(population.label.toUpperCase(), x + 11, y + 17);
     setDisplayText(doc, SLATE_950, 11, 'bold');
     doc.text(population.value, x + 11, y + 37);
-    paragraph(doc, population.provenance, x + 11, y + 51, popWidth - 22, { color: SLATE_500, size: 6.4, lineHeight: 8 });
+    fittedParagraph(doc, population.provenance, x + 11, y + 51, popWidth - 22, 13, {
+      color: SLATE_500,
+      size: 7.2,
+      minSize: 6.8,
+      lineHeight: 8.6,
+    });
   });
   y += 81;
 
@@ -116,9 +123,14 @@ export function renderDecisionBasisPage(ctx: PdfContext, data: DecisionBasisData
       const tone = statusColor(gate.status);
       doc.setFillColor(...tone);
       doc.circle(margin + 17, rowY + 5, 3.5, 'F');
-      setText(doc, SLATE_950, 7, 'bold');
+      setText(doc, SLATE_950, 7.8, 'bold');
       doc.text(`${gate.label} · ${gate.status.toUpperCase()}`, margin + 27, rowY + 7);
-      paragraph(doc, gate.detail, margin + 27, rowY + 19, half - 39, { color: SLATE_500, size: 6.2, lineHeight: 7.4 });
+      fittedParagraph(doc, gate.detail, margin + 27, rowY + 19, half - 39, 13, {
+        color: SLATE_500,
+        size: 7.2,
+        minSize: 6.6,
+        lineHeight: 8.4,
+      });
     });
   }
 
@@ -127,28 +139,29 @@ export function renderDecisionBasisPage(ctx: PdfContext, data: DecisionBasisData
   doc.roundedRect(rightX, y, half, leftHeight, 7, 7, 'F');
   paragraph(doc, data.sensitivity.map(item => `- ${item}`).join('\n'), rightX + 12, y + 21, half - 24, {
     color: SLATE_700,
-    size: 6.8,
-    lineHeight: 9.4,
+    size: 7.5,
+    lineHeight: 9.8,
   });
   y += leftHeight + 14;
 
-  setText(doc, SLATE_500, 6.5, 'bold');
+  setText(doc, SLATE_500, 7, 'bold');
   doc.text('MATERIAL LIMITATIONS', margin, y);
   y += 13;
-  paragraph(doc, data.limitations.map(item => `- ${item}`).join('\n'), margin, y, contentWidth, {
+  const limitationsBottom = paragraph(doc, data.limitations.map(item => `- ${item}`).join('\n'), margin, y, contentWidth, {
     color: SLATE_700,
-    size: 6.8,
-    lineHeight: 9,
+    size: 7.5,
+    lineHeight: 9.8,
   });
-  y += Math.max(38, data.limitations.slice(0, 4).length * 10);
+  y = Math.max(y + 38, limitationsBottom + 10);
 
   doc.setFillColor(...primary);
   doc.roundedRect(margin, y, contentWidth, 72, 8, 8, 'F');
   setText(doc, accent, 6.8, 'bold');
   doc.text(`MANAGEMENT DECISION · ${data.reportStatus.toUpperCase()}`, margin + 14, y + 21);
-  paragraph(doc, data.managementDecision, margin + 14, y + 42, contentWidth - 28, {
+  fittedParagraph(doc, data.managementDecision, margin + 14, y + 42, contentWidth - 28, 22, {
     color: WHITE,
     size: 8.8,
+    minSize: 7.2,
     weight: 'bold',
     lineHeight: 11.5,
   });
@@ -160,7 +173,7 @@ export function renderInstrumentalRiskPage(ctx: PdfContext, scientific: Scientif
     ctx,
     4,
     'Triangulated evidence',
-    'Instrumental evidence supports the decision and directs the next controls',
+    'Instrumental evidence, scientific guidance, and product risk',
     'Project measurements show whether the sensory result is technically coherent; literature is used beside the evidence to shape the next validation method.',
   );
 
@@ -169,24 +182,29 @@ export function renderInstrumentalRiskPage(ctx: PdfContext, scientific: Scientif
   doc.setDrawColor(...(ctx.template === 'editorial-sage' ? NFI_AQUA : accent));
   doc.setLineWidth(1);
   doc.line(margin, y, margin + contentWidth, y);
-  setText(doc, scientific.instrumentalAvailable ? accent : (ctx.template === 'editorial-sage' ? NFI_AQUA_DARK : SLATE_500), 6.6, 'bold');
+  setText(doc, scientific.instrumentalAvailable ? accent : (ctx.template === 'editorial-sage' ? NFI_AQUA_DARK : SLATE_500), 7.2, 'bold');
   doc.text(scientific.instrumentalAvailable ? 'INSTRUMENTAL STATUS · INCLUDED' : 'INSTRUMENTAL STATUS · NOT AVAILABLE', margin + 13, y + 17);
-  paragraph(doc, scientific.instrumentalNote, margin + 13, y + 31, contentWidth - 26, { color: SLATE_700, size: 7, lineHeight: 8.5 });
+  fittedParagraph(doc, scientific.instrumentalNote, margin + 13, y + 31, contentWidth - 26, 10, {
+    color: SLATE_700,
+    size: 8,
+    minSize: 7.2,
+    lineHeight: 9.6,
+  });
   y += 58;
 
   scientific.findings.slice(0, 3).forEach(finding => {
     const tone = statusColor(finding.decisionEffect);
     doc.setFillColor(...WHITE);
     doc.setDrawColor(...SLATE_200);
-    doc.roundedRect(margin, y, contentWidth, 62, 7, 7, 'FD');
+    doc.roundedRect(margin, y, contentWidth, 58, 7, 7, 'FD');
     doc.setFillColor(...tone);
     doc.roundedRect(margin + 11, y + 11, 64, 18, 9, 9, 'F');
-    setText(doc, WHITE, 6, 'bold');
+    setText(doc, WHITE, 7, 'bold');
     doc.text(finding.decisionEffect.toUpperCase(), margin + 43, y + 23, { align: 'center' });
-    setText(doc, SLATE_950, 8, 'bold');
+    setText(doc, SLATE_950, 8.8, 'bold');
     doc.text(finding.source, margin + 88, y + 23);
     if (finding.replicateCount !== null) {
-      setText(doc, finding.replicateCount === 1 ? AMBER : SLATE_500, 6.2, finding.replicateCount === 1 ? 'bold' : 'normal');
+      setText(doc, finding.replicateCount === 1 ? AMBER : SLATE_500, 7, finding.replicateCount === 1 ? 'bold' : 'normal');
       doc.text(
         finding.replicateCount === 1 ? '1 replicate · repeatability not established' : `Replicates ${finding.replicateCount}`,
         margin + contentWidth - 12,
@@ -194,9 +212,19 @@ export function renderInstrumentalRiskPage(ctx: PdfContext, scientific: Scientif
         { align: 'right' },
       );
     }
-    paragraph(doc, finding.finding, margin + 13, y + 43, contentWidth * 0.58, { color: SLATE_700, size: 6.8, lineHeight: 8.2 });
-    paragraph(doc, `Benchmark: ${finding.benchmark}`, margin + contentWidth * 0.64, y + 43, contentWidth * 0.33, { color: SLATE_500, size: 6.5, lineHeight: 8 });
-    y += 70;
+    fittedParagraph(doc, finding.finding, margin + 13, y + 41, contentWidth * 0.56, 14, {
+      color: SLATE_700,
+      size: 7.6,
+      minSize: 7,
+      lineHeight: 9,
+    });
+    fittedParagraph(doc, `Benchmark: ${finding.benchmark}`, margin + contentWidth * 0.61, y + 41, contentWidth * 0.36, 14, {
+      color: SLATE_500,
+      size: 7.4,
+      minSize: 6.8,
+      lineHeight: 8.8,
+    });
+    y += 64;
   });
 
   setDisplayText(doc, SLATE_950, 11.5, 'bold');
@@ -205,46 +233,46 @@ export function renderInstrumentalRiskPage(ctx: PdfContext, scientific: Scientif
   const riskLimit = scientific.findings.length > 0 ? 2 : 3;
   risks.rows.slice(0, riskLimit).forEach(risk => {
     doc.setFillColor(...SLATE_50);
-    doc.roundedRect(margin, y, contentWidth, 74, 7, 7, 'F');
-    setText(doc, AMBER, 6.3, 'bold');
+    doc.roundedRect(margin, y, contentWidth, 64, 7, 7, 'F');
+    setText(doc, AMBER, 7, 'bold');
     doc.text(`${risk.category.toUpperCase()} · NEXT GATE ${risk.nextGate.toUpperCase()}`, margin + 12, y + 17);
     setText(doc, SLATE_950, 7.3, 'bold');
-    paragraph(doc, risk.risk, margin + 12, y + 32, contentWidth * 0.31, { color: SLATE_950, size: 6.8, weight: 'bold', lineHeight: 8.2 });
-    paragraph(doc, `Impact: ${risk.impact}`, margin + contentWidth * 0.35, y + 32, contentWidth * 0.29, { color: SLATE_700, size: 6.5, lineHeight: 8 });
-    paragraph(doc, `Control: ${risk.mitigation}`, margin + contentWidth * 0.67, y + 32, contentWidth * 0.3, { color: SLATE_700, size: 6.5, lineHeight: 8 });
-    y += 82;
+    fittedParagraph(doc, risk.risk, margin + 12, y + 29, contentWidth * 0.31, 30, { color: SLATE_950, size: 7.5, minSize: 6.8, weight: 'bold', lineHeight: 8.6 });
+    fittedParagraph(doc, `Impact: ${risk.impact}`, margin + contentWidth * 0.35, y + 29, contentWidth * 0.29, 30, { color: SLATE_700, size: 7.3, minSize: 6.8, lineHeight: 8.6 });
+    fittedParagraph(doc, `Control: ${risk.mitigation}`, margin + contentWidth * 0.67, y + 29, contentWidth * 0.3, 30, { color: SLATE_700, size: 7.3, minSize: 6.8, lineHeight: 8.6 });
+    y += 70;
   });
 
   if (scientific.guidance.length > 0) {
     setDisplayText(doc, SLATE_950, 10.5, 'bold');
-    doc.text('NFI view · Scientific guidance applied to the next study', margin, y + 2);
+    doc.text('NFI view · Evidence-led recommendations for the next study', margin, y + 2);
     y += 16;
     scientific.guidance.slice(0, 3).forEach(item => {
       const citationLabel = item.citationIds.map(id => `[${id}]`).join(' ');
-      setText(doc, ctx.template === 'editorial-sage' ? NFI_CORAL_DARK : accent, 6.2, 'bold');
+      setText(doc, ctx.template === 'editorial-sage' ? NFI_CORAL_DARK : accent, 7, 'bold');
       doc.text(citationLabel, margin, y + 12);
-      setText(doc, SLATE_950, 6.8, 'bold');
+      setText(doc, SLATE_950, 7.8, 'bold');
       doc.text(item.title, margin + 42, y + 12);
-      paragraph(doc, item.guidance, margin + 42, y + 25, contentWidth - 42, { color: SLATE_700, size: 6.2, lineHeight: 7.4 });
-      y += 38;
+      fittedParagraph(doc, item.guidance, margin + 42, y + 25, contentWidth - 42, 20, { color: SLATE_700, size: 7.2, minSize: 6.8, lineHeight: 8.4 });
+      y += 42;
     });
-    setText(doc, SLATE_500, 5.9, 'bold');
+    setText(doc, SLATE_500, 6.8, 'bold');
     doc.text('VERIFIED SOURCES:', margin, y + 4);
-    y += 12;
+    y += 10;
     scientific.sources.slice(0, 3).forEach(source => {
       const hasAuthority = source.authors !== 'Not captured' && source.year !== 'Not captured';
       const authority = hasAuthority
         ? `${source.authors} (${source.year}), ${source.studyType.toLowerCase()}`
-        : `${source.title}, ${source.studyType.toLowerCase()}`;
+        : source.title;
       const identifier = source.doi === 'Not captured'
         ? ''
         : source.doi === 'Internal method record'
           ? ` · ${source.doi}`
           : ` · DOI ${source.doi}`;
-      setText(doc, accent, 5.9, 'bold');
+      setText(doc, accent, 6.8, 'bold');
       doc.text(`[${source.id}]`, margin, y + 4);
-      paragraph(doc, `${authority}${identifier}`, margin + 28, y + 4, contentWidth - 28, { color: SLATE_500, size: 5.9, lineHeight: 7.2 });
-      y += 12;
+      fittedParagraph(doc, `${authority}${identifier}`, margin + 28, y + 4, contentWidth - 28, 8, { color: SLATE_500, size: 6.8, minSize: 6.4, lineHeight: 7.8 });
+      y += 10;
     });
   }
 }

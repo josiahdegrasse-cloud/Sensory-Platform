@@ -1,4 +1,4 @@
-import { ClipboardList, PackageCheck } from 'lucide-react';
+import { ClipboardList, PackageCheck, Users } from 'lucide-react';
 import { Link } from 'react-router';
 import { projectStudiesPath } from '../lib/project-journey-routes';
 
@@ -7,10 +7,11 @@ export function StudiesNavigation({
   active,
 }: {
   projectId: string;
-  active: 'studies' | 'ship-outs';
+  active: 'studies' | 'panelists' | 'ship-outs';
 }) {
   const items = [
     { id: 'studies' as const, label: 'Studies', icon: ClipboardList, to: projectStudiesPath(projectId) },
+    { id: 'panelists' as const, label: 'Panelists', icon: Users, to: projectStudiesPath(projectId, 'panelists') },
     { id: 'ship-outs' as const, label: 'Ship-outs', icon: PackageCheck, to: projectStudiesPath(projectId, 'ship-outs') },
   ];
 

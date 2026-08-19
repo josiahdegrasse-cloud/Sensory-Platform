@@ -221,17 +221,20 @@ describe('project workflow evaluator', () => {
     expect(stage('studies', summary).status).toBe('needs_review');
     expect(stage('studies', summary).warnings.join(' ')).toMatch(/no sensory attributes/i);
     expect(summary.nextAction.route).toBe('/project/batch-1/studies');
+    expect(summary.overallStatusLabel).toBe('Next: Studies');
+    expect(summary.overallTone).toBe('neutral');
   });
 
-  it('explains empty assignedPanelistIds as open to all active panelists', () => {
+  it('marks an active study with no assigned panelists as needing review', () => {
     const summary = workflow({
       importBatches: [batch],
       instrumentalDataset: dataset,
       products: [{ ...product, assignedPanelistIds: [] }],
     });
 
-    expect(stage('studies', summary).completedItems.join(' ')).toMatch(/open to all active panelists/i);
-    expect(stage('studies', summary).blockers.join(' ')).not.toMatch(/no panelists assigned/i);
+    expect(stage('studies', summary).completedItems.join(' ')).toMatch(/no panelists assigned/i);
+    expect(stage('studies', summary).warnings.join(' ')).toMatch(/no panelists assigned/i);
+    expect(stage('studies', summary).status).toBe('needs_review');
   });
 
   it('marks active survey with zero responses as not started', () => {

@@ -298,11 +298,11 @@ export function SurveyAnalysis() {
             icon={BarChart3}
             headline={awaitingResponses ? 'Questionnaires are live — waiting on panelist responses' : 'Create questionnaires from the imported data first'}
             description={awaitingResponses
-              ? `${projectReadiness.withQuestionnaire} questionnaire${projectReadiness.withQuestionnaire === 1 ? '' : 's'} ${projectReadiness.withQuestionnaire === 1 ? 'has' : 'have'} been sent to panelists. Each sample's charts appear here automatically as soon as its first responses come in.`
+              ? `${projectReadiness.withQuestionnaire} questionnaire${projectReadiness.withQuestionnaire === 1 ? '' : 's'} ${projectReadiness.withQuestionnaire === 1 ? 'has' : 'have'} been created. Drafts must be launched before panelists can respond; charts appear after the first completed response.`
               : `${activeLabel} is in the platform. The next step is turning those imported machine samples into panelist questionnaires so Insights has evidence to interpret.`}
             stats={[
               { value: projectInstrumentSamples.length, label: 'machine samples imported' },
-              { value: projectReadiness.withQuestionnaire, label: 'questionnaires sent' },
+              { value: projectReadiness.withQuestionnaire, label: 'questionnaires created' },
               { value: projectReadiness.totalResponses, label: 'responses collected' },
             ]}
             items={insightsReadinessItems}

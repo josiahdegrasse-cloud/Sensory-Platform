@@ -24,28 +24,28 @@ export function PanelistDashboard() {
     : ''
 
   const assignedProducts = products.filter(product => isPanelistAssignedToProduct(product, userId));
-  const completedProductIds = userResponses.map(r => r.productId);
-  const availableProducts = assignedProducts.filter(p => !completedProductIds.includes(p.id) && p.status !== 'completed');
-  const completedProductsList = assignedProducts.filter(p => completedProductIds.includes(p.id));
+  const completedProductIds = new Set(userResponses.map(r => r.productId));
+  const availableProducts = assignedProducts.filter(p => !completedProductIds.has(p.id) && p.status !== 'completed');
+  const completedProductsList = assignedProducts.filter(p => completedProductIds.has(p.id));
 
-  const completedConceptIds = conceptResponses.map(r => r.conceptTestId);
-  const availableConceptTests = conceptTests.filter(t => !completedConceptIds.includes(t.id));
-  const completedConceptTests = conceptTests.filter(t => completedConceptIds.includes(t.id));
+  const completedConceptIds = new Set(conceptResponses.map(r => r.conceptTestId));
+  const availableConceptTests = conceptTests.filter(t => !completedConceptIds.has(t.id));
+  const completedConceptTests = conceptTests.filter(t => completedConceptIds.has(t.id));
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <header className="rounded-lg border border-slate-200 bg-white p-5 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-950">Your tasting tasks</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Welcome, {user?.name}. Match the sample cue before opening each item, then complete the tasks in order.</p>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-950">Your task inbox</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Welcome, {user?.name}. Your assigned work waits here on any phone, tablet, or laptop. Scanning the box QR code is an optional phone shortcut.</p>
           </div>
           {user?.panelistId && <span className="shrink-0 rounded-md bg-slate-100 px-3 py-2 text-xs text-slate-600">Panelist <strong className="font-mono text-slate-900">{user.panelistId}</strong></span>}
         </div>
         <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-100 pt-4 text-sm">
           <span><strong className="text-slate-950">{availableProducts.length}</strong> tasting task{availableProducts.length === 1 ? '' : 's'} left</span>
           {availableConceptTests.length > 0 && <span><strong className="text-slate-950">{availableConceptTests.length}</strong> concept task{availableConceptTests.length === 1 ? '' : 's'} left</span>}
-          <span className="text-slate-500">{completedProductIds.length + completedConceptIds.length} completed</span>
+          <span className="text-slate-500">{completedProductIds.size + completedConceptIds.size} completed</span>
         </div>
       </header>
 
@@ -67,7 +67,7 @@ export function PanelistDashboard() {
           <div className="mb-3 flex items-end justify-between gap-4">
           <h2 id="tasting-box-heading" className="flex items-center gap-2 text-lg font-bold text-slate-900">
             <PackageCheck className="size-6 text-slate-500" />
-            Your tasting box
+            Assigned tasting tasks
           </h2>
           <p className="text-xs text-slate-500">Complete top to bottom</p>
           </div>
@@ -208,12 +208,12 @@ export function PanelistDashboard() {
                     {!product.isMultiSample ? (
                       <div className="space-y-3">
                         <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                          <p className="text-xs text-slate-700">Editing will update your submitted response. Changes are logged with a new timestamp.</p>
+                          <p className="text-xs text-slate-700">Submitting again creates a new run. Your earlier response remains in the study record.</p>
                         </div>
                         <Link to={`/questionnaire/${product.id}`}>
                           <Button variant="outline" className="w-full border-slate-200 text-slate-700 hover:bg-slate-50">
                             <Edit2 className="size-4 mr-2" />
-                            Edit Response
+                            Add another run
                           </Button>
                         </Link>
                       </div>
@@ -278,8 +278,8 @@ export function PanelistDashboard() {
         <Card className="bg-slate-50">
           <CardContent className="pt-12 pb-12 text-center">
             <ClipboardList className="size-16 text-slate-500 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-slate-700 mb-2">No active tasting tasks</h3>
-            <p className="text-slate-700">If you just scanned a box QR code, refresh once. If tasks still do not appear, use the issue option on the box pass page or contact the study administrator with your box code.</p>
+            <h3 className="text-xl font-bold text-slate-700 mb-2">Your inbox is clear</h3>
+            <p className="text-slate-700">New tasks appear here as soon as the study team assigns a tasting box. Return on any signed-in device; you do not need to scan a QR code.</p>
           </CardContent>
         </Card>
       )}

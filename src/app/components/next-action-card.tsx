@@ -7,7 +7,7 @@ import type { NextAction } from '../lib/project-status';
 interface NextActionCardProps {
   projectName: string;
   action: NextAction;
-  /** When set, the "Next for …" kicker links to the project's Command Center. */
+  /** When set, the "Next for …" kicker links to the project's Data page. */
   projectPath?: string;
   onNavigate?: () => void;
 }

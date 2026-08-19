@@ -60,7 +60,7 @@ function pickNextAction(stages: WorkflowStageSummary[]): WorkflowNextAction {
 
 function overall(stages: WorkflowStageSummary[]) {
   const review = stages.find(item => item.status === 'needs_review');
-  if (review) return { label: `${review.label} needs review`, tone: 'warning' as const };
+  if (review) return { label: `Next: ${review.label}`, tone: 'neutral' as const };
   const ready = stages.find(item => item.status === 'ready');
   if (ready) return { label: `${ready.label} ready`, tone: workflowTone(ready.status) };
   const progress = stages.find(item => item.status === 'in_progress');
@@ -177,13 +177,16 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
     ...multiSampleStudies
       .filter(product => (product.samples?.length ?? 0) < 2)
       .map(product => `${product.name} needs at least two samples. Multi-sample studies require at least two unique samples; add samples or convert it to a single-product study.`),
+    ...activeStudies
+      .filter(product => getProductAssignmentMode(product) === 'unassigned')
+      .map(product => `${product.name} has no panelists assigned. Assign an eligible panel before collecting responses.`),
   ];
   const studiesStatus: WorkflowStageStatus = activeStudies.length === 0
     ? hasEtongue ? 'not_started' : 'blocked'
     : studyWarnings.length > 0 ? 'needs_review' : 'complete';
   const assignmentSummaries = activeStudies.map(product => {
     const mode = getProductAssignmentMode(product);
-    if (mode === 'open') return `${product.name}: Open to all active panelists`;
+    if (mode === 'unassigned') return `${product.name}: No panelists assigned`;
     const count = product.assignedPanelistIds?.length ?? 0;
     return `${product.name}: ${count} assigned panelist${count === 1 ? '' : 's'}`;
   });

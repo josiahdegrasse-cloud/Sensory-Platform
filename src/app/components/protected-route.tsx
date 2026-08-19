@@ -29,7 +29,7 @@ export function ProtectedRoute({ allowedRoles }: { allowedRoles: Role[] }) {
     return <Navigate to="/" replace />;
   }
 
-  if (user.role === 'panelist' && !user.profileCompletedAt && location.pathname !== '/panelist/profile') {
+  if (user.role === 'panelist' && (!user.profileCompletedAt || !user.eligibilityCompletedAt) && location.pathname !== '/panelist/profile') {
     return <Navigate to="/panelist/profile" replace />;
   }
 

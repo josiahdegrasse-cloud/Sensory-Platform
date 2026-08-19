@@ -1,11 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { ENHANCED_SENSORY_DATA } from '../data/enhanced-sensory';
 import { calculateGoStopTweakDecision } from '../utils/go-stop-tweak-engine';
-import { buildTweakDiagnosisRequest, buildTweakEvidenceChain, tweakDiagnosisCacheKey } from './tweak-intelligence';
+import {
+  buildTweakDiagnosisRequest,
+  buildTweakEvidenceChain,
+  filterTweakDisplayWarnings,
+  tweakDiagnosisCacheKey,
+} from './tweak-intelligence';
 
 const weights = { hedonic: 30, texture: 25, cata: 25, emotional: 15 };
 
 describe('tweak intelligence client contract', () => {
+  it('keeps internal verification diagnostics out of the client workplan', () => {
+    expect(filterTweakDisplayWarnings([
+      'Project decision facts were not verified against the tenant database; no product-specific evidence card was produced.',
+      'One cited method needs administrator review.',
+    ])).toEqual(['One cited method needs administrator review.']);
+  });
+
   it('builds a backend diagnosis request from the selected decision and sensory profile', () => {
     const profile = ENHANCED_SENSORY_DATA.find(item => item.sampleId === 'S2');
     expect(profile).toBeTruthy();

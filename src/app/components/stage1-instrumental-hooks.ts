@@ -3,6 +3,10 @@ import { SAMPLES } from '../data/samples';
 import { parseBatchSelection } from '../lib/project-identity';
 import { formatFoodTypeLabel } from '../lib/food-intelligence';
 import {
+  instrumentalComparisonColor,
+  normaliseInstrumentalComparisonSelection,
+} from '../lib/instrumental-comparison';
+import {
   type ChemicalComposition,
   type ETongueMeasurement,
   type GCMSCompound,
@@ -107,7 +111,9 @@ export function useInstrumentalWorkspace({
 
   const activeSelectedSamples = useMemo(() => {
     const availableSampleIds = new Set(filteredETongueData.map(sample => sample.sampleId));
-    const availableSelectedSamples = selectedSamples.filter(sampleId => availableSampleIds.has(sampleId));
+    const availableSelectedSamples = normaliseInstrumentalComparisonSelection(
+      selectedSamples.filter(sampleId => availableSampleIds.has(sampleId)),
+    );
     if (availableSelectedSamples.length > 0) return availableSelectedSamples;
     return filteredETongueData[0] ? [filteredETongueData[0].sampleId] : [];
   }, [filteredETongueData, selectedSamples]);
@@ -218,7 +224,6 @@ export function useInstrumentalChartViewModel({
   const selectedCompositionData = compositionData[selectedSamples[0]] || {};
   const selectedSampleInfo = displayedSamples.find(sample => sample.id === selectedSamples[0]);
   const selectedColor = getPointColor(selectedSampleInfo?.type, selectedSampleInfo?.category);
-  const comparisonColors = ['#9333ea', '#ec4899'];
   const activeFoodTypeLabel = foodType === 'all' ? 'all sample types' : formatFoodTypeLabel(foodType);
   const toFivePointTaste = (value: number) => Math.max(0, Math.min(5, value));
 
@@ -240,7 +245,7 @@ export function useInstrumentalChartViewModel({
           return {
             sampleId,
             name: displayedSamples.find(item => item.id === sampleId)?.name || sampleId,
-            color: comparisonColors[index % comparisonColors.length],
+            color: instrumentalComparisonColor(index),
             dataKey: `sample_${index}`,
             values: {
               Sourness: toFivePointTaste(sample.sourness),

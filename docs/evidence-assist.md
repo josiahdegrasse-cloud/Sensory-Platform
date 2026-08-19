@@ -35,7 +35,8 @@ Important rule: report-writing code must use `ReportSafeEvidenceCard`, never `Ev
 
 - `POST /api/evidence-assist` provides the direct controlled-evidence API.
 - TWEAK diagnosis includes an `evidenceAssist` result alongside its existing response.
-- The professional commercialization-report writer uses safe cards for scientific guidance and stores only safe cards in the report snapshot.
+- The commercialization-report builder retrieves up to three approved, category-relevant literature cards before writing. The administrator reviews the selected source titles, then the on-device writer receives only the report-safe projection.
+- Saved report versions retain the safe guidance cards, a minimal approved-source citation record, and a protected locator used by the authenticated article viewer. Raw excerpts, chunk IDs, retrieval scores, and internal notes are discarded before persistence; the locator is never printed in the report.
 - PDF generation and QC understand the safe-card contract and retain compatibility with older snapshots.
 
 ## Trust boundary and access control
@@ -59,7 +60,7 @@ Set `NFI_EVIDENCE_ASSIST_REPORT_MODE` in the RAG service:
 
 `shadow` is the default. Promote to `enforce` only after staging metrics, category-mismatch results, citation review, and report leakage checks meet the agreed release threshold.
 
-The direct Evidence Assist and TWEAK APIs return their explicit Evidence Assist results in either mode; the rollout setting controls the embedded professional-report writing path.
+The direct Evidence Assist and TWEAK APIs return their explicit Evidence Assist results in either mode. The dashboard report builder uses the direct, review-before-writing path; the rollout setting continues to control the RAG service's legacy embedded professional-report path.
 
 Prometheus metrics expose run counts, accepted cards by source type, rejection reasons, and QC warning counts. They intentionally contain no titles, paths, excerpts, product names, or other source content.
 

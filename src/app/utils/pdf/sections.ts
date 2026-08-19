@@ -453,15 +453,33 @@ function literatureGuidance(citations: LiteratureCitation[]): ScientificContextD
 }
 
 function evidenceAssistGuidance(
-  cards: NonNullable<CommercializationReportSnapshot['evidenceCards']>,
+  input: CommercializationReportPdfInput,
 ): ScientificContextData['guidance'] {
+  const cards = input.snapshot.evidenceCards ?? [];
+  const dimensions = input.reportContext?.dimensions ?? [];
   return cards
     .filter(card => card.claimPermission !== 'product_specific' && card.safeReportLanguage.trim())
-    .map(card => ({
-      title: card.topic.replace(/\b\w/g, character => character.toUpperCase()),
-      guidance: card.safeReportLanguage,
-      citationIds: [card.citationLabel ?? card.id],
-    }))
+    .map(card => {
+      const searchTerms = [...card.appliesTo, card.topic]
+        .flatMap(value => value.toLowerCase().split(/[^a-z0-9]+/))
+        .filter(term => term.length >= 4);
+      const relevantDimension = dimensions
+        .filter(dimension => searchTerms.some(term => `${dimension.key} ${dimension.label}`.toLowerCase().includes(term)))
+        .sort((left, right) => left.score - right.score)[0];
+      const recommendation = card.safeReportLanguage.replace(/^[a-z]/, character => character.toUpperCase()).replace(/\s+$/, '');
+      const projectRationale = relevantDimension
+        ? relevantDimension.score < relevantDimension.threshold
+          ? `${relevantDimension.label} is ${relevantDimension.score.toFixed(0)}/100, below the ${relevantDimension.threshold.toFixed(0)}/100 readiness line.`
+          : `${relevantDimension.label} is ${relevantDimension.score.toFixed(0)}/100 and remains the closest relevant measure to the ${relevantDimension.threshold.toFixed(0)}/100 readiness line.`
+        : card.evidenceUse === 'method_guidance'
+          ? 'This will make the next study easier to compare, audit, and act on.'
+          : 'This closes a named validation gap without treating external research as product proof.';
+      return {
+        title: card.topic.replace(/\b\w/g, character => character.toUpperCase()),
+        guidance: `NFI recommends this as the next validation step: ${recommendation.replace(/[.]?$/, '.')} ${projectRationale}`,
+        citationIds: [card.citationLabel ?? card.id],
+      };
+    })
     .slice(0, 3);
 }
 
@@ -642,7 +660,7 @@ export function buildPerformanceDashboard(input: CommercializationReportPdfInput
     readinessThreshold: reportContext?.thresholds.readiness ?? 60,
     evidenceNote: getEvidenceStrengthNote(snapshot.evidence.responseCount),
     definitions: reportContext
-      ? `Study basis: ${reportContext.dimensions[0]?.population ?? 'sensory panel not documented'}; concept test n=${reportContext.concept.responseCount}. Scores are shown on a 0–100 scale. Evidence caveat: variability and agreement statistics were not included in this report snapshot and should be added to the next validation round.`
+      ? `Study basis: ${reportContext.dimensions[0]?.population ?? 'sensory panel not documented'}; concept test n=${snapshot.evidence.responseCount}. Scores are shown on a 0–100 scale. Evidence caveat: variability and agreement statistics were not included in this report snapshot and should be added to the next validation round.`
       : `Study basis: sensory screening plus concept test n=${snapshot.evidence.responseCount}. Scores are shown on a 0–100 scale. Evidence caveat: variability and agreement statistics were not included in this report snapshot and should be added to the next validation round.`,
   };
 }
@@ -650,7 +668,7 @@ export function buildPerformanceDashboard(input: CommercializationReportPdfInput
 export function buildScientificContext(input: CommercializationReportPdfInput): ScientificContextData {
   const instrumental = input.reportContext?.instrumental;
   const citations = (input.snapshot.literatureCitations ?? []).slice(0, 3);
-  const safeGuidance = evidenceAssistGuidance(input.snapshot.evidenceCards ?? []);
+  const safeGuidance = evidenceAssistGuidance(input);
   return {
     instrumentalAvailable: Boolean(instrumental?.available),
     instrumentalIncludedInDecision: Boolean(instrumental?.includedInDecision),
@@ -658,7 +676,7 @@ export function buildScientificContext(input: CommercializationReportPdfInput): 
       ? instrumental?.absenceNote ?? 'No project instrumental dataset is attached to this saved report version.'
       : instrumental.absenceNote
         ?? (instrumental.includedInDecision
-          ? 'Instrumental findings were included in the deterministic decision context.'
+          ? 'Instrumental findings were included in the current product decision.'
           : 'Instrumental findings provide supporting context and did not independently determine the decision.'),
     findings: (instrumental?.findings ?? []).map(finding => ({
       source: finding.source,
@@ -894,24 +912,24 @@ export function buildCommercializationPlan(input: CommercializationReportPdfInpu
   const actionTiming = (action: typeof productAction, fallback: string) => action?.dueDate
     ? new Date(action.dueDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' })
     : fallback;
-  const accountableFunction = (action: typeof productAction, _fallback: string) => {
+  const accountableFunction = (action: typeof productAction, fallback: string) => {
     const owner = action?.owner?.trim();
     return owner && !/not assigned|readiness gap/i.test(owner)
       ? owner
-      : 'To assign';
+      : fallback;
   };
   const rows = [
     {
-      workstream: 'Pilot manufacturing, product confirmation, and shelf life',
-      rationale: 'Confirm safety, repeatability, and sensory consistency after scale-up.',
-      protocol: 'Run representative packed pilot batches under planned storage; repeat critical sensory and instrumental measures; test HACCP-defined microbiology, physical stability, and blinded sensory acceptability through the proposed end date.',
-      completionEvidence: 'Approved pilot, QC timepoints, and shelf-life report.',
-      passingCriteria: 'Safety and agreed sensory/quality criteria pass through proposed life.',
+      workstream: 'Pilot manufacturing and product confirmation',
+      rationale: 'Confirm repeatability and sensory consistency after scale-up.',
+      protocol: 'Run representative pilot batches; repeat the critical sensory and instrumental measures; confirm process settings, yield, variability, and finished-product specifications.',
+      completionEvidence: 'Approved pilot-batch record and QC report.',
+      passingCriteria: 'Agreed sensory, quality, yield, and process criteria pass on representative pilot batches.',
       owner: accountableFunction(productAction, 'Product + Quality'),
       timing: actionTiming(productAction, 'Next pilot cycle'),
-      budget: 'To scope before approval',
+      budget: 'Not yet costed',
       nextGate: 'Pilot validation',
-      sampleSizeRationale: 'n>=18 is the operational sensory minimum; power the final study to its objective.',
+      sampleSizeRationale: '',
       failureDecision: 'Hold release, correct the failure, and repeat the affected validation.',
     },
     {
@@ -922,9 +940,9 @@ export function buildCommercializationPlan(input: CommercializationReportPdfInpu
       passingCriteria: `Concept n>=30${count >= 30 ? ' (met)' : ''} with documented panel fit; approved benchmark, price, margin, and launch scenarios.`,
       owner: accountableFunction(commercialAction, 'Insights + Commercial'),
       timing: actionTiming(commercialAction, 'Before buyer review'),
-      budget: 'To scope before approval',
+      budget: 'Not yet costed',
       nextGate: 'Investment review',
-      sampleSizeRationale: 'n≥30 is the minimum directional concept read. If the study will support demand forecasting, pricing, or investment decisions, power the sample size to that objective.',
+      sampleSizeRationale: 'Use at least 30 matched consumers for a directional read; use a powered sample for pricing, forecasting, or investment decisions.',
       failureDecision: 'Revise the proposition, price, economics, or channel and repeat the failed gate.',
     },
     {
@@ -935,7 +953,7 @@ export function buildCommercializationPlan(input: CommercializationReportPdfInpu
       passingCriteria: 'Pack tests pass; regulatory, legal, quality, and commercial approve release.',
       owner: accountableFunction(approvalAction, 'Packaging + Regulatory'),
       timing: actionTiming(approvalAction, 'Before external release'),
-      budget: 'To scope before approval',
+      budget: 'Not yet costed',
       nextGate: 'Launch approval',
       sampleSizeRationale: '',
       failureDecision: 'Do not release the affected element until corrected and approved.',
@@ -944,7 +962,7 @@ export function buildCommercializationPlan(input: CommercializationReportPdfInpu
   return {
     intro: 'Three programs close the remaining product, commercial, packaging, regulatory, and approval gaps.',
     rows,
-    decisionGate: 'Move from launch preparation to launch execution only after pilot and shelf-life approval, commercial investment review, and packaging/regulatory launch approval.',
+    decisionGate: 'Move from launch preparation to launch execution only after pilot approval, commercial investment review, and packaging/regulatory launch approval.',
   };
 }
 
@@ -977,13 +995,6 @@ export function buildProductReadiness(input: CommercializationReportPdfInput): P
         requiredEvidence: 'Pilot batch record, process window, yield, variability, and release specifications.',
       },
       {
-        area: 'Shelf life and food safety',
-        status: 'Evidence gap',
-        currentEvidence: 'No representative packed-batch shelf-life study or signed food-safety review is attached.',
-        decisionImpact: 'A use-by or best-before period, storage conditions, and product release cannot yet be authorized.',
-        requiredEvidence: 'Representative packed-batch timepoints through the proposed end date: HACCP-defined microbiology, chemical and physical stability, and blinded sensory acceptability under planned storage.',
-      },
-      {
         area: 'Packaging compatibility',
         status: snapshot.concept.packagingImageUrl ? 'In progress' : 'Evidence gap',
         currentEvidence: snapshot.concept.packagingImageUrl ? 'A directional visual exists; technical pack performance is untested.' : 'No packaging direction or technical specification is attached.',
@@ -998,7 +1009,7 @@ export function buildProductReadiness(input: CommercializationReportPdfInput): P
         requiredEvidence: 'Approved ingredient list, allergen assessment, nutrition panel, legal name, and label review.',
       },
     ],
-    summary: 'The tested product is ready for controlled launch preparation. Production release still requires pilot reproducibility, shelf-life and safety evidence, packaging validation, and regulatory approval.',
+    summary: 'The tested product is ready for controlled launch preparation. Production release still requires pilot reproducibility, packaging validation, and regulatory approval.',
   };
 }
 
@@ -1071,7 +1082,7 @@ export function buildClaimsMatrix(input: CommercializationReportPdfInput): Claim
   const testedConditions = 'Limited to the tested product and study conditions.';
   const directionalRequirement = `Complete target-consumer validation at n>=30 with documented panel fit.`;
   return {
-    intro: 'Client-safe summary: The product may be described as approved for launch preparation based on the tested sensory screen. Consumer preference, demand, price, packaging preference, nutrition, health, or superiority claims are not available until validated and approved.',
+    intro: 'Current release boundary: The product may be described as approved for launch preparation based on the tested sensory screen. Consumer preference, demand, price acceptance, purchase intent, packaging preference, nutrition, health, or superiority claims are not available until validated and approved.',
     rows: [
       {
         claim: 'Product advancement decision',
@@ -1090,20 +1101,12 @@ export function buildClaimsMatrix(input: CommercializationReportPdfInput): Claim
         requirement: 'Repeat at pilot scale before production-performance claims.',
       },
       {
-        claim: 'Consumer preference or demand',
+        claim: 'Consumer demand, price, and purchase intent',
         scope: 'External claim',
         status: conceptN >= 30 ? 'Directional' : 'Blocked',
-        evidence: `Concept test n=${conceptN}.`,
-        permittedWording: conceptN >= 30 ? 'Directional target-consumer response in the tested panel.' : 'No external preference or demand wording.',
-        requirement: directionalRequirement,
-      },
-      {
-        claim: 'Price acceptance and purchase intent',
-        scope: 'External claim',
-        status: conceptN >= 30 ? 'Directional' : 'Blocked',
-        evidence: conceptN > 0 ? `Purchase-intent observations exist at n=${conceptN}; price representativeness is not established.` : 'Not collected.',
-        permittedWording: conceptN >= 30 ? 'Directional result with price stimulus and panel definition.' : 'No external price or purchase-intent wording.',
-        requirement: directionalRequirement,
+        evidence: conceptN > 0 ? `Concept and purchase-intent observations exist at n=${conceptN}; market and price representativeness are not established.` : 'No concept, price, or purchase-intent evidence is available.',
+        permittedWording: conceptN >= 30 ? 'Directional target-consumer response with the tested price stimulus and panel definition.' : 'No external demand, price-acceptance, or purchase-intent wording.',
+        requirement: `${directionalRequirement} Use a realistic price and pack stimulus.`,
       },
       {
         claim: 'Packaging preference',
@@ -1133,7 +1136,7 @@ export function buildRisks(input: CommercializationReportPdfInput): RisksData {
   const { snapshot, reportContext: ctx } = input;
   const count = snapshot.evidence.responseCount;
   const productRisk = snapshot.decision.prescriptions[0]?.action
-    ?? `Protect texture performance (${snapshot.decision.dimensions.texture.toFixed(0)}/100), flavour stability, and batch consistency through pilot processing and shelf life.`;
+    ?? `Protect texture performance (${snapshot.decision.dimensions.texture.toFixed(0)}/100), flavour stability, and batch consistency through pilot processing.`;
   return {
     intro: 'These are the issues most likely to change the commercial decision, weaken the buyer story, or delay launch readiness.',
     rows: [
@@ -1249,13 +1252,13 @@ export function buildAppendix(input: CommercializationReportPdfInput): AppendixD
 
 export const reportPageHeadings = [
   'PRODUCT DECISION: GO',
-  'The product clears the GO threshold and all critical product gates',
-  'All four sensory dimensions clear the readiness line',
-  'Instrumental evidence supports the decision and directs the next controls',
-  'Product readiness: sensory GO, production release pending',
+  'Decision basis, evidence strength, and product gates',
+  'Sensory performance against the readiness line',
+  'Instrumental evidence, scientific guidance, and product risk',
+  'Product readiness: sensory GO, technical checks pending',
   'The proposition is defined; market proof and economics remain open',
   'Three workstreams convert product GO into launch readiness',
-  'Two claims are supported; four remain unavailable for release',
+  'Claims release status by evidence level',
 ] as const;
 
 export const reportStrengthTone = strengthTone;

@@ -35,6 +35,7 @@ import { buildEvidenceBundleFromProfiles } from '../lib/report-evidence';
 import type { DecisionOutcome } from "../utils/go-stop-tweak-engine";
 import { DecisionRagPreloader } from './decision-rag-preloader';
 import { WorkflowLoadingState, WorkflowQueryErrorState } from './workflow-loading-state';
+import { buildConsumerBriefSuggestions } from './concept-testing/consumer-brief-defaults';
 type SampleDecision = GoStopTweakDecision;
 type ConfirmedSampleDecision = SampleDecision & {
   recordId?: string | null;
@@ -65,6 +66,11 @@ function buildConceptSeedFromDecision(
     : foodProfile.successMarkers.slice(0, 4);
   const marketCues = likedSignals.length ? titleList(likedSignals) : titleList(foodProfile.successMarkers.slice(0, 4));
   const category = foodLabel ?? foodProfile.label;
+  const consumerBrief = buildConsumerBriefSuggestions({
+    name: decision.sampleName,
+    category,
+    sensorySignals: likedSignals,
+  });
   const decisionWatchouts = decision.gates
     .filter(gate => gate.status === 'watch' || gate.status === 'fail')
     .map(gate => `${gate.label}: ${gate.detail}`)
@@ -84,22 +90,18 @@ function buildConceptSeedFromDecision(
   return {
     name: decision.sampleName,
     category,
-    description: likedSignals.length > 0
-      ? `${category} built around ${likedSignals.slice(0, 3).join(', ')} for an easy-to-understand consumer experience.`
-      : `${category} concept grounded in the confirmed product decision and intended use occasion.`,
+    description: consumerBrief.promise,
     productAppearance: `Make ${decision.sampleName} look true to the ${category.toLowerCase()} category, with appetizing texture and visible cues for ${marketCues}.`,
     packageFormat: 'Retail-ready pack with clear product name, category recognition, and a believable serving suggestion.',
-    targetMarket: /cashew.*cream cheese/i.test(decision.sampleName)
-      ? 'Flexitarian and plant-curious shoppers looking for a familiar, creamy chilled spread.'
-      : `${category} shoppers looking for a familiar product experience grounded in the validated sensory profile.`,
-    targetOccasion: 'Everyday use occasion where the strongest liked cues are immediately relevant.',
+    targetMarket: consumerBrief.audience,
+    targetOccasion: consumerBrief.occasions[0] ?? '',
     visualSetting: 'Clean retail or kitchen setting that makes the product quality easy to judge.',
     colorDirection: 'Use a commercial palette that supports the strongest liked sensory cues without overclaiming.',
     mustShow: `Product name, category cue, serving suggestion, and visual support for ${marketCues}.`,
-    keyBenefits: marketCues,
+    keyBenefits: consumerBrief.proofCues.join(', '),
     technicalChallenges: `Decision evidence (read-only): ${evidencePositioning}`,
     sourceDecision: {
-      id: decision.sampleId,
+      id: decision.recordId ?? decision.sampleId,
       sampleId: decision.sampleId,
       sampleName: decision.sampleName,
       issfScore: decision.issfScore,
@@ -283,7 +285,7 @@ export function Stage4Enhanced() {
           icon={GitMerge}
           headline={awaitingResponses ? 'Questionnaires are live — waiting on panelist responses' : 'Create questionnaires from the imported data first'}
           description={awaitingResponses
-            ? `${readiness.withQuestionnaire} questionnaire${readiness.withQuestionnaire === 1 ? '' : 's'} ${readiness.withQuestionnaire === 1 ? 'has' : 'have'} been created and sent to panelists. ISSF scores a sample once it reaches ${minimumResponses} completed responses — ${readiness.totalResponses} response${readiness.totalResponses === 1 ? '' : 's'} collected so far.`
+            ? `${readiness.withQuestionnaire} questionnaire${readiness.withQuestionnaire === 1 ? '' : 's'} ${readiness.withQuestionnaire === 1 ? 'has' : 'have'} been created. Drafts must pass safety, assignment, preview, and launch before panelists can respond. ISSF scores a sample once it reaches ${minimumResponses} completed responses — ${readiness.totalResponses} response${readiness.totalResponses === 1 ? '' : 's'} collected so far.`
             : `${activeLabel} is in the platform. The next step is turning those imported machine samples into panelist questionnaires, then ISSF can score the responses.`}
           stats={[
             { value: importedSamples.length, label: 'machine samples ready' },

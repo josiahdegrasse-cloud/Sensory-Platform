@@ -728,6 +728,91 @@ export type Database = {
           },
         ]
       }
+      concept_workspace_drafts: {
+        Row: {
+          created_at: string
+          created_by: string
+          current_step: string
+          decision_record_id: string
+          draft_payload: Json
+          evidence_bundle_id: string
+          formulation_version_id: string | null
+          id: string
+          org_id: string
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          current_step?: string
+          decision_record_id: string
+          draft_payload?: Json
+          evidence_bundle_id: string
+          formulation_version_id?: string | null
+          id?: string
+          org_id: string
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          current_step?: string
+          decision_record_id?: string
+          draft_payload?: Json
+          evidence_bundle_id?: string
+          formulation_version_id?: string | null
+          id?: string
+          org_id?: string
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "concept_workspace_drafts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concept_workspace_drafts_decision_record_id_fkey"
+            columns: ["decision_record_id"]
+            isOneToOne: false
+            referencedRelation: "decision_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concept_workspace_drafts_evidence_bundle_id_fkey"
+            columns: ["evidence_bundle_id"]
+            isOneToOne: false
+            referencedRelation: "evidence_bundles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concept_workspace_drafts_formulation_version_id_fkey"
+            columns: ["formulation_version_id"]
+            isOneToOne: false
+            referencedRelation: "formulation_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concept_workspace_drafts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concept_workspace_drafts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       decision_records: {
         Row: {
           confidence: number
@@ -2141,6 +2226,114 @@ export type Database = {
         }
         Relationships: []
       }
+      panelist_eligibility_profiles: {
+        Row: {
+          adult_confirmed_at: string
+          allergen_avoidances: string[]
+          annual_income_range: string | null
+          birth_month: number
+          birth_year: number
+          category_usage_frequency: string | null
+          children_in_household: boolean | null
+          created_at: string
+          declaration_confirmed_at: string
+          declaration_expires_at: string
+          dietary_other: string | null
+          dietary_pattern: string | null
+          ethnicity: string | null
+          gender: string | null
+          gender_self_description: string | null
+          grocery_role: string | null
+          health_consent_at: string
+          health_consent_version: string
+          household_size: number | null
+          household_size_prefer_not_to_say: boolean
+          nationality_code: string | null
+          occupation_group: string | null
+          org_id: string
+          other_avoidances: string[]
+          panelist_id: string
+          smoker_status: string | null
+          updated_at: string
+          weekly_food_spend: string | null
+        }
+        Insert: {
+          adult_confirmed_at: string
+          allergen_avoidances?: string[]
+          annual_income_range?: string | null
+          birth_month: number
+          birth_year: number
+          category_usage_frequency?: string | null
+          children_in_household?: boolean | null
+          created_at?: string
+          declaration_confirmed_at: string
+          declaration_expires_at: string
+          dietary_other?: string | null
+          dietary_pattern?: string | null
+          ethnicity?: string | null
+          gender?: string | null
+          gender_self_description?: string | null
+          grocery_role?: string | null
+          health_consent_at: string
+          health_consent_version: string
+          household_size?: number | null
+          household_size_prefer_not_to_say?: boolean
+          nationality_code?: string | null
+          occupation_group?: string | null
+          org_id: string
+          other_avoidances?: string[]
+          panelist_id: string
+          smoker_status?: string | null
+          updated_at?: string
+          weekly_food_spend?: string | null
+        }
+        Update: {
+          adult_confirmed_at?: string
+          allergen_avoidances?: string[]
+          annual_income_range?: string | null
+          birth_month?: number
+          birth_year?: number
+          category_usage_frequency?: string | null
+          children_in_household?: boolean | null
+          created_at?: string
+          declaration_confirmed_at?: string
+          declaration_expires_at?: string
+          dietary_other?: string | null
+          dietary_pattern?: string | null
+          ethnicity?: string | null
+          gender?: string | null
+          gender_self_description?: string | null
+          grocery_role?: string | null
+          health_consent_at?: string
+          health_consent_version?: string
+          household_size?: number | null
+          household_size_prefer_not_to_say?: boolean
+          nationality_code?: string | null
+          occupation_group?: string | null
+          org_id?: string
+          other_avoidances?: string[]
+          panelist_id?: string
+          smoker_status?: string | null
+          updated_at?: string
+          weekly_food_spend?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "panelist_eligibility_profiles_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "panelist_eligibility_profiles_panelist_id_fkey"
+            columns: ["panelist_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       panelist_kit_events: {
         Row: {
           actor_id: string | null
@@ -2447,6 +2640,7 @@ export type Database = {
           source_sample_id: string | null
           status: string
           status_before_archive: string | null
+          survey_sections: string[]
         }
         Insert: {
           assigned_panelist_ids?: string[] | null
@@ -2468,6 +2662,7 @@ export type Database = {
           source_sample_id?: string | null
           status?: string
           status_before_archive?: string | null
+          survey_sections?: string[]
         }
         Update: {
           assigned_panelist_ids?: string[] | null
@@ -2489,6 +2684,7 @@ export type Database = {
           source_sample_id?: string | null
           status?: string
           status_before_archive?: string | null
+          survey_sections?: string[]
         }
         Relationships: [
           {
@@ -2531,6 +2727,7 @@ export type Database = {
           consent_version: string | null
           country: string | null
           created_at: string | null
+          eligibility_completed_at: string | null
           email: string | null
           id: string
           name: string | null
@@ -2553,6 +2750,7 @@ export type Database = {
           consent_version?: string | null
           country?: string | null
           created_at?: string | null
+          eligibility_completed_at?: string | null
           email?: string | null
           id: string
           name?: string | null
@@ -2575,6 +2773,7 @@ export type Database = {
           consent_version?: string | null
           country?: string | null
           created_at?: string | null
+          eligibility_completed_at?: string | null
           email?: string | null
           id?: string
           name?: string | null
@@ -2896,6 +3095,116 @@ export type Database = {
           },
         ]
       }
+      response_demographic_snapshots: {
+        Row: {
+          age_band: string
+          age_years: number | null
+          annual_income_range: string | null
+          captured_at: string
+          category_usage_frequency: string | null
+          children_in_household: boolean | null
+          concept_response_id: string | null
+          dietary_other: string | null
+          dietary_pattern: string | null
+          ethnicity: string | null
+          gender: string | null
+          gender_self_description: string | null
+          grocery_role: string | null
+          household_size: number | null
+          household_size_prefer_not_to_say: boolean
+          id: string
+          nationality_code: string | null
+          occupation_group: string | null
+          org_id: string
+          panelist_id: string
+          region: string | null
+          response_id: string | null
+          smoker_status: string | null
+          weekly_food_spend: string | null
+        }
+        Insert: {
+          age_band: string
+          age_years?: number | null
+          annual_income_range?: string | null
+          captured_at?: string
+          category_usage_frequency?: string | null
+          children_in_household?: boolean | null
+          concept_response_id?: string | null
+          dietary_other?: string | null
+          dietary_pattern?: string | null
+          ethnicity?: string | null
+          gender?: string | null
+          gender_self_description?: string | null
+          grocery_role?: string | null
+          household_size?: number | null
+          household_size_prefer_not_to_say?: boolean
+          id?: string
+          nationality_code?: string | null
+          occupation_group?: string | null
+          org_id: string
+          panelist_id: string
+          region?: string | null
+          response_id?: string | null
+          smoker_status?: string | null
+          weekly_food_spend?: string | null
+        }
+        Update: {
+          age_band?: string
+          age_years?: number | null
+          annual_income_range?: string | null
+          captured_at?: string
+          category_usage_frequency?: string | null
+          children_in_household?: boolean | null
+          concept_response_id?: string | null
+          dietary_other?: string | null
+          dietary_pattern?: string | null
+          ethnicity?: string | null
+          gender?: string | null
+          gender_self_description?: string | null
+          grocery_role?: string | null
+          household_size?: number | null
+          household_size_prefer_not_to_say?: boolean
+          id?: string
+          nationality_code?: string | null
+          occupation_group?: string | null
+          org_id?: string
+          panelist_id?: string
+          region?: string | null
+          response_id?: string | null
+          smoker_status?: string | null
+          weekly_food_spend?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "response_demographic_snapshots_concept_response_id_fkey"
+            columns: ["concept_response_id"]
+            isOneToOne: true
+            referencedRelation: "concept_responses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "response_demographic_snapshots_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "response_demographic_snapshots_panelist_id_fkey"
+            columns: ["panelist_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "response_demographic_snapshots_response_id_fkey"
+            columns: ["response_id"]
+            isOneToOne: true
+            referencedRelation: "responses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       responses: {
         Row: {
           cata_attributes: Json | null
@@ -2964,6 +3273,99 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sample_allergen_declarations: {
+        Row: {
+          contains_allergens: string[]
+          created_at: string
+          created_by: string | null
+          formulation_version_id: string | null
+          id: string
+          ingredient_statement: string | null
+          is_current: boolean
+          may_contain_allergens: string[]
+          org_id: string
+          other_allergens: string[]
+          product_id: string | null
+          status: string
+          updated_at: string
+          verified_at: string | null
+          verified_by: string | null
+          version: number
+        }
+        Insert: {
+          contains_allergens?: string[]
+          created_at?: string
+          created_by?: string | null
+          formulation_version_id?: string | null
+          id?: string
+          ingredient_statement?: string | null
+          is_current?: boolean
+          may_contain_allergens?: string[]
+          org_id: string
+          other_allergens?: string[]
+          product_id?: string | null
+          status?: string
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+          version: number
+        }
+        Update: {
+          contains_allergens?: string[]
+          created_at?: string
+          created_by?: string | null
+          formulation_version_id?: string | null
+          id?: string
+          ingredient_statement?: string | null
+          is_current?: boolean
+          may_contain_allergens?: string[]
+          org_id?: string
+          other_allergens?: string[]
+          product_id?: string | null
+          status?: string
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sample_allergen_declarations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sample_allergen_declarations_formulation_version_id_fkey"
+            columns: ["formulation_version_id"]
+            isOneToOne: false
+            referencedRelation: "formulation_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sample_allergen_declarations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sample_allergen_declarations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sample_allergen_declarations_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -3286,18 +3688,73 @@ export type Database = {
           sample_code: string
         }[]
       }
-      complete_panelist_profile: {
+      complete_panelist_eligibility_profile: {
         Args: {
           p_address_line_1: string
-          p_address_line_2?: string
-          p_city?: string
-          p_consent_user_agent?: string
-          p_consent_version?: string
-          p_country?: string
+          p_address_line_2: string
+          p_allergen_avoidances: string[]
+          p_annual_income_range?: string
+          p_birth_month: number
+          p_birth_year: number
+          p_category_usage_frequency?: string
+          p_children_in_household?: boolean
+          p_city: string
+          p_consent_user_agent: string
+          p_consent_version: string
+          p_country: string
+          p_dietary_other?: string
+          p_dietary_pattern?: string
+          p_ethnicity?: string
+          p_gender?: string
+          p_gender_self_description?: string
+          p_grocery_role?: string
+          p_health_consent_version: string
+          p_household_size?: number
+          p_household_size_prefer_not_to_say?: boolean
           p_name: string
+          p_nationality_code?: string
+          p_occupation_group?: string
+          p_other_avoidances: string[]
           p_phone: string
-          p_postal_code?: string
-          p_region?: string
+          p_postal_code: string
+          p_region: string
+          p_smoker_status?: string
+          p_weekly_food_spend?: string
+        }
+        Returns: undefined
+      }
+      complete_panelist_eligibility_profile_v2: {
+        Args: {
+          p_address_line_1: string
+          p_address_line_2: string
+          p_allergen_avoidances: string[]
+          p_annual_income_range?: string
+          p_birth_month: number
+          p_birth_year: number
+          p_category_usage_frequency?: string
+          p_children_in_household?: boolean
+          p_city: string
+          p_consent_user_agent: string
+          p_consent_version: string
+          p_country: string
+          p_dietary_other?: string
+          p_dietary_pattern?: string
+          p_ethnicity?: string
+          p_gender?: string
+          p_gender_self_description?: string
+          p_grocery_role?: string
+          p_health_consent_version: string
+          p_household_size?: number
+          p_household_size_prefer_not_to_say?: boolean
+          p_name: string
+          p_nationality_code?: string
+          p_occupation_group?: string
+          p_other_avoidances: string[]
+          p_phone: string
+          p_postal_code: string
+          p_region: string
+          p_smoker_status?: string
+          p_weekly_food_spend?: string
         }
         Returns: undefined
       }
@@ -3565,6 +4022,38 @@ export type Database = {
           reason: string
         }[]
       }
+      get_own_panelist_profile_setup: {
+        Args: never
+        Returns: {
+          address_line_1: string
+          address_line_2: string
+          allergen_avoidances: string[]
+          annual_income_range: string
+          birth_month: number
+          birth_year: number
+          category_usage_frequency: string
+          children_in_household: boolean
+          city: string
+          country: string
+          dietary_other: string
+          dietary_pattern: string
+          ethnicity: string
+          gender: string
+          gender_self_description: string
+          grocery_role: string
+          household_size: number
+          household_size_prefer_not_to_say: boolean
+          name: string
+          nationality_code: string
+          occupation_group: string
+          other_avoidances: string[]
+          phone: string
+          postal_code: string
+          region: string
+          smoker_status: string
+          weekly_food_spend: string
+        }[]
+      }
       get_panelist_kit_by_manual_code: {
         Args: { p_manual_code: string }
         Returns: {
@@ -3603,6 +4092,21 @@ export type Database = {
           sample_code: string
         }[]
       }
+      get_panelist_safety_declaration: {
+        Args: { target_panelist_id: string }
+        Returns: {
+          adult_confirmed_at: string
+          age_band: string
+          allergen_avoidances: string[]
+          declaration_confirmed_at: string
+          declaration_expires_at: string
+          health_consent_at: string
+          health_consent_version: string
+          other_avoidances: string[]
+          panelist_id: string
+          updated_at: string
+        }[]
+      }
       get_public_workspace_config: {
         Args: { org_slug?: string }
         Returns: {
@@ -3631,6 +4135,106 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
       is_platform_operator: { Args: never; Returns: boolean }
       is_public_email_domain: { Args: { p_domain: string }; Returns: boolean }
+      list_eligible_panelists: {
+        Args: { p_formulation_version_id?: string; p_product_id?: string }
+        Returns: {
+          age_band: string
+          age_years: number
+          annual_income_range: string
+          category_usage_frequency: string
+          children_in_household: boolean
+          completed_count: number
+          dietary_other: string
+          dietary_pattern: string
+          email: string
+          ethnicity: string
+          gender: string
+          gender_self_description: string
+          grocery_role: string
+          household_size: number
+          household_size_prefer_not_to_say: boolean
+          id: string
+          name: string
+          nationality_code: string
+          occupation_group: string
+          panelist_id: string
+          region: string
+          smoker_status: string
+          weekly_food_spend: string
+        }[]
+      }
+      list_eligible_panelists_for_products: {
+        Args: { p_product_ids: string[] }
+        Returns: {
+          age_band: string
+          age_years: number
+          annual_income_range: string
+          category_usage_frequency: string
+          children_in_household: boolean
+          completed_count: number
+          dietary_other: string
+          dietary_pattern: string
+          email: string
+          ethnicity: string
+          gender: string
+          gender_self_description: string
+          grocery_role: string
+          household_size: number
+          household_size_prefer_not_to_say: boolean
+          id: string
+          name: string
+          nationality_code: string
+          occupation_group: string
+          panelist_id: string
+          region: string
+          smoker_status: string
+          weekly_food_spend: string
+        }[]
+      }
+      list_panelist_directory: {
+        Args: never
+        Returns: {
+          address_line_1: string
+          address_line_2: string
+          age_band: string
+          age_years: number
+          annual_income_range: string
+          category_usage_frequency: string
+          children_in_household: boolean
+          city: string
+          completed_count: number
+          consent_accepted_at: string
+          consent_version: string
+          country: string
+          declaration_confirmed_at: string
+          declaration_expires_at: string
+          dietary_other: string
+          dietary_pattern: string
+          eligibility_completed_at: string
+          email: string
+          ethnicity: string
+          gender: string
+          gender_self_description: string
+          grocery_role: string
+          household_size: number
+          household_size_prefer_not_to_say: boolean
+          id: string
+          last_activity_at: string
+          name: string
+          nationality_code: string
+          occupation_group: string
+          panelist_id: string
+          phone: string
+          postal_code: string
+          profile_completed_at: string
+          region: string
+          research_profile_updated_at: string
+          smoker_status: string
+          status: string
+          training_level: string
+          weekly_food_spend: string
+        }[]
+      }
       list_panelist_kits: {
         Args: { target_product_id: string }
         Returns: {
@@ -3691,6 +4295,18 @@ export type Database = {
         Returns: undefined
       }
       org_id_for_email: { Args: { p_email: string }; Returns: string }
+      panelist_ethnicity_group: {
+        Args: { p_ethnicity: string }
+        Returns: string
+      }
+      panelist_is_eligible_for_sample: {
+        Args: {
+          p_formulation_version_id?: string
+          p_panelist_id: string
+          p_product_id?: string
+        }
+        Returns: boolean
+      }
       panelist_kit_token_hash: { Args: { p_token: string }; Returns: string }
       platform_provision_organization: {
         Args: {
@@ -3721,6 +4337,37 @@ export type Database = {
       record_panelist_kit_reminder: {
         Args: { p_reason?: string; target_kit_id: string }
         Returns: undefined
+      }
+      replace_product_panelist_assignments: {
+        Args: { p_panelist_ids: string[]; p_product_ids: string[] }
+        Returns: {
+          assigned_panelist_ids: string[] | null
+          blind_code: string | null
+          blinded: boolean
+          category: string
+          created_at: string | null
+          custom_attributes: Json | null
+          id: string
+          instrumental_sample_id: string | null
+          is_calibration: boolean
+          is_multi_sample: boolean | null
+          name: string
+          org_id: string | null
+          project_id: string | null
+          reference_scores: Json | null
+          samples: Json | null
+          source_import_batch_id: string | null
+          source_sample_id: string | null
+          status: string
+          status_before_archive: string | null
+          survey_sections: string[]
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "products"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       report_panelist_kit_issue: {
         Args: {
@@ -3802,6 +4449,18 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      save_sample_allergen_declaration: {
+        Args: {
+          p_contains_allergens?: string[]
+          p_formulation_version_id?: string
+          p_ingredient_statement?: string
+          p_may_contain_allergens?: string[]
+          p_other_allergens?: string[]
+          p_product_id?: string
+          p_verify?: boolean
+        }
+        Returns: string
       }
       set_food_type_status: {
         Args: { next_status: string; target_slug: string }

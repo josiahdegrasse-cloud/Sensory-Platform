@@ -42,12 +42,43 @@ describe('concept workflow smart defaults', () => {
   it('builds a balanced, reviewable survey from a seeded concept', () => {
     const questions = buildTailoredConceptQuestions(draft);
 
-    expect(questions.length).toBeGreaterThanOrEqual(5);
+    expect(questions.length).toBe(13);
     expect(questions.some(question => question.text.includes('Everyday Melt'))).toBe(true);
     expect(questions.some(question => /claim|claimed|pack claim|benefits and claims/i.test(question.text))).toBe(false);
     expect(questions.some(question => question.category === 'purchase')).toBe(true);
     expect(questions.some(question => question.category === 'attributes')).toBe(true);
     expect(questions.every(question => question.text.trim().length > 0)).toBe(true);
+  });
+
+  it('rates each selected visual before asking panelists to choose a winner', () => {
+    const questions = buildTailoredConceptQuestions(draft);
+    const visualRatings = questions.filter(question => question.imageIndex !== undefined);
+    const winnerIndex = questions.findIndex(question => question.type === 'image_choice');
+
+    expect(visualRatings).toHaveLength(2);
+    expect(visualRatings.map(question => question.imageIndex)).toEqual([0, 1]);
+    expect(visualRatings.every(question => question.type === 'scale' && question.required)).toBe(true);
+    expect(winnerIndex).toBeGreaterThan(questions.findIndex(question => question.id === visualRatings[1].id));
+  });
+
+  it('uses food-aware cues and occasions without generic demographics or duplicate purchase questions', () => {
+    const questions = buildTailoredConceptQuestions(draft);
+    const cues = questions.find(question => question.id === 'q_tailored_visual_cues');
+    const usage = questions.find(question => question.id === 'q_tailored_usage_1');
+
+    expect(cues?.options).toEqual(expect.arrayContaining(['Creamy', 'Cheesy', 'None of these']));
+    expect(usage?.options).toEqual(expect.arrayContaining(['Sandwiches or wraps', 'Cooking or melting']));
+    expect(questions.filter(question => question.category === 'demographics')).toHaveLength(0);
+    expect(questions.filter(question => question.id.startsWith('q_tailored_purchase_'))).toHaveLength(1);
+  });
+
+  it('only asks about price when both a concrete price and pack description are available', () => {
+    const priced = buildTailoredConceptQuestions(draft);
+    const unpriced = buildTailoredConceptQuestions({ ...draft, packageFormat: '', variantDimensions: { ...EMPTY_VARIANT_DIMENSIONS } });
+
+    expect(priced.find(question => question.category === 'price')?.text).toContain('$5.99');
+    expect(priced.find(question => question.category === 'price')?.text).toContain('Resealable 7 oz pouch');
+    expect(unpriced.some(question => question.category === 'price')).toBe(false);
   });
 
   it('keeps fallback templates clear of claim-specific wording', () => {

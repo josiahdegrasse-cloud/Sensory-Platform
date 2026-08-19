@@ -1,0 +1,5 @@
+sampleId,sampleName,ingredientStatement,foodType,category,sourness,bitterness,saltiness,umami,sweetness,compound,concentration,aroma,threshold,protein,fat,moisture,pH,saltContent,calciumMg
+CHOC-001,70% Dark Chocolate Control,"Cocoa mass, sugar, cocoa butter, sunflower lecithin",Chocolate,Dark chocolate,2.1,6.8,0.5,1.2,4.2,Pyrazine,1.35,Roasted cocoa,0.10,7.8,42.5,1.2,5.45,0.03,55
+CHOC-002,70% Dark Chocolate Reduced Sugar,"Cocoa mass, cocoa butter, chicory fibre, erythritol, sunflower lecithin",Chocolate,Dark chocolate,2.4,7.4,0.6,1.4,2.8,Acetic acid,2.10,Sharp acidic,0.20,8.2,44.1,1.4,5.20,0.04,61
+CHOC-003,Oat Milk Chocolate Prototype,"Sugar, cocoa butter, oat powder, cocoa mass, sunflower lecithin, vanilla",Chocolate,Milk-style chocolate,1.3,3.2,0.7,1.0,7.1,Vanillin,0.85,Vanilla sweet,0.05,6.1,38.7,1.8,6.05,0.08,92
+CHOC-004,Hazelnut Chocolate Prototype,"Sugar, cocoa mass, hazelnuts, cocoa butter, sunflower lecithin",Chocolate,Nut chocolate,1.5,4.1,0.6,1.3,6.3,2-Methylpyrazine,1.62,Roasted nutty,0.08,9.4,46.8,1.3,5.80,0.05,74

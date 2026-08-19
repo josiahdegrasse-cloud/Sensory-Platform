@@ -16,6 +16,7 @@ export interface User {
   consentAcceptedAt?: string | null;
   consentVersion?: string | null;
   profileCompletedAt?: string | null;
+  eligibilityCompletedAt?: string | null;
 }
 
 interface AuthContextType {
@@ -66,6 +67,7 @@ const PROFILE_WITH_ORGANIZATION_SELECT = `
   consent_accepted_at,
   consent_version,
   profile_completed_at,
+  eligibility_completed_at,
   organization:organizations!profiles_org_id_fkey(id, slug, status)
 ` as const;
 
@@ -139,6 +141,7 @@ async function loadProfile(supabaseUser: SupabaseUser): Promise<ProfileResult> {
       consentAcceptedAt: data.consent_accepted_at ?? null,
       consentVersion: data.consent_version ?? null,
       profileCompletedAt: data.profile_completed_at ?? null,
+      eligibilityCompletedAt: data.eligibility_completed_at ?? null,
     },
     blockedMessage: null,
   };

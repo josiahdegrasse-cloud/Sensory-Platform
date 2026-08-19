@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { ragFetch } from './rag-client';
+import { openResearchSource, ragFetch } from './rag-client';
 import type { Database } from './db/database.types';
 
 const MAX_PDF_BYTES = 50 * 1024 * 1024;
@@ -174,10 +174,5 @@ export async function uploadLiteratureBatch(file: File, onProgress?: LiteratureU
 }
 
 export async function openStoredLiteratureSource(sourcePath: string): Promise<void> {
-  const prefix = 'supabase://literature-imports/';
-  if (!sourcePath.startsWith(prefix)) throw new Error('This publication is not stored in the literature upload bucket.');
-  const storagePath = sourcePath.slice(prefix.length);
-  const { data, error } = await supabase.storage.from('literature-imports').createSignedUrl(storagePath, 300);
-  if (error) throw error;
-  window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  await openResearchSource({ sourcePath, title: sourcePath.split('/').pop() || 'Publication' });
 }

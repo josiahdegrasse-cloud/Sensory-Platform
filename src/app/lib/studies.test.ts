@@ -78,7 +78,8 @@ describe('study summary adapters', () => {
     expect(summary.completedCount).toBe(1);
     expect(summary.invitedCount).toBe(1);
     expect(summary.responseProgressLabel).toBe('1/1 complete');
-    expect(summary.openToAll).toBe(true);
+    expect(summary.openToAll).toBe(false);
+    expect(summary.assignmentLabel).toBe('No panelists assigned');
     expect(summary.previewPath).toBe('/questionnaire-info/prod-1');
     expect(summary.sourceImportBatchName).toBe('cheddar.csv');
   });

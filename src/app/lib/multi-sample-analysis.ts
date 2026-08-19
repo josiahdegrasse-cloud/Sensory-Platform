@@ -2,7 +2,7 @@ export interface MultiSampleDataPoint {
   sampleCode: string;
   cataAttributes: string[];
   intensityRatings: Record<string, number>;
-  hedonicScores: { overall: number; [key: string]: number };
+  hedonicScores: Partial<{ overall: number; [key: string]: number }>;
   emotionalProfile: Record<string, number>;
 }
 

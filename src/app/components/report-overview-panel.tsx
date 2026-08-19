@@ -84,7 +84,7 @@ export function ReportOverviewPanel({
     id: citation.id,
     title: citation.title,
     excerpt: citation.excerpt,
-    sourcePath: citation.source,
+    sourcePath: citation.sourcePath ?? citation.source,
   }));
   const appendixIntensity = matchingLiveSensory && Object.keys(matchingLiveSensory.intensity).length > 0
     ? { scale: 5, entries: Object.entries(matchingLiveSensory.intensity).slice(0, 5).map(([label, value]) => ({ label, value: value as number, max: 5 })) }

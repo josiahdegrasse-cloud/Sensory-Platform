@@ -12,7 +12,7 @@ vi.mock('../supabase', () => ({
   },
 }));
 
-import { fetchImportBatches, insertInstrumentalImport, updateIngredientStatement } from './imports';
+import { createSurveysForImportBatch, fetchImportBatches, insertInstrumentalImport, updateIngredientStatement } from './imports';
 
 function queryResult(result: { data: unknown[] | null; error: { message: string } | null }) {
   return {
@@ -64,7 +64,7 @@ describe('fetchImportBatches', () => {
     expect(dbMocks.from).toHaveBeenCalledTimes(2);
   });
 
-  it('creates missing surveys from parsed CSV samples when saved samples are not returned', async () => {
+  it('keeps imports data-only until an administrator sends surveys', async () => {
     const insertedRows: unknown[] = [];
     dbMocks.rpc.mockResolvedValue({ data: 'batch-1', error: null });
     dbMocks.from.mockImplementation((table: string) => {
@@ -158,20 +158,75 @@ describe('fetchImportBatches', () => {
       ]),
     }));
 
+    expect(insertedRows).toEqual([]);
+  });
+
+  it('creates unassigned private drafts before exact-sample allergen verification', async () => {
+    const insertedRows: Array<Record<string, unknown>> = [];
+    dbMocks.from.mockImplementation((table: string) => {
+      if (table === 'import_batches') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: { id: 'batch-1', project_id: 'project-1', food_types: { label: 'Chocolate' } },
+                error: null,
+              }),
+            })),
+          })),
+        };
+      }
+      if (table === 'instrumental_samples') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockResolvedValue({
+              data: [
+                { sample_id: 'CHOC-1', sample_name: 'Dark control', category: 'Dark chocolate', project_id: 'project-1' },
+                { sample_id: 'CHOC-2', sample_name: 'Oat prototype', category: 'Milk-style chocolate', project_id: 'project-1' },
+              ],
+              error: null,
+            }),
+          })),
+        };
+      }
+      if (table === 'products') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          })),
+          insert: vi.fn((rows: Array<Record<string, unknown>>) => {
+            insertedRows.push(...rows);
+            return {
+              select: vi.fn().mockResolvedValue({
+                data: rows.map((row, index) => ({ id: `survey-${index + 1}`, name: row.name })),
+                error: null,
+              }),
+            };
+          }),
+        };
+      }
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    await expect(createSurveysForImportBatch({
+      batchId: 'batch-1',
+      surveySections: ['cata', 'hedonic', 'comments'],
+      customAttributes: ['Cocoa', 'Roasted', 'Bitter'],
+    })).resolves.toEqual({
+      createdCount: 2,
+      surveyIds: ['survey-1', 'survey-2'],
+      surveyNames: ['Dark control', 'Oat prototype'],
+    });
+
     expect(insertedRows).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        name: 'A1',
+        name: 'Dark control',
+        status: 'draft',
+        survey_sections: ['cata', 'hedonic', 'comments'],
+        assigned_panelist_ids: [],
         source_import_batch_id: 'batch-1',
-        source_sample_id: 'A1',
+        source_sample_id: 'CHOC-1',
         project_id: 'project-1',
-        status: 'active',
-      }),
-      expect.objectContaining({
-        name: 'A2',
-        source_import_batch_id: 'batch-1',
-        source_sample_id: 'A2',
-        project_id: 'project-1',
-        status: 'active',
       }),
     ]));
   });

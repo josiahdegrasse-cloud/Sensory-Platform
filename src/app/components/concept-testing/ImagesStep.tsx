@@ -16,20 +16,21 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import {
   BatteryCharging, CheckCircle2, Loader2, Lock,
-  RefreshCw, ShieldCheck, Sparkles, Star, Unlock, Wand2,
+  RefreshCw, Sparkles, Star, Unlock, Wand2,
 } from 'lucide-react';
 import { Switch } from '../ui/switch';
-import { supabase } from '../../lib/supabase';
 import { updateConceptImageReviewStatus } from '../../lib/database';
+import { waitForConceptImageGeneration } from '../../lib/db/concept-image-jobs';
 import { useAdoptBrandKit, useWorkspaceSettings, useConceptImageUsage, queryKeys } from '../../lib/hooks';
 import { creditsTone, daysUntilReset } from '../../lib/concept-credits';
 import { detectFoodType, getFoodTypeProfile } from '../../lib/food-intelligence';
+import { formatProductForm } from '../../lib/food-product-forms';
 import type { ConceptGenerationSettings } from '../../lib/db/concepts';
 import { useAuth } from '../../contexts/auth-context';
 import {
   estimateConceptImageCost,
   getConceptImageMode,
-  getPromptStyle,
+  normalizeConceptImageMode,
   normalizePromptStyle,
 } from '../../../../supabase/functions/_shared/concept-image-catalog.ts';
 import {
@@ -39,11 +40,17 @@ import {
 } from '../../../../supabase/functions/_shared/concept-image-prompt.ts';
 import type {
   ConceptDraft,
-  ConceptVisualQaKey,
   ConceptVisualReview,
   ConceptVisualReviewStatus,
 } from './types';
 import { ImageDirectionPanel, type ImageGenerationOptions } from './ImageDirectionPanel';
+import {
+  checkConceptImageService,
+  conceptImageErrorMessage,
+  invokeConceptImageFunction,
+  warmConceptImageFunction,
+} from './concept-image-service';
+import { generateConceptImageBatch } from './concept-image-batch';
 
 interface CandidateImage {
   id?: string;
@@ -56,20 +63,11 @@ interface CandidateImage {
   summary?: string;
   revisedPrompt?: string;
   reviewStatus: ConceptVisualReviewStatus;
-  qa: Partial<Record<ConceptVisualQaKey, boolean>>;
+  qa: ConceptVisualReview['qa'];
   reviewNotes: string;
   reviewError?: string;
   reviewing?: boolean;
 }
-
-const QA_ITEMS: Array<{ key: ConceptVisualQaKey; label: string }> = [
-  { key: 'packBelievability', label: 'Product and pack form are physically believable.' },
-  { key: 'foodRealism', label: 'Food texture looks appetizing and realistic.' },
-  { key: 'claimSafety', label: 'No fake claims, badges, QR codes, certifications, or dense AI text.' },
-  { key: 'audienceFit', label: 'Visual fits the intended audience and occasion.' },
-  { key: 'panelistReady', label: 'Safe and clear enough for panelist stimulus use.' },
-  { key: 'buyerDeckReady', label: 'Strong enough for a buyer or internal review deck.' },
-];
 
 function emptyReview(imageId = '', source: ConceptVisualReview['source'] = 'external'): ConceptVisualReview {
   return {
@@ -95,41 +93,8 @@ function statusClasses(status: ConceptVisualReviewStatus) {
   return 'border-slate-200 bg-slate-50 text-slate-700';
 }
 
-function qaComplete(qa: Partial<Record<ConceptVisualQaKey, boolean>>) {
-  return QA_ITEMS.every(item => qa[item.key]);
-}
-
 const isValidImageUrl = (u: string) =>
   u.startsWith('data:image/') || ((): boolean => { try { return new URL(u).protocol === 'https:'; } catch { return false; } })();
-
-function friendlyGenerationError(message: string) {
-  const lower = message.toLowerCase();
-  if (lower.includes('failed to send a request') || lower.includes('failed to fetch') || lower.includes('networkerror')) {
-    return 'Could not reach the generate-concept-images Edge Function. Check that the function is deployed or being served locally, and that your Supabase URL is reachable.';
-  }
-  if (lower.includes('function') && lower.includes('not found')) {
-    return 'Image generator is not deployed yet. Deploy the generate-concept-images Supabase function.';
-  }
-  if (lower.includes('openai_api_key') || lower.includes('api key') || lower.includes('unauthorized') || lower.includes('401')) {
-    return 'OpenAI key is missing or invalid in Supabase secrets.';
-  }
-  if (lower.includes('billing') || lower.includes('quota') || lower.includes('insufficient') || lower.includes('credits')) {
-    return 'OpenAI billing or credits are not available for image generation.';
-  }
-  if (lower.includes('monthly image budget') || lower.includes('generation limit') || lower.includes('reached its limit')) {
-    return message;
-  }
-  if (lower.includes('rate') || lower.includes('429')) {
-    return 'OpenAI rate limit hit. Wait a minute and try again.';
-  }
-  if (lower.includes('concept_images') || lower.includes('concept_image_generations') || lower.includes('concept_generation_settings')) {
-    return 'Concept Lab SQL migration has not been applied yet.';
-  }
-  if (lower.includes('concept-images') || lower.includes('bucket') || lower.includes('storage')) {
-    return 'Concept image storage bucket is not ready in Supabase.';
-  }
-  return message || 'Image generation failed. Try again with a clearer concept brief.';
-}
 
 const CREDITS_BAR_TONE: Record<'ok' | 'warn' | 'critical', { bar: string; preview: string; text: string }> = {
   ok: { bar: 'bg-emerald-500', preview: 'bg-emerald-200', text: 'text-emerald-700' },
@@ -180,43 +145,6 @@ function ConceptCreditsBar({ usage, previewFraction, compact }: {
   );
 }
 
-function AIGovernancePanel({
-  candidates,
-  model,
-  quality,
-  sourceLabel,
-}: {
-  candidates: CandidateImage[];
-  model?: string;
-  quality: ImageGenerationOptions['quality'];
-  /** Provenance of this batch: fresh, locked-design re-stage, or brand-kit anchored. */
-  sourceLabel: string;
-}) {
-  const selectedCount = candidates.filter(candidate => candidate.selected && candidate.url).length;
-  const promptTraceCount = candidates.filter(candidate => candidate.revisedPrompt || candidate.summary).length;
-
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
-      <div className="flex items-center gap-2">
-        <ShieldCheck className="size-4 text-slate-500" />
-        <p className="text-xs font-semibold text-slate-700">AI governance</p>
-      </div>
-      <div className="mt-3 grid gap-2 text-[11px] leading-4 text-slate-700 sm:grid-cols-2 lg:grid-cols-5">
-        <span><strong className="text-slate-700">Model:</strong> {model ?? 'gpt-image-1.5'}</span>
-        <span><strong className="text-slate-700">Quality:</strong> {quality}</span>
-        <span><strong className="text-slate-700">Source:</strong> {sourceLabel}</span>
-        <span><strong className="text-slate-700">Approval:</strong> AI draft, admin review required</span>
-        <span><strong className="text-slate-700">Prompt trace:</strong> {promptTraceCount}/{candidates.length} saved</span>
-      </div>
-      <p className="mt-2 text-[11px] text-slate-500">
-        {selectedCount > 0
-          ? `${selectedCount} selected draft${selectedCount === 1 ? '' : 's'} can be added to the concept. They remain directional visuals until approved for panelist or report use.`
-          : 'Select only visuals that are physically believable, on-brief, and free of fake claims or warped text.'}
-      </p>
-    </div>
-  );
-}
-
 export function ImagesStep({
   draft,
   onChange,
@@ -245,7 +173,10 @@ export function ImagesStep({
   }));
   const [aiCandidates, setAiCandidates] = useState<CandidateImage[]>([]);
   const [generating, setGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState({ completed: 0, total: 0 });
   const [generationError, setGenerationError] = useState('');
+  const [checkingService, setCheckingService] = useState(false);
+  const [serviceReady, setServiceReady] = useState(false);
   const [generationConfirmationOpen, setGenerationConfirmationOpen] = useState(false);
   // Single-image refinement: one open refine box at a time.
   const [refine, setRefine] = useState<{ index: number | null; text: string; busy: boolean; error: string }>({
@@ -274,7 +205,6 @@ export function ImagesStep({
   const refinePreviewFraction = creditsUsage && creditsUsage.budget > 0
     ? estimateConceptImageCost(estimatedCostPerImage, options.quality, 1) / creditsUsage.budget
     : 0;
-  const styleLabel = getPromptStyle(draft.promptStyle).label;
   const leadModeLabel = getConceptImageMode(options.mode).label;
 
   // Derive variant-dimension overrides for image generation.
@@ -345,8 +275,12 @@ export function ImagesStep({
     const targetSegments = draft.targetMarket
       || draft.variantDimensions?.targetDemographic
       || '';
-    const productAppearance = draft.productAppearance
-      || `${draft.category || detection.label} product, styled to make the core eating quality and sensory promise visible`;
+    const productForm = draft.variantDimensions?.productForm;
+    const productAppearance = [
+      draft.productAppearance
+        || `${draft.category || detection.label} product, styled to make the core eating quality and sensory promise visible`,
+      productForm ? `The food must be shown in ${formatProductForm(productForm).toLowerCase()} form` : '',
+    ].filter(Boolean).join('. ');
     const packageFormat = draft.packageFormat
       || draft.variantDimensions?.packagingFormat
       || 'commercially believable concept packaging';
@@ -390,11 +324,21 @@ export function ImagesStep({
     if (!canGenerate) return;
     setGenerationConfirmationOpen(false);
     setGenerating(true);
+    setGenerationProgress({ completed: 0, total: options.count });
     setGenerationError('');
     setAiCandidates([]);
 
-    const { data, error } = await supabase.functions.invoke('generate-concept-images', {
-      body: {
+    try {
+      await warmConceptImageFunction();
+      await checkConceptImageService(invokeConceptImageFunction);
+      setServiceReady(true);
+    } catch (error) {
+      setGenerationError(await conceptImageErrorMessage(error));
+      setGenerating(false);
+      return;
+    }
+
+    const requestBody = {
         conceptName: draft.name,
         category: draft.category || detection.label,
         foodTypeSlug: detection.slug,
@@ -402,7 +346,12 @@ export function ImagesStep({
         description: draft.description,
         targetMarket: draft.targetMarket || draft.variantDimensions?.targetDemographic || '',
         targetOccasion: draft.targetOccasion,
-        productAppearance: draft.productAppearance || `${draft.category || detection.label} product, styled to make the core eating quality and sensory promise visible`,
+        productAppearance: [
+          draft.productAppearance || `${draft.category || detection.label} product, styled to make the core eating quality and sensory promise visible`,
+          draft.variantDimensions?.productForm
+            ? `The food must be shown in ${formatProductForm(draft.variantDimensions.productForm).toLowerCase()} form`
+            : '',
+        ].filter(Boolean).join('. '),
         packageFormat: draft.packageFormat || draft.variantDimensions?.packagingFormat || 'commercially believable concept packaging',
         visualSetting: draft.visualSetting,
         colorDirection: draft.colorDirection
@@ -414,39 +363,25 @@ export function ImagesStep({
         technicalChallenges: [draft.technicalChallenges, ...profile.riskMarkers.slice(0, 5)].filter(Boolean).join('\n'),
         forbiddenClaims: draft.forbiddenClaims,
         visualNotes: [draft.visualNotes, ...variantPositioningCues].filter(Boolean).join('. '),
-        mode: variantImageMode,
         promptStyle: normalizePromptStyle(draft.promptStyle),
         quality: options.quality,
-        count: options.count,
-        spreadModes: options.spreadModes,
         size: options.sizeOverride,
         // Locked design: every image in the batch re-stages this exact pack.
         referenceImageIds: lockedDesignActive && draft.brandReference ? [draft.brandReference.imageId] : [],
         useBrandKit: true,
+        async: true,
         variantDimensions: draft.variantDimensions ?? {},
-      },
+      };
+    const batch = await generateConceptImageBatch({
+      count: options.count,
+      leadMode: normalizeConceptImageMode(variantImageMode),
+      spreadModes: options.spreadModes,
+      body: requestBody,
+      invoke: invokeConceptImageFunction,
+      waitForGeneration: waitForConceptImageGeneration,
+      onProgress: (completed, total) => setGenerationProgress({ completed, total }),
     });
-
-    if (error) {
-      let message = error.message;
-      const response = (error as { context?: Response }).context;
-      if (response instanceof Response) {
-        try {
-          const body = await response.clone().json();
-          message = body?.error ?? message;
-        } catch {
-          // response body wasn't JSON; fall back to error.message
-        }
-      }
-      setGenerationError(friendlyGenerationError(message));
-      setGenerating(false);
-      return;
-    }
-
-    const images = (data?.images ?? []) as Array<{
-      id?: string; url: string; mode?: string; size?: string; storagePath?: string;
-      promptStyle?: string; summary?: string; revisedPrompt?: string;
-    }>;
+    const images = batch.images;
     setAiCandidates(images.map((image) => ({
       ...image,
       selected: true,
@@ -454,11 +389,29 @@ export function ImagesStep({
       qa: {},
       reviewNotes: '',
     })));
-    if (images.length === 0) {
-      setGenerationError('OpenAI returned no images. Try a more specific concept description.');
+    if (batch.errors.length > 0) {
+      const leadError = batch.errors[0];
+      setGenerationError(images.length > 0
+        ? `${images.length} of ${batch.requested} visuals completed. ${batch.errors.length} failed: ${leadError}`
+        : leadError);
     }
     setGenerating(false);
     queryClient.invalidateQueries({ queryKey: queryKeys.conceptImageUsage });
+  };
+
+  const handleCheckService = async () => {
+    setCheckingService(true);
+    setGenerationError('');
+    setServiceReady(false);
+    try {
+      await warmConceptImageFunction();
+      await checkConceptImageService(invokeConceptImageFunction);
+      setServiceReady(true);
+    } catch (error) {
+      setGenerationError(await conceptImageErrorMessage(error));
+    } finally {
+      setCheckingService(false);
+    }
   };
 
   // Targeted single-image revision via the image-edit endpoint: keeps the rest
@@ -467,8 +420,22 @@ export function ImagesStep({
     const candidate = aiCandidates[candidateIndex];
     if (!candidate?.id || refine.busy) return;
     setRefine(prev => ({ ...prev, busy: true, error: '' }));
-    const { data, error } = await supabase.functions.invoke('generate-concept-images', {
-      body: {
+    try {
+      await warmConceptImageFunction();
+      await checkConceptImageService(invokeConceptImageFunction);
+      setServiceReady(true);
+    } catch (error) {
+      const message = await conceptImageErrorMessage(error);
+      setRefine(prev => ({ ...prev, busy: false, error: message }));
+      return;
+    }
+    const { data, error } = await invokeConceptImageFunction<{
+      images?: Array<{
+        id?: string; url: string; mode?: string; size?: string; storagePath?: string;
+        promptStyle?: string; summary?: string; revisedPrompt?: string;
+      }>;
+      generationId?: string;
+    }>({
         intent: 'refine',
         baseImageId: candidate.id,
         refineInstruction: refine.text,
@@ -478,24 +445,27 @@ export function ImagesStep({
         projectName: draft.projectName,
         promptStyle: normalizePromptStyle(draft.promptStyle),
         quality: options.quality,
-      },
+        async: true,
     });
     if (error) {
-      let message = error.message;
-      const response = (error as { context?: Response }).context;
-      if (response instanceof Response) {
-        try {
-          const body = await response.clone().json();
-          message = body?.error ?? message;
-        } catch { /* not JSON */ }
-      }
-      setRefine(prev => ({ ...prev, busy: false, error: friendlyGenerationError(message) }));
+      const message = await conceptImageErrorMessage(error);
+      setRefine(prev => ({ ...prev, busy: false, error: message }));
       return;
     }
-    const image = ((data?.images ?? []) as Array<{
+    const immediateImage = ((data?.images ?? []) as Array<{
       id?: string; url: string; mode?: string; size?: string; storagePath?: string;
       promptStyle?: string; summary?: string; revisedPrompt?: string;
     }>)[0];
+    let image = immediateImage;
+    if (!image && data?.generationId) {
+      try {
+        image = await waitForConceptImageGeneration(data.generationId);
+      } catch (reason) {
+        const message = await conceptImageErrorMessage(reason);
+        setRefine(prev => ({ ...prev, busy: false, error: message }));
+        return;
+      }
+    }
     if (!image?.url) {
       setRefine(prev => ({ ...prev, busy: false, error: 'The refinement returned no image. Try a more specific instruction.' }));
       return;
@@ -561,7 +531,7 @@ export function ImagesStep({
   const persistReview = async (
     imageId: string,
     status: ConceptVisualReviewStatus,
-    qa: Partial<Record<ConceptVisualQaKey, boolean>>,
+    qa: ConceptVisualReview['qa'],
     notes: string,
   ) => {
     if (!imageId) return;
@@ -683,18 +653,30 @@ export function ImagesStep({
                   {!lockedDesignActive && brandKit && ' Applies the company brand kit.'}
                 </p>
               </div>
-              <Button
-                type="button"
-                onClick={() => setGenerationConfirmationOpen(true)}
-                disabled={!canGenerate || generating}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                {generating
-                  ? <><Loader2 className="size-4 mr-2 animate-spin" />Generating</>
-                  : aiCandidates.length > 0
-                    ? <><RefreshCw className="size-4 mr-2" />Regenerate</>
-                    : <><Sparkles className="size-4 mr-2" />Generate {options.count} visual{options.count > 1 ? 's' : ''}</>}
-              </Button>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCheckService}
+                  disabled={checkingService || generating}
+                >
+                  {checkingService
+                    ? <><Loader2 className="mr-2 size-4 animate-spin" />Checking</>
+                    : 'Check service'}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => setGenerationConfirmationOpen(true)}
+                  disabled={!canGenerate || generating}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {generating
+                    ? <><Loader2 className="size-4 mr-2 animate-spin" />Generating {generationProgress.completed}/{generationProgress.total}</>
+                    : aiCandidates.length > 0
+                      ? <><RefreshCw className="size-4 mr-2" />Regenerate</>
+                      : <><Sparkles className="size-4 mr-2" />Generate {options.count} visual{options.count > 1 ? 's' : ''}</>}
+                </Button>
+              </div>
             </div>
 
             {!canGenerate && (
@@ -711,6 +693,12 @@ export function ImagesStep({
             {generationError && (
               <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-md px-3 py-2 mt-3">
                 {generationError}
+              </p>
+            )}
+            {serviceReady && !generationError && (
+              <p className="mt-3 flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+                <CheckCircle2 className="size-3.5" />
+                Image service is ready. No image credits were used by this check.
               </p>
             )}
             {canGenerate && !generating && (
@@ -744,7 +732,6 @@ export function ImagesStep({
                     ))
                   : aiCandidates.map((candidate, i) => {
                       const modeLabel = getConceptImageMode(candidate.mode ?? options.mode).label;
-                      const complete = qaComplete(candidate.qa);
                       return (
                         <div
                           key={`${candidate.url}-${i}`}
@@ -787,21 +774,6 @@ export function ImagesStep({
                                 <span className="text-[11px] text-slate-500">Prompt trace saved</span>
                               ) : null}
                             </div>
-                            <div className="space-y-1.5">
-                              {QA_ITEMS.map(item => (
-                                <label key={item.key} className="flex items-start gap-2 text-[11px] leading-4 text-slate-700">
-                                  <input
-                                    type="checkbox"
-                                    checked={Boolean(candidate.qa[item.key])}
-                                    onChange={(event) => setAiCandidates(prev => prev.map((itemCandidate, index) => index === i
-                                      ? { ...itemCandidate, qa: { ...itemCandidate.qa, [item.key]: event.target.checked } }
-                                      : itemCandidate))}
-                                    className="mt-0.5"
-                                  />
-                                  <span>{item.label}</span>
-                                </label>
-                              ))}
-                            </div>
                             <Textarea
                               value={candidate.reviewNotes}
                               onChange={(event) => setAiCandidates(prev => prev.map((itemCandidate, index) => index === i
@@ -820,7 +792,7 @@ export function ImagesStep({
                                 type="button"
                                 size="sm"
                                 variant="outline"
-                                disabled={!complete || candidate.reviewing}
+                                disabled={candidate.reviewing}
                                 onClick={() => reviewCandidate(i, 'approved')}
                                 className="h-8 text-xs"
                               >
@@ -929,13 +901,7 @@ export function ImagesStep({
                 </div>
 
               {!generating && aiCandidates.length > 0 && (
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-xs text-slate-500">
-                      AI-generated drafts · {styleLabel} · {settings?.defaultModel ?? 'gpt-image-1.5'} ({options.quality}).
-                      Select only visuals that look credible enough for consumer or buyer review.
-                    </p>
-                  </div>
+                <div className="flex justify-end gap-2">
                   <div className="flex gap-2">
                     <Button type="button" variant="outline" size="sm" onClick={() => setAiCandidates([])}>
                       Discard
@@ -957,27 +923,6 @@ export function ImagesStep({
                     </Button>
                   </div>
                 </div>
-              )}
-              {!generating && aiCandidates.length > 0 && (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-semibold text-slate-700">Stimulus review checklist</p>
-                  <div className="mt-2 grid gap-2 text-[11px] leading-4 text-slate-700 sm:grid-cols-2 lg:grid-cols-4">
-                    <span>Product and pack form are physically believable.</span>
-                    <span>Food texture looks appetizing, not plastic or over-glossed.</span>
-                    <span>No fake claims, badges, dense label copy, or warped text.</span>
-                    <span>Image would hold up in a buyer slide or retail concept deck.</span>
-                  </div>
-                </div>
-              )}
-              {!generating && aiCandidates.length > 0 && (
-                <AIGovernancePanel
-                  candidates={aiCandidates}
-                  model={settings?.defaultModel}
-                  quality={options.quality}
-                  sourceLabel={lockedDesignActive
-                    ? 'Locked design re-stage'
-                    : brandKit ? 'Brand-kit anchored' : 'Fresh generation'}
-                />
               )}
               </div>
             </section>

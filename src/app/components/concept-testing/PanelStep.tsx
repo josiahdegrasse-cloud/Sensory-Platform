@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent } from '../ui/card';
 import { Label } from '../ui/label';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
-import { ChevronDown, Users, UserCheck } from 'lucide-react';
-import { usePanelists } from '../../lib/hooks';
-import { filterAssignablePanelists, getAssignmentSummary } from '../../lib/assignments';
+import { AlertTriangle, ChevronDown, ShieldCheck, Users, UserCheck } from 'lucide-react';
+import { useEligiblePanelists, usePanelists, useSampleAllergenDeclaration } from '../../lib/hooks';
+import { SampleAllergenDeclarationEditor } from '../sample-allergen-declaration';
+import { EligiblePanelSummary } from '../eligible-panel-summary';
 
 export function PanelStep({
   panelSize,
@@ -13,6 +14,9 @@ export function PanelStep({
   setTargetSegments,
   assignedPanelistIds,
   setAssignedPanelistIds,
+  formulationVersionId,
+  sampleName,
+  ingredientStatement,
 }: {
   panelSize: number;
   setPanelSize: (n: number) => void;
@@ -20,11 +24,24 @@ export function PanelStep({
   setTargetSegments: (s: string[]) => void;
   assignedPanelistIds: string[];
   setAssignedPanelistIds: (ids: string[]) => void;
+  formulationVersionId: string | null;
+  sampleName: string;
+  ingredientStatement?: string;
 }) {
   const [panelSetupOpen, setPanelSetupOpen] = useState(false);
   const { data: panelists = [] } = usePanelists();
-  const registeredPanelists = filterAssignablePanelists(panelists);
-  const assignment = getAssignmentSummary('concept', { assignedPanelistIds }, panelists);
+  const target = { formulationVersionId };
+  const { data: declaration } = useSampleAllergenDeclaration(target, Boolean(formulationVersionId));
+  const { data: registeredPanelists = [], isLoading: eligibleLoading } = useEligiblePanelists(target, Boolean(formulationVersionId));
+  const activePanelistCount = panelists.filter(panelist => panelist.status === 'active').length;
+  const excludedCount = Math.max(0, activePanelistCount - registeredPanelists.length);
+
+  useEffect(() => {
+    if (eligibleLoading) return;
+    const eligibleIds = new Set(registeredPanelists.map(panelist => panelist.id));
+    const safeSelection = assignedPanelistIds.filter(id => eligibleIds.has(id));
+    if (safeSelection.length !== assignedPanelistIds.length) setAssignedPanelistIds(safeSelection);
+  }, [assignedPanelistIds, eligibleLoading, registeredPanelists, setAssignedPanelistIds]);
 
   const segments = ['Everyday consumers', 'Health-conscious', 'Vegan / plant-based', 'Flexitarian', 'Foodservice buyers', 'Retail buyers', 'Seniors 55+', 'Parents with children', 'Young adults 18–34'];
 
@@ -50,14 +67,25 @@ export function PanelStep({
       </div>
 
       <div className="space-y-3">
+        {formulationVersionId ? (
+          <div className="mb-6 border-b border-slate-200 pb-6">
+            <SampleAllergenDeclarationEditor target={target} sampleName={sampleName} sourceIngredientStatement={ingredientStatement} />
+          </div>
+        ) : (
+          <div className="mb-6 flex gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950"><AlertTriangle className="mt-1 size-4 shrink-0" aria-hidden /><span><strong className="block">Exact sample lineage is required</strong>Return to the confirmed GO sample and link its reviewed formulation before assigning this concept study.</span></div>
+        )}
         <Label className="font-medium text-sm flex items-center gap-1.5">
-          <UserCheck className="size-3.5" /> Assign to registered panelists
+          <UserCheck className="size-3.5" /> Eligible panelists
         </Label>
         <p className="text-xs text-slate-500 -mt-1">
-          Assign at least one registered panelist. Only assigned panelists can access this concept test.
+          Only adults with a current safety profile and no conflict with this exact sample appear here.
         </p>
-        {registeredPanelists.length === 0 ? (
-          <p className="text-sm text-slate-500 italic">No registered panelists found.</p>
+        {eligibleLoading ? (
+          <p className="text-sm text-slate-500">Calculating eligibility…</p>
+        ) : declaration?.status !== 'verified' ? (
+          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-950">Verify the exact-sample declaration above to calculate the eligible roster.</p>
+        ) : registeredPanelists.length === 0 ? (
+          <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">No panelists are currently eligible for this sample.</p>
         ) : (
           <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-56 overflow-y-auto">
             {registeredPanelists.map(p => (
@@ -74,7 +102,7 @@ export function PanelStep({
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-slate-900">{p.name}</div>
                   <div className="text-xs text-slate-500">
-                    {p.panelistId ?? 'No ID assigned'} · {p.completedCount} evaluation{p.completedCount !== 1 ? 's' : ''} completed
+                    {[p.panelistId ?? 'No ID assigned', p.ageBand, p.region, `${p.completedCount} completed`].filter(Boolean).join(' · ')}
                   </div>
                 </div>
                 {assignedPanelistIds.includes(p.id) && (
@@ -85,15 +113,12 @@ export function PanelStep({
           </div>
         )}
         {assignedPanelistIds.length > 0 && (
-          <p className="text-xs font-semibold text-blue-600">
-            {assignment.activeAssignedIds.length} active panelist{assignment.activeAssignedIds.length !== 1 ? 's' : ''} will receive this concept test
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+            <ShieldCheck className="size-3.5" aria-hidden />{assignedPanelistIds.length} eligible panelist{assignedPanelistIds.length !== 1 ? 's' : ''} will receive this concept test
           </p>
         )}
-        {assignment.inactiveAssignedIds.length > 0 && (
-          <p className="text-xs font-medium text-amber-700">
-            {assignment.inactiveAssignedIds.length} saved selection{assignment.inactiveAssignedIds.length === 1 ? '' : 's'} belong to inactive or archived panelists and will not be available for new assignment.
-          </p>
-        )}
+        {declaration?.status === 'verified' && <p className="text-xs text-slate-500">{registeredPanelists.length} eligible · {excludedCount} excluded by account readiness or sample-safety rules. Excluded panelists are not shown.</p>}
+        <EligiblePanelSummary panelists={registeredPanelists} selectedIds={assignedPanelistIds} />
       </div>
 
       <Collapsible open={panelSetupOpen} onOpenChange={setPanelSetupOpen} className="rounded-lg border border-slate-200">
