@@ -172,11 +172,11 @@ describe('CSV import workflow intelligence', () => {
 
   it('averages every populated workbook measurement by repeated formulation name', () => {
     const rawRows = [
-      { Name: 'Cheddar ref', 'Fat (%)': '20', 'Moisture (%)': '40', 'Melting (cm)': '6', 'Hardness (g)': '100' },
-      { Name: 'Cheddar ref', 'Fat (%)': '30', 'Moisture (%)': '', 'Melting (cm)': '8', 'Hardness (g)': '200' },
-      { Name: 'Cheddar ref', 'Fat (%)': '', 'Moisture (%)': '44', 'Melting (cm)': '', 'Hardness (g)': '300' },
-      { Name: 'Mozza ref', 'Fat (%)': '10', 'Moisture (%)': '50', 'Melting (cm)': '4', 'Hardness (g)': '50' },
-      { Name: 'Mozza ref', 'Fat (%)': '14', 'Moisture (%)': '54', 'Melting (cm)': '6', 'Hardness (g)': '70' },
+      { Name: 'Cheddar ref', Type: 'Cheese', 'Fat (%)': '20', 'Moisture (%)': '40', 'Melting (cm)': '6', 'Hardness (g)': '100' },
+      { Name: 'Cheddar ref', Type: 'Cheese', 'Fat (%)': '30', 'Moisture (%)': '', 'Melting (cm)': '8', 'Hardness (g)': '200' },
+      { Name: 'Cheddar ref', Type: 'Cheese', 'Fat (%)': '', 'Moisture (%)': '44', 'Melting (cm)': '', 'Hardness (g)': '300' },
+      { Name: 'Mozza ref', Type: 'Cheese', 'Fat (%)': '10', 'Moisture (%)': '50', 'Melting (cm)': '4', 'Hardness (g)': '50' },
+      { Name: 'Mozza ref', Type: 'Cheese', 'Fat (%)': '14', 'Moisture (%)': '54', 'Melting (cm)': '6', 'Hardness (g)': '70' },
     ];
     const mappings = inferImportMappings(Object.keys(rawRows[0]));
     const dataset = buildImportedDataset(applyImportMappings(rawRows, mappings), 'Samples_test.xlsx');

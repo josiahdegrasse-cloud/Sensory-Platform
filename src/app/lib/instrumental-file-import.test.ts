@@ -9,6 +9,21 @@ describe('instrumental file parsing', () => {
     expect(parsed.rows).toEqual([{ Name: 'Cheddar, reference', 'Fat (%)': '28.5' }]);
   });
 
+  it('skips a single-cell table title before the real CSV headers', () => {
+    const parsed = parseInstrumentalCsv([
+      'Table 1',
+      'Name,Type,Fat (%),Hardness (g)',
+      'Cheddar ref,Cheese,28.5,6706.17',
+      'Mozza ref,Cheese,20.5,3986.82',
+    ].join('\r\n'));
+
+    expect(parsed.headers).toEqual(['Name', 'Type', 'Fat (%)', 'Hardness (g)']);
+    expect(parsed.rows).toEqual([
+      { Name: 'Cheddar ref', Type: 'Cheese', 'Fat (%)': '28.5', 'Hardness (g)': '6706.17' },
+      { Name: 'Mozza ref', Type: 'Cheese', 'Fat (%)': '20.5', 'Hardness (g)': '3986.82' },
+    ]);
+  });
+
   it('reads the first populated Excel worksheet as a flat table', async () => {
     const workbook = new ExcelJS.Workbook();
     workbook.addWorksheet('Notes').getCell('A1').value = 'Cover sheet';
