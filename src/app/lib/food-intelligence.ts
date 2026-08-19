@@ -93,7 +93,7 @@ const PROFILES: FoodTypeProfile[] = [
   {
     slug: 'cheese',
     label: 'Cheese',
-    aliases: ['cheese', 'dairy', 'milk', 'cream', 'butter', 'pbca', 'cheddar', 'mozzarella', 'gouda', 'parmesan', 'brie'],
+    aliases: ['cheese', 'dairy', 'milk', 'cream', 'butter', 'pbca', 'cheddar', 'mozzarella', 'mozza', 'gouda', 'parmesan', 'brie'],
     cataAttributes: ['Milk', 'Creamy', 'Butter', 'Cheese', 'Tangy', 'Fresh', 'Sharp', 'Aged', 'Nutty', 'Salty', 'Umami', 'Smooth', 'Firm', 'Spreadable', 'Crumbly', 'Rancid', 'Cardboard', 'Fermented', 'Bitter', 'Astringent', 'Soapy', 'Coconut', 'Beany', 'Chalky', 'Oily'],
     intensityAttributes: ['Milk', 'Creamy', 'Butter', 'Cheese', 'Tangy', 'Nutty', 'Salty', 'Sweet'],
     riskMarkers: ['rancid', 'cardboard', 'bitter', 'astringent', 'soapy', 'beany', 'chalky'],
@@ -356,7 +356,7 @@ type PresetFoodTypeSpec = {
 
 const PRESET_FOOD_TYPE_SPECS: PresetFoodTypeSpec[] = [
   { slug: 'cheddar', label: 'Cheddar', parentSlug: 'cheese', aliases: ['cheddar', 'cheddar cheese', 'mild cheddar', 'sharp cheddar', 'white cheddar'], cata: ['Sharp', 'Cheddar', 'Aged'] },
-  { slug: 'mozzarella', label: 'Mozzarella', parentSlug: 'cheese', aliases: ['mozzarella', 'mozzarella cheese', 'fresh mozzarella', 'low moisture mozzarella'], cata: ['Milky', 'Mild', 'Stretchy'] },
+  { slug: 'mozzarella', label: 'Mozzarella', parentSlug: 'cheese', aliases: ['mozzarella', 'mozzarella cheese', 'mozza', 'fresh mozzarella', 'low moisture mozzarella'], cata: ['Milky', 'Mild', 'Stretchy'] },
   { slug: 'gouda', label: 'Gouda', parentSlug: 'cheese', aliases: ['gouda', 'gouda cheese', 'smoked gouda', 'aged gouda'], cata: ['Nutty', 'Caramel', 'Aged'] },
   { slug: 'parmesan', label: 'Parmesan', parentSlug: 'cheese', aliases: ['parmesan', 'parmesan cheese', 'parmigiano', 'grana padano'], cata: ['Aged', 'Salty', 'Umami'] },
   { slug: 'brie', label: 'Brie', parentSlug: 'cheese', aliases: ['brie', 'brie cheese', 'double cream brie'], cata: ['Creamy', 'Mushroom', 'Rind'] },

@@ -302,10 +302,10 @@ export function inferType(sampleId: string, csvType?: string, csvCategory?: stri
   const nameType = normalizeTypeLabel(sampleName);
   if (nameType) return nameType;
 
-  const prefix = sampleId.toUpperCase();
-  if (prefix.startsWith("B")) return "bread";
-  if (prefix.startsWith("M")) return "meat";
-  return prefix.startsWith("D") ? "dairy" : "pbca";
+  const prefix = sampleId.trim();
+  if (/^B[-_ ]?\d+/i.test(prefix)) return "bread";
+  if (/^M[-_ ]?\d+/i.test(prefix)) return "meat";
+  return /^D[-_ ]?\d+/i.test(prefix) ? "dairy" : "pbca";
 }
 
 export function inferYogurtCategory(sampleName?: string, csvCategory?: string) {
