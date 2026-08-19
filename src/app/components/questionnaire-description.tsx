@@ -83,7 +83,7 @@ export function QuestionnaireDescription() {
               <div>
                 <h4 className="font-bold text-slate-900">Intensity Ratings</h4>
                 <p className="text-sm text-slate-700 mt-1">
-                  Rate the intensity of key attributes on a scale from 1 (not present) to 5 (extremely intense).
+                  Rate the intensity of key attributes on a scale from 1 (not present) to 9 (extremely intense).
                 </p>
               </div>
             </div>

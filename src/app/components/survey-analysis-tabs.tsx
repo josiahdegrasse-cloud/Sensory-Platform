@@ -10,6 +10,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { DataProvenanceBadge } from './data-provenance-badge';
 import { canShowInferentialStatistics } from '../lib/insights';
+import {
+  INTENSITY_SCALE_MAX,
+  INTENSITY_SCALE_MIN,
+  intensityScalePercentage,
+} from '../lib/sensory-scales';
 
 interface CataAttribute {
   id: string;
@@ -207,8 +212,6 @@ interface IntensityTabProps {
   activeSampleName: string;
 }
 
-const INTENSITY_SCALE_MAX = 5;
-
 export function IntensityTab({
   activeIntensityData,
   activePanelistN,
@@ -222,12 +225,12 @@ export function IntensityTab({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="size-5 text-blue-600" />
-              Sensory intensity ratings (0–5 scale)
+              Sensory intensity ratings (1–9 scale)
             </CardTitle>
             <DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={activePanelistN} />
           </div>
           <p className="text-sm text-slate-700">
-            Mean intensity scores from {activePanelistN} {usingLiveData ? 'panelists (live)' : 'semi-trained panelists'} on a fixed 0–5 frame.
+            Mean intensity scores from {activePanelistN} {usingLiveData ? 'panelists (live)' : 'semi-trained panelists'} on a fixed 1–9 frame.
           </p>
           <SampleContext name={activeSampleName} id={activeSampleId} />
         </CardHeader>
@@ -238,7 +241,7 @@ export function IntensityTab({
                 <RadarChart data={activeIntensityData}>
                   <PolarGrid />
                   <PolarAngleAxis dataKey="attribute" />
-                  <PolarRadiusAxis angle={90} domain={[0, INTENSITY_SCALE_MAX]} tickCount={6} />
+                  <PolarRadiusAxis angle={90} domain={[INTENSITY_SCALE_MIN, INTENSITY_SCALE_MAX]} tickCount={9} />
                   <Radar
                     name="Intensity"
                     dataKey="value"
@@ -253,8 +256,8 @@ export function IntensityTab({
             <div className="space-y-3">
               {activeIntensityData.map(({ attribute, value }) => {
                 const label = attribute.replace(/([A-Z])/g, ' $1').trim();
-                const hi = 3.5;
-                const mid = 2;
+                const hi = 7;
+                const mid = 4;
                 const color = value >= hi ? "emerald" : value >= mid ? "blue" : "slate";
                 return (
                   <div key={attribute} className="space-y-1">
@@ -267,7 +270,7 @@ export function IntensityTab({
                     <div className="w-full bg-slate-200 rounded-full h-3">
                       <div
                         className={`bg-${color}-600 h-3 rounded-full transition-all`}
-                        style={{ width: `${(value / INTENSITY_SCALE_MAX) * 100}%` }}
+                        style={{ width: `${intensityScalePercentage(value)}%` }}
                       ></div>
                     </div>
                   </div>
@@ -425,15 +428,12 @@ export function HedonicTab({
   );
 }
 
-function SampleContext({ name, id }: { name: string; id: string }) {
+function SampleContext({ name }: { name: string; id?: string }) {
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
       <span className="font-semibold text-slate-500">Sample shown</span>
       <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 font-semibold text-blue-800">
         {name}
-      </span>
-      <span className="rounded-md border border-slate-200 bg-white px-2 py-1 font-medium text-slate-700">
-        ID {id}
       </span>
     </div>
   );

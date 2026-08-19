@@ -54,13 +54,8 @@ import { FormulationContextStrip } from './formulation-context-strip';
 import { buildProductEvidenceSummary } from '../lib/product-evidence';
 import { projectDecisionExperimentsPath, projectPath } from '../lib/project-journey-routes';
 import { WorkflowLoadingState, WorkflowQueryErrorState } from './workflow-loading-state';
+import { INTENSITY_SCALE_MAX, toNinePointIntensity } from '../lib/sensory-scales';
 
-const INTENSITY_CHART_MAX = 5;
-
-function toFivePointIntensity(value: number, sourceScale: 5 | 10) {
-  const normalized = sourceScale === 10 ? value / 2 : value;
-  return Math.max(0, Math.min(INTENSITY_CHART_MAX, normalized));
-}
 
 function buildImportedProfiles(dataset: ReturnType<typeof useInstrumentalDataset>['data']): EnhancedSensoryProfile[] {
   return (dataset?.eTongueData ?? []).map(sample => {
@@ -354,14 +349,14 @@ export function SurveyAnalysis() {
     ? Object.entries(matchingLiveData.intensity).map(([attribute, value]) => ({
         id: `intensity-${attribute}`,
         attribute,
-        value: toFivePointIntensity(value, 5),
-        fullMark: INTENSITY_CHART_MAX,
+        value: toNinePointIntensity(value, 9),
+        fullMark: INTENSITY_SCALE_MAX,
       }))
     : Object.entries(selectedData.intensity).map(([attribute, value]) => ({
         id: `intensity-${attribute}`,
         attribute,
-        value: toFivePointIntensity(value, 10),
-        fullMark: INTENSITY_CHART_MAX,
+        value: toNinePointIntensity(value, 10),
+        fullMark: INTENSITY_SCALE_MAX,
       }));
   const activeHedonic = matchingLiveData
     ? ['overall', 'appearance', 'aroma', 'flavor', 'texture'].map(category => ({

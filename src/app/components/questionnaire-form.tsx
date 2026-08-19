@@ -474,7 +474,7 @@ export function QuestionnaireForm() {
               Rate how intense each attribute is. These are the attributes you selected in Step 1.
             </p>
             <div className="mt-2 flex justify-between text-xs text-slate-500 bg-slate-50 rounded px-3 py-1.5">
-              <span>Scale: 1 = Not present</span><span>5 = Extremely intense</span>
+              <span>Scale: 1 = Not present</span><span>9 = Extremely intense</span>
             </div>
           </CardHeader>
           <CardContent>
