@@ -1,8 +1,13 @@
 // Pure data + import-pipeline logic for the Instrumental (Stage 1) screen.
 // Extracted from stage1-instrumental.tsx to keep the component file focused on
 // rendering. No React here — everything is unit-testable in isolation.
-import { matchFoodType } from "../contexts/food-type-context";
-import { detectFoodType, formatFoodTypeLabel, slugifyFoodType } from "../lib/food-intelligence";
+import {
+  formatFoodTypeLabel,
+  getFoodTypeProfile,
+  resolveDeclaredFoodType,
+  slugifyFoodType,
+  type FoodTypeDetection,
+} from "../lib/food-intelligence";
 import { getRawImportColumns } from "../lib/csv-import-mapping";
 import { STATUS } from "../styles/tokens";
 
@@ -83,6 +88,11 @@ export interface ImportAggregationSummary {
   sourceSampleCount: number;
   formulationCount: number;
   averagedFormulationCount: number;
+}
+
+export interface ImportFoodTypeResolution {
+  status: 'matched' | 'confirmed' | 'missing' | 'unrecognized' | 'conflicting';
+  declaredValues: string[];
 }
 
 export interface RetestImportContext {
@@ -257,6 +267,7 @@ export interface StoredImportedData {
   compositionData: Record<string, ChemicalComposition>;
   ingredientStatements?: Record<string, IngredientStatement>;
   aggregation?: ImportAggregationSummary;
+  foodTypeResolution?: ImportFoodTypeResolution;
 }
 
 export function mergeInstrumentalData(imported: StoredImportedData | null | undefined): StoredImportedData {
@@ -284,28 +295,72 @@ export function mergeInstrumentalData(imported: StoredImportedData | null | unde
 export function normalizeTypeLabel(value?: string, allowUnknown = false) {
   const normalized = normalize(value);
   if (!normalized) return "";
-  const matchedFoodType = matchFoodType(normalized);
-  if (matchedFoodType === "cheese") return "dairy";
-  const normalizedSlug = slugifyFoodType(normalized);
-  if (matchedFoodType !== normalizedSlug && matchedFoodType !== "generic") return slugifyFoodType(matchedFoodType);
-  if (allowUnknown) return normalizedSlug;
+  const matchedFoodType = resolveDeclaredFoodType(normalized);
+  if (matchedFoodType) return matchedFoodType.slug;
+  if (allowUnknown) return slugifyFoodType(normalized);
   return "";
 }
 
-export function inferType(sampleId: string, csvType?: string, csvCategory?: string, sampleName?: string) {
-  const explicitType = normalizeTypeLabel(csvType, true);
+function resolveImportFoodType(rows: Record<string, string>[]): {
+  detection: FoodTypeDetection;
+  resolution: ImportFoodTypeResolution;
+} {
+  const declaredValues = Array.from(new Set(rows
+    .map(row => getRowValue(row, ['foodType', 'food_type', 'productType', 'product_type', 'type']).trim())
+    .filter(Boolean)));
+
+  const unresolvedDetection: FoodTypeDetection = {
+    slug: 'generic',
+    label: 'Product type needed',
+    confidence: 0,
+    evidence: [],
+    aliases: [],
+    modifiers: [],
+  };
+  if (declaredValues.length === 0) {
+    return {
+      detection: unresolvedDetection,
+      resolution: { status: 'missing', declaredValues },
+    };
+  }
+
+  const resolved = declaredValues.map(value => resolveDeclaredFoodType(value));
+  if (resolved.some(profile => profile === null)) {
+    return {
+      detection: unresolvedDetection,
+      resolution: { status: 'unrecognized', declaredValues },
+    };
+  }
+
+  const familySlugs = Array.from(new Set(resolved.map(profile => profile!.parentSlug ?? profile!.slug)));
+  if (familySlugs.length !== 1) {
+    return {
+      detection: unresolvedDetection,
+      resolution: { status: 'conflicting', declaredValues },
+    };
+  }
+
+  const profile = getFoodTypeProfile(familySlugs[0]);
+  return {
+    detection: {
+      slug: profile.slug,
+      label: profile.label,
+      confidence: 1,
+      evidence: declaredValues.map(value => `Food type column: ${value}`),
+      aliases: profile.aliases,
+      modifiers: [],
+    },
+    resolution: { status: 'matched', declaredValues },
+  };
+}
+
+export function inferType(_sampleId: string, csvType?: string, csvCategory?: string, _sampleName?: string) {
+  const explicitType = normalizeTypeLabel(csvType);
   if (explicitType) return explicitType;
 
   const categoryType = normalizeTypeLabel(csvCategory);
   if (categoryType) return categoryType;
-
-  const nameType = normalizeTypeLabel(sampleName);
-  if (nameType) return nameType;
-
-  const prefix = sampleId.trim();
-  if (/^B[-_ ]?\d+/i.test(prefix)) return "bread";
-  if (/^M[-_ ]?\d+/i.test(prefix)) return "meat";
-  return /^D[-_ ]?\d+/i.test(prefix) ? "dairy" : "pbca";
+  return "generic";
 }
 
 export function inferYogurtCategory(sampleName?: string, csvCategory?: string) {
@@ -476,9 +531,10 @@ function meanAcrossReplicates(
     : null;
 }
 
-export function buildImportedDataset(previewData: Record<string, string>[], uploadedFile?: string | null) {
+export function buildImportedDataset(previewData: Record<string, string>[], _uploadedFile?: string | null) {
   const formulations = new Map<string, FormulationTotals>();
-  const detectionValues: string[] = [uploadedFile ?? ""];
+  const foodType = resolveImportFoodType(previewData);
+  const declaredFoodType = foodType.resolution.status === 'matched' ? foodType.detection.slug : null;
   let groupedByFormulation = false;
 
   previewData.forEach((row, index) => {
@@ -495,10 +551,10 @@ export function buildImportedDataset(previewData: Record<string, string>[], uplo
     groupedByFormulation ||= Boolean(normalize(formulationId) || normalize(formulationName) || implicitFormulationName);
 
     const csvCategory = getRowValue(row, ["category", "foodType", "food_type", "productType", "product_type"]);
-    const csvType = getRowValue(row, ["type", "foodType", "food_type", "productType", "product_type"]);
-    const type = inferType(sampleId, csvType, csvCategory, sampleName);
-    const category = inferCategory(sampleId, csvCategory, type, sampleName);
-    detectionValues.push(sampleId, sampleName, replicateId, replicateName, csvCategory, csvType, category, type);
+    const type = declaredFoodType ?? 'generic';
+    const category = declaredFoodType
+      ? inferCategory(sampleId, csvCategory, type, sampleName)
+      : 'Unconfirmed';
 
     let formulation = formulations.get(sampleId);
     if (!formulation) {
@@ -654,7 +710,7 @@ export function buildImportedDataset(previewData: Record<string, string>[], uplo
     if (compounds.length > 0) gcmsData[formulation.sampleId] = compounds;
   });
 
-  const detection = detectFoodType(...detectionValues);
+  const detection = foodType.detection;
   const aggregation = {
     groupedByFormulation,
     sourceRowCount: previewData.length,
@@ -662,25 +718,15 @@ export function buildImportedDataset(previewData: Record<string, string>[], uplo
     formulationCount: formulations.size,
     averagedFormulationCount: [...formulations.values()].filter(formulation => formulation.replicates.size > 1).length,
   };
-  const explicitTypes = Array.from(new Set(eTongueData.map(sample => sample.type).filter(Boolean))) as string[];
-  if (explicitTypes.length === 1 && explicitTypes[0] && !DEMO_TYPES.has(explicitTypes[0])) {
-    const explicitSlug = slugifyFoodType(explicitTypes[0]);
-    return {
-      eTongueData,
-      gcmsData,
-      compositionData,
-      ingredientStatements,
-      aggregation,
-      detection: {
-        ...detection,
-        slug: explicitSlug,
-        label: formatFoodTypeLabel(explicitSlug),
-        confidence: Math.max(detection.confidence, 0.88),
-      },
-    };
-  }
-
-  return { eTongueData, gcmsData, compositionData, ingredientStatements, aggregation, detection };
+  return {
+    eTongueData,
+    gcmsData,
+    compositionData,
+    ingredientStatements,
+    aggregation,
+    detection,
+    foodTypeResolution: foodType.resolution,
+  };
 }
 
 export function validateImportedDataset(
@@ -699,9 +745,12 @@ export function validateImportedDataset(
   if (rows.length === 0) errors.push('No data rows found.');
   if (dataset.eTongueData.length === 0) errors.push('No numeric formulation measurements were found.');
   if (!columnReport || columnReport.recognised.length === 0) errors.push('No recognized columns found.');
+  if (dataset.foodTypeResolution && !['matched', 'confirmed'].includes(dataset.foodTypeResolution.status)) {
+    errors.push('Confirm the product type before creating this project.');
+  }
   if (duplicates.length > 0 && !dataset.aggregation?.groupedByFormulation) warnings.push(`Duplicate sample IDs detected: ${Array.from(new Set(duplicates)).join(', ')}.`);
   if ((columnReport?.ignored.length ?? 0) > 0) warnings.push(`${columnReport?.ignored.length} column${columnReport?.ignored.length === 1 ? '' : 's'} will be ignored.`);
-  if (detection && detection.confidence < 0.75) warnings.push(`Food type detection is low confidence (${Math.round(detection.confidence * 100)}%). Confirm ${detection.label} before importing.`);
+  if (!dataset.foodTypeResolution && detection && detection.confidence < 0.75) warnings.push(`Food type detection is low confidence (${Math.round(detection.confidence * 100)}%). Confirm ${detection.label} before importing.`);
   const hasGenericMeasurements = dataset.eTongueData.some(sample => (sample.measurements?.length ?? 0) > 0);
   if (Object.keys(dataset.gcmsData).length === 0 && !hasGenericMeasurements) warnings.push('No GC-MS compounds found. Aroma/off-note panels will be empty for this batch.');
   if (Object.keys(dataset.compositionData).length === 0 && !hasGenericMeasurements) warnings.push('No composition profiles found. Nutrition/composition cards will be empty for this batch.');

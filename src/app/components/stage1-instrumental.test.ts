@@ -172,13 +172,13 @@ describe('CSV import workflow intelligence', () => {
 
   it('averages every populated workbook measurement by repeated formulation name', () => {
     const rawRows = [
-      { Name: 'Cheddar ref', 'Fat (%)': '20', 'Moisture (%)': '40', 'Melting (cm)': '6', 'Hardness (g)': '100' },
-      { Name: 'Cheddar ref', 'Fat (%)': '30', 'Moisture (%)': '', 'Melting (cm)': '8', 'Hardness (g)': '200' },
-      { Name: 'Cheddar ref', 'Fat (%)': '', 'Moisture (%)': '44', 'Melting (cm)': '', 'Hardness (g)': '300' },
-      { Name: 'Mozza ref', 'Fat (%)': '10', 'Moisture (%)': '50', 'Melting (cm)': '4', 'Hardness (g)': '50' },
-      { Name: 'Mozza ref', 'Fat (%)': '14', 'Moisture (%)': '54', 'Melting (cm)': '6', 'Hardness (g)': '70' },
+      { Name: 'Cheddar ref', 'Food Type': 'Cheese', 'Fat (%)': '20', 'Moisture (%)': '40', 'Melting (cm)': '6', 'Hardness (g)': '100' },
+      { Name: 'Cheddar ref', 'Food Type': 'Cheese', 'Fat (%)': '30', 'Moisture (%)': '', 'Melting (cm)': '8', 'Hardness (g)': '200' },
+      { Name: 'Cheddar ref', 'Food Type': 'Cheese', 'Fat (%)': '', 'Moisture (%)': '44', 'Melting (cm)': '', 'Hardness (g)': '300' },
+      { Name: 'Mozza ref', 'Food Type': 'Cheese', 'Fat (%)': '10', 'Moisture (%)': '50', 'Melting (cm)': '4', 'Hardness (g)': '50' },
+      { Name: 'Mozza ref', 'Food Type': 'Cheese', 'Fat (%)': '14', 'Moisture (%)': '54', 'Melting (cm)': '6', 'Hardness (g)': '70' },
     ];
-    const mappings = inferImportMappings(Object.keys(rawRows[0]));
+    const mappings = inferImportMappings(Object.keys(rawRows[0]), rawRows);
     const dataset = buildImportedDataset(applyImportMappings(rawRows, mappings), 'Samples_test.xlsx');
 
     expect(dataset.eTongueData).toHaveLength(2);
@@ -192,12 +192,30 @@ describe('CSV import workflow intelligence', () => {
     const cheddar = dataset.eTongueData.find(sample => sample.sampleId === 'Cheddar ref');
     const mozzarella = dataset.eTongueData.find(sample => sample.sampleId === 'Mozza ref');
     expect(cheddar).toMatchObject({ sampleName: 'Cheddar ref', hasETongueData: false });
-    expect(mozzarella).toMatchObject({ sampleName: 'Mozza ref', type: 'mozzarella', category: 'Mozzarella' });
+    expect(dataset.foodTypeResolution).toEqual({ status: 'matched', declaredValues: ['Cheese'] });
+    expect(mozzarella).toMatchObject({ sampleName: 'Mozza ref', type: 'cheese', category: 'Cheese' });
     expect(cheddar?.measurements).toEqual(expect.arrayContaining([
       expect.objectContaining({ label: 'Fat', unit: '%', mean: 25, observationCount: 2 }),
       expect.objectContaining({ label: 'Moisture', unit: '%', mean: 42, observationCount: 2 }),
       expect.objectContaining({ label: 'Melting', unit: 'cm', mean: 7, observationCount: 2 }),
       expect.objectContaining({ label: 'Hardness', unit: 'g', mean: 200, observationCount: 3 }),
     ]));
+  });
+
+  it('requires a food developer choice instead of guessing from names or IDs', () => {
+    const rows = [
+      { sampleName: 'Mozza ref', foodType: 'Experimental matrix', hardness: '100' },
+      { sampleName: 'M1 burger-shaped sample', foodType: 'Experimental matrix', hardness: '120' },
+    ];
+    const dataset = buildImportedDataset(rows, 'meat-looking-file.xlsx');
+    const validation = validateImportedDataset(rows, dataset, { recognised: ['sampleName', 'foodType', 'hardness'], ignored: [] }, dataset.detection);
+
+    expect(dataset.detection).toMatchObject({ slug: 'generic', label: 'Product type needed', confidence: 0 });
+    expect(dataset.foodTypeResolution).toEqual({
+      status: 'unrecognized',
+      declaredValues: ['Experimental matrix'],
+    });
+    expect(dataset.eTongueData.every(sample => sample.type === 'generic' && sample.category === 'Unconfirmed')).toBe(true);
+    expect(validation.errors).toContain('Confirm the product type before creating this project.');
   });
 });

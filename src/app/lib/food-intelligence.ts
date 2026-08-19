@@ -863,6 +863,38 @@ export function getFoodTypeProfile(slug: string): FoodTypeProfile {
   };
 }
 
+function foodTypeLookupKey(value: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+/**
+ * Resolves an explicit food-developer declaration only when it exactly matches
+ * a known type, label, or alias. This deliberately does not perform the
+ * token-scoring used by detectFoodType; imports must never infer a category
+ * from partial product language.
+ */
+export function resolveDeclaredFoodType(value?: string | null): FoodTypeProfile | null {
+  const lookup = foodTypeLookupKey(value ?? '');
+  if (!lookup) return null;
+
+  const identityMatch = FOOD_TYPE_PROFILES.find(profile =>
+    foodTypeLookupKey(profile.slug) === lookup || foodTypeLookupKey(profile.label) === lookup
+  );
+  if (identityMatch) return identityMatch;
+
+  const aliasMatches = FOOD_TYPE_PROFILES.filter(profile =>
+    profile.aliases.some(alias => foodTypeLookupKey(alias) === lookup)
+  );
+  if (aliasMatches.length === 1) return aliasMatches[0];
+
+  // A detailed subtype and its parent can legitimately share an alias. Prefer
+  // the exact known subtype; unrelated matches remain ambiguous for a human.
+  const childMatch = aliasMatches.find(candidate =>
+    candidate.parentSlug && aliasMatches.some(other => other.slug === candidate.parentSlug)
+  );
+  return childMatch ?? null;
+}
+
 function aliasMatches(text: string, alias: string) {
   const escaped = alias.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(text);

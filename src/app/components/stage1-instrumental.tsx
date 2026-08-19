@@ -48,7 +48,7 @@ import {
 
 
 import {
-  type ColumnReport, type ImportCompletionSummary, type RetestImportContext,
+  type ColumnReport, type ImportCompletionSummary, type ImportFoodTypeResolution, type RetestImportContext,
   MAX_FILE_SIZE, DEMO_TYPES,
   getPointColor,
   buildImportedDataset, validateImportedDataset, applyImportedDataset, buildRetestBatchName,
@@ -100,6 +100,7 @@ export function Stage1Instrumental() {
   const [lastImportSummary, setLastImportSummary] = useState<ImportCompletionSummary | null>(null);
   const [columnReport, setColumnReport] = useState<ColumnReport | null>(null);
   const [foodTypeOverride, setFoodTypeOverride] = useState('');
+  const [foodTypeFallback, setFoodTypeFallback] = useState<ImportFoodTypeResolution | null>(null);
   const [projectNameEdited, setProjectNameEdited] = useState(false);
   const [isLoadingFromQueue, setIsLoadingFromQueue] = useState(!!pendingStoragePath);
   const [aromaOpen, setAromaOpen] = useState(false);
@@ -148,7 +149,15 @@ export function Stage1Instrumental() {
         confidence: 1,
         evidence: [...parsed.detection.evidence, 'Confirmed by administrator'],
       };
-      parsed.eTongueData = parsed.eTongueData.map(sample => ({ ...sample, type: overrideSlug }));
+      parsed.eTongueData = parsed.eTongueData.map(sample => ({
+        ...sample,
+        type: overrideSlug,
+        category: formatFoodTypeLabel(overrideSlug),
+      }));
+      parsed.foodTypeResolution = {
+        status: 'confirmed',
+        declaredValues: parsed.foodTypeResolution.declaredValues,
+      };
     }
     return {
       ...parsed,
@@ -158,6 +167,7 @@ export function Stage1Instrumental() {
       measurementCount: parsed.eTongueData.reduce((total, sample) => total + (sample.measurements?.length ?? 0), 0),
     };
   }, [foodTypeOverride, previewData, showPreview, uploadedFile]);
+  const foodTypeNeedsConfirmation = Boolean(foodTypeFallback && !foodTypeOverride.trim());
   const existingProjectCount = useMemo(() => {
     if (!importSummary) return 0;
     return (instrumentalDatasetQuery.data?.eTongueData ?? [])
@@ -176,7 +186,13 @@ export function Stage1Instrumental() {
   const [batchNameSeed, setBatchNameSeed] = useState(importSummary);
   if (importSummary !== batchNameSeed) {
     setBatchNameSeed(importSummary);
-    if (showPreview && importSummary && !projectNameEdited && !retestImport) {
+    if (
+      showPreview
+      && importSummary
+      && ['matched', 'confirmed'].includes(importSummary.foodTypeResolution.status)
+      && !projectNameEdited
+      && !retestImport
+    ) {
       setBatchName(importSummary.detection.label);
     }
   }
@@ -194,6 +210,7 @@ export function Stage1Instrumental() {
   const handleFile = async (file: File) => {
     setImportError(null);
     setFoodTypeOverride('');
+    setFoodTypeFallback(null);
     setProjectNameEdited(false);
     setImportSuccess(null);
     setLastImportSummary(null);
@@ -243,14 +260,17 @@ export function Stage1Instrumental() {
   }
 
   function prepareParsedFile(parsedFile: ParsedInstrumentalFile, fileName: string, overrideBatchName?: string) {
-    const inferredMappings = inferImportMappings(parsedFile.headers);
+    const inferredMappings = inferImportMappings(parsedFile.headers, parsedFile.rows);
     const mappedData = applyImportMappings(parsedFile.rows, inferredMappings);
     const parsed = buildImportedDataset(mappedData, fileName);
-    const detectedProjectName = parsed.detection.label || formatFoodTypeLabel(parsed.detection.slug);
+    setFoodTypeFallback(parsed.foodTypeResolution.status === 'matched' ? null : parsed.foodTypeResolution);
+    const resolvedProjectName = parsed.foodTypeResolution.status === 'matched'
+      ? parsed.detection.label
+      : '';
     setColumnReport(buildImportColumnReport(parsedFile.rows, inferredMappings));
     setPreviewData(mappedData);
     setUploadedFile(fileName);
-    setBatchName(overrideBatchName ?? (retestImport ? buildRetestBatchName(retestImport) : detectedProjectName));
+    setBatchName(overrideBatchName ?? (retestImport ? buildRetestBatchName(retestImport) : resolvedProjectName));
     setProjectNameEdited(Boolean(overrideBatchName || retestImport));
     setShowPreview(true);
     setImportStep(2);
@@ -282,6 +302,11 @@ export function Stage1Instrumental() {
     const importedGCMSCount = Object.keys(parsed.gcmsData).length;
     const importedCompCount = Object.keys(parsed.compositionData).length;
     const projectName = batchName.trim() || parsed.detection.label || uploadedFile?.replace(/\.(csv|xlsx)$/i, '') || `${parsed.detection.label} import`;
+
+    if (!['matched', 'confirmed'].includes(parsed.foodTypeResolution.status)) {
+      setImportError('Tell us what type of product this is before creating the project.');
+      return;
+    }
 
     if (importedETongue.length === 0 && importedGCMSCount === 0 && importedCompCount === 0) {
       setImportError(
@@ -374,6 +399,7 @@ export function Stage1Instrumental() {
     setUploadedFile(null);
     setColumnReport(null);
     setFoodTypeOverride('');
+    setFoodTypeFallback(null);
     setProjectNameEdited(false);
     setBatchName('');
     setImportStep(1);
@@ -395,6 +421,7 @@ export function Stage1Instrumental() {
     setUploadedFile(null);
     setColumnReport(null);
     setFoodTypeOverride('');
+    setFoodTypeFallback(null);
     setProjectNameEdited(false);
     setBatchName('');
     setImportStep(1);
@@ -916,14 +943,48 @@ export function Stage1Instrumental() {
             {columnReport && (
               <div className="grid grid-cols-1 gap-3 text-xs lg:grid-cols-4">
                 {importSummary && (
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                    <p className="font-semibold text-slate-700 mb-1.5">Detected food type</p>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-bold text-slate-900">{importSummary.detection.label}</span>
-                      <span className="rounded-full bg-white border border-slate-200 px-2 py-0.5 font-semibold text-slate-700">
-                        {Math.round(importSummary.detection.confidence * 100)}%
-                      </span>
-                    </div>
+                  <div className={`p-3 border rounded-lg ${foodTypeFallback ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
+                    <p className={`font-semibold mb-1.5 ${foodTypeFallback ? 'text-amber-950' : 'text-slate-700'}`}>
+                      {foodTypeFallback ? 'Product type needed' : 'Food type from file'}
+                    </p>
+                    {!foodTypeFallback && (
+                      <div>
+                        <span className="text-sm font-bold text-slate-900">{importSummary.detection.label}</span>
+                        <p className="mt-1 text-[11px] leading-4 text-slate-600">
+                          Matched directly from column two: {importSummary.foodTypeResolution.declaredValues.join(', ')}.
+                        </p>
+                      </div>
+                    )}
+                    {foodTypeFallback && (
+                      <div>
+                        <p className="text-[11px] leading-4 text-amber-900">
+                          {foodTypeFallback.status === 'missing'
+                            ? 'Column two does not contain a recognised food type.'
+                            : foodTypeFallback.status === 'conflicting'
+                              ? `Column two contains different product families: ${foodTypeFallback.declaredValues.join(', ')}.`
+                              : `“${foodTypeFallback.declaredValues.join(', ')}” is not a direct match in the product-type list.`}
+                          {' '}A food developer must confirm the category; the platform will not guess from sample names.
+                        </p>
+                        <label className="mt-3 block text-xs font-semibold text-amber-950" htmlFor="food-type-override">
+                          What type of product is this?
+                        </label>
+                        <Input
+                          id="food-type-override"
+                          value={foodTypeOverride}
+                          onChange={event => setFoodTypeOverride(event.target.value)}
+                          placeholder="For example, Cheese"
+                          className="mt-1 h-9 border-amber-300 bg-white text-sm placeholder:text-slate-500"
+                          aria-required="true"
+                          required
+                        />
+                        {foodTypeOverride.trim() && (
+                          <p className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-800">
+                            <Check className="size-3.5" aria-hidden />
+                            Developer confirmation: {formatFoodTypeLabel(slugifyFoodType(foodTypeOverride))}
+                          </p>
+                        )}
+                      </div>
+                    )}
                     <div className="mt-3 grid grid-cols-3 gap-1.5 text-[11px] text-slate-700">
                       <span className="rounded bg-white border border-slate-200 px-1.5 py-1">{importSummary.sampleCount} {importSummary.aggregation.groupedByFormulation ? 'formulations' : 'samples'}</span>
                       <span className="rounded bg-white border border-slate-200 px-1.5 py-1">{importSummary.gcmsCount} GC-MS</span>
@@ -937,16 +998,6 @@ export function Stage1Instrumental() {
                         {importSummary.aggregation.sourceSampleCount} individual samples will be averaged into {importSummary.aggregation.formulationCount} formulation profiles.
                       </p>
                     )}
-                    <label className="mt-3 block text-[11px] font-semibold text-slate-700" htmlFor="food-type-override">
-                      Correct classification
-                    </label>
-                    <Input
-                      id="food-type-override"
-                      value={foodTypeOverride}
-                      onChange={event => setFoodTypeOverride(event.target.value)}
-                      placeholder={importSummary.detection.slug}
-                      className="mt-1 h-8 bg-white text-xs"
-                    />
                   </div>
                 )}
                 {importSummary && (
@@ -1047,7 +1098,13 @@ export function Stage1Instrumental() {
             {/* Name and confirm */}
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
               <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Name this food project</p>
-              <p className="text-xs text-slate-500">Detected as {importSummary?.detection.label ?? 'this category'}. Keep that project name or edit it before importing the data.</p>
+              <p className="text-xs text-slate-500">
+                {foodTypeFallback
+                  ? foodTypeNeedsConfirmation
+                    ? 'Confirm the product type above, then name the project.'
+                    : `Confirmed as ${importSummary?.detection.label ?? 'a product'} by the food developer. Keep that project name or edit it.`
+                  : `The file declares this as ${importSummary?.detection.label ?? 'a product'}. Keep that project name or edit it before importing the data.`}
+              </p>
               <input
                 type="text"
                 value={batchName}
@@ -1060,7 +1117,7 @@ export function Stage1Instrumental() {
             <div className="flex gap-3">
               <Button
                 onClick={importCSVData}
-                disabled={insertInstrumentalImport.isPending || !!validationReport?.errors.length}
+                disabled={insertInstrumentalImport.isPending || foodTypeNeedsConfirmation || !!validationReport?.errors.length}
                 className="bg-slate-900 hover:bg-slate-700 disabled:opacity-60"
               >
                 {insertInstrumentalImport.isPending ? "Importing…" : (

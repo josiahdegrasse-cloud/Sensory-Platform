@@ -6,6 +6,7 @@ import {
   formatFoodTypeDetectionLabel,
   getDefaultCataAttributesForFoodType,
   getDefaultIntensityAttributesForFoodType,
+  resolveDeclaredFoodType,
   slugifyFoodType,
 } from './food-intelligence';
 
@@ -110,6 +111,12 @@ describe('food intelligence', () => {
   it('does not match aliases hidden inside unrelated words', () => {
     expect(detectFoodType('champagne style beverage').slug).toBe('beverage');
     expect(detectFoodType('theater snack concept').slug).toBe('snack');
+  });
+
+  it('resolves only direct developer declarations', () => {
+    expect(resolveDeclaredFoodType('Cheese')?.slug).toBe('cheese');
+    expect(resolveDeclaredFoodType('Mozza')?.slug).toBe('mozzarella');
+    expect(resolveDeclaredFoodType('Cheese-like experimental matrix')).toBeNull();
   });
 
   it('keeps tied signals as an expandable custom type', () => {

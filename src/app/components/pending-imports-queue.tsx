@@ -85,7 +85,7 @@ async function runQuickConfirm(item: PendingImportRecord, userId: string): Promi
     rawRows.push(row);
   }
 
-  const mappings = inferImportMappings(headers);
+  const mappings = inferImportMappings(headers, rawRows);
   const previewData = applyImportMappings(rawRows, mappings);
   const parsed = buildImportedDataset(previewData, fileName);
 

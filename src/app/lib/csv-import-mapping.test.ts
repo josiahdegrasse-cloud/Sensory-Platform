@@ -72,4 +72,15 @@ describe('CSV import mapping', () => {
       ignored: ['Notes'],
     });
   });
+
+  it('treats a textual second column as the food-type declaration', () => {
+    const rows = [{ Name: 'Prototype A', 'Developer classification': 'Cultured block', 'Hardness (g)': '120' }];
+    const mappings = inferImportMappings(Object.keys(rows[0]), rows);
+
+    expect(mappings.map(mapping => mapping.target)).toEqual(['sampleName', 'foodType', 'ignore']);
+    expect(applyImportMappings(rows, mappings)[0]).toMatchObject({
+      sampleName: 'Prototype A',
+      foodType: 'Cultured block',
+    });
+  });
 });

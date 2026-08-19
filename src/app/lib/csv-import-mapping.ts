@@ -63,14 +63,33 @@ function normalizeHeader(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
-export function inferImportMappings(headers: string[]): ImportColumnMapping[] {
-  return headers.map(source => {
+export function inferImportMappings(
+  headers: string[],
+  rows: Record<string, string>[] = [],
+): ImportColumnMapping[] {
+  const mappings: ImportColumnMapping[] = headers.map(source => {
     const normalized = normalizeHeader(source);
     const field = IMPORT_FIELDS.find(candidate =>
       candidate.aliases.some(alias => normalized === alias)
     );
     return { source, target: field?.key ?? 'ignore', conversion: 'none' };
   });
+
+  // The import template reserves column two for product type. A text column in
+  // that position is treated as the declaration even when a developer used a
+  // custom heading; numeric measurement columns remain untouched.
+  if (!mappings.some(mapping => mapping.target === 'foodType') && headers[1]) {
+    const secondColumnValues = rows
+      .map(row => row[headers[1]]?.trim())
+      .filter((value): value is string => Boolean(value));
+    const isTextDeclaration = secondColumnValues.length > 0
+      && secondColumnValues.every(value => !Number.isFinite(Number(value)));
+    if (isTextDeclaration || mappings[1]?.target === 'category') {
+      mappings[1] = { ...mappings[1], target: 'foodType' };
+    }
+  }
+
+  return mappings;
 }
 
 function convertValue(value: string, conversion: ImportConversion) {
