@@ -235,9 +235,9 @@ export function IntensityTab({
           <SampleContext name={activeSampleName} id={activeSampleId} />
         </CardHeader>
         <CardContent>
-          <div className="grid gap-6 lg:grid-cols-2">
-            <div>
-              <ResponsiveContainer width="100%" height={350}>
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(220px,1fr)] lg:items-center">
+            <div className="h-[380px] min-w-0 sm:h-[460px] lg:h-[520px]">
+              <ResponsiveContainer width="100%" height="100%">
                 <RadarChart data={activeIntensityData}>
                   <PolarGrid />
                   <PolarAngleAxis dataKey="attribute" />
@@ -253,7 +253,7 @@ export function IntensityTab({
                 </RadarChart>
               </ResponsiveContainer>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-2.5 lg:py-6">
               {activeIntensityData.map(({ attribute, value }) => {
                 const label = attribute.replace(/([A-Z])/g, ' $1').trim();
                 const hi = 7;
@@ -263,13 +263,13 @@ export function IntensityTab({
                   <div key={attribute} className="space-y-1">
                     <div className="flex items-center justify-between text-sm">
                       <span className="capitalize font-medium text-slate-700">{label}</span>
-                      <Badge className={`bg-${color}-600 text-white`}>
+                      <Badge className={`bg-${color}-600 px-1.5 py-0 text-[11px] text-white`}>
                         {value.toFixed(1)}/{INTENSITY_SCALE_MAX}
                       </Badge>
                     </div>
-                    <div className="w-full bg-slate-200 rounded-full h-3">
+                    <div className="h-1.5 w-full rounded-full bg-slate-200">
                       <div
-                        className={`bg-${color}-600 h-3 rounded-full transition-all`}
+                        className={`h-1.5 rounded-full bg-${color}-600 transition-all`}
                         style={{ width: `${intensityScalePercentage(value)}%` }}
                       ></div>
                     </div>
