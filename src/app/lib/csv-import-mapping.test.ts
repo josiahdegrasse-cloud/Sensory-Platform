@@ -3,8 +3,8 @@ import { applyImportMappings, inferImportMappings } from './csv-import-mapping';
 
 describe('CSV import mapping', () => {
   it('infers common laboratory column names', () => {
-    const mappings = inferImportMappings(['Sample Code', 'Product Type', 'Protein %', 'Unknown']);
-    expect(mappings.map(item => item.target)).toEqual(['sampleId', 'foodType', 'protein', 'ignore']);
+    const mappings = inferImportMappings(['Sample Code', 'Formulation', 'Formulation ID', 'Product Type', 'Protein %', 'Unknown']);
+    expect(mappings.map(item => item.target)).toEqual(['sampleId', 'formulationName', 'formulationId', 'foodType', 'protein', 'ignore']);
   });
 
   it('applies unit conversions to mapped rows', () => {

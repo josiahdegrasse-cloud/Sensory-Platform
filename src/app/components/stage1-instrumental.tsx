@@ -376,6 +376,8 @@ export function Stage1Instrumental() {
       savedPermanently,
       importBatchId: importedBatchId ?? null,
       retestParentDecisionId: retestImport?.parentDecisionId ?? null,
+      groupedByFormulation: parsed.aggregation.groupedByFormulation,
+      sourceSampleCount: parsed.aggregation.sourceSampleCount,
     });
     setSurveySections([...DEFAULT_SURVEY_SECTIONS]);
     setSurveyAttributes(getDefaultCataAttributesForFoodType(parsed.detection.slug));
@@ -750,7 +752,12 @@ export function Stage1Instrumental() {
                       <p className="text-sm font-bold text-slate-900">{lastImportSummary.foodTypeLabel} project imported</p>
                       <p className="mt-0.5 text-xs text-slate-600">{lastImportSummary.projectName}</p>
                       <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                        <span className="rounded-md border border-slate-200 px-2.5 py-1 font-semibold text-slate-700">{lastImportSummary.sampleCount} samples</span>
+                        <span className="rounded-md border border-slate-200 px-2.5 py-1 font-semibold text-slate-700">
+                          {lastImportSummary.sampleCount} {lastImportSummary.groupedByFormulation ? 'formulations' : 'samples'}
+                        </span>
+                        {lastImportSummary.groupedByFormulation && lastImportSummary.sourceSampleCount ? (
+                          <span className="rounded-md border border-slate-200 px-2.5 py-1 font-semibold text-slate-700">Mean of {lastImportSummary.sourceSampleCount} samples</span>
+                        ) : null}
                         <span className="rounded-md border border-slate-200 px-2.5 py-1 font-semibold text-slate-700">{lastImportSummary.gcmsCount} GC-MS</span>
                         <span className="rounded-md border border-slate-200 px-2.5 py-1 font-semibold text-slate-700">{lastImportSummary.compositionCount} composition</span>
                       </div>
@@ -927,10 +934,15 @@ export function Stage1Instrumental() {
                       </span>
                     </div>
                     <div className="mt-3 grid grid-cols-3 gap-1.5 text-[11px] text-slate-700">
-                      <span className="rounded bg-white border border-slate-200 px-1.5 py-1">{importSummary.sampleCount} samples</span>
+                      <span className="rounded bg-white border border-slate-200 px-1.5 py-1">{importSummary.sampleCount} {importSummary.aggregation.groupedByFormulation ? 'formulations' : 'samples'}</span>
                       <span className="rounded bg-white border border-slate-200 px-1.5 py-1">{importSummary.gcmsCount} GC-MS</span>
                       <span className="rounded bg-white border border-slate-200 px-1.5 py-1">{importSummary.compositionCount} comp</span>
                     </div>
+                    {importSummary.aggregation.groupedByFormulation && (
+                      <p className="mt-2 rounded bg-emerald-50 px-2 py-1.5 text-[11px] font-semibold leading-4 text-emerald-800 ring-1 ring-emerald-200">
+                        {importSummary.aggregation.sourceSampleCount} individual samples will be averaged into {importSummary.aggregation.formulationCount} formulation profiles.
+                      </p>
+                    )}
                     <label className="mt-3 block text-[11px] font-semibold text-slate-700" htmlFor="food-type-override">
                       Correct classification
                     </label>
@@ -955,7 +967,7 @@ export function Stage1Instrumental() {
                         : 'This food type will appear after the import saves.'}
                     </p>
                     <p className="mt-2 rounded bg-white px-2 py-1 text-[11px] font-semibold text-blue-800 ring-1 ring-blue-200">
-                      {importSummary.sampleCount} sample{importSummary.sampleCount === 1 ? '' : 's'} will be ready for survey setup
+                      {importSummary.sampleCount} {importSummary.aggregation.groupedByFormulation ? `formulation${importSummary.sampleCount === 1 ? '' : 's'}` : `sample${importSummary.sampleCount === 1 ? '' : 's'}`} will be ready for survey setup
                     </p>
                   </div>
                 )}

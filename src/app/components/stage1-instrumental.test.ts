@@ -124,4 +124,48 @@ describe('CSV import workflow intelligence', () => {
     expect(new Set(colors)).toEqual(new Set(['#0f766e']));
     expect(inferYogurtCategory('Greek strained', 'Yogurt')).toBe('Greek strained');
   });
+
+  it('imports one mean profile per formulation instead of one product per replicate row', () => {
+    const rows = [
+      {
+        formulationId: 'F-01', formulationName: 'Full fat v1', sampleId: 'F-01-A', foodType: 'yogurt',
+        sourness: '1', sweetness: '5', fat: '10', protein: '4', compound: 'Diacetyl', concentration: '2', threshold: '1',
+      },
+      {
+        formulationId: 'F-01', formulationName: 'Full fat v1', sampleId: 'F-01-A', foodType: 'yogurt',
+        sourness: '1', sweetness: '5', fat: '10', protein: '4', compound: 'Diacetyl', concentration: '4', threshold: '1',
+      },
+      {
+        formulationId: 'F-01', formulationName: 'Full fat v1', sampleId: 'F-01-B', foodType: 'yogurt',
+        sourness: '3', sweetness: '7', fat: '20', protein: '6', compound: 'Diacetyl', concentration: '5', threshold: '3',
+      },
+      {
+        formulationId: 'F-02', formulationName: 'Low fat v2', sampleId: 'F-02-A', foodType: 'yogurt',
+        sourness: '4', sweetness: '3', fat: '5', protein: '8', compound: 'Acetaldehyde', concentration: '6', threshold: '2',
+      },
+    ];
+
+    const dataset = buildImportedDataset(rows, 'yogurt-formulations.csv');
+
+    expect(dataset.eTongueData).toHaveLength(2);
+    expect(dataset.eTongueData[0]).toMatchObject({
+      sampleId: 'F-01',
+      sampleName: 'Full fat v1',
+      sourness: 2,
+      sweetness: 6,
+    });
+    expect(dataset.compositionData['F-01']).toMatchObject({ fat: 15, protein: 5 });
+    expect(dataset.gcmsData['F-01'][0]).toMatchObject({
+      name: 'Diacetyl',
+      concentration: 4,
+      threshold: 2,
+    });
+    expect(dataset.aggregation).toEqual({
+      groupedByFormulation: true,
+      sourceRowCount: 4,
+      sourceSampleCount: 3,
+      formulationCount: 2,
+      averagedFormulationCount: 1,
+    });
+  });
 });

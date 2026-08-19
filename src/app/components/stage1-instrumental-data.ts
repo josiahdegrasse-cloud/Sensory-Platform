@@ -61,6 +61,16 @@ export interface ImportCompletionSummary {
   savedPermanently: boolean;
   importBatchId?: string | null;
   retestParentDecisionId?: string | null;
+  groupedByFormulation?: boolean;
+  sourceSampleCount?: number;
+}
+
+export interface ImportAggregationSummary {
+  groupedByFormulation: boolean;
+  sourceRowCount: number;
+  sourceSampleCount: number;
+  formulationCount: number;
+  averagedFormulationCount: number;
 }
 
 export interface RetestImportContext {
@@ -171,6 +181,8 @@ export const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 // Known column aliases for recognition report
 export const KNOWN_ALIASES = [
   'sampleid', 'sample', 'id',
+  'formulationid', 'formulationcode', 'formulaid', 'formulacode',
+  'formulation', 'formulationname', 'formulaname', 'recipe',
   'type', 'category', 'samplename', 'name',
   'ingredientstatement', 'ingredientlist', 'ingredients',
   'sourness', 'bitterness', 'saltiness', 'umami', 'sweetness',
@@ -232,6 +244,7 @@ export interface StoredImportedData {
   gcmsData: Record<string, GCMSCompound[]>;
   compositionData: Record<string, ChemicalComposition>;
   ingredientStatements?: Record<string, IngredientStatement>;
+  aggregation?: ImportAggregationSummary;
 }
 
 export function mergeInstrumentalData(imported: StoredImportedData | null | undefined): StoredImportedData {
@@ -343,110 +356,223 @@ export function getPointColor(type?: string, category?: string) {
   return STATUS.info;
 }
 
-export function buildImportedDataset(previewData: Record<string, string>[], uploadedFile?: string | null) {
-  const eTongueMap = new Map<string, ETongueMeasurement>();
-  const gcmsMap: Record<string, GCMSCompound[]> = {};
-  const compositionMap: Record<string, ChemicalComposition> = {};
-  const ingredientStatements: Record<string, IngredientStatement> = {};
+type NumericTotal = { sum: number; count: number };
 
+const TASTE_FIELDS = ['sourness', 'bitterness', 'saltiness', 'umami', 'sweetness'] as const;
+const COMPOSITION_FIELDS = ['protein', 'fat', 'moisture', 'pH', 'saltContent', 'calciumMg'] as const;
+
+type TasteField = typeof TASTE_FIELDS[number];
+type CompositionField = typeof COMPOSITION_FIELDS[number];
+
+function emptyNumericTotals<T extends string>(fields: readonly T[]): Record<T, NumericTotal> {
+  return Object.fromEntries(fields.map(field => [field, { sum: 0, count: 0 }])) as Record<T, NumericTotal>;
+}
+
+function addNumeric(total: NumericTotal, value: string) {
+  const numeric = Number.parseFloat(value);
+  if (!Number.isFinite(numeric)) return;
+  total.sum += numeric;
+  total.count += 1;
+}
+
+function numericMean(total: NumericTotal) {
+  return total.count > 0 ? total.sum / total.count : null;
+}
+
+interface ReplicateTotals {
+  taste: Record<TasteField, NumericTotal>;
+  composition: Record<CompositionField, NumericTotal>;
+}
+
+interface CompoundReplicateTotals {
+  concentration: NumericTotal;
+  threshold: NumericTotal;
+  aroma: string;
+}
+
+interface FormulationTotals {
+  sampleId: string;
+  sampleName: string;
+  type: string;
+  category: string;
+  replicates: Map<string, ReplicateTotals>;
+  compounds: Map<string, Map<string, CompoundReplicateTotals>>;
+  ingredientStatement: string;
+}
+
+function meanAcrossReplicates(
+  replicates: Iterable<ReplicateTotals>,
+  section: 'taste' | 'composition',
+  field: TasteField | CompositionField,
+) {
+  const replicateMeans = [...replicates]
+    .map(replicate => numericMean((replicate[section] as Record<string, NumericTotal>)[field]))
+    .filter((value): value is number => value !== null);
+  return replicateMeans.length > 0
+    ? replicateMeans.reduce((sum, value) => sum + value, 0) / replicateMeans.length
+    : null;
+}
+
+export function buildImportedDataset(previewData: Record<string, string>[], uploadedFile?: string | null) {
+  const formulations = new Map<string, FormulationTotals>();
   const detectionValues: string[] = [uploadedFile ?? ""];
+  let groupedByFormulation = false;
+
   previewData.forEach((row, index) => {
-    const sampleId =
-      getRowValue(row, ["sampleId", "sample", "id", "sampleCode", "code"]) || `Imported-${index + 1}`;
-    const sampleName = getRowValue(row, ["sampleName", "sampleLabel", "productName", "product", "food", "sample"]);
+    const replicateId = getRowValue(row, ["sampleId", "sample", "id", "sampleCode", "code"]) || `Imported-${index + 1}`;
+    const replicateName = getRowValue(row, ["sampleName", "sampleLabel", "productName", "product", "food", "sample"]);
+    const formulationId = getRowValue(row, ["formulationId", "formulationCode", "formulaId", "formulaCode"]);
+    const formulationName = getRowValue(row, ["formulationName", "formulation", "formulaName", "recipe"]);
+    const sampleId = normalize(formulationId) || normalize(formulationName) || replicateId;
+    const sampleName = normalize(formulationName) || replicateName || sampleId;
+    groupedByFormulation ||= Boolean(normalize(formulationId) || normalize(formulationName));
+
     const csvCategory = getRowValue(row, ["category", "foodType", "food_type", "productType", "product_type"]);
     const csvType = getRowValue(row, ["type", "foodType", "food_type", "productType", "product_type"]);
     const type = inferType(sampleId, csvType, csvCategory, sampleName);
     const category = inferCategory(sampleId, csvCategory, type, sampleName);
+    detectionValues.push(sampleId, sampleName, replicateId, replicateName, csvCategory, csvType, category, type);
 
-    detectionValues.push(sampleId, sampleName, csvCategory, csvType, category, type);
+    let formulation = formulations.get(sampleId);
+    if (!formulation) {
+      formulation = {
+        sampleId,
+        sampleName,
+        type,
+        category,
+        replicates: new Map(),
+        compounds: new Map(),
+        ingredientStatement: '',
+      };
+      formulations.set(sampleId, formulation);
+    }
+
+    let replicate = formulation.replicates.get(replicateId);
+    if (!replicate) {
+      replicate = {
+        taste: emptyNumericTotals(TASTE_FIELDS),
+        composition: emptyNumericTotals(COMPOSITION_FIELDS),
+      };
+      formulation.replicates.set(replicateId, replicate);
+    }
+
+    TASTE_FIELDS.forEach(field => addNumeric(replicate!.taste[field], getRowValue(row, [field])));
+    COMPOSITION_FIELDS.forEach(field => addNumeric(replicate!.composition[field], getRowValue(row, [field])));
 
     const ingredientStatement = getRowValue(row, [
-      'ingredientStatement',
-      'ingredient_statement',
-      'ingredientList',
-      'ingredient_list',
-      'ingredients',
+      'ingredientStatement', 'ingredient_statement', 'ingredientList', 'ingredient_list', 'ingredients',
     ]).trim();
-    if (ingredientStatement && !ingredientStatements[sampleId]) {
-      ingredientStatements[sampleId] = {
-        text: ingredientStatement,
+    if (ingredientStatement && !formulation.ingredientStatement) formulation.ingredientStatement = ingredientStatement;
+
+    const compoundName = getRowValue(row, ['compound', 'compoundName', 'analyte', 'name']).trim();
+    const concentration = getRowValue(row, ['concentration', 'concentrationPpm', 'amount']);
+    if (compoundName && Number.isFinite(Number.parseFloat(concentration))) {
+      let compoundReplicates = formulation.compounds.get(compoundName);
+      if (!compoundReplicates) {
+        compoundReplicates = new Map();
+        formulation.compounds.set(compoundName, compoundReplicates);
+      }
+      let compound = compoundReplicates.get(replicateId);
+      if (!compound) {
+        compound = {
+          concentration: { sum: 0, count: 0 },
+          threshold: { sum: 0, count: 0 },
+          aroma: getRowValue(row, ['aroma', 'odour', 'odor', 'descriptor']) || 'unknown',
+        };
+        compoundReplicates.set(replicateId, compound);
+      }
+      addNumeric(compound.concentration, concentration);
+      addNumeric(compound.threshold, getRowValue(row, ['threshold', 'odourThreshold', 'odorThreshold']));
+    }
+  });
+
+  const eTongueData: ETongueMeasurement[] = [];
+  const gcmsData: Record<string, GCMSCompound[]> = {};
+  const compositionData: Record<string, ChemicalComposition> = {};
+  const ingredientStatements: Record<string, IngredientStatement> = {};
+
+  formulations.forEach(formulation => {
+    const tasteMeans = Object.fromEntries(TASTE_FIELDS.map(field => [
+      field,
+      meanAcrossReplicates(formulation.replicates.values(), 'taste', field),
+    ])) as Record<TasteField, number | null>;
+    const hasTaste = Object.values(tasteMeans).some(value => value !== null);
+
+    if (formulation.ingredientStatement) {
+      ingredientStatements[formulation.sampleId] = {
+        text: formulation.ingredientStatement,
         source: 'csv_import',
         updatedAt: null,
       };
     }
 
-    const sourness   = parseFloat(row.sourness   || row.Sourness   || row.SOURNESS   || "NaN");
-    const bitterness = parseFloat(row.bitterness || row.Bitterness || row.BITTERNESS || "NaN");
-    const saltiness  = parseFloat(row.saltiness  || row.Saltiness  || row.SALTINESS  || "NaN");
-    const umami      = parseFloat(row.umami      || row.Umami      || row.UMAMI      || "NaN");
-    const sweetness  = parseFloat(row.sweetness  || row.Sweetness  || row.SWEETNESS  || "NaN");
-
-    const hasAnyTaste = [sourness, bitterness, saltiness, umami, sweetness].some((v) => !Number.isNaN(v));
-    if (hasAnyTaste && !eTongueMap.has(sampleId)) {
-      eTongueMap.set(sampleId, {
-        sampleId,
-        sampleName,
-        sourness:   Number.isNaN(sourness)   ? 0 : sourness,
-        bitterness: Number.isNaN(bitterness) ? 0 : bitterness,
-        saltiness:  Number.isNaN(saltiness)  ? 0 : saltiness,
-        umami:      Number.isNaN(umami)      ? 0 : umami,
-        sweetness:  Number.isNaN(sweetness)  ? 0 : sweetness,
-        type,
-        category,
-        ingredientStatement: ingredientStatements[sampleId],
+    if (hasTaste) {
+      eTongueData.push({
+        sampleId: formulation.sampleId,
+        sampleName: formulation.sampleName,
+        sourness: tasteMeans.sourness ?? 0,
+        bitterness: tasteMeans.bitterness ?? 0,
+        saltiness: tasteMeans.saltiness ?? 0,
+        umami: tasteMeans.umami ?? 0,
+        sweetness: tasteMeans.sweetness ?? 0,
+        type: formulation.type,
+        category: formulation.category,
+        ingredientStatement: ingredientStatements[formulation.sampleId],
       });
     }
 
-    const compoundName  = row.compound || row.Compound || row.name || row.Name;
-    const concentration = parseFloat(row.concentration || row.Concentration || row.CONCENTRATION || "NaN");
-    const aroma         = row.aroma || row.Aroma || row.odour || row.Odour || "";
-    const threshold     = parseFloat(row.threshold || row.Threshold || row.THRESHOLD || "NaN");
-
-    if (compoundName && !Number.isNaN(concentration)) {
-      if (!gcmsMap[sampleId]) gcmsMap[sampleId] = [];
-      const alreadyExists = gcmsMap[sampleId].some((c) => c.name === compoundName);
-      if (!alreadyExists) {
-        gcmsMap[sampleId].push({
-          name: compoundName,
-          concentration,
-          aroma: aroma || "unknown",
-          threshold: Number.isNaN(threshold) ? 0 : threshold,
-        });
-      }
-    }
-
-    const protein     = parseFloat(row.protein     || row.Protein     || "NaN");
-    const fat         = parseFloat(row.fat         || row.Fat         || "NaN");
-    const moisture    = parseFloat(row.moisture    || row.Moisture    || "NaN");
-    const pH          = parseFloat(row.pH          || row.PH          || "NaN");
-    const saltContent = parseFloat(row.saltContent || row.SaltContent || "NaN");
-    const calciumMg   = parseFloat(row.calciumMg   || row.CalciumMg   || "NaN");
-
-    const compFields = [protein, fat, moisture, pH, saltContent, calciumMg];
-    const validCompCount = compFields.filter((v) => !Number.isNaN(v)).length;
-    if (validCompCount >= 2 && !compositionMap[sampleId]) {
-      compositionMap[sampleId] = {
-        protein:     Number.isNaN(protein)     ? 0 : protein,
-        fat:         Number.isNaN(fat)         ? 0 : fat,
-        moisture:    Number.isNaN(moisture)    ? 0 : moisture,
-        pH:          Number.isNaN(pH)          ? 0 : pH,
-        saltContent: Number.isNaN(saltContent) ? 0 : saltContent,
-        calciumMg:   Number.isNaN(calciumMg)   ? 0 : calciumMg,
+    const compositionMeans = Object.fromEntries(COMPOSITION_FIELDS.map(field => [
+      field,
+      meanAcrossReplicates(formulation.replicates.values(), 'composition', field),
+    ])) as Record<CompositionField, number | null>;
+    if (Object.values(compositionMeans).filter(value => value !== null).length >= 2) {
+      compositionData[formulation.sampleId] = {
+        protein: compositionMeans.protein ?? 0,
+        fat: compositionMeans.fat ?? 0,
+        moisture: compositionMeans.moisture ?? 0,
+        pH: compositionMeans.pH ?? 0,
+        saltContent: compositionMeans.saltContent ?? 0,
+        calciumMg: compositionMeans.calciumMg ?? 0,
       };
     }
+
+    const compounds = [...formulation.compounds.entries()].map(([name, replicateMap]) => {
+      const replicateCompounds = [...replicateMap.values()];
+      const concentrationMeans = replicateCompounds
+        .map(compound => numericMean(compound.concentration))
+        .filter((value): value is number => value !== null);
+      const thresholdMeans = replicateCompounds
+        .map(compound => numericMean(compound.threshold))
+        .filter((value): value is number => value !== null);
+      return {
+        name,
+        concentration: concentrationMeans.reduce((sum, value) => sum + value, 0) / concentrationMeans.length,
+        aroma: replicateCompounds.find(compound => compound.aroma)?.aroma || 'unknown',
+        threshold: thresholdMeans.length > 0
+          ? thresholdMeans.reduce((sum, value) => sum + value, 0) / thresholdMeans.length
+          : 0,
+      };
+    });
+    if (compounds.length > 0) gcmsData[formulation.sampleId] = compounds;
   });
 
-  const eTongueData = Array.from(eTongueMap.values());
   const detection = detectFoodType(...detectionValues);
+  const aggregation = {
+    groupedByFormulation,
+    sourceRowCount: previewData.length,
+    sourceSampleCount: [...formulations.values()].reduce((total, formulation) => total + formulation.replicates.size, 0),
+    formulationCount: formulations.size,
+    averagedFormulationCount: [...formulations.values()].filter(formulation => formulation.replicates.size > 1).length,
+  };
   const explicitTypes = Array.from(new Set(eTongueData.map(sample => sample.type).filter(Boolean))) as string[];
   if (explicitTypes.length === 1 && explicitTypes[0] && !DEMO_TYPES.has(explicitTypes[0])) {
     const explicitSlug = slugifyFoodType(explicitTypes[0]);
     return {
       eTongueData,
-      gcmsData: gcmsMap,
-      compositionData: compositionMap,
+      gcmsData,
+      compositionData,
       ingredientStatements,
+      aggregation,
       detection: {
         ...detection,
         slug: explicitSlug,
@@ -456,7 +582,7 @@ export function buildImportedDataset(previewData: Record<string, string>[], uplo
     };
   }
 
-  return { eTongueData, gcmsData: gcmsMap, compositionData: compositionMap, ingredientStatements, detection };
+  return { eTongueData, gcmsData, compositionData, ingredientStatements, aggregation, detection };
 }
 
 export function validateImportedDataset(
@@ -475,7 +601,7 @@ export function validateImportedDataset(
   if (rows.length === 0) errors.push('No data rows found.');
   if (dataset.eTongueData.length === 0) errors.push('No e-tongue taste values found. Include at least one of sourness, bitterness, saltiness, umami, or sweetness.');
   if (!columnReport || columnReport.recognised.length === 0) errors.push('No recognized columns found.');
-  if (duplicates.length > 0) warnings.push(`Duplicate sample IDs detected: ${Array.from(new Set(duplicates)).join(', ')}.`);
+  if (duplicates.length > 0 && !dataset.aggregation?.groupedByFormulation) warnings.push(`Duplicate sample IDs detected: ${Array.from(new Set(duplicates)).join(', ')}.`);
   if ((columnReport?.ignored.length ?? 0) > 0) warnings.push(`${columnReport?.ignored.length} column${columnReport?.ignored.length === 1 ? '' : 's'} will be ignored.`);
   if (detection && detection.confidence < 0.75) warnings.push(`Food type detection is low confidence (${Math.round(detection.confidence * 100)}%). Confirm ${detection.label} before importing.`);
   if (Object.keys(dataset.gcmsData).length === 0) warnings.push('No GC-MS compounds found. Aroma/off-note panels will be empty for this batch.');
