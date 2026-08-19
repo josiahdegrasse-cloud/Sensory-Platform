@@ -75,9 +75,11 @@ describe('fetchImportBatches', () => {
               ingredient_statement: null, ingredient_statement_source: 'csv_import', ingredient_statement_updated_at: null,
               food_types: { slug: 'cheese', status: 'active' }, import_batches: { id: 'batch-1', status: 'active' },
               e_tongue_measurements: [], gcms_compounds: [], composition_profiles: [],
-              instrumental_measurement_profiles: [{
+              // Supabase returns this as an object because sample_id is a
+              // generated one-to-one relationship, not as a child array.
+              instrumental_measurement_profiles: {
                 metrics: [{ key: 'fat', label: 'Fat', unit: '%', mean: 25.892, observationCount: 15 }],
-              }],
+              },
             }],
             error: null,
           }),

@@ -632,7 +632,13 @@ export async function fetchInstrumentalDataset(): Promise<InstrumentalDataset> {
       };
     }
     const eTongue = ((row.e_tongue_measurements as Record<string, unknown>[] | null) ?? [])[0];
-    const measurementProfile = ((row.instrumental_measurement_profiles as Record<string, unknown>[] | null) ?? [])[0];
+    const measurementProfileRaw = row.instrumental_measurement_profiles as
+      | Record<string, unknown>
+      | Record<string, unknown>[]
+      | null;
+    const measurementProfile = Array.isArray(measurementProfileRaw)
+      ? measurementProfileRaw[0]
+      : measurementProfileRaw;
     const rawMeasurements = Array.isArray(measurementProfile?.metrics) ? measurementProfile.metrics : [];
     const measurements = rawMeasurements.flatMap(value => {
       if (!value || typeof value !== 'object') return [];
