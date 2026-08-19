@@ -12,7 +12,7 @@ vi.mock('../supabase', () => ({
   },
 }));
 
-import { createSurveysForImportBatch, fetchImportBatches, insertInstrumentalImport, updateIngredientStatement } from './imports';
+import { createSurveysForImportBatch, fetchImportBatches, fetchInstrumentalDataset, insertInstrumentalImport, updateIngredientStatement } from './imports';
 
 function queryResult(result: { data: unknown[] | null; error: { message: string } | null }) {
   return {
@@ -62,6 +62,41 @@ describe('fetchImportBatches', () => {
       }),
     ]);
     expect(dbMocks.from).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns generic measurement formulations without fake e-tongue values', async () => {
+    dbMocks.from.mockImplementation((table: string) => {
+      if (table === 'instrumental_samples') {
+        const query = {
+          eq: vi.fn(() => query),
+          order: vi.fn().mockResolvedValue({
+            data: [{
+              id: 'sample-row-1', sample_id: 'Cheddar ref', sample_name: 'Cheddar ref', category: 'Cheese',
+              ingredient_statement: null, ingredient_statement_source: 'csv_import', ingredient_statement_updated_at: null,
+              food_types: { slug: 'cheese', status: 'active' }, import_batches: { id: 'batch-1', status: 'active' },
+              e_tongue_measurements: [], gcms_compounds: [], composition_profiles: [],
+              instrumental_measurement_profiles: [{
+                metrics: [{ key: 'fat', label: 'Fat', unit: '%', mean: 25.892, observationCount: 15 }],
+              }],
+            }],
+            error: null,
+          }),
+        };
+        return { select: vi.fn(() => query) };
+      }
+      if (table === 'formulation_versions') {
+        return { select: vi.fn(() => ({ order: vi.fn().mockResolvedValue({ data: [], error: null }) })) };
+      }
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    await expect(fetchInstrumentalDataset()).resolves.toMatchObject({
+      eTongueData: [{
+        sampleId: 'Cheddar ref',
+        hasETongueData: false,
+        measurements: [{ key: 'fat', label: 'Fat', unit: '%', mean: 25.892, observationCount: 15 }],
+      }],
+    });
   });
 
   it('keeps imports data-only until an administrator sends surveys', async () => {

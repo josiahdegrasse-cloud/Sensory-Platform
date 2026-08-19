@@ -52,7 +52,7 @@ export async function edgeFunctionErrorMessage(error: unknown, fallback: string)
 export function isMissingFoodImportSchema(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return (
-    /food_types|instrumental_samples|import_batches|e_tongue_measurements|gcms_compounds|composition_profiles/i.test(message) &&
+    /food_types|instrumental_samples|import_batches|e_tongue_measurements|gcms_compounds|composition_profiles|instrumental_measurement_profiles/i.test(message) &&
     /schema cache|could not find|does not exist|PGRST205/i.test(message)
   );
 }

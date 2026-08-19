@@ -9,6 +9,10 @@ const reimportMigrationPath = new URL(
   '../../../supabase/migrations/20260611193000_reimport_deleted_instrumental_project.sql',
   import.meta.url,
 );
+const genericMeasurementsMigrationPath = new URL(
+  '../../../supabase/migrations/20260819070000_generic_instrumental_measurements.sql',
+  import.meta.url,
+);
 
 describe('tenant-safe instrumental import migration', () => {
   const sql = readFileSync(migrationPath, 'utf8');
@@ -34,5 +38,14 @@ describe('tenant-safe instrumental import migration', () => {
     const reimportSql = readFileSync(reimportMigrationPath, 'utf8');
     expect(reimportSql).toContain("AND b.status = 'active'");
     expect(reimportSql).toContain("WHERE idempotency_key IS NOT NULL AND status = 'active'");
+  });
+
+  it('stores generic formulation means without inventing e-tongue measurements', () => {
+    const genericSql = readFileSync(genericMeasurementsMigrationPath, 'utf8');
+    expect(genericSql).toContain('CREATE TABLE public.instrumental_measurement_profiles');
+    expect(genericSql).toContain("CHECK (jsonb_typeof(metrics) = 'array')");
+    expect(genericSql).toContain("COALESCE((sample_payload->>'hasETongueData')::boolean, true)");
+    expect(genericSql).toContain("measurement_metrics := sample_payload->'measurements'");
+    expect(genericSql).toContain('instrumental_measurement_profiles_org_isolation');
   });
 });

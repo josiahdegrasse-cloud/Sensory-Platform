@@ -43,6 +43,16 @@ export interface ETongueMeasurementRecord {
   category?: string;
   importBatchId?: string;
   ingredientStatement?: IngredientStatementRecord;
+  hasETongueData?: boolean;
+  measurements?: InstrumentalMeasurementRecord[];
+}
+
+export interface InstrumentalMeasurementRecord {
+  key: string;
+  label: string;
+  unit: string;
+  mean: number;
+  observationCount: number;
 }
 
 export interface GCMSCompoundRecord {
@@ -591,7 +601,8 @@ export async function fetchInstrumentalDataset(): Promise<InstrumentalDataset> {
       import_batches!inner(id, status),
       e_tongue_measurements(sourness, bitterness, saltiness, umami, sweetness),
       gcms_compounds(name, concentration, aroma, threshold),
-      composition_profiles(protein, fat, moisture, ph, salt_content, calcium_mg)
+      composition_profiles(protein, fat, moisture, ph, salt_content, calcium_mg),
+      instrumental_measurement_profiles(metrics)
     `)
     .eq('food_types.status', 'active')
     .eq('import_batches.status', 'active')
@@ -621,22 +632,38 @@ export async function fetchInstrumentalDataset(): Promise<InstrumentalDataset> {
       };
     }
     const eTongue = ((row.e_tongue_measurements as Record<string, unknown>[] | null) ?? [])[0];
-    if (eTongue) {
-      eTongueData.push({
-        instrumentalSampleId: row.id as string,
-        sampleId,
-        sampleName: (row.sample_name as string) ?? undefined,
-        category: (row.category as string) ?? undefined,
-        importBatchId: importBatch?.id,
-        type: foodType?.slug,
-        ingredientStatement: ingredientStatement ? ingredientStatements[sampleId] : undefined,
-        sourness: Number(eTongue.sourness ?? 0),
-        bitterness: Number(eTongue.bitterness ?? 0),
-        saltiness: Number(eTongue.saltiness ?? 0),
-        umami: Number(eTongue.umami ?? 0),
-        sweetness: Number(eTongue.sweetness ?? 0),
-      });
-    }
+    const measurementProfile = ((row.instrumental_measurement_profiles as Record<string, unknown>[] | null) ?? [])[0];
+    const rawMeasurements = Array.isArray(measurementProfile?.metrics) ? measurementProfile.metrics : [];
+    const measurements = rawMeasurements.flatMap(value => {
+      if (!value || typeof value !== 'object') return [];
+      const metric = value as Record<string, unknown>;
+      const mean = Number(metric.mean);
+      const observationCount = Number(metric.observationCount);
+      if (!String(metric.key ?? '').trim() || !Number.isFinite(mean) || !Number.isFinite(observationCount)) return [];
+      return [{
+        key: String(metric.key),
+        label: String(metric.label ?? metric.key),
+        unit: String(metric.unit ?? ''),
+        mean,
+        observationCount,
+      }];
+    });
+    eTongueData.push({
+      instrumentalSampleId: row.id as string,
+      sampleId,
+      sampleName: (row.sample_name as string) ?? undefined,
+      category: (row.category as string) ?? undefined,
+      importBatchId: importBatch?.id,
+      type: foodType?.slug,
+      ingredientStatement: ingredientStatement ? ingredientStatements[sampleId] : undefined,
+      sourness: Number(eTongue?.sourness ?? 0),
+      bitterness: Number(eTongue?.bitterness ?? 0),
+      saltiness: Number(eTongue?.saltiness ?? 0),
+      umami: Number(eTongue?.umami ?? 0),
+      sweetness: Number(eTongue?.sweetness ?? 0),
+      hasETongueData: Boolean(eTongue),
+      measurements,
+    });
 
     const compounds = (row.gcms_compounds as Record<string, unknown>[] | null) ?? [];
     if (compounds.length > 0) {

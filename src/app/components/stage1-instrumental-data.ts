@@ -3,7 +3,16 @@
 // rendering. No React here — everything is unit-testable in isolation.
 import { matchFoodType } from "../contexts/food-type-context";
 import { detectFoodType, formatFoodTypeLabel, slugifyFoodType } from "../lib/food-intelligence";
+import { getRawImportColumns } from "../lib/csv-import-mapping";
 import { STATUS } from "../styles/tokens";
+
+export interface InstrumentalMeasurement {
+  key: string;
+  label: string;
+  unit: string;
+  mean: number;
+  observationCount: number;
+}
 
 export interface ETongueMeasurement {
   sampleId: string;
@@ -17,6 +26,8 @@ export interface ETongueMeasurement {
   category?: string;
   importBatchId?: string;
   ingredientStatement?: IngredientStatement;
+  hasETongueData?: boolean;
+  measurements?: InstrumentalMeasurement[];
 }
 
 export interface GCMSCompound {
@@ -58,6 +69,7 @@ export interface ImportCompletionSummary {
   sampleCount: number;
   gcmsCount: number;
   compositionCount: number;
+  measurementCount?: number;
   savedPermanently: boolean;
   importBatchId?: string | null;
   retestParentDecisionId?: string | null;
@@ -382,6 +394,13 @@ function numericMean(total: NumericTotal) {
 interface ReplicateTotals {
   taste: Record<TasteField, NumericTotal>;
   composition: Record<CompositionField, NumericTotal>;
+  measurements: Map<string, MetricTotal>;
+}
+
+interface MetricTotal extends NumericTotal {
+  key: string;
+  label: string;
+  unit: string;
 }
 
 interface CompoundReplicateTotals {
@@ -398,6 +417,50 @@ interface FormulationTotals {
   replicates: Map<string, ReplicateTotals>;
   compounds: Map<string, Map<string, CompoundReplicateTotals>>;
   ingredientStatement: string;
+}
+
+const NON_MEASUREMENT_COLUMNS = new Set([
+  'sampleid', 'sample', 'id', 'samplecode', 'code', 'samplename', 'samplelabel',
+  'productname', 'product', 'food', 'formulationid', 'formulationcode', 'formulaid',
+  'formulacode', 'formulationname', 'formulation', 'formulaname', 'recipe',
+  'foodtype', 'type', 'producttype', 'category', 'subcategory',
+  'ingredientstatement', 'ingredientlist', 'ingredients',
+  'compound', 'compoundname', 'analyte', 'concentration', 'concentrationppm',
+  'amount', 'aroma', 'odour', 'odor', 'descriptor', 'threshold', 'odourthreshold',
+  'odorthreshold',
+]);
+
+function normalizedColumn(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function metricKey(value: string) {
+  return value
+    .normalize('NFKD')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 120) || 'measurement';
+}
+
+export function parseMeasurementHeader(header: string) {
+  const trimmed = header.trim();
+  const match = trimmed.match(/^(.*?)\s*\(([^()]*)\)\s*$/);
+  return {
+    key: metricKey(trimmed),
+    label: (match?.[1] || trimmed).trim(),
+    unit: (match?.[2] || '').trim(),
+  };
+}
+
+function rowMeasurements(row: Record<string, string>) {
+  const source = getRawImportColumns(row) ?? row;
+  return Object.entries(source).flatMap(([header, value]) => {
+    if (NON_MEASUREMENT_COLUMNS.has(normalizedColumn(header))) return [];
+    const numeric = Number(value);
+    if (!value.trim() || !Number.isFinite(numeric)) return [];
+    return [{ ...parseMeasurementHeader(header), value: numeric }];
+  });
 }
 
 function meanAcrossReplicates(
@@ -419,13 +482,17 @@ export function buildImportedDataset(previewData: Record<string, string>[], uplo
   let groupedByFormulation = false;
 
   previewData.forEach((row, index) => {
-    const replicateId = getRowValue(row, ["sampleId", "sample", "id", "sampleCode", "code"]) || `Imported-${index + 1}`;
+    const explicitReplicateId = getRowValue(row, ["sampleId", "sample", "id", "sampleCode", "code"]);
+    const replicateId = explicitReplicateId || `Imported-${index + 1}`;
     const replicateName = getRowValue(row, ["sampleName", "sampleLabel", "productName", "product", "food", "sample"]);
     const formulationId = getRowValue(row, ["formulationId", "formulationCode", "formulaId", "formulaCode"]);
     const formulationName = getRowValue(row, ["formulationName", "formulation", "formulaName", "recipe"]);
-    const sampleId = normalize(formulationId) || normalize(formulationName) || replicateId;
-    const sampleName = normalize(formulationName) || replicateName || sampleId;
-    groupedByFormulation ||= Boolean(normalize(formulationId) || normalize(formulationName));
+    const implicitFormulationName = !explicitReplicateId && !formulationId && !formulationName
+      ? normalize(replicateName)
+      : '';
+    const sampleId = normalize(formulationId) || normalize(formulationName) || implicitFormulationName || replicateId;
+    const sampleName = normalize(formulationName) || implicitFormulationName || replicateName || sampleId;
+    groupedByFormulation ||= Boolean(normalize(formulationId) || normalize(formulationName) || implicitFormulationName);
 
     const csvCategory = getRowValue(row, ["category", "foodType", "food_type", "productType", "product_type"]);
     const csvType = getRowValue(row, ["type", "foodType", "food_type", "productType", "product_type"]);
@@ -452,12 +519,25 @@ export function buildImportedDataset(previewData: Record<string, string>[], uplo
       replicate = {
         taste: emptyNumericTotals(TASTE_FIELDS),
         composition: emptyNumericTotals(COMPOSITION_FIELDS),
+        measurements: new Map(),
       };
       formulation.replicates.set(replicateId, replicate);
     }
 
     TASTE_FIELDS.forEach(field => addNumeric(replicate!.taste[field], getRowValue(row, [field])));
     COMPOSITION_FIELDS.forEach(field => addNumeric(replicate!.composition[field], getRowValue(row, [field])));
+    rowMeasurements(row).forEach(measurement => {
+      const existing = replicate!.measurements.get(measurement.key) ?? {
+        key: measurement.key,
+        label: measurement.label,
+        unit: measurement.unit,
+        sum: 0,
+        count: 0,
+      };
+      existing.sum += measurement.value;
+      existing.count += 1;
+      replicate!.measurements.set(measurement.key, existing);
+    });
 
     const ingredientStatement = getRowValue(row, [
       'ingredientStatement', 'ingredient_statement', 'ingredientList', 'ingredient_list', 'ingredients',
@@ -506,7 +586,23 @@ export function buildImportedDataset(previewData: Record<string, string>[], uplo
       };
     }
 
-    if (hasTaste) {
+    const metricDefinitions = new Map<string, Pick<MetricTotal, 'key' | 'label' | 'unit'>>();
+    formulation.replicates.forEach(replicate => replicate.measurements.forEach(metric => {
+      if (!metricDefinitions.has(metric.key)) metricDefinitions.set(metric.key, metric);
+    }));
+    const measurements = [...metricDefinitions.values()].map(definition => {
+      const replicateMeans = [...formulation.replicates.values()]
+        .map(replicate => replicate.measurements.get(definition.key))
+        .filter((metric): metric is MetricTotal => Boolean(metric?.count))
+        .map(metric => metric.sum / metric.count);
+      return {
+        ...definition,
+        mean: replicateMeans.reduce((sum, value) => sum + value, 0) / replicateMeans.length,
+        observationCount: replicateMeans.length,
+      };
+    });
+
+    if (hasTaste || measurements.length > 0) {
       eTongueData.push({
         sampleId: formulation.sampleId,
         sampleName: formulation.sampleName,
@@ -518,6 +614,8 @@ export function buildImportedDataset(previewData: Record<string, string>[], uplo
         type: formulation.type,
         category: formulation.category,
         ingredientStatement: ingredientStatements[formulation.sampleId],
+        hasETongueData: hasTaste,
+        measurements,
       });
     }
 
@@ -599,13 +697,14 @@ export function validateImportedDataset(
   const duplicates = sampleIds.filter((id, index) => sampleIds.indexOf(id) !== index);
 
   if (rows.length === 0) errors.push('No data rows found.');
-  if (dataset.eTongueData.length === 0) errors.push('No e-tongue taste values found. Include at least one of sourness, bitterness, saltiness, umami, or sweetness.');
+  if (dataset.eTongueData.length === 0) errors.push('No numeric formulation measurements were found.');
   if (!columnReport || columnReport.recognised.length === 0) errors.push('No recognized columns found.');
   if (duplicates.length > 0 && !dataset.aggregation?.groupedByFormulation) warnings.push(`Duplicate sample IDs detected: ${Array.from(new Set(duplicates)).join(', ')}.`);
   if ((columnReport?.ignored.length ?? 0) > 0) warnings.push(`${columnReport?.ignored.length} column${columnReport?.ignored.length === 1 ? '' : 's'} will be ignored.`);
   if (detection && detection.confidence < 0.75) warnings.push(`Food type detection is low confidence (${Math.round(detection.confidence * 100)}%). Confirm ${detection.label} before importing.`);
-  if (Object.keys(dataset.gcmsData).length === 0) warnings.push('No GC-MS compounds found. Aroma/off-note panels will be empty for this batch.');
-  if (Object.keys(dataset.compositionData).length === 0) warnings.push('No composition profiles found. Nutrition/composition cards will be empty for this batch.');
+  const hasGenericMeasurements = dataset.eTongueData.some(sample => (sample.measurements?.length ?? 0) > 0);
+  if (Object.keys(dataset.gcmsData).length === 0 && !hasGenericMeasurements) warnings.push('No GC-MS compounds found. Aroma/off-note panels will be empty for this batch.');
+  if (Object.keys(dataset.compositionData).length === 0 && !hasGenericMeasurements) warnings.push('No composition profiles found. Nutrition/composition cards will be empty for this batch.');
 
   return { errors, warnings };
 }

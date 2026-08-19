@@ -320,8 +320,8 @@ function ActiveProjectsEmptyState({ onNewProject }: { onNewProject: () => void }
     <StageEmptyState
       icon={FolderKanban}
       headline="No live projects yet"
-      body="Name a project and upload an instrumental CSV to begin the workflow."
-      cta={{ label: 'Choose project CSV', onClick: onNewProject }}
+      body="Name a project and upload instrumental CSV or Excel data to begin the workflow."
+      cta={{ label: 'Choose project data', onClick: onNewProject }}
     />
   );
 }
@@ -345,7 +345,7 @@ export function OverviewDashboard() {
       <input
         ref={newProjectFileRef}
         type="file"
-        accept=".csv,text/csv"
+        accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         onChange={openProjectImport}
         className="hidden"
         aria-hidden="true"

@@ -8,6 +8,7 @@ import {
   recogniseColumns,
   validateImportedDataset,
 } from './stage1-instrumental-data';
+import { applyImportMappings, inferImportMappings } from '../lib/csv-import-mapping';
 
 describe('CSV import workflow intelligence', () => {
   it('labels item-specific retest and reformulation imports clearly', () => {
@@ -167,5 +168,33 @@ describe('CSV import workflow intelligence', () => {
       formulationCount: 2,
       averagedFormulationCount: 1,
     });
+  });
+
+  it('averages every populated workbook measurement by repeated formulation name', () => {
+    const rawRows = [
+      { Name: 'Cheddar ref', 'Fat (%)': '20', 'Moisture (%)': '40', 'Melting (cm)': '6', 'Hardness (g)': '100' },
+      { Name: 'Cheddar ref', 'Fat (%)': '30', 'Moisture (%)': '', 'Melting (cm)': '8', 'Hardness (g)': '200' },
+      { Name: 'Cheddar ref', 'Fat (%)': '', 'Moisture (%)': '44', 'Melting (cm)': '', 'Hardness (g)': '300' },
+      { Name: 'Mozza ref', 'Fat (%)': '10', 'Moisture (%)': '50', 'Melting (cm)': '4', 'Hardness (g)': '50' },
+      { Name: 'Mozza ref', 'Fat (%)': '14', 'Moisture (%)': '54', 'Melting (cm)': '6', 'Hardness (g)': '70' },
+    ];
+    const mappings = inferImportMappings(Object.keys(rawRows[0]));
+    const dataset = buildImportedDataset(applyImportMappings(rawRows, mappings), 'Samples_test.xlsx');
+
+    expect(dataset.eTongueData).toHaveLength(2);
+    expect(dataset.aggregation).toMatchObject({
+      groupedByFormulation: true,
+      sourceRowCount: 5,
+      sourceSampleCount: 5,
+      formulationCount: 2,
+    });
+    const cheddar = dataset.eTongueData.find(sample => sample.sampleId === 'Cheddar ref');
+    expect(cheddar).toMatchObject({ sampleName: 'Cheddar ref', hasETongueData: false });
+    expect(cheddar?.measurements).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: 'Fat', unit: '%', mean: 25, observationCount: 2 }),
+      expect.objectContaining({ label: 'Moisture', unit: '%', mean: 42, observationCount: 2 }),
+      expect.objectContaining({ label: 'Melting', unit: 'cm', mean: 7, observationCount: 2 }),
+      expect.objectContaining({ label: 'Hardness', unit: 'g', mean: 200, observationCount: 3 }),
+    ]));
   });
 });

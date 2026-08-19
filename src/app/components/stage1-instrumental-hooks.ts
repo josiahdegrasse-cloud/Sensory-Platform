@@ -201,7 +201,7 @@ export function useInstrumentalChartViewModel({
     };
   }), [filteredETongueData]);
 
-  const pcaData = useMemo(() => filteredETongueData.map((sample, index) => {
+  const pcaData = useMemo(() => filteredETongueData.filter(sample => sample.hasETongueData !== false).map((sample, index) => {
     const pc1 = sample.saltiness * 0.5 + sample.umami * 0.4 - sample.sourness * 0.3;
     const pc2 = sample.bitterness * 0.4 + sample.sourness * 0.35 - sample.sweetness * 0.25;
     const sampleInfo = SAMPLES.find(item => item.id === sample.sampleId);

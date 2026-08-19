@@ -28,7 +28,9 @@ import {
   Radar,
 } from "recharts";
 import { ProductListItem, ProductListPanel } from './product-list';
-import { applyImportMappings, inferImportMappings } from "../lib/csv-import-mapping";
+import { InstrumentalParameterRadar } from './instrumental-parameter-radar';
+import { applyImportMappings, buildImportColumnReport, getRawImportColumns, inferImportMappings } from "../lib/csv-import-mapping";
+import { parseInstrumentalCsv, parseInstrumentalFile, type ParsedInstrumentalFile } from '../lib/instrumental-file-import';
 import { encodeBatchSelection } from "../lib/project-identity";
 import {
   MAX_INSTRUMENTAL_COMPARISON_SAMPLES,
@@ -48,7 +50,6 @@ import {
 import {
   type ColumnReport, type ImportCompletionSummary, type RetestImportContext,
   MAX_FILE_SIZE, DEMO_TYPES,
-  parseCSVLine,
   getPointColor,
   buildImportedDataset, validateImportedDataset, applyImportedDataset, buildRetestBatchName,
 } from "./stage1-instrumental-data";
@@ -154,6 +155,7 @@ export function Stage1Instrumental() {
       sampleCount: parsed.eTongueData.length,
       gcmsCount: Object.keys(parsed.gcmsData).length,
       compositionCount: Object.keys(parsed.compositionData).length,
+      measurementCount: parsed.eTongueData.reduce((total, sample) => total + (sample.measurements?.length ?? 0), 0),
     };
   }, [foodTypeOverride, previewData, showPreview, uploadedFile]);
   const existingProjectCount = useMemo(() => {
@@ -165,6 +167,9 @@ export function Stage1Instrumental() {
         return ids;
       }, new Set<string>()).size;
   }, [importSummary, instrumentalDatasetQuery.data]);
+  const previewColumns = previewData[0]
+    ? Object.keys(getRawImportColumns(previewData[0]) ?? previewData[0])
+    : [];
 
   // Seed the batch name from the detected label on a fresh import, unless the
   // user has edited it or this is a retest (render-phase "adjust on change").
@@ -186,7 +191,7 @@ export function Stage1Instrumental() {
     if (file) handleFile(file);
   };
 
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
     setImportError(null);
     setFoodTypeOverride('');
     setProjectNameEdited(false);
@@ -194,8 +199,8 @@ export function Stage1Instrumental() {
     setLastImportSummary(null);
     setSurveysSent(false);
 
-    if (!file.name.toLowerCase().endsWith(".csv")) {
-      setImportError("Only .csv files are supported. Please export your data as CSV first.");
+    if (!/\.(csv|xlsx)$/i.test(file.name)) {
+      setImportError("Choose a CSV or Excel (.xlsx) file.");
       return;
     }
     if (file.size > MAX_FILE_SIZE) {
@@ -203,13 +208,11 @@ export function Stage1Instrumental() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      parseCSV(text, file.name);
-    };
-    // explicit UTF-8 — handles most exports; guards against Windows-1252 garbling
-    reader.readAsText(file, "UTF-8");
+    try {
+      prepareParsedFile(await parseInstrumentalFile(file), file.name);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : 'The file could not be read.');
+    }
   };
 
   // The Overview opens the native file picker directly. Once a file is chosen,
@@ -232,36 +235,19 @@ export function Stage1Instrumental() {
   // Function declaration (hoisted) so the queued-import effect above can call it
   // without a use-before-declaration warning from the compiler.
   function parseCSV(text: string, fileName: string, overrideBatchName?: string) {
-    // handle \r\n (Windows), \r-only (old Mac), \n (Unix)
-    const lines = text.split(/\r\n|\r|\n/).filter((l) => l.trim().length > 0);
-
-    if (lines.length < 2) {
-      setImportError("File appears to be empty or contains no data rows.");
-      return;
+    try {
+      prepareParsedFile(parseInstrumentalCsv(text), fileName, overrideBatchName);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : 'The file could not be read.');
     }
+  }
 
-    const headers = parseCSVLine(lines[0]);
-    if (headers.length === 0 || (headers.length === 1 && !headers[0])) {
-      setImportError("Could not read column headers. Make sure the first row contains column names.");
-      return;
-    }
-
-    const data: Record<string, string>[] = [];
-    for (let i = 1; i < lines.length; i++) {
-      const values = parseCSVLine(lines[i]);
-      const row: Record<string, string> = {};
-      headers.forEach((header, idx) => { row[header] = values[idx] ?? ""; });
-      data.push(row);
-    }
-
-    const inferredMappings = inferImportMappings(headers);
-    const mappedData = applyImportMappings(data, inferredMappings);
+  function prepareParsedFile(parsedFile: ParsedInstrumentalFile, fileName: string, overrideBatchName?: string) {
+    const inferredMappings = inferImportMappings(parsedFile.headers);
+    const mappedData = applyImportMappings(parsedFile.rows, inferredMappings);
     const parsed = buildImportedDataset(mappedData, fileName);
     const detectedProjectName = parsed.detection.label || formatFoodTypeLabel(parsed.detection.slug);
-    setColumnReport({
-      recognised: inferredMappings.filter(item => item.target !== 'ignore').map(item => item.source),
-      ignored: inferredMappings.filter(item => item.target === 'ignore').map(item => item.source),
-    });
+    setColumnReport(buildImportColumnReport(parsedFile.rows, inferredMappings));
     setPreviewData(mappedData);
     setUploadedFile(fileName);
     setBatchName(overrideBatchName ?? (retestImport ? buildRetestBatchName(retestImport) : detectedProjectName));
@@ -295,11 +281,11 @@ export function Stage1Instrumental() {
     const importedETongue = parsed.eTongueData;
     const importedGCMSCount = Object.keys(parsed.gcmsData).length;
     const importedCompCount = Object.keys(parsed.compositionData).length;
-    const projectName = batchName.trim() || parsed.detection.label || uploadedFile?.replace(/\.csv$/i, '') || `${parsed.detection.label} import`;
+    const projectName = batchName.trim() || parsed.detection.label || uploadedFile?.replace(/\.(csv|xlsx)$/i, '') || `${parsed.detection.label} import`;
 
     if (importedETongue.length === 0 && importedGCMSCount === 0 && importedCompCount === 0) {
       setImportError(
-        "No data could be parsed. Check that the CSV includes supported sample, sensory, GC-MS, or composition columns."
+        "No data could be parsed. Check that the file includes a formulation name and numeric measurement columns."
       );
       return;
     }
@@ -373,6 +359,7 @@ export function Stage1Instrumental() {
       sampleCount: importedETongue.length,
       gcmsCount: importedGCMSCount,
       compositionCount: importedCompCount,
+      measurementCount: parsed.eTongueData.reduce((total, sample) => total + (sample.measurements?.length ?? 0), 0),
       savedPermanently,
       importBatchId: importedBatchId ?? null,
       retestParentDecisionId: retestImport?.parentDecisionId ?? null,
@@ -448,6 +435,7 @@ export function Stage1Instrumental() {
   const aromaTotalConcentration = selectedGCMSData.reduce((sum, compound) => sum + compound.concentration, 0);
   const aromaWithThreshold = selectedGCMSData.filter(compound => compound.threshold > 0).length;
   const selectedIngredientStatement = selectedSampleData?.ingredientStatement;
+  const selectedHasETongueData = selectedSampleData?.hasETongueData !== false;
   const selectedIngredientBatchId = selectedSampleData?.importBatchId;
   const selectedFormulationVersions = selectedSampleData
     ? instrumentalDatasetQuery.data?.formulationVersions?.[selectedSampleData.sampleId] ?? []
@@ -636,10 +624,10 @@ export function Stage1Instrumental() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".csv"
+            accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={handleFileInput}
             className="hidden"
-            id="csv-upload-header"
+            id="instrumental-upload-header"
           />
           <Button
             type="button"
@@ -647,7 +635,7 @@ export function Stage1Instrumental() {
             onClick={() => fileInputRef.current?.click()}
           >
             <Upload className="size-4" />
-            Import CSV
+            Import data
           </Button>
           </>
         )}
@@ -659,13 +647,13 @@ export function Stage1Instrumental() {
             <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Create new project</p>
-                <h2 className="mt-1 text-lg font-semibold text-slate-900">Upload the CSV, then review the detected project.</h2>
+                <h2 className="mt-1 text-lg font-semibold text-slate-900">Upload the CSV or Excel file, then review the detected project.</h2>
                 <p className="mt-1 text-sm text-slate-700">
                   The platform will detect the food type, create the matching project folder, and turn each imported sample into a questionnaire-ready item.
                 </p>
               </div>
               <div className="rounded-xl border border-blue-100 bg-white p-4">
-                <p className="text-sm font-bold text-slate-900">CSV data</p>
+                <p className="text-sm font-bold text-slate-900">Instrumental data</p>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
                   After upload, review the detected project name such as Yogurt, Cheese, or Bread before saving.
                 </p>
@@ -676,7 +664,7 @@ export function Stage1Instrumental() {
               className="mt-5 h-10 w-full justify-center bg-blue-600 text-sm font-bold hover:bg-blue-700"
             >
               <Upload className="size-4" />
-              Choose CSV
+              Choose CSV or Excel
             </Button>
           </CardContent>
         </Card>
@@ -711,7 +699,7 @@ export function Stage1Instrumental() {
               className="shrink-0 bg-slate-900 text-white hover:bg-slate-700"
             >
               <Upload className="size-4" />
-              Choose CSV for {retestImport.sampleName}
+              Choose data file for {retestImport.sampleName}
             </Button>
           </div>
         </div>
@@ -757,6 +745,9 @@ export function Stage1Instrumental() {
                         </span>
                         {lastImportSummary.groupedByFormulation && lastImportSummary.sourceSampleCount ? (
                           <span className="rounded-md border border-slate-200 px-2.5 py-1 font-semibold text-slate-700">Mean of {lastImportSummary.sourceSampleCount} samples</span>
+                        ) : null}
+                        {lastImportSummary.measurementCount ? (
+                          <span className="rounded-md border border-slate-200 px-2.5 py-1 font-semibold text-slate-700">{lastImportSummary.measurementCount} measurement means</span>
                         ) : null}
                         <span className="rounded-md border border-slate-200 px-2.5 py-1 font-semibold text-slate-700">{lastImportSummary.gcmsCount} GC-MS</span>
                         <span className="rounded-md border border-slate-200 px-2.5 py-1 font-semibold text-slate-700">{lastImportSummary.compositionCount} composition</span>
@@ -938,6 +929,9 @@ export function Stage1Instrumental() {
                       <span className="rounded bg-white border border-slate-200 px-1.5 py-1">{importSummary.gcmsCount} GC-MS</span>
                       <span className="rounded bg-white border border-slate-200 px-1.5 py-1">{importSummary.compositionCount} comp</span>
                     </div>
+                    {importSummary.measurementCount > 0 && (
+                      <p className="mt-2 text-[11px] font-semibold text-slate-700">{importSummary.measurementCount} numeric measurement means detected</p>
+                    )}
                     {importSummary.aggregation.groupedByFormulation && (
                       <p className="mt-2 rounded bg-emerald-50 px-2 py-1.5 text-[11px] font-semibold leading-4 text-emerald-800 ring-1 ring-emerald-200">
                         {importSummary.aggregation.sourceSampleCount} individual samples will be averaged into {importSummary.aggregation.formulationCount} formulation profiles.
@@ -984,7 +978,7 @@ export function Stage1Instrumental() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-emerald-600 italic">None — check that the CSV uses supported import column names.</p>
+                    <p className="text-emerald-600 italic">None — check that the file has named numeric measurement columns.</p>
                   )}
                 </div>
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
@@ -1028,7 +1022,7 @@ export function Stage1Instrumental() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b">
-                    {previewData.length > 0 && Object.keys(previewData[0]).map((key) => (
+                    {previewColumns.map((key) => (
                       <th key={key} className="px-4 py-2 text-left font-semibold whitespace-nowrap">{key}</th>
                     ))}
                   </tr>
@@ -1036,8 +1030,8 @@ export function Stage1Instrumental() {
                 <tbody>
                   {previewData.slice(0, 10).map((row, idx) => (
                     <tr key={idx} className="border-b hover:bg-slate-50">
-                      {Object.values(row).map((val, vidx) => (
-                        <td key={vidx} className="px-4 py-2 whitespace-nowrap">{val}</td>
+                      {previewColumns.map(column => (
+                        <td key={column} className="px-4 py-2 whitespace-nowrap">{(getRawImportColumns(row) ?? row)[column] ?? ''}</td>
                       ))}
                     </tr>
                   ))}
@@ -1157,7 +1151,14 @@ export function Stage1Instrumental() {
         </div>
 
         <div ref={instrumentSummaryRef} className="col-span-3 space-y-6">
-          <div>
+          <InstrumentalParameterRadar
+            samples={filteredETongueData}
+            selectedSampleIds={selectedSamples}
+            compareMode={compareMode}
+            selectedColor={selectedColor}
+          />
+
+          {selectedHasETongueData && <div>
             <Card className="border-2 border-slate-200 shadow-sm">
               <CardHeader className="bg-slate-50 border-b rounded-t-lg">
                 <CardTitle className="text-lg flex items-center gap-2">
@@ -1366,7 +1367,7 @@ export function Stage1Instrumental() {
                 </div>
               </CardContent>
             </Card>
-          </div>
+          </div>}
 
           <Card className="border-2 border-slate-200 shadow-sm">
             <CardHeader className="bg-slate-50 border-b rounded-t-lg">
@@ -1480,7 +1481,7 @@ export function Stage1Instrumental() {
         </div>
       </div>
 
-      <Card className="border-2 border-slate-200 shadow-sm">
+      {pcaData.length > 0 && <Card className="border-2 border-slate-200 shadow-sm">
         <CardHeader className="bg-slate-50 border-b rounded-t-lg">
           <CardTitle className="text-lg flex items-center gap-2">
             Taste Similarity Analysis (PCA)
@@ -1585,7 +1586,7 @@ export function Stage1Instrumental() {
             );
           })()}
         </CardContent>
-      </Card>
+      </Card>}
       </>)}
 
     </div>

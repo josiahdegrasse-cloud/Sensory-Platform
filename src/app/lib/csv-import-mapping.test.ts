@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyImportMappings, inferImportMappings } from './csv-import-mapping';
+import { applyImportMappings, buildImportColumnReport, getRawImportColumns, inferImportMappings } from './csv-import-mapping';
 
 describe('CSV import mapping', () => {
   it('infers common laboratory column names', () => {
@@ -58,5 +58,18 @@ describe('CSV import mapping', () => {
     );
     expect(mapped[0]).toEqual({ sampleId: 'X1', fat: '' });
     expect(mapped[0]).not.toHaveProperty('ignore');
+  });
+
+  it('keeps original columns for generic numeric aggregation without exposing them in the preview row', () => {
+    const mappings = inferImportMappings(['Name', 'Hardness (g)', 'Notes']);
+    const rows = [{ Name: 'Cheddar ref', 'Hardness (g)': '120', Notes: 'repeat 1' }];
+    const mapped = applyImportMappings(rows, mappings);
+
+    expect(mapped[0]).toEqual({ sampleName: 'Cheddar ref' });
+    expect(getRawImportColumns(mapped[0])).toEqual(rows[0]);
+    expect(buildImportColumnReport(rows, mappings)).toEqual({
+      recognised: ['Name', 'Hardness (g)'],
+      ignored: ['Notes'],
+    });
   });
 });

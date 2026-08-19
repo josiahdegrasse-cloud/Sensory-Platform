@@ -32,6 +32,33 @@ export interface ImportColumnMapping {
   conversion: ImportConversion;
 }
 
+export function buildImportColumnReport(
+  rows: Record<string, string>[],
+  mappings: ImportColumnMapping[],
+) {
+  const recognised: string[] = [];
+  const ignored: string[] = [];
+  mappings.forEach(mapping => {
+    const hasNumericValue = rows.some(row => {
+      const value = row[mapping.source]?.trim();
+      return Boolean(value) && Number.isFinite(Number(value));
+    });
+    if (mapping.target !== 'ignore' || hasNumericValue) recognised.push(mapping.source);
+    else ignored.push(mapping.source);
+  });
+  return { recognised, ignored };
+}
+
+export const RAW_IMPORT_COLUMNS = Symbol('rawImportColumns');
+
+export type MappedImportRow = Record<string, string> & {
+  [RAW_IMPORT_COLUMNS]?: Record<string, string>;
+};
+
+export function getRawImportColumns(row: Record<string, string>) {
+  return (row as MappedImportRow)[RAW_IMPORT_COLUMNS];
+}
+
 function normalizeHeader(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
@@ -59,10 +86,23 @@ export function applyImportMappings(
   rows: Record<string, string>[],
   mappings: ImportColumnMapping[],
 ) {
-  return rows.map(row => mappings.reduce<Record<string, string>>((mapped, mapping) => {
+  return rows.map(row => {
+    const rawColumns = Object.fromEntries(mappings.map(mapping => [
+      mapping.source,
+      convertValue(row[mapping.source] ?? '', mapping.conversion),
+    ]));
+    const mapped = mappings.reduce<Record<string, string>>((result, mapping) => {
     if (mapping.target !== 'ignore') {
-      mapped[mapping.target] = convertValue(row[mapping.source] ?? '', mapping.conversion);
+        result[mapping.target] = rawColumns[mapping.source];
     }
+      return result;
+    }, {}) as MappedImportRow;
+    Object.defineProperty(mapped, RAW_IMPORT_COLUMNS, {
+      value: rawColumns,
+      enumerable: false,
+      configurable: false,
+      writable: false,
+    });
     return mapped;
-  }, {}));
+  });
 }

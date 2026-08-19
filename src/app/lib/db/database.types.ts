@@ -1907,6 +1907,48 @@ export type Database = {
           },
         ]
       }
+      instrumental_measurement_profiles: {
+        Row: {
+          created_at: string
+          id: string
+          metrics: Json
+          org_id: string
+          sample_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          metrics?: Json
+          org_id: string
+          sample_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          metrics?: Json
+          org_id?: string
+          sample_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instrumental_measurement_profiles_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instrumental_measurement_profiles_sample_id_fkey"
+            columns: ["sample_id"]
+            isOneToOne: true
+            referencedRelation: "instrumental_samples"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       instrumental_samples: {
         Row: {
           category: string | null
