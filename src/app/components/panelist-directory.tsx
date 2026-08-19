@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Archive, MapPinCheck, RotateCcw, Search, ShieldCheck, UserRoundCheck, Users } from 'lucide-react';
+import { Archive, Download, MapPinCheck, RotateCcw, Search, ShieldCheck, UserRoundCheck, Users } from 'lucide-react';
 import type { PanelistInfo } from '../lib/database';
 import { useUpdatePanelistStatus } from '../lib/hooks';
 import { ethnicityLabel, nationalityOptions } from '../lib/panelist-demographics';
 import { panelistDeliveryReady, panelistReadiness, panelistReadinessLabel, panelistValueLabel, type PanelistReadiness } from '../lib/panelist-profile';
+import { buildPanelistDirectoryCsv, downloadPanelistDirectoryCsv } from '../lib/panelist-directory-export';
 import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -86,6 +87,15 @@ export function PanelistDirectory({ panelists }: { panelists: PanelistInfo[] }) 
     setStatusTarget(null);
   };
 
+  const exportDirectory = () => {
+    const date = new Date().toISOString().slice(0, 10);
+    const scope = filter === 'all' ? 'all' : filter.replace('_', '-');
+    downloadPanelistDirectoryCsv(
+      buildPanelistDirectoryCsv(rows),
+      `panelist-directory-${scope}-${date}.csv`,
+    );
+  };
+
   return (
     <>
       <Card>
@@ -117,6 +127,17 @@ export function PanelistDirectory({ panelists }: { panelists: PanelistInfo[] }) 
                 <SelectItem value="inactive">Inactive or archived</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={exportDirectory}
+              disabled={rows.length === 0}
+              aria-label={`Export ${rows.length} visible panelist${rows.length === 1 ? '' : 's'} as CSV`}
+              className="shrink-0"
+            >
+              <Download className="size-4" aria-hidden />
+              Export CSV ({rows.length})
+            </Button>
           </div>
         </CardHeader>
 
