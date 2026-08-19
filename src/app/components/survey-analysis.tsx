@@ -9,7 +9,7 @@ import { parseBatchSelection, resolveProjectRouteScope } from '../lib/project-id
 import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from '../data/enhanced-sensory';
 import {
   useAdminConceptTests,
-  useConceptTestResponses,
+  useConceptResponsesForTests,
   useDecisionRecords,
   useFormulationExperiments,
   useImportBatches,
@@ -28,7 +28,13 @@ import { useProjectStatus } from '../lib/use-project-status';
 import { assessSampleWorkflow, summarizeProjectReadiness } from '../lib/workflow-readiness';
 import { useSurveyData } from '../lib/use-survey-data';
 import { formatFoodTypeLabel } from '../lib/food-intelligence';
-import { buildAllDataCSVRows, buildSampleCSVRows, downloadCsv } from '../utils/survey-csv-export';
+import {
+  buildConceptTestingResultsRows,
+  buildFoodPanelResultsRows,
+  downloadInsightsCsv,
+  exportFilename,
+  filterPanelResultsByProductIds,
+} from '../utils/insights-csv-export';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import {
@@ -155,6 +161,10 @@ export function SurveyAnalysis() {
     () => new Set(projectProducts.map(product => product.id)),
     [projectProducts],
   );
+  const projectLiveAggregations = useMemo(
+    () => filterPanelResultsByProductIds(liveAggregations, projectProductIds),
+    [liveAggregations, projectProductIds],
+  );
   // Same per-sample rollup Decision uses, so both pages agree on "where are
   // we" instead of Insights staying silent while Decision says something else.
   const insightsReadinessItems = useMemo(() => (
@@ -214,12 +224,20 @@ export function SurveyAnalysis() {
     }),
     [conceptTests, primaryBatchId, routeScope?.projectName, scopedFoodType, status.projectName],
   );
+  const projectConceptIds = useMemo(
+    () => projectConcepts.map(concept => concept.id),
+    [projectConcepts],
+  );
+  const projectConceptResponsesQuery = useConceptResponsesForTests(projectConceptIds);
+  const { data: projectConceptResponses = [] } = projectConceptResponsesQuery;
   const multiSampleProducts = projectProducts.filter(product => product.isMultiSample);
   const activeMultiSampleProduct = multiSampleProducts.some(product => product.id === selectedMultiProduct)
     ? selectedMultiProduct
     : multiSampleProducts[0]?.id ?? '';
   const primaryConcept = projectConcepts[0];
-  const { data: primaryConceptResponses = [] } = useConceptTestResponses(primaryConcept?.id);
+  const primaryConceptResponses = primaryConcept
+    ? projectConceptResponses.filter(response => response.conceptTestId === primaryConcept.id)
+    : [];
   const projectDecisions = decisions.filter(decision => {
     if (decision.instrumentalSampleId) {
       return projectInstrumentSampleIds.has(decision.instrumentalSampleId);
@@ -367,7 +385,6 @@ export function SurveyAnalysis() {
         ['Appearance', selectedData.hedonic.appearance], ['Flavour', selectedData.hedonic.flavour],
         ['Texture', selectedData.hedonic.texture], ['Overall', selectedData.hedonic.overall],
       ].map(([category, score]) => ({ id: `hedonic-${category}`, category: String(category), score: Number(score), sd: 0.8 }));
-  const activeEmotions = matchingLiveData?.emotions ?? selectedData.emotions;
   const panelN = matchingLiveData?.n ?? 14;
   const averageHedonic = activeHedonic.length
     ? activeHedonic.reduce((sum, item) => sum + item.score, 0) / activeHedonic.length
@@ -477,10 +494,17 @@ export function SurveyAnalysis() {
       signalTone: isLeader ? 'success' : responseCount < minimumResponses ? 'warning' : 'neutral',
     };
   });
-  const exportSampleCSV = () => {
-    downloadCsv(
-      buildSampleCSVRows(selectedData, selectedSample, usingLiveData, activeEmotions),
-      `${selectedData.sampleId.toLowerCase()}-insights-${new Date().toISOString().slice(0, 10)}.csv`,
+  const exportScopeName = routeScope?.projectName ?? status.projectName ?? formatFoodTypeLabel(scopedFoodType);
+  const exportFoodPanelResults = () => {
+    downloadInsightsCsv(
+      buildFoodPanelResultsRows(projectLiveAggregations),
+      exportFilename(exportScopeName, 'food-panel-results'),
+    );
+  };
+  const exportConceptTestingResults = () => {
+    downloadInsightsCsv(
+      buildConceptTestingResultsRows(projectConcepts, projectConceptResponses),
+      exportFilename(exportScopeName, 'concept-testing-results'),
     );
   };
   const selectedConceptSummary = primaryConcept
@@ -493,9 +517,56 @@ export function SurveyAnalysis() {
         title="Prototype results"
         description="Compare each prototype’s sensory performance and open the next workflow step when needed."
         actions={(
-          <span className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-500">
-          {projectSamples.length} prototype{projectSamples.length === 1 ? '' : 's'} · {prototypeOptions.reduce((total, prototype) => total + prototype.responseCount, 0)} live response{prototypeOptions.reduce((total, prototype) => total + prototype.responseCount, 0) === 1 ? '' : 's'}
-          </span>
+          <>
+            <span className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-500">
+              {projectSamples.length} prototype{projectSamples.length === 1 ? '' : 's'} · {prototypeOptions.reduce((total, prototype) => total + prototype.responseCount, 0)} live response{prototypeOptions.reduce((total, prototype) => total + prototype.responseCount, 0) === 1 ? '' : 's'}
+            </span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Download className="size-4" aria-hidden />
+                  Export results
+                  <ChevronDown className="size-3.5" aria-hidden />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72">
+                <DropdownMenuItem
+                  onSelect={exportFoodPanelResults}
+                  disabled={projectLiveAggregations.length === 0}
+                  className="items-start py-2.5"
+                >
+                  <Users className="mt-0.5 size-4" aria-hidden />
+                  <span>
+                    <span className="block font-semibold">Food panel results CSV</span>
+                    <span className="mt-0.5 block text-xs text-slate-500">
+                      {projectLiveAggregations.length > 0
+                        ? `${projectLiveAggregations.length} project prototype${projectLiveAggregations.length === 1 ? '' : 's'}, aggregated results`
+                        : 'No live food-panel results to export'}
+                    </span>
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={exportConceptTestingResults}
+                  disabled={projectConceptResponsesQuery.isLoading || projectConceptResponses.length === 0}
+                  className="items-start py-2.5"
+                >
+                  <Megaphone className="mt-0.5 size-4" aria-hidden />
+                  <span>
+                    <span className="block font-semibold">Concept testing results CSV</span>
+                    <span className="mt-0.5 block text-xs text-slate-500">
+                      {projectConceptResponsesQuery.isLoading
+                        ? 'Loading concept responses…'
+                        : projectConceptResponsesQuery.isError
+                          ? 'Concept responses could not be loaded'
+                          : projectConceptResponses.length > 0
+                            ? `${projectConcepts.length} concept test${projectConcepts.length === 1 ? '' : 's'}, ${projectConceptResponses.length} response${projectConceptResponses.length === 1 ? '' : 's'}, panelist IDs excluded`
+                            : 'No concept responses to export'}
+                    </span>
+                  </span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
         )}
       />
 
@@ -598,8 +669,8 @@ export function SurveyAnalysis() {
       <details className="rounded-lg border border-slate-200 bg-white">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-bold text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500">
           <span>
-            Methods and exports
-            <span className="ml-2 font-normal text-slate-500">Provenance, thresholds, and downloadable project data</span>
+            Methods and data notes
+            <span className="ml-2 font-normal text-slate-500">Provenance, thresholds, and export scope</span>
           </span>
           <ChevronDown className="size-4 shrink-0 text-slate-500" aria-hidden />
         </summary>
@@ -617,17 +688,8 @@ export function SurveyAnalysis() {
             </ul>
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-900">Exports</h3>
-            <p className="mt-1 text-sm text-slate-700">CSV exports contain raw and aggregated values. Provenance and evidence limitations should accompany any client-facing interpretation.</p>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="mt-3"><Download className="size-4" />Export data</Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem onClick={exportSampleCSV}>Current sample CSV</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => downloadCsv(buildAllDataCSVRows(liveAggregations), `panel-data-${new Date().toISOString().slice(0, 10)}.csv`)}>All live panel data CSV</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <h3 className="text-sm font-bold text-slate-900">Export scope</h3>
+            <p className="mt-1 text-sm text-slate-700">Use <strong>Export results</strong> above to download either project-scoped food-panel metrics or concept responses with panelist IDs excluded. The two normalized datasets are designed to become separate workbook sheets in report exports later.</p>
           </div>
         </div>
       </RawDataAppendix>

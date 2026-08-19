@@ -71,6 +71,16 @@ export interface ConceptResponse {
   createdAt: string;
 }
 
+function toConceptResponse(row: Tables['concept_responses']['Row']): ConceptResponse {
+  return {
+    id: row.id,
+    userId: row.user_id as string,
+    conceptTestId: row.concept_test_id as string,
+    answers: fromJson<Record<string, string | number | string[]>>(row.answers) ?? {},
+    createdAt: row.created_at as string,
+  };
+}
+
 export interface CommercializationReportRecord {
   id: string;
   decisionRecordId: string;
@@ -384,13 +394,7 @@ export async function fetchUserConceptResponses(userId: string): Promise<Concept
     .select('*')
     .eq('user_id', userId);
   if (error) throw dbError(error);
-  return (data ?? []).map(r => ({
-    id: r.id as string,
-    userId: r.user_id as string,
-    conceptTestId: r.concept_test_id as string,
-    answers: (r.answers as Record<string, string | number | string[]>) ?? {},
-    createdAt: r.created_at as string,
-  }));
+  return (data ?? []).map(toConceptResponse);
 }
 
 export async function fetchConceptResponsesForTest(conceptTestId: string): Promise<ConceptResponse[]> {
@@ -400,13 +404,27 @@ export async function fetchConceptResponsesForTest(conceptTestId: string): Promi
     .eq('concept_test_id', conceptTestId)
     .order('created_at', { ascending: true });
   if (error) throw dbError(error);
-  return (data ?? []).map(row => ({
-    id: row.id as string,
-    userId: row.user_id as string,
-    conceptTestId: row.concept_test_id as string,
-    answers: (row.answers as Record<string, string | number | string[]>) ?? {},
-    createdAt: row.created_at as string,
-  }));
+  return (data ?? []).map(toConceptResponse);
+}
+
+export async function fetchConceptResponsesForTests(conceptTestIds: readonly string[]): Promise<ConceptResponse[]> {
+  if (conceptTestIds.length === 0) return [];
+
+  const pageSize = 1000;
+  const responses: ConceptResponse[] = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase
+      .from('concept_responses')
+      .select('*')
+      .in('concept_test_id', [...new Set(conceptTestIds)])
+      .order('created_at', { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw dbError(error);
+
+    responses.push(...(data ?? []).map(toConceptResponse));
+    if ((data?.length ?? 0) < pageSize) break;
+  }
+  return responses;
 }
 
 export async function fetchConceptResponseCounts(): Promise<Record<string, number>> {

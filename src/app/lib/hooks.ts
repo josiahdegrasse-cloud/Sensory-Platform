@@ -5,6 +5,7 @@ import {
   fetchAllResponses, fetchResponseCountsByProduct, fetchResponsesForProducts, fetchUserResponses,
   fetchConceptTestsForPanelist, fetchUserConceptResponses,
   fetchConceptTestsForAdmin, fetchConceptTestsForStudyDashboard, fetchConceptResponsesForTest,
+  fetchConceptResponsesForTests,
   fetchConceptResponseCounts,
   fetchCommercializationReports, createCommercializationReport, updateCommercializationReportStatus,
   fetchEvidenceBundles, saveEvidenceBundle, generateReportNarrative, type ReportNarrativeRequest,
@@ -100,6 +101,7 @@ export const queryKeys = {
   studyConceptTests: ['studyConceptTests'] as const,
   conceptResponseCounts: ['conceptResponseCounts'] as const,
   conceptTestResponses: (id: string) => ['conceptTestResponses', id] as const,
+  conceptResponsesForTests: (ids: readonly string[]) => ['conceptResponsesForTests', ...ids] as const,
   commercializationReports: ['commercializationReports'] as const,
   evidenceBundles: (projectId?: string) => ['evidenceBundles', projectId ?? 'all'] as const,
   projectEvidence: (projectId: string) => ['projectEvidence', projectId] as const,
@@ -592,6 +594,15 @@ export function useConceptTestResponses(conceptId: string | undefined) {
     queryKey: queryKeys.conceptTestResponses(conceptId ?? ''),
     queryFn: () => fetchConceptResponsesForTest(conceptId!),
     enabled: !!conceptId,
+  })
+}
+
+export function useConceptResponsesForTests(conceptIds: readonly string[]) {
+  const stableConceptIds = [...conceptIds].sort();
+  return useQuery({
+    queryKey: queryKeys.conceptResponsesForTests(stableConceptIds),
+    queryFn: () => fetchConceptResponsesForTests(stableConceptIds),
+    enabled: stableConceptIds.length > 0,
   })
 }
 
@@ -1131,9 +1142,12 @@ export function useInsertConceptResponse() {
       conceptTestId: string
       answers: Record<string, string | number | string[]>
     }) => insertConceptResponse(userId, conceptTestId, answers),
-    onSuccess: (_data, { userId }) => {
+    onSuccess: (_data, { userId, conceptTestId }) => {
       qc.invalidateQueries({ queryKey: queryKeys.conceptResponses(userId) })
       qc.invalidateQueries({ queryKey: queryKeys.conceptTests(userId) })
+      qc.invalidateQueries({ queryKey: queryKeys.conceptTestResponses(conceptTestId) })
+      qc.invalidateQueries({ queryKey: ['conceptResponsesForTests'] })
+      qc.invalidateQueries({ queryKey: queryKeys.conceptResponseCounts })
     },
   })
 }
