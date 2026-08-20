@@ -1,9 +1,34 @@
-import type { DecisionRecord, ProjectRecord } from './database';
+import type { DecisionRecord, ImportBatchRecord, ProjectRecord } from './database';
 
 export interface ProjectSwitcherGroups {
   recent: ProjectRecord[];
   remaining: ProjectRecord[];
   archived: ProjectRecord[];
+}
+
+/** Projects are fetched newest-first, so the first active row is the default workspace. */
+export function getFirstActiveProjectId(projects: readonly ProjectRecord[]): string | null {
+  return projects.find(project => project.status === 'active')?.id ?? null;
+}
+
+export function resolveAdminWorkflowProjectId(input: {
+  routeProjectId?: string | null;
+  selectedBatchId?: string | null;
+  projects: readonly ProjectRecord[];
+  batches: readonly ImportBatchRecord[];
+}): string | null {
+  if (input.routeProjectId) return input.routeProjectId;
+
+  const selectedBatch = input.selectedBatchId
+    ? input.batches.find(batch => batch.id === input.selectedBatchId && batch.status === 'active')
+    : null;
+  if (selectedBatch) return selectedBatch.projectId ?? selectedBatch.id;
+
+  const firstActiveProjectId = getFirstActiveProjectId(input.projects);
+  if (firstActiveProjectId) return firstActiveProjectId;
+
+  const firstActiveBatch = input.batches.find(batch => batch.status === 'active');
+  return firstActiveBatch?.projectId ?? firstActiveBatch?.id ?? null;
 }
 
 /**

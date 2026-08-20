@@ -4,8 +4,9 @@ import { useEffect } from "react";
 import { useAuth } from "../contexts/auth-context";
 import { useFoodType } from "../contexts/food-type-context";
 import { parseBatchSelection } from "../lib/project-identity";
-import { useImportBatches, usePendingImports, useWorkspaceSettings } from "../lib/hooks";
+import { useImportBatches, usePendingImports, useProjects, useWorkspaceSettings } from "../lib/hooks";
 import { currentPathToJourneyStep, legacyWorkflowPathToStep, projectPath } from "../lib/project-journey-routes";
+import { resolveAdminWorkflowProjectId } from "../lib/project-switcher";
 import { ConsentGate } from "./consent-gate";
 import {
   DropdownMenu,
@@ -26,6 +27,7 @@ export function MainLayout() {
   const { subCategory } = useFoodType();
   const { data: workspaceSettings } = useWorkspaceSettings();
   const { data: navImportBatches = [] } = useImportBatches(user?.role === 'admin');
+  const { data: navProjects = [] } = useProjects(user?.role === 'admin');
   const shouldPollPendingImports = location.pathname === '/stage1'
     || currentPathToJourneyStep(location.pathname) === 'data';
   const { data: pendingImports = [] } = usePendingImports(
@@ -97,10 +99,13 @@ export function MainLayout() {
   ];
 
   const selectedNavBatchId = parseBatchSelection(subCategory);
-  const selectedNavBatch = selectedNavBatchId
-    ? navImportBatches.find(batch => batch.id === selectedNavBatchId)
-    : null;
-  const selectedProjectId = selectedNavBatch?.projectId ?? selectedNavBatch?.id ?? null;
+  const routeProjectId = location.pathname.match(/^\/project\/([^/]+)/)?.[1] ?? null;
+  const selectedProjectId = resolveAdminWorkflowProjectId({
+    routeProjectId,
+    selectedBatchId: selectedNavBatchId,
+    projects: navProjects,
+    batches: navImportBatches,
+  });
   const getAdminNavItems = () => [
     { path: "/",               label: "Overview",  icon: FolderKanban },
     { path: "/stage1",         label: "Data",      icon: FlaskConical },
