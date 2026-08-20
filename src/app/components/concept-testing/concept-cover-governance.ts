@@ -29,3 +29,32 @@ export function coverQaFailures(scores: CoverQaScores): CoverQaKey[] {
 export function coverQaReady(scores: CoverQaScores): boolean {
   return coverQaFailures(scores).length === 0;
 }
+
+export function foodMasterBriefReady(input: {
+  name: string;
+  category: string;
+  productAppearance: string;
+}): boolean {
+  return Boolean(
+    input.name.trim()
+    && input.category.trim()
+    && input.productAppearance.trim(),
+  );
+}
+
+export function canGenerateFoodMaster(input: {
+  name: string;
+  category: string;
+  productAppearance: string;
+  busy: boolean;
+}): boolean {
+  return foodMasterBriefReady(input) && !input.busy;
+}
+
+export function foodMasterSourceLabel(
+  sourceKind: 'uploaded_reference' | 'reference_generated' | 'text_generated',
+): string {
+  if (sourceKind === 'uploaded_reference') return 'Uploaded food photo locked';
+  if (sourceKind === 'text_generated') return 'AI food master locked';
+  return 'Photo-referenced AI master locked';
+}

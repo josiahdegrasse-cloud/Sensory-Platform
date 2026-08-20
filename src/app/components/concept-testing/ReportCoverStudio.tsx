@@ -28,8 +28,11 @@ import { normalizePromptStyle } from '../../../../supabase/functions/_shared/con
 import type { ConceptDraft, ConceptReportAsset } from './types';
 import {
   COVER_QA_FIELDS,
+  canGenerateFoodMaster,
   coverQaFailures,
   coverQaReady,
+  foodMasterBriefReady,
+  foodMasterSourceLabel,
   normalizeCoverQaScore,
   type CoverQaScores,
 } from './concept-cover-governance';
@@ -123,8 +126,8 @@ export function ReportCoverStudio({
   const [progress, setProgress] = useState({ completed: 0, total: 0 });
   const [error, setError] = useState('');
 
-  const productBriefReady = Boolean(draft.name.trim() && draft.category.trim() && draft.productAppearance.trim());
-  const canGenerateMaster = productBriefReady && draft.productReferences.length > 0 && !busyStage;
+  const productBriefReady = foodMasterBriefReady(draft);
+  const canGenerateMaster = canGenerateFoodMaster({ ...draft, busy: Boolean(busyStage) });
   const canGenerateCover = Boolean(draft.productTruth?.imageId && !busyStage);
   const selectedCover = coverCandidates[selectedCoverIndex] ?? null;
   const failedQa = coverQaFailures(qaScores);
@@ -237,7 +240,7 @@ export function ReportCoverStudio({
             <h3 className="text-sm font-semibold text-slate-950">Client report image</h3>
           </div>
           <p className="mt-1 text-xs leading-5 text-slate-600">
-            Anchor the food to real references, then create a portrait cover. Logos and report text are added later from the client brand settings.
+            Generate a portrait cover from the food brief. Optional photos can improve the visual match; logos and report text are added later from the client brand settings.
           </p>
         </div>
         <span className={`inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
@@ -256,14 +259,17 @@ export function ReportCoverStudio({
             <div className="flex items-start gap-3">
               <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-slate-950 text-xs font-bold text-white">1</span>
               <div>
-                <h4 className="font-semibold text-slate-950">Lock product truth</h4>
+                <h4 className="font-semibold text-slate-950">Create the food master</h4>
                 <p className="mt-0.5 text-xs leading-5 text-slate-600">
-                  Upload up to three views of the tested food: hero, top and cut face. A written brief alone cannot produce a client-truthful cover.
+                  Generate a controlled view of the food from its appearance brief. Add up to three photos only when you want closer visual matching.
                 </p>
               </div>
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-3">
+            <p className="mt-4 text-xs font-semibold text-slate-700">Optional reference photos</p>
+            <p className="mt-0.5 text-xs leading-5 text-slate-500">Hero, top or cut-face views improve fidelity but are not required.</p>
+
+            <div className="mt-3 flex flex-wrap gap-3">
               {draft.productReferences.map((asset, index) => (
                 <div key={asset.imageId} className="group relative w-24">
                   <img
@@ -333,9 +339,13 @@ export function ReportCoverStudio({
                 onClick={() => void runGeneration('master', 3, draft.productReferences.map(asset => asset.imageId))}
               >
                 {busyStage === 'master' ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
-                {busyStage === 'master' ? `Creating master ${progress.completed}/${progress.total}` : 'Create product master'}
+                {busyStage === 'master'
+                  ? `Creating master ${progress.completed}/${progress.total}`
+                  : draft.productReferences.length > 0
+                    ? 'Generate referenced master'
+                    : 'Generate food master'}
               </Button>
-              <p className="self-center text-xs text-slate-500">A real uploaded photo can also be locked directly.</p>
+              <p className="self-center text-xs text-slate-500">An optional uploaded photo can also be used directly.</p>
             </div>
 
             {masterCandidates.length > 0 && (
@@ -364,7 +374,7 @@ export function ReportCoverStudio({
           </div>
 
           <aside className="border-t border-slate-200 pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-            <p className="text-xs font-semibold text-slate-500">CURRENT PRODUCT TRUTH</p>
+            <p className="text-xs font-semibold text-slate-500">CURRENT FOOD MASTER</p>
             {draft.productTruth ? (
               <>
                 <img
@@ -374,13 +384,13 @@ export function ReportCoverStudio({
                 />
                 <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-emerald-800">
                   <Check className="size-3.5" />
-                  {draft.productTruth.sourceKind === 'uploaded_reference' ? 'Real photo locked' : 'Reference-anchored master locked'}
+                  {foodMasterSourceLabel(draft.productTruth.sourceKind)}
                 </p>
               </>
             ) : (
               <div className="mt-3 flex min-h-40 flex-col items-center justify-center rounded-md bg-slate-50 p-4 text-center text-xs leading-5 text-slate-500">
                 <Camera className="mb-2 size-5" />
-                No product truth is locked yet.
+                No food master is locked yet.
               </div>
             )}
           </aside>
@@ -393,7 +403,7 @@ export function ReportCoverStudio({
               <div>
                 <h4 className="font-semibold text-slate-950">Create and approve the cover</h4>
                 <p className="mt-0.5 text-xs leading-5 text-slate-600">
-                  Three portrait candidates keep the locked food intact and leave space for the real client logo, report title and decision status.
+                  Three portrait candidates preserve the locked food master and leave space for the real client logo, report title and decision status.
                 </p>
               </div>
             </div>
