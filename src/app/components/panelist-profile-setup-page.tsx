@@ -24,7 +24,7 @@ import {
   ethnicityLabel,
   nationalityOptions,
 } from '../lib/panelist-demographics';
-import { panelistResearchProfileError } from '../lib/panelist-onboarding';
+import { isSamePasswordAuthError, panelistResearchProfileError } from '../lib/panelist-onboarding';
 import { supabase } from '../lib/supabase';
 import { Alert, AlertDescription } from './ui/alert';
 import { Button } from './ui/button';
@@ -57,6 +57,7 @@ export function PanelistProfileSetupPage() {
   const isProfileUpdate = Boolean(user?.profileCompletedAt);
   const ownProfile = useOwnPanelistProfileSetup(isProfileUpdate);
   const hydratedProfile = useRef(false);
+  const submitting = useRef(false);
   const [step, setStep] = useState(0);
   const [name, setName] = useState(user?.name === user?.email ? '' : user?.name ?? '');
   const [password, setPassword] = useState('');
@@ -189,6 +190,7 @@ export function PanelistProfileSetupPage() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (submitting.current) return;
     setError('');
     if (!consent) {
       setError('Accept the panelist consent terms to finish your account.');
@@ -198,11 +200,18 @@ export function PanelistProfileSetupPage() {
       const message = validateStep(targetStep);
       if (message) { setStep(targetStep); setError(message); return; }
     }
+    submitting.current = true;
     setBusy(true);
     try {
       if (!isProfileUpdate) {
         const { error: passwordUpdateError } = await supabase.auth.updateUser({ password });
-        if (passwordUpdateError) throw passwordUpdateError;
+        // The password can already have been saved by an earlier submission
+        // whose profile RPC failed, or by a near-simultaneous double submit.
+        // In that case the password step is complete and onboarding should
+        // resume instead of trapping this first-time panelist.
+        if (passwordUpdateError && !isSamePasswordAuthError(passwordUpdateError)) {
+          throw passwordUpdateError;
+        }
       }
       const declaredOtherAvoidances = [
         ...(lactoseIntolerance ? ['lactose'] : []),
@@ -235,6 +244,7 @@ export function PanelistProfileSetupPage() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to finish your account.');
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   };

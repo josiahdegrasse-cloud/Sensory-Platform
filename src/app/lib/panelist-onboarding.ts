@@ -15,6 +15,15 @@ export interface PanelistResearchProfileDraft {
   groceryRole: string;
 }
 
+/**
+ * Account activation is intentionally retryable. Supabase returns this code
+ * when a previous activation attempt already set the requested password but
+ * did not finish saving the panelist profile.
+ */
+export function isSamePasswordAuthError(error: { code?: string } | null): boolean {
+  return error?.code === 'same_password';
+}
+
 export function panelistResearchProfileError(draft: PanelistResearchProfileDraft): string {
   if (
     !draft.gender

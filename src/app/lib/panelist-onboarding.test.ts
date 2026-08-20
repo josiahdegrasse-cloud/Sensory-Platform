@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { panelistResearchProfileError } from './panelist-onboarding';
+import { isSamePasswordAuthError, panelistResearchProfileError } from './panelist-onboarding';
 
 const completeProfile = {
   gender: 'prefer_not_to_say',
@@ -36,5 +36,16 @@ describe('panelistResearchProfileError', () => {
   it('accepts a broad ethnicity without requesting a specific background', () => {
     expect(panelistResearchProfileError({ ...completeProfile, ethnicity: 'asian' })).toBe('');
     expect(panelistResearchProfileError({ ...completeProfile, ethnicity: 'asian_indian' })).toMatch(/Choose an ethnic group/);
+  });
+});
+
+describe('isSamePasswordAuthError', () => {
+  it('treats Supabase same-password responses as an already-completed activation step', () => {
+    expect(isSamePasswordAuthError({ code: 'same_password' })).toBe(true);
+  });
+
+  it('does not hide other password update failures', () => {
+    expect(isSamePasswordAuthError({ code: 'weak_password' })).toBe(false);
+    expect(isSamePasswordAuthError(null)).toBe(false);
   });
 });
