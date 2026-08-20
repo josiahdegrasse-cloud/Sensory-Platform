@@ -10,6 +10,9 @@ export interface GeneratedConceptImage {
   promptStyle?: string;
   summary?: string;
   revisedPrompt?: string;
+  assetRole?: string;
+  sourceKind?: string;
+  parentImageId?: string | null;
 }
 
 interface InvokeResult {

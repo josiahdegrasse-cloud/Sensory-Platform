@@ -51,6 +51,7 @@ import {
   warmConceptImageFunction,
 } from './concept-image-service';
 import { generateConceptImageBatch } from './concept-image-batch';
+import { ReportCoverStudio } from './ReportCoverStudio';
 
 interface CandidateImage {
   id?: string;
@@ -580,6 +581,8 @@ export function ImagesStep({
           </p>
         </div>
       </div>
+
+      <ReportCoverStudio draft={draft} onChange={onChange} settings={settings} />
 
       <section className="rounded-lg border border-slate-200 bg-white">
         <div className="border-b border-slate-200 px-4 py-3">

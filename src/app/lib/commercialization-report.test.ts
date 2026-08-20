@@ -5,6 +5,7 @@ import {
   getEvidenceStrength,
   getEvidenceStrengthNote,
   rebuildDecisionForCommercialization,
+  refreshCommercializationSnapshotImageUrls,
   resolveReportLogoUrl,
   summarizeConceptResponses,
 } from './commercialization-report';
@@ -67,6 +68,28 @@ describe('commercialization report evidence', () => {
     expect(resolveReportLogoUrl('Client Foods')).toBeNull();
     expect(resolveReportLogoUrl('Client Foods', 'https://example.com/logo.png'))
       .toBe('https://example.com/logo.png');
+  });
+
+  it('refreshes expiring report image URLs from immutable stored ids', () => {
+    const snapshot = {
+      concept: {
+        packagingImageUrl: 'https://signed.example/stale-pack',
+        reportCoverImageUrl: 'https://signed.example/stale-cover',
+      },
+    } as never;
+    const refreshed = refreshCommercializationSnapshotImageUrls(
+      snapshot,
+      { packagingImageId: 'pack-1', coverImageId: 'cover-1' },
+      {
+        imageIds: ['pack-1'],
+        imageUrls: ['https://signed.example/fresh-pack'],
+        reportCoverImageId: 'cover-1',
+        reportCoverImageUrl: 'https://signed.example/fresh-cover',
+      },
+    );
+
+    expect(refreshed.concept.packagingImageUrl).toContain('fresh-pack');
+    expect(refreshed.concept.reportCoverImageUrl).toContain('fresh-cover');
   });
 
   it('rebuilds report decision detail from the confirmed record and current evidence', () => {

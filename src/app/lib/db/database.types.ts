@@ -153,6 +153,7 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           concept_test_id: string
+          cover_image_id: string | null
           created_at: string
           created_by: string
           decision_record_id: string
@@ -172,6 +173,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           concept_test_id: string
+          cover_image_id?: string | null
           created_at?: string
           created_by: string
           decision_record_id: string
@@ -191,6 +193,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           concept_test_id?: string
+          cover_image_id?: string | null
           created_at?: string
           created_by?: string
           decision_record_id?: string
@@ -219,6 +222,13 @@ export type Database = {
             columns: ["concept_test_id"]
             isOneToOne: false
             referencedRelation: "concept_tests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commercialization_reports_cover_image_id_fkey"
+            columns: ["cover_image_id"]
+            isOneToOne: false
+            referencedRelation: "concept_images"
             referencedColumns: ["id"]
           },
           {
@@ -469,60 +479,90 @@ export type Database = {
       }
       concept_images: {
         Row: {
+          approved_for_external_use: boolean
           archived_at: string | null
+          asset_role: string
           concept_test_id: string | null
           created_at: string | null
+          external_approved_at: string | null
+          external_approved_by: string | null
+          focal_x: number
+          focal_y: number
           generation_id: string | null
           id: string
           image_url: string
           mode: string | null
           model: string | null
           org_id: string | null
+          parent_image_id: string | null
           performance_summary: Json
           prompt: string | null
           prompt_style: string
           quality: string | null
+          quality_scores: Json
           review_status: string
+          safe_area: Json
           selected_for_panelists: boolean
           sort_order: number
+          source_kind: string
           storage_path: string | null
         }
         Insert: {
+          approved_for_external_use?: boolean
           archived_at?: string | null
+          asset_role?: string
           concept_test_id?: string | null
           created_at?: string | null
+          external_approved_at?: string | null
+          external_approved_by?: string | null
+          focal_x?: number
+          focal_y?: number
           generation_id?: string | null
           id?: string
           image_url: string
           mode?: string | null
           model?: string | null
           org_id?: string | null
+          parent_image_id?: string | null
           performance_summary?: Json
           prompt?: string | null
           prompt_style?: string
           quality?: string | null
+          quality_scores?: Json
           review_status?: string
+          safe_area?: Json
           selected_for_panelists?: boolean
           sort_order?: number
+          source_kind?: string
           storage_path?: string | null
         }
         Update: {
+          approved_for_external_use?: boolean
           archived_at?: string | null
+          asset_role?: string
           concept_test_id?: string | null
           created_at?: string | null
+          external_approved_at?: string | null
+          external_approved_by?: string | null
+          focal_x?: number
+          focal_y?: number
           generation_id?: string | null
           id?: string
           image_url?: string
           mode?: string | null
           model?: string | null
           org_id?: string | null
+          parent_image_id?: string | null
           performance_summary?: Json
           prompt?: string | null
           prompt_style?: string
           quality?: string | null
+          quality_scores?: Json
           review_status?: string
+          safe_area?: Json
           selected_for_panelists?: boolean
           sort_order?: number
+          source_kind?: string
           storage_path?: string | null
         }
         Relationships: [
@@ -531,6 +571,13 @@ export type Database = {
             columns: ["concept_test_id"]
             isOneToOne: false
             referencedRelation: "concept_tests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concept_images_external_approved_by_fkey"
+            columns: ["external_approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -545,6 +592,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concept_images_parent_image_id_fkey"
+            columns: ["parent_image_id"]
+            isOneToOne: false
+            referencedRelation: "concept_images"
             referencedColumns: ["id"]
           },
         ]
@@ -621,8 +675,10 @@ export type Database = {
           org_id: string | null
           panel_size: number
           price_point: string | null
+          product_truth_image_id: string | null
           project_id: string | null
           questions: Json
+          report_cover_image_id: string | null
           status: string
           target_market: string | null
           variant_dimensions: Json | null
@@ -649,8 +705,10 @@ export type Database = {
           org_id?: string | null
           panel_size?: number
           price_point?: string | null
+          product_truth_image_id?: string | null
           project_id?: string | null
           questions?: Json
+          report_cover_image_id?: string | null
           status?: string
           target_market?: string | null
           variant_dimensions?: Json | null
@@ -677,8 +735,10 @@ export type Database = {
           org_id?: string | null
           panel_size?: number
           price_point?: string | null
+          product_truth_image_id?: string | null
           project_id?: string | null
           questions?: Json
+          report_cover_image_id?: string | null
           status?: string
           target_market?: string | null
           variant_dimensions?: Json | null
@@ -720,10 +780,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "concept_tests_product_truth_image_id_fkey"
+            columns: ["product_truth_image_id"]
+            isOneToOne: false
+            referencedRelation: "concept_images"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "concept_tests_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concept_tests_report_cover_image_id_fkey"
+            columns: ["report_cover_image_id"]
+            isOneToOne: false
+            referencedRelation: "concept_images"
             referencedColumns: ["id"]
           },
         ]
@@ -3803,6 +3877,7 @@ export type Database = {
       create_commercialization_report: {
         Args: {
           target_concept_test_id: string
+          target_cover_image_id?: string
           target_decision_record_id: string
           target_evidence_bundle_id?: string
           target_formulation_version_id?: string
@@ -3814,6 +3889,7 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           concept_test_id: string
+          cover_image_id: string | null
           created_at: string
           created_by: string
           decision_record_id: string

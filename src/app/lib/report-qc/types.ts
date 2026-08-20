@@ -170,6 +170,8 @@ export interface ImageProvenance {
   aiGenerated: boolean;
   label: string | null;
   directionalDisclaimer: boolean;
+  coverAttached?: boolean;
+  externalUseApproved?: boolean;
 }
 
 export interface ReportContext {

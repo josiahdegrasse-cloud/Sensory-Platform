@@ -59,12 +59,13 @@ interface GenerateConceptImagesBody {
   refineInstruction?: string;
   /** Return after the generation row is queued; render and storage continue in the background. */
   async?: boolean;
+  /** Server-normalized downstream role for this generated asset. */
+  assetRole?: string;
 }
 
 const DEFAULT_IMAGE_COUNT = 4;
 const MAX_IMAGE_COUNT = 4;
 const ALLOWED_QUALITIES = new Set(['low', 'medium', 'high', 'auto']);
-
 function clean(value: unknown, fallback = '') {
   return typeof value === 'string' ? value.trim() : fallback;
 }
@@ -264,7 +265,7 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify({
           error: [...dependencyErrors, ...missing.map(item => `${item} is unavailable`)].join('; '),
           phase: 'readiness',
-          functionVersion: 26,
+          functionVersion: 27,
         }), {
           status: 503,
           headers: { ...headers, 'Content-Type': 'application/json' },
@@ -274,7 +275,7 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({
         ok: true,
         phase: 'ready',
-        functionVersion: 26,
+        functionVersion: 27,
       }), {
         headers: { ...headers, 'Content-Type': 'application/json' },
       });
@@ -330,11 +331,20 @@ Deno.serve(async (req: Request) => {
       if (ids.length === 0) return [];
       const { data, error } = await serviceClient
         .from('concept_images')
-        .select('id, storage_path, mode')
+        .select('id, storage_path, mode, asset_role, source_kind, parent_image_id')
         .eq('org_id', orgId)
         .in('id', ids);
       if (error) throw error;
-      return (data ?? []) as Array<{ id: string; storage_path: string | null; mode: string | null }>;
+      const rows = (data ?? []) as Array<{
+        id: string;
+        storage_path: string | null;
+        mode: string | null;
+        asset_role: string | null;
+        source_kind: string | null;
+        parent_image_id: string | null;
+      }>;
+      const byId = new Map(rows.map(row => [row.id, row]));
+      return ids.flatMap(id => byId.get(id) ? [byId.get(id)!] : []);
     };
     const downloadReference = async (path: string, name: string): Promise<ReferenceFile> => {
       const { data, error } = await serviceClient.storage.from('concept-images').download(path);
@@ -343,9 +353,12 @@ Deno.serve(async (req: Request) => {
     };
 
     let baseImageMode = '';
+    let baseImageAssetRole = 'concept_visual';
     const referenceFiles: ReferenceFile[] = [];
     let productLocked = false;
     let brandKitImageAttached = false;
+    let productReferenceIds: string[] = [];
+    let referenceKind: ConceptReferenceContext['referenceKind'] = 'product_design';
 
     if (intent === 'refine') {
       const baseId = clean(body.baseImageId);
@@ -363,26 +376,34 @@ Deno.serve(async (req: Request) => {
         });
       }
       baseImageMode = clean(baseRow.mode, 'packaging');
+      baseImageAssetRole = clean(baseRow.asset_role, 'concept_visual');
+      productReferenceIds = [baseId];
       referenceFiles.push(await downloadReference(baseRow.storage_path, 'base-image.png'));
     } else {
-      // Locked product design (at most one), attached first per the prompt's
-      // attachment-order contract.
-      const lockedIds = (Array.isArray(body.referenceImageIds) ? body.referenceImageIds : [])
-        .map(id => clean(id)).filter(Boolean).slice(0, 1);
-      if (lockedIds.length > 0) {
-        const [lockedRow] = await loadOrgImageRows(lockedIds);
-        if (!lockedRow?.storage_path) {
+      // Up to three views of the same product are attached first. A single
+      // packaging/design lock remains supported; product-truth generation can
+      // instead use hero, top, and cut-face reference photographs.
+      productReferenceIds = (Array.isArray(body.referenceImageIds) ? body.referenceImageIds : [])
+        .map(id => clean(id)).filter(Boolean).slice(0, 3);
+      if (productReferenceIds.length > 0) {
+        const lockedRows = await loadOrgImageRows(productReferenceIds);
+        if (lockedRows.length !== productReferenceIds.length || lockedRows.some(row => !row.storage_path)) {
           return new Response(JSON.stringify({ error: 'The locked design image was not found in this workspace.' }), {
             status: 404,
             headers: { ...headers, 'Content-Type': 'application/json' },
           });
         }
-        referenceFiles.push(await downloadReference(lockedRow.storage_path, 'locked-design.png'));
+        referenceKind = lockedRows.every(row => row.asset_role === 'product_reference' || row.asset_role === 'product_truth')
+          ? 'food'
+          : 'product_design';
+        for (let index = 0; index < lockedRows.length; index += 1) {
+          referenceFiles.push(await downloadReference(lockedRows[index].storage_path!, `product-reference-${index + 1}.png`));
+        }
         productLocked = true;
       }
-      // Org brand kit reference, attached second. A missing file degrades to
+      // Org brand kit reference follows every product view. A missing file degrades to
       // descriptor-only brand guidance rather than failing the batch.
-      if (useBrandKit && brandKit?.referenceImagePath && brandKit.sourceImageId !== lockedIds[0]) {
+      if (useBrandKit && brandKit?.referenceImagePath && !productReferenceIds.includes(brandKit.sourceImageId)) {
         try {
           referenceFiles.push(await downloadReference(brandKit.referenceImagePath, 'brand-kit.png'));
           brandKitImageAttached = true;
@@ -397,6 +418,8 @@ Deno.serve(async (req: Request) => {
       : productLocked || (useBrandKit && brandKit)
         ? {
             productLocked,
+            referenceKind,
+            productReferenceCount: productReferenceIds.length,
             brandKit: useBrandKit && brandKit
               ? {
                   brandDescriptor: brandKit.brandDescriptor,
@@ -413,6 +436,25 @@ Deno.serve(async (req: Request) => {
     const primaryMode = intent === 'refine'
       ? normalizeConceptImageMode(baseImageMode)
       : normalizeConceptImageMode(body.mode);
+    const requestedAssetRole = clean(body.assetRole);
+    const assetRole = intent === 'refine'
+      ? baseImageAssetRole
+      : primaryMode === 'product_truth' || primaryMode === 'report_cover'
+        ? primaryMode
+        : requestedAssetRole === 'concept_visual'
+          ? 'concept_visual'
+          : 'panelist_stimulus';
+    const sourceKind = productLocked || intent === 'refine' ? 'reference_generated' : 'text_generated';
+    const parentImageId = productReferenceIds[0] ?? null;
+
+    if (intent !== 'refine' && primaryMode === 'report_cover' && (!productLocked || referenceKind !== 'food')) {
+      return new Response(JSON.stringify({
+        error: 'A client report cover requires a locked product-truth or uploaded product reference image.',
+      }), {
+        status: 400,
+        headers: { ...headers, 'Content-Type': 'application/json' },
+      });
+    }
 
     // Branding comes from the caller's workspace settings, never from the
     // request body — a tenant cannot generate under another client's name.
@@ -544,7 +586,11 @@ Deno.serve(async (req: Request) => {
           generationIntent: intent,
           baseImageId: intent === 'refine' ? clean(body.baseImageId) : null,
           refineInstruction: intent === 'refine' ? refineInstruction : null,
-          lockedDesignImageId: productLocked ? clean((body.referenceImageIds ?? [])[0]) : null,
+          lockedDesignImageId: productLocked ? productReferenceIds[0] : null,
+          productReferenceImageIds: productReferenceIds,
+          referenceKind,
+          assetRole,
+          sourceKind,
           brandKitApplied: Boolean(intent !== 'refine' && useBrandKit && brandKit),
           brandKitImageAttached,
           sizes: angledPrompts.map(item => item.size),
@@ -580,6 +626,7 @@ Deno.serve(async (req: Request) => {
         const imageResults = [] as Array<{
           id: string; url: string; storagePath: string;
           mode: string; size: string; promptStyle: string; summary: string; revisedPrompt?: string;
+          assetRole: string; sourceKind: string; parentImageId: string | null;
         }>;
         for (let index = 0; index < angleResponses.length; index++) {
           const { angle, size, prompt: anglePrompt, summary, json } = angleResponses[index];
@@ -611,14 +658,21 @@ Deno.serve(async (req: Request) => {
               concept_test_id: body.conceptTestId || null,
               image_url: storagePath,
               storage_path: storagePath,
-              selected_for_panelists: !Boolean(workspaceSettings?.concept_require_approval),
+              selected_for_panelists: assetRole === 'panelist_stimulus'
+                && !Boolean(workspaceSettings?.concept_require_approval),
               sort_order: index,
               mode: angle,
               prompt: anglePrompt,
               prompt_style: configuredStyle,
-              review_status: workspaceSettings?.concept_require_approval ? 'draft' : 'selected',
+              review_status: assetRole === 'panelist_stimulus'
+                && !Boolean(workspaceSettings?.concept_require_approval)
+                ? 'selected'
+                : 'draft',
               model,
               quality,
+              asset_role: assetRole,
+              parent_image_id: parentImageId,
+              source_kind: sourceKind,
             })
             .select()
             .single();
@@ -637,6 +691,9 @@ Deno.serve(async (req: Request) => {
             promptStyle: configuredStyle,
             summary,
             revisedPrompt: item.revised_prompt,
+            assetRole,
+            sourceKind,
+            parentImageId,
           });
         }
 

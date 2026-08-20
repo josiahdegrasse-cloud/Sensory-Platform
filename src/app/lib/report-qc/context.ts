@@ -151,10 +151,14 @@ export function buildReportContext(input: BuildContextInput): ReportContext {
     approvalStatus: input.approvalStatus,
     generatedAt: snapshot.generatedAt,
     imageProvenance: {
-      attached: Boolean(snapshot.concept.packagingImageUrl),
-      aiGenerated: Boolean(snapshot.concept.packagingImageAiGenerated),
-      label: snapshot.concept.packagingImagePromptStyle ?? null,
+      attached: Boolean(snapshot.concept.reportCoverImageUrl || snapshot.concept.packagingImageUrl),
+      aiGenerated: snapshot.concept.reportCoverImageUrl
+        ? Boolean(snapshot.concept.reportCoverImageAiGenerated)
+        : Boolean(snapshot.concept.packagingImageAiGenerated),
+      label: snapshot.concept.reportCoverImageMode ?? snapshot.concept.packagingImagePromptStyle ?? null,
       directionalDisclaimer: true,
+      coverAttached: Boolean(snapshot.concept.reportCoverImageUrl),
+      externalUseApproved: Boolean(snapshot.concept.reportCoverApprovedForExternalUse),
     },
     risks: buildRisks(snapshot, responseCount, input.commercialProfile),
     actions: buildActions(snapshot, decision, readiness, input.commercialProfile),

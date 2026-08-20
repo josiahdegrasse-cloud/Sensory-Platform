@@ -60,6 +60,12 @@ export interface CommercializationReportSnapshot {
     packagingImageMode?: string;
     packagingImagePromptStyle?: string;
     packagingImageAiGenerated?: boolean;
+    reportCoverImageId?: string | null;
+    reportCoverImageUrl?: string;
+    reportCoverImageMode?: string;
+    reportCoverImageSourceKind?: 'uploaded_reference' | 'reference_generated' | 'text_generated';
+    reportCoverImageAiGenerated?: boolean;
+    reportCoverApprovedForExternalUse?: boolean;
   };
   evidence: ConceptEvidenceSummary;
   formulation?: {
@@ -109,6 +115,43 @@ export interface CommercializationReportSnapshot {
   /** Safe Evidence Assist guidance persisted with this report version. */
   evidenceCards?: ReportSafeEvidenceCard[];
   generatedAt: string;
+}
+
+/**
+ * Replaces short-lived signed image URLs in an immutable report snapshot with
+ * fresh URLs from the linked concept. Stored ids and approval provenance stay
+ * unchanged; only transport URLs are refreshed for preview and export.
+ */
+export function refreshCommercializationSnapshotImageUrls(
+  snapshot: CommercializationReportSnapshot,
+  report: { packagingImageId?: string | null; coverImageId?: string | null },
+  concept?: {
+    imageIds?: string[];
+    imageUrls: string[];
+    reportCoverImageId?: string | null;
+    reportCoverImageUrl?: string;
+  } | null,
+): CommercializationReportSnapshot {
+  if (!concept) return snapshot;
+  const packagingIndex = report.packagingImageId
+    ? (concept.imageIds ?? []).indexOf(report.packagingImageId)
+    : -1;
+  const packagingImageUrl = packagingIndex >= 0
+    ? concept.imageUrls[packagingIndex] || snapshot.concept.packagingImageUrl
+    : snapshot.concept.packagingImageUrl;
+  const reportCoverImageUrl = report.coverImageId
+    && concept.reportCoverImageId === report.coverImageId
+    && concept.reportCoverImageUrl
+    ? concept.reportCoverImageUrl
+    : snapshot.concept.reportCoverImageUrl;
+  return {
+    ...snapshot,
+    concept: {
+      ...snapshot.concept,
+      packagingImageUrl,
+      reportCoverImageUrl,
+    },
+  };
 }
 
 export type EvidenceStrength = 'Limited' | 'Directional' | 'Developing' | 'Established';
@@ -314,6 +357,13 @@ export function buildCommercializationSnapshot(input: {
   packagingImageId: string | null;
   packagingImageUrl: string;
   packagingImageMeta?: { mode: string; promptStyle: string } | null;
+  reportCoverImageId?: string | null;
+  reportCoverImageUrl?: string;
+  reportCoverImageMeta?: {
+    mode: string;
+    sourceKind: 'uploaded_reference' | 'reference_generated' | 'text_generated';
+    approvedForExternalUse: boolean;
+  } | null;
 }): CommercializationReportSnapshot {
   if (input.decisionRecord.decision !== 'GO' || input.liveDecision.decision !== 'GO') {
     throw new Error('Commercialization reports require a confirmed GO decision.');
@@ -360,6 +410,15 @@ export function buildCommercializationSnapshot(input: {
       // An image with stored generation metadata is AI-generated; a manually
       // pasted URL has no metadata and gets no AI provenance note.
       packagingImageAiGenerated: Boolean(input.packagingImageMeta),
+      reportCoverImageId: input.reportCoverImageId ?? null,
+      reportCoverImageUrl: input.reportCoverImageUrl ?? '',
+      reportCoverImageMode: input.reportCoverImageMeta?.mode,
+      reportCoverImageSourceKind: input.reportCoverImageMeta?.sourceKind,
+      reportCoverImageAiGenerated: Boolean(
+        input.reportCoverImageMeta
+        && input.reportCoverImageMeta.sourceKind !== 'uploaded_reference'
+      ),
+      reportCoverApprovedForExternalUse: Boolean(input.reportCoverImageMeta?.approvedForExternalUse),
     },
     evidence,
     narrative: {

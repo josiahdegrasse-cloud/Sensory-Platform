@@ -6,6 +6,7 @@ import { useFoodType, sampleMatchesFoodType } from '../contexts/food-type-contex
 import {
   DEFAULT_REPORT_ORGANIZATION_NAME,
   DEFAULT_REPORT_WORKSPACE_NAME,
+  refreshCommercializationSnapshotImageUrls,
   rebuildDecisionForCommercialization,
   resolveReportLogoUrl,
   type CommercializationReportSnapshot,
@@ -120,6 +121,11 @@ export function CommercializationReportPage() {
       )) ?? null
     : null);
   const snapshot = savedReport?.reportSnapshot as unknown as CommercializationReportSnapshot | undefined;
+  const pdfSnapshot = useMemo(() => (
+    savedReport && snapshot
+      ? refreshCommercializationSnapshotImageUrls(snapshot, savedReport, selectedConcept)
+      : undefined
+  ), [savedReport, selectedConcept, snapshot]);
   const reportDecision = focusDecision && evidenceBundle
     ? rebuildDecisionForCommercialization(focusDecision, evidenceBundle)
     : null;
@@ -145,8 +151,8 @@ export function CommercializationReportPage() {
   }, [evidenceBundle, focusDecision, savedReport, snapshot]);
   const reportContext = reportContextBuild?.reportContext ?? undefined;
   const readiness = reportContextBuild?.readiness;
-  const pdfInput = savedReport && snapshot ? {
-    snapshot,
+  const pdfInput = savedReport && pdfSnapshot ? {
+    snapshot: pdfSnapshot,
     organizationName: settings?.organizationName ?? DEFAULT_REPORT_ORGANIZATION_NAME,
     workspaceName: settings?.workspaceName ?? DEFAULT_REPORT_WORKSPACE_NAME,
     reportFooter: settings?.reportFooter,

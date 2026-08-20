@@ -52,6 +52,7 @@ export function ReportNarrativePanel({
         decisionRecordId: report.decisionRecordId,
         conceptTestId: report.conceptTestId,
         packagingImageId: report.packagingImageId,
+        coverImageId: report.coverImageId,
         title: report.title,
         reportSnapshot: {
           ...snapshot,

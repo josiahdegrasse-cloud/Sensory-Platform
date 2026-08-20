@@ -108,7 +108,24 @@ const makeEmptyDraft = (promptStyle: string = 'balanced'): ConceptDraft => ({
   approvalStatus: 'draft',
   variantDimensions: { ...EMPTY_VARIANT_DIMENSIONS },
   brandReference: null,
+  productReferences: [],
+  productTruth: null,
+  reportCover: null,
 });
+
+function stripDraftSignedImageUrls(draft: ConceptDraft): ConceptDraft {
+  const withoutUrl = <T extends { url: string }>(asset: T): T => ({ ...asset, url: '' });
+  return {
+    ...draft,
+    marketingImages: draft.marketingImages.map((url, index) => (
+      draft.marketingImageIds[index] ? '' : url
+    )),
+    brandReference: draft.brandReference ? { ...draft.brandReference, url: '' } : null,
+    productReferences: draft.productReferences.map(withoutUrl),
+    productTruth: draft.productTruth ? withoutUrl(draft.productTruth) : null,
+    reportCover: draft.reportCover ? withoutUrl(draft.reportCover) : null,
+  };
+}
 
 interface StoredConceptDraft {
   version?: 2;
@@ -416,7 +433,21 @@ export function ConceptTesting() {
         const [brandUrl] = await hydrateConceptWorkspaceImageUrls([brandReference.imageId], [brandReference.url]);
         brandReference = { ...brandReference, url: brandUrl ?? brandReference.url };
       }
-      restoredDraft = { ...restoredDraft, marketingImages, brandReference };
+      const hydrateAsset = async <T extends { imageId: string; url: string }>(asset: T): Promise<T> => {
+        const [url] = await hydrateConceptWorkspaceImageUrls([asset.imageId], [asset.url]);
+        return { ...asset, url: url ?? asset.url };
+      };
+      const productReferences = await Promise.all(restoredDraft.productReferences.map(hydrateAsset));
+      const productTruth = restoredDraft.productTruth ? await hydrateAsset(restoredDraft.productTruth) : null;
+      const reportCover = restoredDraft.reportCover ? await hydrateAsset(restoredDraft.reportCover) : null;
+      restoredDraft = {
+        ...restoredDraft,
+        marketingImages,
+        brandReference,
+        productReferences,
+        productTruth,
+        reportCover,
+      };
     } catch {
       // A stale signed URL should not prevent the rest of the draft from opening.
     }
@@ -596,15 +627,7 @@ export function ConceptTesting() {
       setSaveState('saving');
       const workspacePayload: StoredConceptDraft = {
         ...payload,
-        draft: {
-          ...payload.draft,
-          marketingImages: payload.draft.marketingImages.map((url, index) => (
-            payload.draft.marketingImageIds[index] ? '' : url
-          )),
-          brandReference: payload.draft.brandReference
-            ? { ...payload.draft.brandReference, url: '' }
-            : null,
-        },
+        draft: stripDraftSignedImageUrls(payload.draft),
       };
       const saveRequest = saveConceptWorkspaceDraft({
         orgId: user.orgId,
@@ -714,13 +737,7 @@ export function ConceptTesting() {
       if (!user?.id || !user.orgId || !routeProjectId) throw new Error('Workspace identity is unavailable.');
       const workspacePayload: StoredConceptDraft = {
         ...payload,
-        draft: {
-          ...payload.draft,
-          marketingImages: payload.draft.marketingImages.map((url, index) => (
-            payload.draft.marketingImageIds[index] ? '' : url
-          )),
-          brandReference: payload.draft.brandReference ? { ...payload.draft.brandReference, url: '' } : null,
-        },
+        draft: stripDraftSignedImageUrls(payload.draft),
       };
       await saveConceptWorkspaceDraft({
         orgId: user.orgId,
@@ -991,6 +1008,8 @@ export function ConceptTesting() {
         status: 'active',
         variantDimensions: draft.variantDimensions as unknown as Record<string, string | null>,
         brandReferenceImageId: draft.brandReference?.imageId ?? null,
+        productTruthImageId: draft.productTruth?.imageId ?? null,
+        reportCoverImageId: draft.reportCover?.imageId ?? null,
         projectId: routeProjectId ?? null,
         formulationVersionId: sourceDecision?.formulationVersionId ?? null,
         decisionRecordId: sourceDecision?.id ?? null,

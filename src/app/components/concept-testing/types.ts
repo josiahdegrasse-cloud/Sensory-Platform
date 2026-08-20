@@ -74,6 +74,21 @@ export interface ConceptBrandReference {
   mode: string;
 }
 
+export type ConceptImageSourceKind = 'uploaded_reference' | 'reference_generated' | 'text_generated';
+export type ConceptImageAssetRole = 'product_reference' | 'product_truth' | 'report_cover';
+
+/** A governed, non-panelist asset used to preserve product truth or build the report cover. */
+export interface ConceptReportAsset {
+  imageId: string;
+  url: string;
+  mode: string;
+  assetRole: ConceptImageAssetRole;
+  sourceKind: ConceptImageSourceKind;
+  parentImageId?: string | null;
+  approvedForExternalUse?: boolean;
+  qualityScores?: Record<string, number>;
+}
+
 export interface ConceptDraft {
   name: string;
   category: string;
@@ -103,6 +118,12 @@ export interface ConceptDraft {
   variantDimensions: VariantDimensions;
   /** Locked product design for reference-anchored generation; null = exploring. */
   brandReference: ConceptBrandReference | null;
+  /** Real product photographs uploaded as truth inputs (maximum three). */
+  productReferences: ConceptReportAsset[];
+  /** Locked food-only master used for every cover re-stage. */
+  productTruth: ConceptReportAsset | null;
+  /** Human-approved portrait image available to client reports. */
+  reportCover: ConceptReportAsset | null;
 }
 
 export type WizardStep = 'concept' | 'survey' | 'panel' | 'review' | 'launched';

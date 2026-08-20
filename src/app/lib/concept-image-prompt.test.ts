@@ -73,10 +73,10 @@ describe('catalog normalization', () => {
     expect(normalizePromptStyle('vaporwave')).toBe('bold_retail');
   });
 
-  it('exposes the eight required modes and ten required styles', () => {
+  it('exposes the eight campaign modes, two governed report modes, and ten required styles', () => {
     expect(CONCEPT_IMAGE_MODES.map(m => m.id).sort()).toEqual([
       'buyer_presentation', 'concept_board', 'ecommerce', 'ingredient_benefit',
-      'lifestyle', 'packaging', 'shelf', 'social_ad',
+      'lifestyle', 'packaging', 'product_truth', 'report_cover', 'shelf', 'social_ad',
     ]);
     expect(PROMPT_STYLES).toHaveLength(10);
   });

@@ -29,6 +29,15 @@ export interface ConceptImageMeta {
   reviewStatus: ConceptImageReviewStatus;
   review?: ConceptImageReviewRecord;
   createdAt: string;
+  assetRole: string;
+  parentImageId: string | null;
+  sourceKind: 'uploaded_reference' | 'reference_generated' | 'text_generated';
+  approvedForExternalUse: boolean;
+  externalApprovedAt: string | null;
+  qualityScores: Record<string, number>;
+  focalX: number;
+  focalY: number;
+  safeArea: Record<string, number>;
 }
 
 export interface ConceptTest {
@@ -57,6 +66,12 @@ export interface ConceptTest {
   variantDimensions?: Record<string, string | null>;
   /** The concept image locked as this concept's product design, if any. */
   brandReferenceImageId?: string | null;
+  productTruthImageId?: string | null;
+  productTruthImageUrl?: string;
+  productTruthImageMeta?: ConceptImageMeta | null;
+  reportCoverImageId?: string | null;
+  reportCoverImageUrl?: string;
+  reportCoverImageMeta?: ConceptImageMeta | null;
   projectId?: string | null;
   formulationVersionId?: string | null;
   decisionRecordId?: string | null;
@@ -86,6 +101,7 @@ export interface CommercializationReportRecord {
   decisionRecordId: string;
   conceptTestId: string;
   packagingImageId: string | null;
+  coverImageId?: string | null;
   evidenceBundleId?: string | null;
   status: 'draft' | 'review' | 'approved' | 'archived';
   version: number;
@@ -163,6 +179,12 @@ export interface ConceptGeneratedImage {
   performanceSummary: Record<string, unknown>;
   review?: ConceptImageReviewRecord;
   createdAt: string;
+  assetRole: string;
+  parentImageId: string | null;
+  sourceKind: 'uploaded_reference' | 'reference_generated' | 'text_generated';
+  approvedForExternalUse: boolean;
+  externalApprovedAt: string | null;
+  qualityScores: Record<string, number>;
 }
 
 export interface ConceptImageReviewRecord {
@@ -171,6 +193,17 @@ export interface ConceptImageReviewRecord {
   qaSummary?: Record<string, unknown>;
   reviewedBy?: string | null;
   reviewedAt?: string;
+}
+
+export interface GovernedConceptAsset {
+  imageId: string;
+  url: string;
+  mode: string;
+  assetRole: 'product_reference' | 'product_truth' | 'report_cover';
+  sourceKind: 'uploaded_reference' | 'reference_generated' | 'text_generated';
+  parentImageId: string | null;
+  approvedForExternalUse: boolean;
+  qualityScores: Record<string, number>;
 }
 
 export interface ConceptProjectSummary {
@@ -212,6 +245,8 @@ function toConceptTest(row: Tables['concept_tests']['Row']): ConceptTest {
     variantDimensions: fromJson<Record<string, string | null>>(row.variant_dimensions) ?? {},
     // Cast: column may predate regenerated database.types.ts.
     brandReferenceImageId: ((row as Record<string, unknown>).brand_reference_image_id as string | null) ?? null,
+    productTruthImageId: row.product_truth_image_id ?? null,
+    reportCoverImageId: row.report_cover_image_id ?? null,
     projectId: row.project_id ?? null,
     formulationVersionId: row.formulation_version_id ?? null,
     decisionRecordId: row.decision_record_id ?? null,
@@ -228,13 +263,152 @@ export async function createConceptImageSignedUrl(storagePath: string | null, fa
   return data.signedUrl;
 }
 
+const PRODUCT_REFERENCE_MIME_TYPES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
+
+export async function uploadConceptProductReference(file: File): Promise<GovernedConceptAsset> {
+  const extension = PRODUCT_REFERENCE_MIME_TYPES[file.type];
+  if (!extension) throw new Error('Product references must be JPEG, PNG, or WebP images.');
+  if (file.size > 5 * 1024 * 1024) throw new Error('Product references must be 5 MB or smaller.');
+
+  const imageId = crypto.randomUUID();
+  const storagePath = `product-references/${imageId}.${extension}`;
+  const { error: rowError } = await supabase
+    .from('concept_images')
+    .insert({
+      id: imageId,
+      image_url: storagePath,
+      storage_path: storagePath,
+      selected_for_panelists: false,
+      sort_order: 0,
+      mode: 'product_truth',
+      prompt: '',
+      prompt_style: '',
+      review_status: 'draft',
+      model: 'uploaded-reference',
+      quality: 'source',
+      asset_role: 'product_reference',
+      source_kind: 'uploaded_reference',
+      performance_summary: asJson({
+        source: 'administrator_upload',
+        mimeType: file.type,
+        bytes: file.size,
+        uploadedAt: new Date().toISOString(),
+      }),
+    })
+    .select('id')
+    .single();
+  if (rowError) throw dbError(rowError);
+
+  const { error: uploadError } = await supabase.storage
+    .from('concept-images')
+    .upload(storagePath, file, { contentType: file.type, upsert: false });
+  if (uploadError) {
+    await supabase.from('concept_images').delete().eq('id', imageId);
+    throw dbError(uploadError);
+  }
+
+  const url = await createConceptImageSignedUrl(storagePath, '');
+  if (!url) throw new Error('The product reference was stored, but its secure preview could not be created.');
+  return {
+    imageId,
+    url,
+    mode: 'product_truth',
+    assetRole: 'product_reference',
+    sourceKind: 'uploaded_reference',
+    parentImageId: null,
+    approvedForExternalUse: false,
+    qualityScores: {},
+  };
+}
+
+export async function approveConceptReportCover(input: {
+  imageId: string;
+  actorId: string;
+  qualityScores: Record<string, number>;
+  notes?: string;
+  focalX?: number;
+  focalY?: number;
+}): Promise<void> {
+  const { data: row, error: fetchError } = await supabase
+    .from('concept_images')
+    .select('performance_summary')
+    .eq('id', input.imageId)
+    .single();
+  if (fetchError) throw dbError(fetchError);
+  const summary = fromJson<Record<string, unknown>>(row.performance_summary) ?? {};
+  const approvedAt = new Date().toISOString();
+  const { error } = await supabase
+    .from('concept_images')
+    .update({
+      approved_for_external_use: true,
+      external_approved_by: input.actorId,
+      external_approved_at: approvedAt,
+      quality_scores: asJson(input.qualityScores),
+      focal_x: Math.max(0, Math.min(1, input.focalX ?? 0.68)),
+      focal_y: Math.max(0, Math.min(1, input.focalY ?? 0.66)),
+      review_status: 'approved',
+      selected_for_panelists: false,
+      archived_at: null,
+      performance_summary: asJson({
+        ...summary,
+        review: {
+          ...(typeof summary.review === 'object' && summary.review !== null ? summary.review : {}),
+          status: 'approved',
+          notes: input.notes?.trim() ?? '',
+          qaSummary: input.qualityScores,
+          reviewedBy: input.actorId,
+          reviewedAt: approvedAt,
+          externalUse: true,
+        },
+      }),
+    })
+    .eq('id', input.imageId)
+    .eq('asset_role', 'report_cover')
+    .select('id')
+    .single();
+  if (error) throw dbError(error);
+}
+
+function toConceptImageMeta(row: Tables['concept_images']['Row']): ConceptImageMeta {
+  const performanceSummary = fromJson<Record<string, unknown>>(row.performance_summary) ?? {};
+  return {
+    id: row.id,
+    mode: row.mode ?? 'packaging',
+    promptStyle: row.prompt_style ?? '',
+    model: row.model ?? '',
+    quality: row.quality ?? '',
+    reviewStatus: toReviewStatus(row),
+    review: typeof performanceSummary.review === 'object' && performanceSummary.review !== null
+      ? performanceSummary.review as ConceptImageReviewRecord
+      : undefined,
+    createdAt: row.created_at ?? '',
+    assetRole: row.asset_role,
+    parentImageId: row.parent_image_id ?? null,
+    sourceKind: row.source_kind as ConceptImageMeta['sourceKind'],
+    approvedForExternalUse: row.approved_for_external_use,
+    externalApprovedAt: row.external_approved_at ?? null,
+    qualityScores: fromJson<Record<string, number>>(row.quality_scores) ?? {},
+    focalX: Number(row.focal_x ?? 0.5),
+    focalY: Number(row.focal_y ?? 0.5),
+    safeArea: fromJson<Record<string, number>>(row.safe_area) ?? {},
+  };
+}
+
 async function hydrateConceptTestImages(test: ConceptTest, includeMeta = false): Promise<ConceptTest> {
-  if (!test.imageIds?.length) return test;
+  const stimulusIds = test.imageIds ?? [];
+  const governedIds = includeMeta
+    ? [test.productTruthImageId, test.reportCoverImageId].filter((id): id is string => Boolean(id))
+    : [];
+  const imageIds = Array.from(new Set([...stimulusIds, ...governedIds]));
+  if (!imageIds.length) return test;
   const { data, error } = await supabase
     .from('concept_images')
     .select('*')
-    .in('id', test.imageIds)
-    .order('sort_order', { ascending: true });
+    .in('id', imageIds);
   if (error) throw dbError(error);
   const rows = data ?? [];
   const signed = await Promise.all(rows.map(async row => ({
@@ -244,26 +418,23 @@ async function hydrateConceptTestImages(test: ConceptTest, includeMeta = false):
       row.image_url ?? '',
     ),
   })));
-  const visible = signed.filter(entry => entry.url);
-  const imageUrls = visible.map(entry => entry.url);
+  const byId = new Map(signed.filter(entry => entry.url).map(entry => [entry.row.id, entry]));
+  const visibleStimuli = stimulusIds.flatMap(id => byId.get(id) ? [byId.get(id)!] : []);
+  const imageUrls = visibleStimuli.map(entry => entry.url);
   if (!includeMeta) return { ...test, imageUrls };
-  // Metadata stays on admin fetch paths only; panelists get bare image URLs.
-  const imageMeta: ConceptImageMeta[] = visible.map(({ row }) => ({
-    id: row.id,
-    mode: row.mode ?? 'packaging',
-    promptStyle: row.prompt_style ?? '',
-    model: row.model ?? '',
-    quality: row.quality ?? '',
-    reviewStatus: toReviewStatus(row),
-    review: (() => {
-      const performanceSummary = fromJson<Record<string, unknown>>(row.performance_summary) ?? {};
-      return typeof performanceSummary.review === 'object' && performanceSummary.review !== null
-        ? performanceSummary.review as ConceptImageReviewRecord
-        : undefined;
-    })(),
-    createdAt: row.created_at ?? '',
-  }));
-  return { ...test, imageUrls, imageMeta };
+  // Metadata and governed cover assets stay on admin fetch paths only;
+  // panelists receive the selected stimulus URLs and nothing else.
+  const productTruth = test.productTruthImageId ? byId.get(test.productTruthImageId) : null;
+  const reportCover = test.reportCoverImageId ? byId.get(test.reportCoverImageId) : null;
+  return {
+    ...test,
+    imageUrls,
+    imageMeta: visibleStimuli.map(entry => toConceptImageMeta(entry.row)),
+    productTruthImageUrl: productTruth?.url ?? '',
+    productTruthImageMeta: productTruth ? toConceptImageMeta(productTruth.row) : null,
+    reportCoverImageUrl: reportCover?.url ?? '',
+    reportCoverImageMeta: reportCover ? toConceptImageMeta(reportCover.row) : null,
+  };
 }
 
 export async function insertConceptTest(
@@ -291,6 +462,8 @@ export async function insertConceptTest(
     formulation_version_id: test.formulationVersionId ?? null,
     decision_record_id: test.decisionRecordId ?? null,
     evidence_bundle_id: test.evidenceBundleId ?? null,
+    product_truth_image_id: test.productTruthImageId ?? null,
+    report_cover_image_id: test.reportCoverImageId ?? null,
   };
   // brand_reference_image_id lands with the concept_brand_kit migration;
   // retry without it on databases that have not applied it yet.
@@ -310,6 +483,10 @@ export async function insertConceptTest(
   if (test.imageIds?.length) {
     await linkConceptImagesToConcept(concept.id, test.imageIds);
   }
+  await linkConceptReportAssetsToConcept(concept.id, [
+    test.productTruthImageId,
+    test.reportCoverImageId,
+  ].filter((id): id is string => Boolean(id)));
   return hydrateConceptTestImages(concept);
 }
 
@@ -435,6 +612,7 @@ function toCommercializationReport(row: Tables['commercialization_reports']['Row
     decisionRecordId: row.decision_record_id,
     conceptTestId: row.concept_test_id,
     packagingImageId: row.packaging_image_id ?? null,
+    coverImageId: row.cover_image_id ?? null,
     evidenceBundleId: row.evidence_bundle_id ?? null,
     status: row.status as CommercializationReportRecord['status'],
     version: Number(row.version),
@@ -482,6 +660,7 @@ export async function createCommercializationReport(input: {
   decisionRecordId: string;
   conceptTestId: string;
   packagingImageId: string | null;
+  coverImageId?: string | null;
   title: string;
   reportSnapshot: Record<string, unknown>;
   evidenceBundleId?: string | null;
@@ -493,6 +672,7 @@ export async function createCommercializationReport(input: {
     // The SQL function accepts NULL here (it handles a missing packaging image);
     // the generated arg type is non-null because the param has no default.
     target_packaging_image_id: input.packagingImageId as string,
+    target_cover_image_id: input.coverImageId ?? undefined,
     target_title: input.title,
     target_report_snapshot: asJson(input.reportSnapshot),
     target_evidence_bundle_id: input.evidenceBundleId ?? undefined,
@@ -643,6 +823,12 @@ function toConceptGeneratedImage(row: Tables['concept_images']['Row']): ConceptG
     performanceSummary,
     review,
     createdAt: row.created_at as string,
+    assetRole: row.asset_role,
+    parentImageId: row.parent_image_id ?? null,
+    sourceKind: row.source_kind as ConceptGeneratedImage['sourceKind'],
+    approvedForExternalUse: row.approved_for_external_use,
+    externalApprovedAt: row.external_approved_at ?? null,
+    qualityScores: fromJson<Record<string, number>>(row.quality_scores) ?? {},
   };
 }
 
@@ -984,4 +1170,14 @@ export async function linkConceptImagesToConcept(conceptTestId: string, imageIds
       throw dbError(generationError);
     }
   }
+}
+
+export async function linkConceptReportAssetsToConcept(conceptTestId: string, imageIds: string[]): Promise<void> {
+  if (!imageIds.length) return;
+  const { error } = await supabase
+    .from('concept_images')
+    .update({ concept_test_id: conceptTestId, selected_for_panelists: false })
+    .in('id', imageIds)
+    .in('asset_role', ['product_reference', 'product_truth', 'report_cover']);
+  if (error) throw dbError(error);
 }

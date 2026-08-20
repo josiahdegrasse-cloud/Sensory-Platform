@@ -7,6 +7,9 @@ export interface CompletedConceptImageJob {
   mode?: string;
   storagePath?: string;
   promptStyle?: string;
+  assetRole?: string;
+  sourceKind?: string;
+  parentImageId?: string | null;
 }
 
 const POLL_INTERVAL_MS = 2_000;
@@ -22,7 +25,7 @@ export async function waitForConceptImageGeneration(
   while (Date.now() < deadline) {
     const { data, error } = await supabase
       .from('concept_image_generations')
-      .select('status, error_message, concept_images(id, image_url, storage_path, mode, prompt_style)')
+      .select('status, error_message, concept_images(id, image_url, storage_path, mode, prompt_style, asset_role, source_kind, parent_image_id)')
       .eq('id', generationId)
       .single();
     if (error) throw error;
@@ -38,6 +41,9 @@ export async function waitForConceptImageGeneration(
         mode: image.mode ?? undefined,
         storagePath: image.storage_path ?? undefined,
         promptStyle: image.prompt_style ?? undefined,
+        assetRole: image.asset_role ?? undefined,
+        sourceKind: image.source_kind ?? undefined,
+        parentImageId: image.parent_image_id ?? null,
       };
     }
     await new Promise(resolve => setTimeout(resolve, pollIntervalMs));

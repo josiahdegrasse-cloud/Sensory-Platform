@@ -120,6 +120,8 @@ export async function buildCommercializationReportPdf(input: CommercializationRe
   const template = input.reportTemplate ?? 'editorial-sage';
   const primary: Rgb = template === 'editorial-sage' ? CHARCOAL : hexToRgb(input.primaryColor) ?? SLATE_950;
   const accent: Rgb = template === 'editorial-sage' ? SAGE : hexToRgb(input.accentColor) ?? DEFAULT_ACCENT;
+  const coverPrimary = hexToRgb(input.primaryColor) ?? primary;
+  const coverAccent = hexToRgb(input.accentColor) ?? accent;
   const ctx: PdfContext = {
     doc,
     width: doc.internal.pageSize.getWidth(),
@@ -138,12 +140,24 @@ export async function buildCommercializationReportPdf(input: CommercializationRe
     template,
   };
 
-  const [packaging, logo] = await Promise.all([
+  const [packaging, reportCover, logo] = await Promise.all([
     imageDataUrl(input.snapshot.concept.packagingImageUrl),
+    imageDataUrl(
+      input.snapshot.concept.reportCoverApprovedForExternalUse
+        ? input.snapshot.concept.reportCoverImageUrl ?? ''
+        : '',
+    ),
     imageDataUrl(input.logoUrl ?? ''),
   ]);
 
-  renderDecisionSnapshotPage(ctx, buildDecisionSnapshot(input), { packaging, logo });
+  renderDecisionSnapshotPage({ ...ctx, primary: coverPrimary, accent: coverAccent }, buildDecisionSnapshot(input), {
+    cover: reportCover ?? packaging,
+    logo,
+    approvedCover: Boolean(reportCover),
+    aiGenerated: reportCover
+      ? Boolean(input.snapshot.concept.reportCoverImageAiGenerated)
+      : Boolean(input.snapshot.concept.packagingImageAiGenerated),
+  });
 
   addContentPage(ctx);
   renderDecisionBasisPage(ctx, buildDecisionBasis(input));

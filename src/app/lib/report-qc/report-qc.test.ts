@@ -365,6 +365,13 @@ describe('report-qc: validation guards', () => {
     expect(validateReportContext(ctx).errors.some(e => e.code === 'concept-visual-not-directional')).toBe(true);
   });
 
+  it('blocks an attached portrait cover that has not passed external-use approval', () => {
+    const ctx = coconutCheddarContext();
+    ctx.imageProvenance.coverAttached = true;
+    ctx.imageProvenance.externalUseApproved = false;
+    expect(validateReportContext(ctx).errors.some(e => e.code === 'report-cover-not-approved')).toBe(true);
+  });
+
   it('requires method version and explicit evidence populations', () => {
     const ctx = coconutCheddarContext();
     ctx.methodVersion = '';

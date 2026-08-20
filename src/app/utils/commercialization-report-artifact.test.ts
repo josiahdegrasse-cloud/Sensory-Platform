@@ -132,7 +132,7 @@ describe('commercialization report quality evaluation', { timeout: 20_000 }, () 
     expect(evaluation.checks.find(check => check.id === 'claims-layer-separation')?.passed).toBe(true);
     expect(evaluation.checks.find(check => check.id === 'product-identity')?.passed).toBe(true);
     expect(evaluation.checks.find(check => check.id === 'internal-language')?.passed).toBe(true);
-    expect(evaluation.pageTexts[0]).toContain('NFI COMMERCIAL DECISION REPORT');
+    expect(evaluation.pageTexts[0]).toContain('COMMERCIAL DECISION REPORT');
     expect(evaluation.pageTexts[0]).toContain('NFI VIEW');
     expect(evaluation.pageTexts[1]).toContain('NFI VIEW');
     expect(evaluation.pageTexts[7]).toContain('NFI RELEASE VIEW');

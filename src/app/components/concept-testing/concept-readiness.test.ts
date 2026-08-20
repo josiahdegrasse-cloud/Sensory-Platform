@@ -33,6 +33,9 @@ const draft: ConceptDraft = {
   approvalStatus: 'draft',
   variantDimensions: { ...EMPTY_VARIANT_DIMENSIONS },
   brandReference: null,
+  productReferences: [],
+  productTruth: null,
+  reportCover: null,
 };
 
 const questions: Question[] = [{

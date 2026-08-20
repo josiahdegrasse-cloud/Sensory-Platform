@@ -7,6 +7,8 @@
 // ─── Image modes ──────────────────────────────────────────────────────────────
 
 export type ConceptImageMode =
+  | 'product_truth'
+  | 'report_cover'
   | 'packaging'
   | 'lifestyle'
   | 'ecommerce'
@@ -42,6 +44,30 @@ export interface ConceptImageModeDefinition {
 }
 
 export const CONCEPT_IMAGE_MODES: ConceptImageModeDefinition[] = [
+  {
+    id: 'product_truth',
+    label: 'Product truth master',
+    purpose: 'A controlled, food-only master image that records the physical product before any marketing re-staging',
+    direction:
+      'Show the exact food product as a studio specimen, without packaging or campaign styling. Preserve the reference product\'s geometry, portion size, exterior color, surface texture, moisture or gloss, inclusions, and visible interior or cut face. '
+      + 'Use a quiet neutral seamless surface, even soft light, a category-credible camera angle, and one clear product arrangement that makes fidelity easy to inspect. If several references are attached, reconcile them as different views of the same physical product rather than inventing a hybrid.',
+    avoid:
+      'packaging, logos, typography, serving claims, decorative ingredients, dramatic lifestyle props, exaggerated melt or stretch, altered color, idealized texture, multiple unrelated product forms',
+    textPolicy: 'no-text',
+    size: '1024x1024',
+  },
+  {
+    id: 'report_cover',
+    label: 'Client report cover',
+    purpose: 'Portrait editorial food image designed for the branded cover of a client commercialization report',
+    direction:
+      'Re-stage the exact locked food product in a restrained, client-ready editorial composition. Use portrait framing with the product occupying roughly 40 to 55 percent of the image in the lower-right or lower-center, and preserve clean negative space across the top and left for real report typography added later. '
+      + 'Use refined commercial food photography, one believable serving context, controlled contact shadows, honest product visibility, and a background compatible with the client brand palette. The food must remain recognizably identical to the locked product master.',
+    avoid:
+      'rendered titles, logos, claims, badges, package copy, hands, crowded props, ingredient explosions, dramatic shadows that hide texture, altered product geometry, exaggerated melt or serving performance',
+    textPolicy: 'no-text',
+    size: '1024x1536',
+  },
   {
     id: 'packaging',
     label: 'Packaging mockup',

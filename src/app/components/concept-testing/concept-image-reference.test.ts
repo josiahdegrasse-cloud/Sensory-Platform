@@ -33,6 +33,19 @@ describe('per-mode render sizes', () => {
     expect(getConceptImageSize('shelf')).toBe('1536x1024');
     expect(getConceptImageSize('buyer_presentation')).toBe('1536x1024');
     expect(getConceptImageSize('social_ad')).toBe('1024x1536');
+    expect(getConceptImageSize('product_truth')).toBe('1024x1024');
+    expect(getConceptImageSize('report_cover')).toBe('1024x1536');
+  });
+
+  it('builds a text-free portrait cover prompt from locked food truth', () => {
+    const { prompt } = buildConceptImagePrompt(
+      buildConceptImageBrief({ ...baseBrief(), imageMode: 'report_cover' }),
+      { productLocked: true, referenceKind: 'food', productReferenceCount: 1 },
+    );
+    expect(prompt).toContain('product-truth source');
+    expect(prompt).toContain('negative space across the top and left');
+    expect(prompt).toContain('Do not render readable text anywhere');
+    expect(prompt).toContain('preserve the exact locked product');
   });
 
   it('an explicit override wins; junk overrides fall back to the mode default', () => {

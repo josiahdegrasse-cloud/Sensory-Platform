@@ -1,10 +1,7 @@
 import {
   AMBER,
   GREEN,
-  NFI_AQUA,
-  NFI_AQUA_DARK,
   NFI_AQUA_SOFT,
-  NFI_CORAL,
   NFI_CORAL_DARK,
   NFI_INK,
   NFI_LINE,
@@ -44,14 +41,21 @@ function badgeColor(decision: string): Rgb {
 export function renderDecisionSnapshotPage(
   ctx: PdfContext,
   data: DecisionSnapshotData,
-  images: { packaging: string | null; logo: string | null },
+  images: {
+    cover: string | null;
+    logo: string | null;
+    approvedCover: boolean;
+    aiGenerated: boolean;
+  },
 ) {
   const { doc, width, height, margin, contentWidth, primary, accent, template } = ctx;
   const branded = template === 'editorial-sage';
-  const coral = branded ? NFI_CORAL : primary;
-  const coverField = branded ? NFI_INK : primary;
-  const aqua = branded ? NFI_AQUA : accent;
-  const aquaDark = branded ? NFI_AQUA_DARK : accent;
+  // The B-style decision memo keeps its restrained editorial body while the
+  // C-style cover is driven by the active client's real brand tokens.
+  const coral = accent;
+  const coverField = primary;
+  const aqua = accent;
+  const aquaDark = accent;
   const ink = branded ? NFI_INK : SLATE_950;
   const muted = branded ? NFI_MUTED : SLATE_500;
   const surface = branded ? NFI_SURFACE : SLATE_50;
@@ -60,9 +64,9 @@ export function renderDecisionSnapshotPage(
   doc.setFillColor(...surface);
   doc.rect(0, 0, width, height, 'F');
   doc.setFillColor(...coverField);
-  doc.rect(0, 0, width, 278, 'F');
+  doc.rect(0, 0, width, 300, 'F');
   doc.setFillColor(...aqua);
-  doc.rect(0, 278, width, 7, 'F');
+  doc.rect(0, 300, width, 7, 'F');
 
   if (images.logo) {
     const logoSize = 44;
@@ -84,9 +88,10 @@ export function renderDecisionSnapshotPage(
     doc.text(data.organizationName, margin + 56, 52);
   }
 
-  const imageSize = 214;
-  const imageX = width - margin - imageSize;
-  const imageY = 28;
+  const imageWidth = 174;
+  const imageHeight = 261;
+  const imageX = width - margin - imageWidth;
+  const imageY = 24;
   const titleWidth = imageX - margin - 28;
   setText(doc, lighten(coverField, 0.72), 8, 'bold');
   doc.text(data.category.toUpperCase(), margin, 94);
@@ -94,32 +99,38 @@ export function renderDecisionSnapshotPage(
   const productLines = doc.splitTextToSize(data.productName, titleWidth) as string[];
   doc.text(productLines.slice(0, 2), margin, 126, { lineHeightFactor: 1.02 });
   setText(doc, WHITE, 8, 'bold');
-  doc.text('NFI COMMERCIAL DECISION REPORT', margin, 192);
+  doc.text('COMMERCIAL DECISION REPORT', margin, 192);
 
-  if (images.packaging) {
-    doc.addImage(images.packaging, imageFormat(images.packaging), imageX, imageY, imageSize, imageSize, undefined, 'FAST');
+  if (images.cover) {
+    doc.addImage(images.cover, imageFormat(images.cover), imageX, imageY, imageWidth, imageHeight, undefined, 'FAST');
     setText(doc, WHITE, 6.6, 'bold');
-    doc.text('DIRECTIONAL CONCEPT VISUAL', imageX, 258);
+    doc.text(
+      images.approvedCover
+        ? images.aiGenerated ? 'APPROVED DIRECTIONAL PRODUCT VISUAL' : 'APPROVED PRODUCT PHOTOGRAPH'
+        : 'DIRECTIONAL CONCEPT VISUAL',
+      imageX,
+      294,
+    );
   } else {
-    doc.setFillColor(...NFI_AQUA_SOFT);
-    doc.rect(imageX, imageY, imageSize, imageSize, 'F');
+    doc.setFillColor(...lighten(aqua, 0.86));
+    doc.rect(imageX, imageY, imageWidth, imageHeight, 'F');
     setText(doc, aquaDark, 8, 'bold');
-    doc.text('DIRECTIONAL VISUAL NOT ATTACHED', imageX + imageSize / 2, imageY + imageSize / 2, { align: 'center' });
+    doc.text('PRODUCT VISUAL NOT ATTACHED', imageX + imageWidth / 2, imageY + imageHeight / 2, { align: 'center' });
   }
 
   // A conditional GO renders amber so the cover badge never overstates confidence.
   const badge = data.conditional ? AMBER : badgeColor(data.decision);
   doc.setFillColor(...badge);
-  doc.roundedRect(margin, 214, 78, 34, 17, 17, 'F');
+  doc.roundedRect(margin, 226, 78, 34, 17, 17, 'F');
   setText(doc, WHITE, 12, 'bold');
-  doc.text(data.decision, margin + 39, 236, { align: 'center' });
+  doc.text(data.decision, margin + 39, 248, { align: 'center' });
   setText(doc, WHITE, 7, 'bold');
-  doc.text('SENSORY DECISION', margin + 91, 234);
+  doc.text('SENSORY DECISION', margin + 91, 246);
 
   setText(doc, aquaDark, 7.5, 'bold');
-  doc.text('DECISION SNAPSHOT', margin, 318);
+  doc.text('DECISION SNAPSHOT', margin, 332);
   setDisplayText(doc, lighten(coral, 0.9), 52, 'bold');
-  doc.text('01', width - margin, 350, { align: 'right' });
+  doc.text('01', width - margin, 364, { align: 'right' });
   let titleSize = 22;
   setDisplayText(doc, ink, titleSize, 'bold');
   let reportTitleLines = doc.splitTextToSize(data.reportTitle, contentWidth - 60) as string[];
@@ -128,18 +139,18 @@ export function renderDecisionSnapshotPage(
     setDisplayText(doc, ink, titleSize, 'bold');
     reportTitleLines = doc.splitTextToSize(data.reportTitle, contentWidth - 60) as string[];
   }
-  doc.text(reportTitleLines.slice(0, 2), margin, 349, { lineHeightFactor: 1.05 });
+  doc.text(reportTitleLines.slice(0, 2), margin, 363, { lineHeightFactor: 1.05 });
 
   setText(doc, muted, 7, 'bold');
-  doc.text('READINESS STAGE', margin, 387);
-  const readinessBottom = paragraph(doc, data.readinessStage, margin, 407, contentWidth, {
+  doc.text('READINESS STAGE', margin, 401);
+  const readinessBottom = paragraph(doc, data.readinessStage, margin, 421, contentWidth, {
     color: ink,
     size: 12.5,
     weight: 'bold',
     lineHeight: 15,
   });
 
-  const viewY = Math.max(448, readinessBottom + 13);
+  const viewY = Math.max(462, readinessBottom + 13);
   nfiViewBand(ctx, viewY, 'What the decision means', data.decisionSubheading, 58);
 
   const metricGap = 10;

@@ -134,6 +134,13 @@ export function validateReportContext(ctx: ReportContext): ValidationResult {
   if (ctx.imageProvenance.attached && !ctx.imageProvenance.directionalDisclaimer) {
     errors.push(err('concept-visual-not-directional', 'Concept visual is not labeled directional.', 11));
   }
+  if (ctx.imageProvenance.coverAttached && !ctx.imageProvenance.externalUseApproved) {
+    errors.push(err(
+      'report-cover-not-approved',
+      'The attached portrait report cover has not been approved for external use.',
+      11,
+    ));
+  }
 
   // — actions: owners + completion criteria —
   for (const action of ctx.actions) {

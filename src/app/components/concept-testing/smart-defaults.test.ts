@@ -36,6 +36,9 @@ const draft: ConceptDraft = {
   approvalStatus: 'draft',
   variantDimensions: { ...EMPTY_VARIANT_DIMENSIONS },
   brandReference: null,
+  productReferences: [],
+  productTruth: null,
+  reportCover: null,
 };
 
 describe('concept workflow smart defaults', () => {

@@ -156,6 +156,13 @@ export function CommercializationReportBuilder({
       packagingImageId: selectedConcept.imageIds?.[imageIndex] ?? null,
       packagingImageUrl: selectedConcept.imageUrls[imageIndex] ?? '',
       packagingImageMeta: selectedConcept.imageMeta?.[imageIndex] ?? null,
+      reportCoverImageId: selectedConcept.reportCoverImageId ?? null,
+      reportCoverImageUrl: selectedConcept.reportCoverImageUrl ?? '',
+      reportCoverImageMeta: selectedConcept.reportCoverImageMeta ? {
+        mode: selectedConcept.reportCoverImageMeta.mode,
+        sourceKind: selectedConcept.reportCoverImageMeta.sourceKind,
+        approvedForExternalUse: selectedConcept.reportCoverImageMeta.approvedForExternalUse,
+      } : null,
     });
   };
 
@@ -360,6 +367,7 @@ export function CommercializationReportBuilder({
         decisionRecordId: confirmedGo.id,
         conceptTestId: selectedConcept.id,
         packagingImageId: reportSnapshot.concept.packagingImageId,
+        coverImageId: reportSnapshot.concept.reportCoverImageId ?? null,
         title: (settings?.defaultReportTitle || '{sample} commercialization report')
           .replace(/\{sample\}/g, decision.sampleName),
         reportSnapshot: reportSnapshot as unknown as Record<string, unknown>,
@@ -405,7 +413,7 @@ export function CommercializationReportBuilder({
           <DialogHeader className="border-b border-slate-200 px-6 py-5 pr-14">
             <DialogTitle className="text-xl text-slate-900">Write commercialization report</DialogTitle>
             <DialogDescription className="max-w-3xl">
-              Choose the concept and packaging direction. The report is written on this device and checked against the approved evidence before it is saved.
+              Choose the concept and packaging direction. An approved portrait cover is used when the concept has one; report text and client branding remain live PDF elements.
             </DialogDescription>
           </DialogHeader>
 
@@ -454,6 +462,31 @@ export function CommercializationReportBuilder({
                       );
                     })}
                   </div>
+                </div>
+              )}
+
+              {selectedConcept && (
+                <div className="border-t border-slate-200 pt-5">
+                  <Label>Client report cover</Label>
+                  {selectedConcept.reportCoverImageUrl && selectedConcept.reportCoverImageMeta?.approvedForExternalUse ? (
+                    <div className="mt-2 grid grid-cols-[84px_minmax(0,1fr)] gap-3">
+                      <img
+                        src={selectedConcept.reportCoverImageUrl}
+                        alt={`Approved portrait report cover for ${selectedConcept.name}`}
+                        className="aspect-[2/3] w-[84px] rounded-md border border-emerald-200 object-cover"
+                      />
+                      <div className="self-center">
+                        <p className="text-xs font-semibold text-emerald-800">Approved for client use</p>
+                        <p className="mt-1 text-[11px] leading-4 text-slate-600">
+                          Anchored to the concept's governed product truth. The PDF adds the real logo and title.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                      No approved portrait cover is attached. The report will use the selected directional packaging image as a legacy cover fallback.
+                    </p>
+                  )}
                 </div>
               )}
             </aside>

@@ -218,6 +218,10 @@ export interface ConceptReferenceContext {
    * model must treat it as the same physical product and only re-stage it.
    */
   productLocked: boolean;
+  /** Food references preserve the physical food; design references preserve a pack/label system. */
+  referenceKind?: 'food' | 'product_design';
+  /** Number of same-product reference views attached before the optional brand-kit reference. */
+  productReferenceCount?: number;
   brandKit?: ConceptBrandKitContext | null;
 }
 
@@ -233,17 +237,30 @@ export function buildReferenceDirections(reference?: ConceptReferenceContext | n
   const kitHasImage = Boolean(kit?.hasReferenceImage);
 
   if (reference.productLocked) {
-    const which = kitHasImage ? 'The first attached reference image' : 'The attached reference image';
-    directions.push(
-      `${which} is this concept's approved product and pack design. Treat it as the exact same physical product: preserve the pack structure, label layout and hierarchy, brand colors, name placement, materials, and product identity precisely — do not redesign, restyle, or rename it. Re-stage that exact product for the format described below; only the scene, camera, lighting, and composition may change.`,
-    );
+    const count = Math.max(1, reference.productReferenceCount ?? 1);
+    const which = count > 1
+      ? `The first ${count} attached reference images`
+      : kitHasImage ? 'The first attached reference image' : 'The attached reference image';
+    if (reference.referenceKind === 'food') {
+      directions.push(
+        `${which} show the same physical food product from one or more real or governed views. Treat them as the product-truth source: preserve its geometry, portion size, exterior and interior colors, surface texture, moisture or gloss, inclusions, cut face, and physically plausible melt or flow exactly. Do not idealize, reformulate, recolor, or substitute a generic category product. Only the scene, camera, lighting, and composition may change.`,
+      );
+    } else {
+      directions.push(
+        `${which} ${count > 1 ? 'show' : 'is'} this concept's approved product and pack design. Treat it as the exact same physical product: preserve the pack structure, label layout and hierarchy, brand colors, name placement, materials, and product identity precisely — do not redesign, restyle, or rename it. Re-stage that exact product for the format described below; only the scene, camera, lighting, and composition may change.`,
+      );
+    }
   }
 
   if (kit) {
     const colorNote = kit.brandColors.length ? ` Core brand colors: ${kit.brandColors.join(', ')}.` : '';
     const styleNote = kit.brandDescriptor ? ` House style notes: ${kit.brandDescriptor}.` : '';
     if (kitHasImage) {
-      const which = reference.productLocked ? 'The second attached reference image' : 'The attached reference image';
+      const referenceCount = Math.max(1, reference.productReferenceCount ?? 1);
+      const attachmentPosition = ['first', 'second', 'third', 'fourth'][referenceCount] ?? `${referenceCount + 1}th`;
+      const which = reference.productLocked
+        ? `The ${attachmentPosition} attached reference image`
+        : 'The attached reference image';
       directions.push(
         `${which} shows this company's established house brand style. New design work must read as the same brand family — consistent palette, typography voice, and material finish — while remaining a genuinely distinct product design, not a copy of that reference.${colorNote}${styleNote}`,
       );
@@ -271,6 +288,12 @@ function sentenceList(items: string[]): string {
 }
 
 function retailFormatDirection(mode: ConceptImageMode): string {
+  if (mode === 'product_truth') {
+    return 'Product-truth craft: make physical fidelity easy to inspect. Keep the background neutral, the food unobscured, the camera honest, and include a visible cut face only when the references or brief establish one.';
+  }
+  if (mode === 'report_cover') {
+    return 'Report-cover craft: protect the top and left title-safe area, keep the food in the lower-right or lower-center, use no rendered text, and preserve the exact locked product rather than designing a new one.';
+  }
   if (mode === 'packaging') {
     return 'Packaging craft: prioritize a believable dieline/pack shape, correct closure/window/seam details, a front label hierarchy with no more than three readable elements, and realistic substrate finish such as matte paper, pouch film, carton, jar label, sleeve, or tub wrap as specified.';
   }
