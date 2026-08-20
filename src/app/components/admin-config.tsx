@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -7,6 +8,16 @@ import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Checkbox } from './ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { type Product, getDefaultCataAttributes } from '../data/survey-domain';
 import { useFoodType, matchFoodType } from '../contexts/food-type-context';
 import { parseBatchSelection } from '../lib/project-identity';
@@ -18,12 +29,13 @@ import {
   useStudyConceptTests, useConceptResponseCounts,
   useUpdateConceptTestStatus,
   useCreateImportSurveys, useUpdateProductAssignments,
+  queryKeys,
 } from '../lib/hooks';
 import type { ConceptTest } from '../lib/database';
 import {
   Plus, Settings, Trash2, Save, CheckCircle2, Layers,
   ClipboardList, Users, AlertCircle, Search, Activity, Archive, RotateCcw,
-  Upload, Database, Eye, ArrowRight, Lightbulb, Edit2, ShieldCheck,
+  Upload, Database, Eye, ArrowRight, Lightbulb, Edit2, ShieldCheck, MoreHorizontal,
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Progress } from './ui/progress';
@@ -44,10 +56,16 @@ import { PanelistInviteForm } from './panelist-invite-form';
 import { PanelistDirectory } from './panelist-directory';
 import { ImportedSurveyBatchConfiguration } from './imported-survey-batch-configuration';
 import { DEFAULT_SURVEY_SECTIONS, toggleSurveySection, type SurveySection } from '../lib/survey-sections';
+import { deleteConceptStudy } from '../lib/db/study-deletion';
 
 type AdminTab = 'products' | 'panelists' | 'imports';
 type StudyStatusFilter = 'all' | StudyLifecycleStatus;
 type StudyTypeFilter = 'all' | StudyType;
+type PendingStudyDeletion = {
+  id: string;
+  name: string;
+  kind: 'product' | 'concept';
+};
 
 const studyStatusStyles: Record<StudyLifecycleStatus, string> = {
   draft: 'bg-white text-slate-700 border-slate-200',
@@ -117,6 +135,7 @@ export function AdminConfig({
 }) {
   const isResponsesMode = mode === 'responses';
   const isPanelistsMode = mode === 'panelists';
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const requestedTab = searchParams.get('tab');
@@ -142,8 +161,22 @@ export function AdminConfig({
   const updateImportBatchStatusMutation = useUpdateImportBatchStatus();
   const deleteImportBatchMutation = useDeleteImportBatch();
   const updateConceptStatusMutation = useUpdateConceptTestStatus();
+  const deleteConceptStudyMutation = useMutation({
+    mutationFn: deleteConceptStudy,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.adminConceptTests }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.studyConceptTests }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.conceptResponseCounts }),
+        queryClient.invalidateQueries({ queryKey: ['conceptTests'] }),
+        queryClient.invalidateQueries({ queryKey: ['conceptTest'] }),
+      ]);
+    },
+  });
   const createImportSurveysMutation = useCreateImportSurveys();
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const deletingStudy = deleteProductMutation.isPending || deleteConceptStudyMutation.isPending;
+  const [pendingStudyDeletion, setPendingStudyDeletion] = useState<PendingStudyDeletion | null>(null);
+  const [deleteStudyError, setDeleteStudyError] = useState('');
   const [confirmImportDeleteId, setConfirmImportDeleteId] = useState<string | null>(null);
 
   const [selectedProduct, setSelectedProduct] = useState<string | null>(() => searchParams.get('survey'));
@@ -536,13 +569,9 @@ export function AdminConfig({
   const handleRemoveAttribute = (attr: string) =>
     setCustomAttributes(prev => prev.filter(a => a !== attr));
 
-  const handleToggleProductStatus = async (productId: string) => {
+  const handleCloseProduct = async (productId: string) => {
     const product = products.find(p => p.id === productId);
-    if (!product) return;
-    if (product.status !== 'active') {
-      setSelectedProduct(productId);
-      return;
-    }
+    if (!product || product.status !== 'active') return;
     setMutationError('');
     try {
       await updateProductMutation.mutateAsync({ id: productId, updates: { status: 'completed' } });
@@ -560,48 +589,30 @@ export function AdminConfig({
     }
   };
 
-  const handleToggleConceptStatus = async (conceptId: string) => {
+  const handleCloseConcept = async (conceptId: string) => {
     const concept = conceptStudies.find(test => test.id === conceptId);
-    if (!concept) return;
-    const newStatus: ConceptTest['status'] = concept.status === 'active' ? 'completed' : 'active';
-    await handleUpdateConceptStatus(conceptId, newStatus);
+    if (!concept || concept.status !== 'active') return;
+    await handleUpdateConceptStatus(conceptId, 'completed');
   };
 
-  const handleArchiveProduct = async (productId: string) => {
-    setMutationError('');
+  const requestStudyDeletion = (deletion: PendingStudyDeletion) => {
+    setDeleteStudyError('');
+    setPendingStudyDeletion(deletion);
+  };
+
+  const handleDeleteStudy = async () => {
+    if (!pendingStudyDeletion) return;
+    setDeleteStudyError('');
     try {
-      await updateProductMutation.mutateAsync({ id: productId, updates: { status: 'archived' } });
-      if (selectedProduct === productId) setSelectedProduct(null);
+      if (pendingStudyDeletion.kind === 'product') {
+        await deleteProductMutation.mutateAsync(pendingStudyDeletion.id);
+        if (selectedProduct === pendingStudyDeletion.id) setSelectedProduct(null);
+      } else {
+        await deleteConceptStudyMutation.mutateAsync(pendingStudyDeletion.id);
+      }
+      setPendingStudyDeletion(null);
     } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Failed to archive product.');
-    }
-  };
-
-  const handleArchiveConcept = async (conceptId: string) => {
-    await handleUpdateConceptStatus(conceptId, 'archived');
-  };
-
-  const handleUnarchiveConcept = async (conceptId: string) => {
-    await handleUpdateConceptStatus(conceptId, 'active');
-  };
-
-  const handleUnarchiveProduct = async (productId: string) => {
-    setMutationError('');
-    try {
-      await updateProductMutation.mutateAsync({ id: productId, updates: { status: 'draft' } });
-    } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Failed to restore product.');
-    }
-  };
-
-  const handleDeleteProduct = async (productId: string) => {
-    setMutationError('');
-    try {
-      await deleteProductMutation.mutateAsync(productId);
-      if (selectedProduct === productId) setSelectedProduct(null);
-      setConfirmDeleteId(null);
-    } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Failed to delete product.');
+      setDeleteStudyError(err instanceof Error ? err.message : 'Failed to delete the study.');
     }
   };
 
@@ -879,11 +890,32 @@ export function AdminConfig({
                           {study.sourceImportBatchName && <span className="truncate">Source: {study.sourceImportBatchName.replace(/\.csv$/i, '')}</span>}
                         </div>
                       </div>
-                      {isProductStudy && (
-                        <button onClick={() => setSelectedProduct(study.id)} className="shrink-0 rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                          <Edit2 className="mr-1 inline size-3" />Edit
-                        </button>
-                      )}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="size-8 shrink-0 text-slate-500 hover:text-slate-900"
+                            aria-label={`More actions for ${study.name}`}
+                          >
+                            <MoreHorizontal className="size-4" aria-hidden />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onSelect={() => requestStudyDeletion({
+                              id: study.id,
+                              name: study.name,
+                              kind: isProductStudy ? 'product' : 'concept',
+                            })}
+                          >
+                            <Trash2 className="size-4" aria-hidden />
+                            Delete study
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
 
                     <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
@@ -913,84 +945,38 @@ export function AdminConfig({
 
                     <div className="mt-4 flex flex-wrap items-center gap-2">
                       <Button size="sm" variant="outline" asChild className="h-8 text-xs">
-                        <Link to={study.previewPath}><Eye className="mr-1 size-3.5" />Preview as Panelist</Link>
+                        <Link to={study.previewPath}><Eye className="mr-1 size-3.5" />Preview as panelist</Link>
                       </Button>
+                      {isProductStudy && product.status === 'active' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={updateProductMutation.isPending}
+                          onClick={() => handleCloseProduct(product.id)}
+                          className="h-8 text-xs"
+                        >
+                          Close study
+                        </Button>
+                      )}
+                      {concept?.status === 'active' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={updateConceptStatusMutation.isPending}
+                          onClick={() => handleCloseConcept(concept.id)}
+                          className="h-8 text-xs"
+                        >
+                          Close study
+                        </Button>
+                      )}
                       {isProductStudy ? (
-                        <>
-                          {product.status === 'archived' ? (
-                            <>
-                              <Button size="sm" variant="outline" onClick={() => handleUnarchiveProduct(product.id)} className="h-8 text-xs border-emerald-300 text-emerald-700">
-                                <RotateCcw className="mr-1 size-3.5" />Restore
-                              </Button>
-                              {confirmDeleteId === product.id ? (
-                                <>
-                                  <Button size="sm" onClick={() => handleDeleteProduct(product.id)} className="h-8 text-xs bg-rose-600 hover:bg-rose-700">Confirm delete</Button>
-                                  <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteId(null)} className="h-8 text-xs">Cancel</Button>
-                                </>
-                              ) : (
-                                <Button size="sm" variant="outline" onClick={() => setConfirmDeleteId(product.id)} className="h-8 text-xs border-rose-300 text-rose-600 hover:bg-rose-50">
-                                  <Trash2 className="mr-1 size-3.5" />Delete
-                                </Button>
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              {product.status === 'active' ? (
-                                <Button size="sm" variant="outline" onClick={() => handleToggleProductStatus(product.id)} className="h-8 text-xs">
-                                  Close study
-                                </Button>
-                              ) : (
-                                <Button size="sm" variant="outline" onClick={() => setSelectedProduct(product.id)} className="h-8 text-xs">
-                                  Configure &amp; {product.status === 'draft' ? 'launch' : 'reopen'}
-                                </Button>
-                              )}
-                              <Button size="sm" variant="outline" onClick={() => handleArchiveProduct(product.id)} className="h-8 text-xs border-amber-300 text-amber-700 hover:bg-amber-50">
-                                <Archive className="mr-1 size-3.5" />Archive
-                              </Button>
-                              <Button size="sm" onClick={() => setSelectedProduct(product.id)} className="h-8 text-xs bg-slate-900 hover:bg-slate-800">
-                                <Edit2 className="mr-1 size-3.5" />{product.status === 'active' ? 'View setup' : 'Edit draft'}
-                              </Button>
-                            </>
-                          )}
-                        </>
+                        <Button size="sm" onClick={() => setSelectedProduct(product.id)} className="h-8 bg-slate-900 text-xs hover:bg-slate-800">
+                          <Edit2 className="mr-1 size-3.5" />Edit
+                        </Button>
                       ) : (
-                        <>
-                          {concept?.status === 'archived' ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={updateConceptStatusMutation.isPending}
-                              onClick={() => handleUnarchiveConcept(concept.id)}
-                              className="h-8 text-xs border-emerald-300 text-emerald-700"
-                            >
-                              <RotateCcw className="mr-1 size-3.5" />Restore
-                            </Button>
-                          ) : concept ? (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={updateConceptStatusMutation.isPending}
-                                onClick={() => handleToggleConceptStatus(concept.id)}
-                                className="h-8 text-xs"
-                              >
-                                {concept.status === 'active' ? 'Close study' : 'Reopen study'}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={updateConceptStatusMutation.isPending}
-                                onClick={() => handleArchiveConcept(concept.id)}
-                                className="h-8 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
-                              >
-                                <Archive className="mr-1 size-3.5" />Archive
-                              </Button>
-                            </>
-                          ) : null}
-                          <Button size="sm" asChild className={`h-8 text-xs ${meta.actionClassName}`}>
-                            <Link to="/concept-testing"><Edit2 className="mr-1 size-3.5" />Edit concept<ArrowRight className="ml-1 size-3.5" /></Link>
-                          </Button>
-                        </>
+                        <Button size="sm" asChild className={`h-8 text-xs ${meta.actionClassName}`}>
+                          <Link to="/concept-testing"><Edit2 className="mr-1 size-3.5" />Edit</Link>
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -1000,6 +986,42 @@ export function AdminConfig({
           )}
         </div>
       </div>
+
+      <AlertDialog
+        open={pendingStudyDeletion !== null}
+        onOpenChange={open => {
+          if (!open && !deletingStudy) {
+            setPendingStudyDeletion(null);
+            setDeleteStudyError('');
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete “{pendingStudyDeletion?.name}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes the study and its collected responses. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteStudyError && (
+            <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+              {deleteStudyError}
+            </p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingStudy}>Cancel</AlertDialogCancel>
+            <Button
+              type="button"
+              disabled={deletingStudy}
+              onClick={() => void handleDeleteStudy()}
+              className="bg-rose-600 text-white hover:bg-rose-700"
+            >
+              <Trash2 className="size-4" aria-hidden />
+              {deletingStudy ? 'Deleting…' : 'Delete study'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <SurveyConfigurationSheet
         product={selectedProductRecord}
