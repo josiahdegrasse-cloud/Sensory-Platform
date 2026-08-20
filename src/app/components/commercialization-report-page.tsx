@@ -36,6 +36,7 @@ import { StageEmptyState } from './stage-empty-state';
 import { WorkflowPageHeader } from './workflow-page-header';
 import { FormulationContextStrip } from './formulation-context-strip';
 import { WorkflowLoadingState, WorkflowQueryErrorState } from './workflow-loading-state';
+import { ReportDataExportSheet } from './report-data-export-sheet';
 
 type WorkspaceTab = 'report' | 'review' | 'narrative' | 'preview' | 'versions';
 
@@ -296,6 +297,16 @@ export function CommercializationReportPage() {
                 onSaved={openSavedReport}
               />
             )}
+            <ReportDataExportSheet
+              report={savedReport}
+              snapshot={snapshot}
+              decision={focusDecision}
+              concept={selectedConcept}
+              instrumentalDataset={instrumentalDataset}
+              evidenceBundle={evidenceBundle ?? null}
+              settings={settings}
+              projectId={routeProjectId}
+            />
             <Button size="sm" onClick={() => void downloadPdf()} disabled={exporting}>
               <Download className="size-4" />{exporting ? 'Preparing...' : 'Download PDF'}
             </Button>

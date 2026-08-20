@@ -398,13 +398,7 @@ export async function fetchUserConceptResponses(userId: string): Promise<Concept
 }
 
 export async function fetchConceptResponsesForTest(conceptTestId: string): Promise<ConceptResponse[]> {
-  const { data, error } = await supabase
-    .from('concept_responses')
-    .select('*')
-    .eq('concept_test_id', conceptTestId)
-    .order('created_at', { ascending: true });
-  if (error) throw dbError(error);
-  return (data ?? []).map(toConceptResponse);
+  return fetchConceptResponsesForTests([conceptTestId]);
 }
 
 export async function fetchConceptResponsesForTests(conceptTestIds: readonly string[]): Promise<ConceptResponse[]> {

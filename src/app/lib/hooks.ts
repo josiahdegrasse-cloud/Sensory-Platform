@@ -152,8 +152,8 @@ export function tweakDiagnosisQueryOptions(request: TweakDiagnosisRequest) {
   }
 }
 
-export function useProducts() {
-  return useQuery({ queryKey: queryKeys.products, queryFn: fetchProducts })
+export function useProducts(enabled = true) {
+  return useQuery({ queryKey: queryKeys.products, queryFn: fetchProducts, enabled })
 }
 
 export function useActiveProducts() {
@@ -283,8 +283,8 @@ export function useTemplates() {
   return useQuery({ queryKey: queryKeys.templates, queryFn: fetchTemplates })
 }
 
-export function usePanelists() {
-  return useQuery({ queryKey: queryKeys.panelists, queryFn: fetchPanelists })
+export function usePanelists(enabled = true) {
+  return useQuery({ queryKey: queryKeys.panelists, queryFn: fetchPanelists, enabled })
 }
 
 export function useOwnPanelistProfileSetup(enabled = true) {
@@ -404,12 +404,12 @@ export function useResponseCountsByProduct() {
   })
 }
 
-export function useResponsesForProducts(productIds: readonly string[]) {
+export function useResponsesForProducts(productIds: readonly string[], enabled = true) {
   const stableProductIds = [...productIds].sort();
   return useQuery({
     queryKey: queryKeys.responsesForProducts(stableProductIds),
     queryFn: () => fetchResponsesForProducts(stableProductIds),
-    enabled: stableProductIds.length > 0,
+    enabled: enabled && stableProductIds.length > 0,
     staleTime: 15_000,
   })
 }
@@ -589,11 +589,11 @@ export function useConceptResponseCounts() {
   return useQuery({ queryKey: queryKeys.conceptResponseCounts, queryFn: fetchConceptResponseCounts })
 }
 
-export function useConceptTestResponses(conceptId: string | undefined) {
+export function useConceptTestResponses(conceptId: string | undefined, enabled = true) {
   return useQuery({
     queryKey: queryKeys.conceptTestResponses(conceptId ?? ''),
     queryFn: () => fetchConceptResponsesForTest(conceptId!),
-    enabled: !!conceptId,
+    enabled: enabled && !!conceptId,
   })
 }
 
