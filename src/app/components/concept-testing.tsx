@@ -1431,9 +1431,6 @@ export function ConceptTesting() {
                   setTargetSegments={setSegments}
                   assignedPanelistIds={assignedPanelistIds}
                   setAssignedPanelistIds={setAssignedPanelistIds}
-                  formulationVersionId={sourceDecision?.formulationVersionId ?? null}
-                  sampleName={sourceDecision?.sampleName ?? draft.name}
-                  ingredientStatement={sourceDecision ? instrumentalDataset?.formulationVersions?.[sourceDecision.sampleId]?.find(version => version.id === sourceDecision.formulationVersionId)?.exactStatement ?? '' : ''}
                 />
               )}
               {step === 'review' && (
