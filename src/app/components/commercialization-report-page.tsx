@@ -306,6 +306,7 @@ export function CommercializationReportPage() {
               evidenceBundle={evidenceBundle ?? null}
               settings={settings}
               projectId={routeProjectId}
+              initiallyOpen={searchParams.get('export') === 'data'}
             />
             <Button size="sm" onClick={() => void downloadPdf()} disabled={exporting}>
               <Download className="size-4" />{exporting ? 'Preparing...' : 'Download PDF'}

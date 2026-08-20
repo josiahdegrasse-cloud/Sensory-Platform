@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { workflowStagePath } from '../lib/project-journey-routes';
 import {
-  AlertTriangle, Archive, Download, FileText, FolderOpen, Search,
+  AlertTriangle, Archive, Download, FileSpreadsheet, FileText, FolderOpen, Search,
   ShieldCheck, Sparkles, Undo2,
 } from 'lucide-react';
 import { Badge } from './ui/badge';
@@ -332,6 +332,15 @@ export function ReportsPage() {
                         : entry.releaseStatus === 'blocked' || entry.releaseStatus === 'demonstration_only'
                           ? 'Resolve blockers'
                           : 'Open report'}
+                    </Link>
+                  </Button>
+                  <Button size="sm" variant="outline" asChild>
+                    <Link
+                      to={workflowStagePath('report', routeProjectId, `?report=${entry.latest.id}&export=data`)}
+                      onClick={() => setSelection(entry.foodType, null)}
+                    >
+                      <FileSpreadsheet className="size-4" />
+                      Export data
                     </Link>
                   </Button>
                   {entry.exportReady ? (

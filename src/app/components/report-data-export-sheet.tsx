@@ -48,6 +48,7 @@ export function ReportDataExportSheet({
   evidenceBundle,
   settings,
   projectId,
+  initiallyOpen = false,
 }: {
   report: CommercializationReportRecord;
   snapshot: CommercializationReportSnapshot;
@@ -57,8 +58,9 @@ export function ReportDataExportSheet({
   evidenceBundle: EvidenceBundle | null;
   settings?: WorkspaceSettings;
   projectId?: string;
+  initiallyOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
   const [selectedKeys, setSelectedKeys] = useState<Set<ReportDataSectionKey>>(() => new Set(ALL_KEYS));
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
