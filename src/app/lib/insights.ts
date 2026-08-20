@@ -5,6 +5,7 @@ import type {
 } from './database';
 import type { NextAction, ReportStatus } from './project-status';
 import { matchFoodType } from '../contexts/food-type-context';
+import { conceptBelongsToProject } from './concept-project-scope';
 
 export type InsightsEvidenceLevel = 'Insufficient' | 'Limited' | 'Moderate' | 'Strong';
 
@@ -119,9 +120,12 @@ function normalizedProjectName(value?: string | null) {
 
 export function filterProjectConceptTests(
   tests: ConceptTest[],
-  input: { foodType: string; importBatchId: string | null; projectName?: string | null },
+  input: { foodType: string; importBatchId: string | null; projectId?: string | null; projectName?: string | null },
 ) {
   const active = tests.filter(test => test.status !== 'archived');
+  if (input.projectId) {
+    return active.filter(test => conceptBelongsToProject(test, input.projectId));
+  }
   const projectName = normalizedProjectName(input.projectName);
   if (input.importBatchId && projectName) {
     return active.filter(test => normalizedProjectName(test.projectName) === projectName);

@@ -19,6 +19,7 @@ import {
 } from '../lib/project-data-export';
 import { downloadCommercializationDataWorkbook } from '../lib/commercialization-data-export';
 import { DEFAULT_REPORT_ORGANIZATION_NAME, DEFAULT_REPORT_WORKSPACE_NAME } from '../lib/commercialization-report';
+import { conceptsForProject } from '../lib/concept-project-scope';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import {
@@ -66,12 +67,7 @@ export function ProjectDataExportSheet({
   const foodResponsesQuery = useResponsesForProducts(productIds, open);
 
   const projectDecisions = useMemo(() => decisions.filter(decision => !projectId || decision.projectId === projectId), [decisions, projectId]);
-  const projectDecisionIds = useMemo(() => new Set(projectDecisions.map(decision => decision.id)), [projectDecisions]);
-  const projectConcepts = useMemo(() => concepts.filter(concept => (
-    !projectId
-    || concept.projectId === projectId
-    || Boolean(concept.decisionRecordId && projectDecisionIds.has(concept.decisionRecordId))
-  )), [concepts, projectDecisionIds, projectId]);
+  const projectConcepts = useMemo(() => conceptsForProject(concepts, projectId), [concepts, projectId]);
   const conceptIds = useMemo(() => projectConcepts.map(concept => concept.id).sort(), [projectConcepts]);
   const conceptResponsesQuery = useQuery({
     queryKey: ['projectExportConceptResponses', projectId ?? 'all', ...conceptIds],

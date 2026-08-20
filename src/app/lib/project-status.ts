@@ -3,6 +3,8 @@ import type { Product } from '../data/survey-domain';
 import { formatFoodTypeLabel } from './food-intelligence';
 import { projectStatusStagePath } from './project-journey-routes';
 import { sampleMatchesFoodType } from '../contexts/food-type-context';
+import { conceptBelongsToProject } from './concept-project-scope';
+import { reportBelongsToProject } from './report-project-scope';
 
 export type WorkflowStageId = 'data' | 'studies' | 'responses' | 'testing' | 'insights' | 'decision' | 'concept' | 'report';
 export type WorkflowStageState = 'complete' | 'current' | 'needs-review' | 'available' | 'blocked' | 'not-started';
@@ -125,6 +127,7 @@ export function computeProjectStatus(input: ComputeProjectStatusInput): ProjectS
     ? input.importBatches.find(b => b.id === importBatchId) ?? null
     : input.importBatches.find(b => b.foodTypeSlug === foodType && b.status === 'active') ?? null;
   const routeProjectId = batch?.projectId ?? batch?.id ?? null;
+  const canonicalProjectId = batch?.projectId ?? null;
   const pathFor = (stageId: WorkflowStageId) => projectStatusStagePath(stageId, routeProjectId);
   const projectName = pickProjectName(input);
   const foodTypeLabel = formatFoodTypeLabel(foodType);
@@ -138,10 +141,12 @@ export function computeProjectStatus(input: ComputeProjectStatusInput): ProjectS
   // Match on imported sample ids first; fall back to food-type matching so that
   // decisions made against the reference/demo dataset (which isn't part of any
   // import batch) still surface here the same way they do on the Decision page.
-  const projectDecisions = decisionRecords.filter(record =>
-    sampleIds.has(record.sampleId) ||
-    (!importBatchId && sampleMatchesFoodType(record.sampleId, record.sampleName) === foodType)
-  );
+  const projectDecisions = decisionRecords.filter(record => (
+    canonicalProjectId
+      ? record.projectId === canonicalProjectId
+      : sampleIds.has(record.sampleId)
+        || (!importBatchId && sampleMatchesFoodType(record.sampleId, record.sampleName) === foodType)
+  ));
   const latestDecision = projectDecisions[0] ?? null; // fetchDecisionRecords orders by recency
 
   // The response/ISSF metrics must describe the same samples the decision does.
@@ -206,6 +211,7 @@ export function computeProjectStatus(input: ComputeProjectStatusInput): ProjectS
 
   // ---- Concept stage: a concept test exists/has launched for this project ----
   const projectConcepts = conceptTests.filter(concept =>
+    conceptBelongsToProject(concept, canonicalProjectId) &&
     (concept.foodTypeSlug ? concept.foodTypeSlug === foodType : true) &&
     concept.status !== 'archived'
   );
@@ -228,6 +234,7 @@ export function computeProjectStatus(input: ComputeProjectStatusInput): ProjectS
   // ---- Report stage: driven by the latest report record's real status ----
   const projectReports = commercializationReports.filter(report =>
     report.status !== 'archived' &&
+    reportBelongsToProject(report, canonicalProjectId) &&
     report.decisionRecordId && projectDecisions.some(decision => decision.id === report.decisionRecordId)
   );
   const latestReport = projectReports[0] ?? null; // fetchCommercializationReports orders by recency

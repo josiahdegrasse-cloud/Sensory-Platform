@@ -359,6 +359,31 @@ describe('project workflow evaluator', () => {
     expect(stage('report', summary).status).toBe('not_started');
   });
 
+  it('does not count same-category concepts from another canonical project', () => {
+    const summary = workflow({
+      importBatches: [{ ...batch, projectId: 'mozza-project' }],
+      instrumentalDataset: dataset,
+      products: [{ ...product, projectId: 'mozza-project' }],
+      responseCountsBySampleId: { S1: 12 },
+      decisionRecords: [{ ...decision, projectId: 'mozza-project' }],
+      conceptTests: [
+        { ...concept, id: 'cashew-cheddar', name: 'Cashew Cheddar', projectId: 'cashew-project' },
+        { ...concept, id: 'cashew-cream-cheese', name: 'Cashew Cream Cheese', projectId: 'cashew-project' },
+        { ...concept, id: 'legacy-projectless', name: 'Legacy Cheese', projectId: null },
+      ],
+      conceptResponseCounts: {
+        'cashew-cheddar': 12,
+        'cashew-cream-cheese': 12,
+        'legacy-projectless': 12,
+      },
+    });
+
+    expect(stage('concept', summary).status).toBe('not_started');
+    expect(stage('concept', summary).detail).toBe('No concept test has been created yet.');
+    expect(stage('concept', summary).relatedEntityIds.conceptTestIds).toEqual([]);
+    expect(summary.counts.conceptsActive).toBe(0);
+  });
+
   it('marks concept responses as ready before completed review', () => {
     const summary = workflow({
       importBatches: [batch],
@@ -391,6 +416,26 @@ describe('project workflow evaluator', () => {
     expect(stage('report', summary).status).toBe('needs_review');
     expect(stage('report', summary).blockers.join(' ')).toMatch(/report context is incomplete/i);
     expect(stage('report', summary).nextActionRoute).toBe('/project/batch-1/report?report=report-1');
+  });
+
+  it('does not surface reports owned by another canonical project', () => {
+    const projectDecision = { ...decision, projectId: 'mozza-project' };
+    const projectConcept = { ...concept, projectId: 'mozza-project', decisionRecordId: projectDecision.id };
+    const summary = workflow({
+      importBatches: [{ ...batch, projectId: 'mozza-project' }],
+      instrumentalDataset: dataset,
+      products: [{ ...product, projectId: 'mozza-project' }],
+      responseCountsBySampleId: { S1: 12 },
+      decisionRecords: [projectDecision],
+      conceptTests: [projectConcept],
+      conceptResponseCounts: { 'concept-1': 12 },
+      commercializationReports: [{ ...report, canonicalProjectId: 'cashew-project' }],
+      reportReadinessById: { 'report-1': readyReport },
+    });
+
+    expect(stage('report', summary).status).toBe('not_started');
+    expect(stage('report', summary).relatedEntityIds.reportIds).toEqual([]);
+    expect(summary.counts.reportsSaved).toBe(0);
   });
 
   it('shows a report in review as needs review', () => {

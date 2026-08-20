@@ -70,6 +70,22 @@ describe('Insights project scoping', () => {
       projectName: 'Project A.csv',
     }).map(test => test.id)).toEqual(['a']);
   });
+
+  it('uses canonical project identity before same-food-type or legacy folder matches', () => {
+    const tests = [
+      { id: 'cashew-cheddar', projectId: 'cashew-project', projectName: 'Reference concepts', foodTypeSlug: 'cheese', status: 'active' },
+      { id: 'cashew-cream-cheese', projectId: 'cashew-project', projectName: 'Mozza Ref', foodTypeSlug: 'cheese', status: 'active' },
+      { id: 'mozza-reference', projectId: 'mozza-project', projectName: 'Mozza Ref', foodTypeSlug: 'cheese', status: 'active' },
+      { id: 'legacy-projectless', projectId: null, projectName: 'Mozza Ref', foodTypeSlug: 'cheese', status: 'active' },
+    ] as Parameters<typeof filterProjectConceptTests>[0];
+
+    expect(filterProjectConceptTests(tests, {
+      foodType: 'cheese',
+      importBatchId: 'mozza-batch',
+      projectId: 'mozza-project',
+      projectName: 'Mozza Ref',
+    }).map(test => test.id)).toEqual(['mozza-reference']);
+  });
 });
 
 describe('Insights next action', () => {

@@ -100,10 +100,11 @@ describe('project decision room model', () => {
         { id: 'R1', userId: 'U1', productId: 'P2', timestamp: '2026-07-02', runNumber: 1, cataAttributes: [], intensityRatings: {}, hedonicScores: { overall: 7, appearance: 7, aroma: 7, flavor: 7, texture: 7 }, emotionalProfile: {} },
       ],
       concepts: [
-        { id: 'C1', name: 'Concept', category: 'cheese', description: '', imageUrls: [], targetMarket: '', pricePoint: '', keyBenefits: '', questions: [], panelSize: 12, assignedPanelistIds: [], status: 'draft', createdAt: '2026-07-02', decisionRecordId: 'D2' },
+        { id: 'C1', name: 'Concept', category: 'cheese', description: '', imageUrls: [], targetMarket: '', pricePoint: '', keyBenefits: '', questions: [], panelSize: 12, assignedPanelistIds: [], status: 'draft', createdAt: '2026-07-02', decisionRecordId: 'D2', projectId: 'P1' },
       ],
       reports: [
-        { id: 'RP1', decisionRecordId: 'D2', conceptTestId: 'C1', packagingImageId: null, status: 'draft', version: 1, title: 'Report', reportSnapshot: {}, createdBy: 'U1', approvedBy: null, approvedAt: null, createdAt: '2026-07-02', updatedAt: '2026-07-02' },
+        { id: 'RP1', canonicalProjectId: 'P1', decisionRecordId: 'D2', conceptTestId: 'C1', packagingImageId: null, status: 'draft', version: 1, title: 'Report', reportSnapshot: {}, createdBy: 'U1', approvedBy: null, approvedAt: null, createdAt: '2026-07-02', updatedAt: '2026-07-02' },
+        { id: 'RP2', canonicalProjectId: 'P2', decisionRecordId: 'D2', conceptTestId: 'C1', packagingImageId: null, status: 'approved', version: 2, title: 'Foreign report', reportSnapshot: {}, createdBy: 'U1', approvedBy: 'U1', approvedAt: '2026-07-03', createdAt: '2026-07-03', updatedAt: '2026-07-03' },
       ],
       projectId: 'P1',
       dataset: { ...dataset, eTongueData: samples },

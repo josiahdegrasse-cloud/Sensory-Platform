@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { computeProjectStatus } from './project-status';
 import type { DecisionRecord } from './db/workspace';
 import type { Product } from '../data/survey-domain';
+import type { CommercializationReportRecord, ConceptTest } from './database';
 
 const cheeseSample = {
   sampleId: 'S1',
@@ -107,5 +108,76 @@ describe('computeProjectStatus metric coherence', () => {
 
     expect(status.stages.find(stage => stage.id === 'testing')?.detail).toMatch(/0\/12 responses collected/i);
     expect(status.statusLabel).toBe('Survey running');
+  });
+
+  it('does not show a launched concept from another same-category project', () => {
+    const status = computeProjectStatus({
+      ...baseInput,
+      importBatchId: 'batch-1',
+      importBatches: [{
+        id: 'batch-1',
+        projectId: 'mozza-project',
+        foodTypeSlug: 'cheese',
+        foodTypeLabel: 'Cheese',
+        fileName: 'Mozza Ref.csv',
+        rowCount: 1,
+        recognizedColumns: [],
+        ignoredColumns: [],
+        detectionConfidence: 1,
+        status: 'active',
+        importedBy: null,
+        importedByName: null,
+        createdAt: '2026-06-06',
+        sampleCount: 1,
+      }],
+      decisionRecords: [{ ...goDecision, projectId: 'mozza-project' }],
+      conceptTests: [{
+        id: 'cashew-cheddar',
+        name: 'Cashew Cheddar',
+        projectId: 'cashew-project',
+        foodTypeSlug: 'cheese',
+        status: 'active',
+        launchedAt: '2026-06-07',
+      } as ConceptTest],
+    });
+
+    expect(status.conceptName).toBeNull();
+    expect(status.stages.find(stage => stage.id === 'concept')?.detail).toMatch(/ready to build a concept/i);
+  });
+
+  it('does not show a report owned by another project even when its decision id matches', () => {
+    const foreignReport = {
+      id: 'cashew-report',
+      canonicalProjectId: 'cashew-project',
+      decisionRecordId: goDecision.id,
+      conceptTestId: 'cashew-concept',
+      status: 'approved',
+      updatedAt: '2026-06-08',
+    } as CommercializationReportRecord;
+    const status = computeProjectStatus({
+      ...baseInput,
+      importBatchId: 'batch-1',
+      importBatches: [{
+        id: 'batch-1',
+        projectId: 'mozza-project',
+        foodTypeSlug: 'cheese',
+        foodTypeLabel: 'Cheese',
+        fileName: 'Mozza Ref.csv',
+        rowCount: 1,
+        recognizedColumns: [],
+        ignoredColumns: [],
+        detectionConfidence: 1,
+        status: 'active',
+        importedBy: null,
+        importedByName: null,
+        createdAt: '2026-06-06',
+        sampleCount: 1,
+      }],
+      decisionRecords: [{ ...goDecision, projectId: 'mozza-project' }],
+      commercializationReports: [foreignReport],
+    });
+
+    expect(status.latestReport).toBeNull();
+    expect(status.reportStatus).toBe('not-ready');
   });
 });

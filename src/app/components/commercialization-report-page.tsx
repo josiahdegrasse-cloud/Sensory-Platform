@@ -21,6 +21,8 @@ import {
 } from '../lib/hooks';
 import { workflowStagePath } from '../lib/project-journey-routes';
 import { buildReportContextForWorkspace } from '../lib/report-context-builder';
+import { conceptBelongsToProject } from '../lib/concept-project-scope';
+import { reportBelongsToProject } from '../lib/report-project-scope';
 import { TEMPORARY_CHEESE_DECISION, TEMPORARY_CHEESE_DEMO_LABEL } from '../data/demo/temporary-cheese-demo';
 import { downloadCommercializationReportPdf } from '../utils/commercialization-report-export';
 import { Button } from './ui/button';
@@ -70,9 +72,17 @@ export function CommercializationReportPage() {
   const { data: instrumentalDataset } = instrumentalQuery;
   const { data: settings } = settingsQuery;
 
-  const requestedReport = reports.find(report => report.id === searchParams.get('report')) ?? null;
+  const requestedReport = reports.find(report => (
+    report.id === searchParams.get('report')
+    && reportBelongsToProject(report, routeProjectId)
+    && (!routeProjectId
+      || decisions.some(decision => decision.id === report.decisionRecordId && decision.projectId === routeProjectId))
+  )) ?? null;
   const requestedDecisionId = searchParams.get('decision');
-  const requestedDecision = decisions.find(decision => decision.id === (requestedReport?.decisionRecordId ?? requestedDecisionId)) ?? null;
+  const requestedDecision = decisions.find(decision => (
+    decision.id === (requestedReport?.decisionRecordId ?? requestedDecisionId)
+    && (!routeProjectId || decision.projectId === routeProjectId)
+  )) ?? null;
   const currentSampleIds = useMemo(() => new Set(
     (instrumentalDataset?.eTongueData ?? [])
       .filter(sample => sample.type === foodType)
@@ -94,15 +104,20 @@ export function CommercializationReportPage() {
 
   const matchingConcepts = useMemo(() => concepts.filter(concept =>
     concept.status !== 'archived'
+    && conceptBelongsToProject(concept, routeProjectId)
     && concept.decisionRecordId === focusDecision?.id
     && (concept.foodTypeSlug === foodType || concept.category.toLowerCase().includes(foodType.toLowerCase())),
-  ), [concepts, focusDecision?.id, foodType]);
+  ), [concepts, focusDecision?.id, foodType, routeProjectId]);
   const selectedConcept = requestedReport
-    ? concepts.find(concept => concept.id === requestedReport.conceptTestId) ?? null
+    ? concepts.find(concept => concept.id === requestedReport.conceptTestId && conceptBelongsToProject(concept, routeProjectId)) ?? null
     : matchingConcepts[0] ?? null;
   const createMode = searchParams.get('create') === '1';
   const savedReport = requestedReport ?? (!createMode && focusDecision
-    ? reports.find(report => report.decisionRecordId === focusDecision.id && report.status !== 'archived') ?? null
+    ? reports.find(report => (
+        report.decisionRecordId === focusDecision.id
+        && report.status !== 'archived'
+        && reportBelongsToProject(report, routeProjectId)
+      )) ?? null
     : null);
   const snapshot = savedReport?.reportSnapshot as unknown as CommercializationReportSnapshot | undefined;
   const reportDecision = focusDecision && evidenceBundle
@@ -111,7 +126,11 @@ export function CommercializationReportPage() {
 
   const reportVersions = savedReport
     ? reports
-        .filter(report => report.decisionRecordId === savedReport.decisionRecordId && report.conceptTestId === savedReport.conceptTestId)
+        .filter(report => (
+          report.decisionRecordId === savedReport.decisionRecordId
+          && report.conceptTestId === savedReport.conceptTestId
+          && reportBelongsToProject(report, routeProjectId)
+        ))
         .sort((left, right) => right.version - left.version)
     : [];
   const reportContextBuild = useMemo(() => {
@@ -252,6 +271,7 @@ export function CommercializationReportPage() {
               <CommercializationReportBuilder
                 decision={reportDecision}
                 foodType={foodType}
+                projectId={routeProjectId}
                 userId={user?.id}
                 settings={settings}
                 initiallyOpen={createMode}
@@ -291,6 +311,7 @@ export function CommercializationReportPage() {
               <CommercializationReportBuilder
                 decision={reportDecision}
                 foodType={foodType}
+                projectId={routeProjectId}
                 userId={user?.id}
                 settings={settings}
                 triggerLabel="Generate new version"

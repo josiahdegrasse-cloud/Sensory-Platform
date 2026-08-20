@@ -16,6 +16,7 @@ import {
   buildSavedReportExportContext,
   type ReportReadiness,
 } from '../report-context-builder';
+import { reportBelongsToProject } from '../report-project-scope';
 import { evaluateProjectWorkflow } from './workflow-evaluator';
 import type { ProjectWorkflowSummary } from './workflow-types';
 
@@ -58,13 +59,16 @@ function useWorkflowInputs() {
 export function useProjectWorkflow(foodType: string, importBatchId: string | null): ProjectWorkflowSummary {
   const inputs = useWorkflowInputs();
   const [reportReadinessById, setReportReadinessById] = useState<Record<string, ReportReadiness>>({});
+  const canonicalProjectId = importBatchId
+    ? inputs.importBatches.find(batch => batch.id === importBatchId)?.projectId ?? null
+    : null;
 
   const candidateReportIds = useMemo(
     () => inputs.commercializationReports
-      .filter(report => report.status !== 'archived')
+      .filter(report => report.status !== 'archived' && reportBelongsToProject(report, canonicalProjectId))
       .map(report => report.id)
       .join('|'),
-    [inputs.commercializationReports],
+    [canonicalProjectId, inputs.commercializationReports],
   );
 
   useEffect(() => {

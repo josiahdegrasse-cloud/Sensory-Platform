@@ -1,6 +1,8 @@
 import type { ImportBatchRecord } from './db/imports';
 import type { DecisionRecord } from './db/workspace';
 import type { ConceptTest, CommercializationReportRecord } from './db/concepts';
+import { conceptBelongsToProject } from './concept-project-scope';
+import { reportBelongsToProject } from './report-project-scope';
 
 export type ProductHistoryEventType =
   | 'import'
@@ -93,11 +95,14 @@ export function buildProductTimeline(
   // Concepts are linked only through an authoritative decision or a report
   // that preserves both the decision and concept ids. Names are never lineage.
   const reportConceptIds = new Set(
-    reports.filter(report => decisionIds.has(report.decisionRecordId)).map(report => report.conceptTestId),
+    reports
+      .filter(report => reportBelongsToProject(report, scope?.projectId) && decisionIds.has(report.decisionRecordId))
+      .map(report => report.conceptTestId),
   );
   const linkedConcepts = concepts.filter(concept =>
-    (concept.decisionRecordId ? decisionIds.has(concept.decisionRecordId) : false)
-    || reportConceptIds.has(concept.id),
+    conceptBelongsToProject(concept, scope?.projectId)
+    && ((concept.decisionRecordId ? decisionIds.has(concept.decisionRecordId) : false)
+      || reportConceptIds.has(concept.id)),
   );
   for (const concept of linkedConcepts) {
     events.push({
@@ -111,7 +116,8 @@ export function buildProductTimeline(
   }
 
   // Reports – linked via decisionRecordId
-  const linkedReports = reports.filter(r => decisionIds.has(r.decisionRecordId));
+  const linkedReports = reports.filter(report =>
+    reportBelongsToProject(report, scope?.projectId) && decisionIds.has(report.decisionRecordId));
   for (const report of linkedReports) {
     events.push({
       id: `report-${report.id}`,

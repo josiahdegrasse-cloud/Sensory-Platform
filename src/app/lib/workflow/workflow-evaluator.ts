@@ -1,6 +1,8 @@
 import { sampleMatchesFoodType } from '../../contexts/food-type-context';
 import { getProductAssignmentMode } from '../assignments';
 import { formatFoodTypeLabel } from '../food-intelligence';
+import { conceptBelongsToProject } from '../concept-project-scope';
+import { reportBelongsToProject } from '../report-project-scope';
 import { workflowStagePath } from '../project-journey-routes';
 import {
   WORKFLOW_STAGE_LABELS,
@@ -84,6 +86,7 @@ function explainReportIssue(message: string, fallbackAction: string): string {
 
 export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectWorkflowSummary {
   const batch = activeBatch(input);
+  const canonicalProjectId = batch?.projectId ?? null;
   const routeProjectId = batch?.projectId ?? batch?.id ?? null;
   const routeFor = (stageId: WorkflowStageId, search = '') => workflowStagePath(stageId, routeProjectId, search);
   const samples = (input.instrumentalDataset?.eTongueData ?? []).filter(sample =>
@@ -129,10 +132,12 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
     relatedEntityIds: { importBatchIds: batch ? [batch.id] : [], sampleIds: [...sampleIds] },
   }));
 
-  const projectDecisions = input.decisionRecords.filter(record =>
-    sampleIds.has(record.sampleId) ||
-    (!input.importBatchId && sampleMatchesFoodType(record.sampleId, record.sampleName) === input.foodType)
-  );
+  const projectDecisions = input.decisionRecords.filter(record => (
+    canonicalProjectId
+      ? record.projectId === canonicalProjectId
+      : sampleIds.has(record.sampleId)
+        || (!input.importBatchId && sampleMatchesFoodType(record.sampleId, record.sampleName) === input.foodType)
+  ));
   const latestDecision = latestByDate(projectDecisions, decision => decision.timestamp);
   projectDecisions.forEach(record => sampleIds.add(record.sampleId));
   const currentEvidenceBundle = latestDecision
@@ -285,6 +290,7 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
 
   const goDecision = latestDecision?.decision === 'GO' && productEvidenceCurrent && formulationCurrent;
   const projectConcepts = input.conceptTests.filter(concept =>
+    conceptBelongsToProject(concept, canonicalProjectId) &&
     (concept.foodTypeSlug ? concept.foodTypeSlug === input.foodType : true) &&
     concept.status !== 'archived'
   );
@@ -323,6 +329,7 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
 
   const projectReports = input.commercializationReports.filter(report =>
     report.status !== 'archived' &&
+    reportBelongsToProject(report, canonicalProjectId) &&
     projectDecisions.some(decision => decision.id === report.decisionRecordId)
   );
   const latestReport = latestByDate(projectReports, report => report.updatedAt);

@@ -220,9 +220,10 @@ export function SurveyAnalysis() {
     () => filterProjectConceptTests(conceptTests, {
       foodType: scopedFoodType,
       importBatchId: primaryBatchId,
+      projectId: selectedProjectId,
       projectName: routeScope?.projectName ?? status.projectName,
     }),
-    [conceptTests, primaryBatchId, routeScope?.projectName, scopedFoodType, status.projectName],
+    [conceptTests, primaryBatchId, routeScope?.projectName, scopedFoodType, selectedProjectId, status.projectName],
   );
   const projectConceptIds = useMemo(
     () => projectConcepts.map(concept => concept.id),

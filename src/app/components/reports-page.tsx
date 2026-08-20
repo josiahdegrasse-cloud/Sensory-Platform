@@ -24,6 +24,8 @@ import {
   type ReportLibraryEntry,
   type ReportReleaseStatus,
 } from '../lib/report-library';
+import { conceptsForProject } from '../lib/concept-project-scope';
+import { reportsForProject } from '../lib/report-project-scope';
 import {
   buildSavedReportExportContext,
   downloadSavedReportPdf,
@@ -136,9 +138,29 @@ export function ReportsPage() {
   const [readinessByReportId, setReadinessByReportId] = useState<Record<string, ReportReadiness>>({});
   const [error, setError] = useState('');
 
+  const scopedDecisions = useMemo(
+    () => routeProjectId ? decisions.filter(decision => decision.projectId === routeProjectId) : decisions,
+    [decisions, routeProjectId],
+  );
+  const scopedDecisionIds = useMemo(
+    () => new Set(scopedDecisions.map(decision => decision.id)),
+    [scopedDecisions],
+  );
+  const scopedReports = useMemo(
+    () => routeProjectId
+      ? reportsForProject(reports, routeProjectId)
+        .filter(report => scopedDecisionIds.has(report.decisionRecordId))
+      : reports,
+    [reports, routeProjectId, scopedDecisionIds],
+  );
+  const scopedConcepts = useMemo(
+    () => conceptsForProject(concepts, routeProjectId),
+    [concepts, routeProjectId],
+  );
+
   const baseEntries = useMemo(
-    () => buildReportLibrary(reports, decisions, concepts),
-    [reports, decisions, concepts],
+    () => buildReportLibrary(scopedReports, scopedDecisions, scopedConcepts),
+    [scopedConcepts, scopedDecisions, scopedReports],
   );
   const reportIdsToCheck = useMemo(
     () => baseEntries.map(entry => entry.latest.id).join('|'),
@@ -189,8 +211,8 @@ export function ReportsPage() {
   }, [baseEntries, readinessByReportId, readinessLoading, reportIdsToCheck]);
 
   const entries = useMemo(
-    () => buildReportLibrary(reports, decisions, concepts, readinessByReportId),
-    [reports, decisions, concepts, readinessByReportId],
+    () => buildReportLibrary(scopedReports, scopedDecisions, scopedConcepts, readinessByReportId),
+    [readinessByReportId, scopedConcepts, scopedDecisions, scopedReports],
   );
   const visibleEntries = useMemo(
     () => filterReportLibrary(entries, search, status)

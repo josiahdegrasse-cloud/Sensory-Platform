@@ -8,6 +8,8 @@ import type { Product, QuestionnaireResponse } from '../data/survey-domain';
 import type { FormulationExperiment } from './db/experiments';
 import type { FormulationVersion } from './formulation-profile';
 import type { ProjectWorkflowSummary, WorkflowStageStatus } from './workflow/workflow-types';
+import { conceptBelongsToProject } from './concept-project-scope';
+import { reportBelongsToProject } from './report-project-scope';
 
 export type DecisionRoomLineageStatus = WorkflowStageStatus | 'not_applicable';
 
@@ -123,11 +125,14 @@ export function buildDecisionRoomPrototypes(input: {
           && product.sourceSampleId === sample.sampleId);
     const responseCount = studies.reduce((total, study) => total + (responsesByProduct.get(study.id) ?? 0), 0);
     const prototypeDecisionIds = new Set(sampleDecisions.map(item => item.id));
-    const prototypeReports = (input.reports ?? []).filter(report => prototypeDecisionIds.has(report.decisionRecordId));
+    const prototypeReports = (input.reports ?? []).filter(report =>
+      reportBelongsToProject(report, input.projectId)
+      && prototypeDecisionIds.has(report.decisionRecordId));
     const reportConceptIds = new Set(prototypeReports.map(report => report.conceptTestId));
     const concepts = (input.concepts ?? []).filter(concept =>
-      (concept.decisionRecordId ? prototypeDecisionIds.has(concept.decisionRecordId) : false)
-      || reportConceptIds.has(concept.id));
+      conceptBelongsToProject(concept, input.projectId)
+      && ((concept.decisionRecordId ? prototypeDecisionIds.has(concept.decisionRecordId) : false)
+        || reportConceptIds.has(concept.id)));
 
     return {
       key: instrumentalSampleId ?? `${sample.importBatchId ?? 'unbatched'}:${sample.sampleId}`,

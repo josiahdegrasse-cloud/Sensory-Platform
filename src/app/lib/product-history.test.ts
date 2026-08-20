@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DecisionRecord, ImportBatchRecord } from './database';
+import type { CommercializationReportRecord, DecisionRecord, ImportBatchRecord } from './database';
 import { buildProductTimeline } from './product-history';
 
 const batches: ImportBatchRecord[] = [
@@ -60,6 +60,26 @@ function decision(overrides: Partial<DecisionRecord>): DecisionRecord {
   };
 }
 
+function report(overrides: Partial<CommercializationReportRecord>): CommercializationReportRecord {
+  return {
+    id: 'R1',
+    canonicalProjectId: 'P1',
+    decisionRecordId: 'D1',
+    conceptTestId: 'C1',
+    packagingImageId: null,
+    status: 'draft',
+    version: 1,
+    title: 'Project report',
+    reportSnapshot: {},
+    createdBy: 'U1',
+    approvedBy: null,
+    approvedAt: null,
+    createdAt: '2026-07-04T00:00:00Z',
+    updatedAt: '2026-07-04T00:00:00Z',
+    ...overrides,
+  };
+}
+
 describe('product history lineage', () => {
   it('uses the canonical batch and excludes unscoped text-only decisions', () => {
     const timeline = buildProductTimeline(
@@ -79,5 +99,24 @@ describe('product history lineage', () => {
       'import-B1',
       'decision-canonical',
     ]);
+  });
+
+  it('includes only reports owned by the exact project', () => {
+    const timeline = buildProductTimeline(
+      'S1',
+      'Prototype',
+      batches,
+      [decision({ id: 'D1', projectId: 'P1', instrumentalSampleId: 'IS1' })],
+      [],
+      [
+        report({ id: 'owned-report' }),
+        report({ id: 'foreign-report', canonicalProjectId: 'P2' }),
+        report({ id: 'legacy-report', canonicalProjectId: null }),
+      ],
+      { instrumentalSampleId: 'IS1', importBatchId: 'B1', projectId: 'P1' },
+    );
+
+    expect(timeline.events.filter(event => event.type === 'report').map(event => event.id))
+      .toEqual(['report-owned-report']);
   });
 });

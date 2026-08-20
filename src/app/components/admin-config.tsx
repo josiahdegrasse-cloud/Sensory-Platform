@@ -21,6 +21,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { type Product, getDefaultCataAttributes } from '../data/survey-domain';
 import { useFoodType, matchFoodType } from '../contexts/food-type-context';
 import { parseBatchSelection } from '../lib/project-identity';
+import { conceptBelongsToProject } from '../lib/concept-project-scope';
 import {
   useProducts, usePanelists,
   useInsertProduct, useUpdateProduct, useDeleteProduct,
@@ -267,12 +268,13 @@ export function AdminConfig({
   const scopedConceptStudyIds = useMemo(() => new Set(
     conceptStudies
       .filter(concept => {
+        if (!conceptBelongsToProject(concept, selectedProjectId)) return false;
         if (concept.foodTypeSlug && concept.foodTypeSlug !== foodType) return false;
         if (subCategory && parseBatchSelection(subCategory) === null && concept.category !== subCategory) return false;
         return true;
       })
       .map(concept => concept.id)
-  ), [conceptStudies, foodType, subCategory]);
+  ), [conceptStudies, foodType, selectedProjectId, subCategory]);
   const scopedStudySummaries = allStudySummaries.filter(study => {
     if (study.type === 'concept_test') return scopedConceptStudyIds.has(study.id);
     const product = products.find(p => p.id === study.id);

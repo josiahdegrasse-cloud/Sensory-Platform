@@ -30,6 +30,8 @@ import {
 } from '../lib/local-llama';
 import { fetchReportGrounding, type ReportGrounding } from '../lib/evidence-assist';
 import { openResearchSource } from '../lib/rag-client';
+import { conceptBelongsToProject } from '../lib/concept-project-scope';
+import { reportBelongsToProject } from '../lib/report-project-scope';
 import { getConceptImageMode } from '../../../supabase/functions/_shared/concept-image-catalog.ts';
 import { preferredConceptImageIndex } from './concept-testing/smart-defaults';
 import { Button } from './ui/button';
@@ -40,6 +42,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 export function CommercializationReportBuilder({
   decision,
   foodType,
+  projectId,
   userId,
   settings,
   initiallyOpen = false,
@@ -48,6 +51,7 @@ export function CommercializationReportBuilder({
 }: {
   decision: GoStopTweakDecision;
   foodType: string;
+  projectId?: string;
   userId?: string;
   settings?: WorkspaceSettings;
   initiallyOpen?: boolean;
@@ -76,14 +80,16 @@ export function CommercializationReportBuilder({
   const { data: concepts = [] } = useAdminConceptTests();
   const { data: reports = [] } = useCommercializationReports();
   const { data: formulationVersions = [] } = useFormulationVersions();
-  const matchingConcepts = useMemo(() => concepts.filter(concept =>
-    concept.foodTypeSlug === foodType || concept.category.toLowerCase().includes(foodType.toLowerCase()),
-  ), [concepts, foodType]);
   const confirmedGo = decisions.find(record =>
     record.sampleId === decision.sampleId
     && record.decision === 'GO'
-    && record.decisionFingerprint === decision.decisionFingerprint,
+    && record.decisionFingerprint === decision.decisionFingerprint
+    && (!projectId || record.projectId === projectId)
   );
+  const matchingConcepts = useMemo(() => concepts.filter(concept =>
+    conceptBelongsToProject(concept, projectId ?? confirmedGo?.projectId)
+    && (concept.foodTypeSlug === foodType || concept.category.toLowerCase().includes(foodType.toLowerCase())),
+  ), [concepts, confirmedGo?.projectId, foodType, projectId]);
   const governedConcepts = useMemo(() => matchingConcepts.filter(concept =>
     concept.decisionRecordId === confirmedGo?.id
   ), [confirmedGo?.id, matchingConcepts]);
@@ -128,6 +134,7 @@ export function CommercializationReportBuilder({
   const nextVersion = selectedConcept && confirmedGo
     ? Math.max(0, ...reports
         .filter(report => report.decisionRecordId === confirmedGo.id && report.conceptTestId === selectedConcept.id)
+        .filter(report => reportBelongsToProject(report, projectId ?? confirmedGo.projectId))
         .map(report => report.version)) + 1
     : 1;
   const groundingReviewKey = [
