@@ -7,6 +7,7 @@ vi.mock('../supabase', () => ({
 }));
 
 import {
+  fetchConceptReadyPanelists,
   fetchEligiblePanelists,
   fetchPanelistSafetyDeclaration,
   fetchSampleAllergenDeclarationsForProducts,
@@ -60,6 +61,26 @@ describe('sample eligibility data access', () => {
       expect.objectContaining({ id: 'panelist-1', ageYears: 31, nationalityCode: 'GB', completedCount: 7 }),
     ]);
     expect(mocks.rpc).toHaveBeenCalledWith('list_eligible_panelists', { p_product_id: 'product-1' });
+  });
+
+  it('loads a concept roster without a product or formulation target', async () => {
+    mocks.rpc.mockResolvedValue({
+      data: [{
+        id: 'panelist-1', name: 'Avery', email: 'avery@example.com', panelist_id: 'P-001',
+        completed_count: 7, age_years: 31, age_band: '25–34', gender: 'non_binary',
+        gender_self_description: null, nationality_code: 'GB', ethnicity: 'mixed', region: 'Leeds',
+        household_size: 2, household_size_prefer_not_to_say: false,
+        children_in_household: false, dietary_pattern: 'flexitarian', dietary_other: null,
+        grocery_role: 'shared_shopper', category_usage_frequency: 'weekly', smoker_status: 'non_smoker',
+        weekly_food_spend: '40_60', occupation_group: 'professional', annual_income_range: '40_60k',
+      }],
+      error: null,
+    });
+
+    await expect(fetchConceptReadyPanelists()).resolves.toEqual([
+      expect.objectContaining({ id: 'panelist-1', ageYears: 31, completedCount: 7 }),
+    ]);
+    expect(mocks.rpc).toHaveBeenCalledWith('list_concept_ready_panelists');
   });
 
   it('loads an administrator-visible safety declaration through the audited RPC', async () => {

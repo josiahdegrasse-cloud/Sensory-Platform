@@ -4253,6 +4253,34 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
       is_platform_operator: { Args: never; Returns: boolean }
       is_public_email_domain: { Args: { p_domain: string }; Returns: boolean }
+      list_concept_ready_panelists: {
+        Args: never
+        Returns: {
+          age_band: string
+          age_years: number
+          annual_income_range: string
+          category_usage_frequency: string
+          children_in_household: boolean
+          completed_count: number
+          dietary_other: string
+          dietary_pattern: string
+          email: string
+          ethnicity: string
+          gender: string
+          gender_self_description: string
+          grocery_role: string
+          household_size: number
+          household_size_prefer_not_to_say: boolean
+          id: string
+          name: string
+          nationality_code: string
+          occupation_group: string
+          panelist_id: string
+          region: string
+          smoker_status: string
+          weekly_food_spend: string
+        }[]
+      }
       list_eligible_panelists: {
         Args: { p_formulation_version_id?: string; p_product_id?: string }
         Returns: {
@@ -4423,6 +4451,10 @@ export type Database = {
           p_panelist_id: string
           p_product_id?: string
         }
+        Returns: boolean
+      }
+      panelist_is_ready_for_concept: {
+        Args: { p_panelist_id: string }
         Returns: boolean
       }
       panelist_kit_token_hash: { Args: { p_token: string }; Returns: string }

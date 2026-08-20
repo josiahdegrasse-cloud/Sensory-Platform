@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent } from '../ui/card';
 import { Label } from '../ui/label';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { ChevronDown, ShieldCheck, Users, UserCheck } from 'lucide-react';
-import { usePanelists } from '../../lib/hooks';
+import { useConceptReadyPanelists } from '../../lib/use-concept-ready-panelists';
 import { EligiblePanelSummary } from '../eligible-panel-summary';
-import { buildConceptPanelRoster } from './concept-panel-roster';
 
 export function PanelStep({
   panelSize,
@@ -23,9 +22,7 @@ export function PanelStep({
   setAssignedPanelistIds: (ids: string[]) => void;
 }) {
   const [panelSetupOpen, setPanelSetupOpen] = useState(false);
-  const { data: panelists = [], isLoading: panelistsLoading } = usePanelists();
-  const registeredPanelists = useMemo(() => buildConceptPanelRoster(panelists), [panelists]);
-  const unavailableCount = Math.max(0, panelists.length - registeredPanelists.length);
+  const { data: registeredPanelists = [], isLoading: panelistsLoading } = useConceptReadyPanelists();
 
   useEffect(() => {
     if (panelistsLoading) return;
@@ -99,7 +96,7 @@ export function PanelStep({
             <ShieldCheck className="size-3.5" aria-hidden />{assignedPanelistIds.length} panelist{assignedPanelistIds.length !== 1 ? 's' : ''} assigned to this concept test
           </p>
         )}
-        {!panelistsLoading && <p className="text-xs text-slate-500">{registeredPanelists.length} available · {unavailableCount} unavailable because their account or research profile is not ready.</p>}
+        {!panelistsLoading && <p className="text-xs text-slate-500">{registeredPanelists.length} research-ready adult{registeredPanelists.length === 1 ? '' : 's'} available.</p>}
         <EligiblePanelSummary panelists={registeredPanelists} selectedIds={assignedPanelistIds} />
       </div>
 

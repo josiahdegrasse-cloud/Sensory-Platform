@@ -185,6 +185,12 @@ export async function fetchEligiblePanelists(target: SampleEligibilityTarget): P
   return mapEligiblePanelists(data ?? []);
 }
 
+export async function fetchConceptReadyPanelists(): Promise<EligiblePanelist[]> {
+  const { data, error } = await supabase.rpc('list_concept_ready_panelists');
+  if (error) throw dbError(error);
+  return mapEligiblePanelists(data ?? []);
+}
+
 export async function fetchEligiblePanelistsForProducts(productIds: string[]): Promise<EligiblePanelist[]> {
   if (!productIds.length) return [];
   const { data, error } = await supabase.rpc('list_eligible_panelists_for_products', { p_product_ids: productIds });
