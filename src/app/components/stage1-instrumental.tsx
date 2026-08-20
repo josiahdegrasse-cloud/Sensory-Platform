@@ -104,7 +104,6 @@ export function Stage1Instrumental() {
   const [projectNameEdited, setProjectNameEdited] = useState(false);
   const [isLoadingFromQueue, setIsLoadingFromQueue] = useState(!!pendingStoragePath);
   const [aromaOpen, setAromaOpen] = useState(false);
-  const [instrumentSummaryHeight, setInstrumentSummaryHeight] = useState<number | null>(null);
   const [editingIngredientSampleId, setEditingIngredientSampleId] = useState<string | null>(null);
   const [ingredientDraft, setIngredientDraft] = useState('');
   const [surveySections, setSurveySections] = useState<SurveySection[]>(DEFAULT_SURVEY_SECTIONS);
@@ -113,7 +112,6 @@ export function Stage1Instrumental() {
   const [surveysSent, setSurveysSent] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const instrumentSummaryRef = useRef<HTMLDivElement>(null);
   const { foodType, subCategory, setSelection, registerFoodTypes, archivedFoodTypes, deletedFoodTypes } = useFoodType();
   const {
     selectedSamples,
@@ -498,32 +496,6 @@ export function Stage1Instrumental() {
       // administrator does not lose the exact statement they entered.
     }
   };
-
-  useEffect(() => {
-    const element = instrumentSummaryRef.current;
-    if (!element) return;
-
-    const updateHeight = () => {
-      setInstrumentSummaryHeight(Math.ceil(element.getBoundingClientRect().height));
-    };
-
-    updateHeight();
-    if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', updateHeight);
-      return () => window.removeEventListener('resize', updateHeight);
-    }
-
-    const observer = new ResizeObserver(updateHeight);
-    observer.observe(element);
-
-    return () => observer.disconnect();
-  }, [
-    compareMode,
-    displayedSamples.length,
-    selectedCompositionData,
-    selectedGCMSData.length,
-    selectedSamples,
-  ]);
 
   const viewImportedCharts = (summary: ImportCompletionSummary) => {
     setSelection(summary.foodTypeSlug, null);
@@ -1133,14 +1105,10 @@ export function Stage1Instrumental() {
       )}
 
       {!showPreview && (<>
-      <div id="machine-results" className="grid grid-cols-4 gap-6 scroll-mt-6">
-        <div
-          className="min-h-0"
-          style={instrumentSummaryHeight ? { height: instrumentSummaryHeight } : undefined}
-        >
+      <div id="machine-results" className="grid scroll-mt-6 gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
+        <div className="min-w-0 lg:sticky lg:top-24 lg:self-start">
           <ProductListPanel
             title="Samples"
-            className="h-full min-h-0"
             description={compareMode
               ? comparisonLimitReached
                 ? `${selectedSamples.length}/${comparisonLimit} selected · Remove one to choose another`
@@ -1165,7 +1133,7 @@ export function Stage1Instrumental() {
               </Button>
             )}
           >
-            <div className="h-full min-h-0 space-y-1 overflow-y-auto pr-1">
+            <div className="space-y-1">
               {displayedSamples.map((sample) => {
                 const isSelected = selectedSamples.includes(sample.id);
                 const comparisonIndex = selectedSamples.indexOf(sample.id);
@@ -1207,7 +1175,7 @@ export function Stage1Instrumental() {
           </ProductListPanel>
         </div>
 
-        <div ref={instrumentSummaryRef} className="col-span-3 space-y-6">
+        <div className="min-w-0 space-y-6">
           <InstrumentalParameterRadar
             samples={filteredETongueData}
             selectedSampleIds={selectedSamples}
