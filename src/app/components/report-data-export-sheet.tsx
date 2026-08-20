@@ -161,7 +161,7 @@ export function ReportDataExportSheet({
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm"><FileSpreadsheet className="size-4" />Export data</Button>
+        <Button variant="outline" size="sm"><FileSpreadsheet className="size-4" />Export report data</Button>
       </SheetTrigger>
       <SheetContent className="w-full gap-0 border-l border-slate-200 bg-white sm:max-w-xl">
         <SheetHeader className="border-b border-slate-200 px-5 py-5 pr-12">

@@ -33,6 +33,7 @@ import type { CommercializationReportRecord } from '../lib/database';
 import type { SemanticTone } from '../lib/project-status';
 import { WorkflowPageHeader } from './workflow-page-header';
 import { WorkflowQueryErrorState } from './workflow-loading-state';
+import { ProjectDataExportSheet } from './project-data-export-sheet';
 
 const STATUS_OPTIONS = ['all', 'draft', 'review', 'approved', 'archived'] as const;
 type StatusFilter = typeof STATUS_OPTIONS[number];
@@ -228,8 +229,13 @@ export function ReportsPage() {
     <div className="mx-auto max-w-6xl space-y-6">
       <WorkflowPageHeader
         title="Reports"
-        description="Open a deliverable, complete its release review, and export the approved client PDF."
-        actions={<Button asChild><Link to={workflowStagePath('report', routeProjectId, '?create=1')}><Sparkles className="size-4" />New report</Link></Button>}
+        description="Export the project evidence directly, or create and release a client-ready report."
+        actions={(
+          <div className="flex flex-wrap items-center gap-2">
+            <ProjectDataExportSheet projectId={routeProjectId} decisions={decisions} concepts={concepts} />
+            <Button asChild><Link to={workflowStagePath('report', routeProjectId, '?create=1')}><Sparkles className="size-4" />New report</Link></Button>
+          </div>
+        )}
       />
 
       <div className="flex flex-col gap-3 lg:flex-row">
@@ -340,7 +346,7 @@ export function ReportsPage() {
                       onClick={() => setSelection(entry.foodType, null)}
                     >
                       <FileSpreadsheet className="size-4" />
-                      Export data
+                      Export report data
                     </Link>
                   </Button>
                   {entry.exportReady ? (
