@@ -1,9 +1,6 @@
 import {
-  CHARCOAL,
   DEFAULT_ACCENT,
-  SAGE,
   SLATE_950,
-  addContentPage,
   hexToRgb,
   imageDataUrl,
   renderFooter,
@@ -14,35 +11,28 @@ import {
   buildAppendix,
   buildCommercializationPlan,
   buildClaimsMatrix,
-  buildConsumerEvidence,
   buildDecisionBasis,
   buildConceptPackaging,
   buildDecisionSnapshot,
   buildExecutiveReadout,
   buildMethodEvidence,
-  buildPerformanceDashboard,
   buildProductReadiness,
   buildCommercialReadiness,
   buildRisks,
   buildScientificContext,
   type CommercializationReportPdfInput,
 } from './pdf/sections';
+import { buildClientReportV2 } from './pdf/report-v2';
 import {
-  renderDecisionSnapshotPage,
-  renderPerformanceDashboardPage,
-} from './pdf/pages/decision-pages';
-import {
-  renderClaimsMatrixPage,
-  renderCommercializationPlanPage,
-} from './pdf/pages/action-pages';
-import {
-  renderDecisionBasisPage,
-  renderInstrumentalRiskPage,
-} from './pdf/pages/professional-pages';
-import {
-  renderCommercialStrategyPage,
-  renderProductReadinessPage,
-} from './pdf/pages/readiness-pages';
+  renderActionPlanPage,
+  renderClientCoverPage,
+  renderConsumerConceptPage,
+  renderEvidenceReleasePage,
+  renderExecutiveRecommendationPage,
+  renderPanelStudyProfilePage,
+  renderProductPerformancePage,
+  renderScientificLiteraturePage,
+} from './pdf/pages/client-report-v2-pages';
 import { runQcPipeline, type GeneratedSections, type QcPipelineResult } from '../lib/report-qc';
 import { evaluateCommercializationReport } from './commercialization-report-quality';
 
@@ -52,7 +42,9 @@ const RAW_CLIENT_FLOAT = /(-?\d+\.\d{5,})/g;
 
 export function normalizeClientFacingNumbers(value: string) {
   if (/^(?:data|blob):/i.test(value)) return value;
-  return value.replace(RAW_CLIENT_FLOAT, (raw, _capture, offset: number) => {
+  return value
+    .replace(/[\u2010-\u2015]/g, '-')
+    .replace(RAW_CLIENT_FLOAT, (raw, _capture, offset: number) => {
     const tokenStart = value.lastIndexOf(' ', offset) + 1;
     const nextSpace = value.indexOf(' ', offset + raw.length);
     const tokenEnd = nextSpace === -1 ? value.length : nextSpace;
@@ -64,7 +56,7 @@ export function normalizeClientFacingNumbers(value: string) {
     if (!Number.isFinite(number)) return raw;
     if (number !== 0 && Math.abs(number) < 0.0001) return number.toExponential(2);
     return Number(number.toFixed(4)).toString();
-  });
+    });
 }
 
 function normalizeReportValue<T>(value: T): T {
@@ -117,11 +109,8 @@ export async function buildCommercializationReportPdf(input: CommercializationRe
   input = normalizeReportValue(input);
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-  const template = input.reportTemplate ?? 'editorial-sage';
-  const primary: Rgb = template === 'editorial-sage' ? CHARCOAL : hexToRgb(input.primaryColor) ?? SLATE_950;
-  const accent: Rgb = template === 'editorial-sage' ? SAGE : hexToRgb(input.accentColor) ?? DEFAULT_ACCENT;
-  const coverPrimary = hexToRgb(input.primaryColor) ?? primary;
-  const coverAccent = hexToRgb(input.accentColor) ?? accent;
+  const primary: Rgb = hexToRgb(input.primaryColor) ?? SLATE_950;
+  const accent: Rgb = hexToRgb(input.accentColor) ?? DEFAULT_ACCENT;
   const ctx: PdfContext = {
     doc,
     width: doc.internal.pageSize.getWidth(),
@@ -133,11 +122,13 @@ export async function buildCommercializationReportPdf(input: CommercializationRe
     organizationName: input.organizationName || 'Food Platform',
     productName: input.snapshot.product.sampleName,
     documentWarning: !input.reportContext
-      ? 'INTERNAL PREVIEW — VALIDATED REPORT CONTEXT NOT ATTACHED'
+      ? 'INTERNAL PREVIEW - VALIDATED REPORT CONTEXT NOT ATTACHED'
       : /reference\/demo|reference-demo/i.test(input.reportContext.evidenceProvenance)
-        ? 'REFERENCE / DEMONSTRATION EVIDENCE — NOT APPROVED FOR EXTERNAL USE'
+        ? 'REFERENCE / DEMONSTRATION EVIDENCE - NOT APPROVED FOR EXTERNAL USE'
         : undefined,
-    template,
+    // V2 is deliberately neutral and client-color led. Legacy template names
+    // remain accepted on saved reports, but no longer override client branding.
+    template: 'standard',
   };
 
   const [packaging, reportCover, logo] = await Promise.all([
@@ -150,7 +141,8 @@ export async function buildCommercializationReportPdf(input: CommercializationRe
     imageDataUrl(input.logoUrl ?? ''),
   ]);
 
-  renderDecisionSnapshotPage({ ...ctx, primary: coverPrimary, accent: coverAccent }, buildDecisionSnapshot(input), {
+  const report = buildClientReportV2(input);
+  renderClientCoverPage(ctx, report, {
     cover: reportCover ?? packaging,
     logo,
     approvedCover: Boolean(reportCover),
@@ -159,39 +151,25 @@ export async function buildCommercializationReportPdf(input: CommercializationRe
       : Boolean(input.snapshot.concept.packagingImageAiGenerated),
   });
 
-  addContentPage(ctx);
-  renderDecisionBasisPage(ctx, buildDecisionBasis(input));
-
-  addContentPage(ctx);
-  renderPerformanceDashboardPage(ctx, buildPerformanceDashboard(input));
-
-  const scientific = buildScientificContext(input);
-  const risks = buildRisks(input);
-  addContentPage(ctx);
-  renderInstrumentalRiskPage(ctx, scientific, risks);
-
-  addContentPage(ctx);
-  renderProductReadinessPage(ctx, buildProductReadiness(input));
-
-  addContentPage(ctx);
-  renderCommercialStrategyPage(
-    ctx,
-    buildConceptPackaging(input),
-    buildConsumerEvidence(input),
-    buildCommercialReadiness(input),
-    packaging,
-  );
-
-  addContentPage(ctx);
-  renderCommercializationPlanPage(ctx, buildCommercializationPlan(input));
-
-  addContentPage(ctx);
-  renderClaimsMatrixPage(ctx, buildClaimsMatrix(input));
+  doc.addPage();
+  renderExecutiveRecommendationPage(ctx, report);
+  doc.addPage();
+  renderProductPerformancePage(ctx, report);
+  doc.addPage();
+  renderConsumerConceptPage(ctx, report, packaging);
+  doc.addPage();
+  renderPanelStudyProfilePage(ctx, report);
+  doc.addPage();
+  renderScientificLiteraturePage(ctx, report);
+  doc.addPage();
+  renderActionPlanPage(ctx, report);
+  doc.addPage();
+  renderEvidenceReleasePage(ctx, report);
 
   const pageCount = doc.getNumberOfPages();
   for (let page = 1; page <= pageCount; page += 1) {
     doc.setPage(page);
-    renderFooter(ctx, page, input.reportFooter);
+    renderFooter(ctx, page, input.reportFooter ?? `Prepared by ${ctx.organizationName} · Confidential client report`);
   }
 
   const filename = buildCommercializationReportFilename({

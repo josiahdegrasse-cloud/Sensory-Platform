@@ -18,6 +18,7 @@ export type ReportDataSectionKey =
   | 'decision-evidence'
   | 'panelist-demographics'
   | 'food-panel-responses'
+  | 'food-panel-summary-statistics'
   | 'concept-test'
   | 'concept-results'
   | 'concept-responses'

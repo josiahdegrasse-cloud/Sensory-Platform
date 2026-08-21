@@ -1,7 +1,7 @@
 import { Radio, FlaskConical, Database, FileText, Sparkles, ShieldCheck } from 'lucide-react';
 import { cn } from './ui/utils';
 
-export type DataProvenance = 'live' | 'reference' | 'imported' | 'ai-draft' | 'template-draft' | 'approved';
+export type DataProvenance = 'live' | 'reference' | 'synthetic' | 'imported' | 'ai-draft' | 'template-draft' | 'approved';
 
 const PROVENANCE_CONFIG: Record<DataProvenance, {
   label: string;
@@ -18,6 +18,12 @@ const PROVENANCE_CONFIG: Record<DataProvenance, {
   reference: {
     label: '',
     title: 'Simulated research dataset for demonstration and method validation — not collected from your panel. Do not use in client deliverables.',
+    icon: FlaskConical,
+    className: 'bg-amber-50 text-amber-800 border-amber-300',
+  },
+  synthetic: {
+    label: 'Synthetic test data',
+    title: 'Generated responses for testing the report workflow. They are not panel evidence and cannot be used in client deliverables.',
     icon: FlaskConical,
     className: 'bg-amber-50 text-amber-800 border-amber-300',
   },

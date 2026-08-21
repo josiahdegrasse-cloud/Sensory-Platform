@@ -14,8 +14,8 @@ import { buildConsumerBriefSuggestions } from './consumer-brief-defaults';
 function SectionHeading({ title, description }: { title: string; description: string }) {
   return (
     <div>
-      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-      <p className="mt-1 text-xs text-slate-500">{description}</p>
+      <h3 className="text-base font-semibold text-slate-950">{title}</h3>
+      <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">{description}</p>
     </div>
   );
 }
@@ -50,10 +50,10 @@ function ProductFormSelector({ draft, onChange }: { draft: ConceptDraft; onChang
                 setProductForm(active ? null : option.value);
                 setCustomOpen(false);
               }}
-              className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`min-h-10 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
                 active
                   ? 'border-blue-600 bg-blue-600 text-white'
-                  : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-800'
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-blue-400 hover:text-blue-800'
               }`}
             >
               {option.label}
@@ -64,10 +64,10 @@ function ProductFormSelector({ draft, onChange }: { draft: ConceptDraft; onChang
           type="button"
           aria-pressed={showCustom}
           onClick={() => setCustomOpen(true)}
-          className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+          className={`min-h-10 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
             showCustom
               ? 'border-blue-500 bg-blue-50 text-blue-800'
-              : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-800'
+              : 'border-slate-200 bg-white text-slate-700 hover:border-blue-400 hover:text-blue-800'
           }`}
         >
           Other
@@ -166,7 +166,7 @@ const promisePresets: QuickPreset[] = [
 const variantDimensionGroups: VariantDimensionGroup[] = [
   {
     key: 'positioning',
-    label: 'Position',
+    label: 'Positioning',
     options: [
       { value: 'premium', label: 'Premium' },
       { value: 'accessible', label: 'Accessible' },
@@ -180,7 +180,7 @@ const variantDimensionGroups: VariantDimensionGroup[] = [
   },
   {
     key: 'visualComplexity',
-    label: 'Visual',
+    label: 'Visual style',
     options: [
       { value: 'minimal', label: 'Minimal' },
       { value: 'expressive', label: 'Expressive' },
@@ -217,7 +217,7 @@ const variantDimensionGroups: VariantDimensionGroup[] = [
   },
   {
     key: 'packagingFormat',
-    label: 'Format',
+    label: 'Pack format',
     options: [
       { value: 'pouch', label: 'Pouch' },
       { value: 'block', label: 'Block' },
@@ -237,7 +237,7 @@ const variantDimensionGroups: VariantDimensionGroup[] = [
   },
   {
     key: 'brandColorScheme',
-    label: 'Palette',
+    label: 'Brand palette',
     options: [
       { value: 'earthy', label: 'Earthy' },
       { value: 'vibrant', label: 'Vibrant' },
@@ -271,7 +271,7 @@ const variantDimensionGroups: VariantDimensionGroup[] = [
   },
   {
     key: 'pricePositioning',
-    label: 'Price',
+    label: 'Price tier',
     options: [
       { value: 'budget', label: 'Budget' },
       { value: 'value', label: 'Value' },
@@ -302,7 +302,7 @@ function PresetButtons({
             key={preset.label}
             type="button"
             onClick={() => onApply(preset)}
-            className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-800"
+            className="min-h-9 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:border-blue-400 hover:text-blue-800"
           >
             {preset.label}
           </button>
@@ -312,7 +312,7 @@ function PresetButtons({
   );
 }
 
-function PositioningTags({
+function PositioningFields({
   draft,
   onChange,
 }: {
@@ -325,85 +325,45 @@ function PositioningTags({
     onChange({ ...draft.variantDimensions, [key]: value } as VariantDimensions);
   };
 
-  const openCustom = (key: keyof VariantDimensions) => {
-    setCustomOpen(prev => ({ ...prev, [key]: true }));
-  };
-
-  const closeCustom = (key: keyof VariantDimensions) => {
-    setCustomOpen(prev => ({ ...prev, [key]: false }));
-  };
-
   return (
-    <div className="space-y-3">
-      <div>
-        <p className="text-[11px] font-semibold text-slate-600">Positioning tags</p>
-        <p className="mt-0.5 text-xs text-slate-500">Compact analytics metadata that also nudges the image prompt.</p>
-      </div>
-      <div className="grid gap-2 lg:grid-cols-2">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {variantDimensionGroups.map(group => {
           const selected = draft.variantDimensions[group.key] as string | null;
           const customSelected = Boolean(selected && !group.options.some(option => option.value === selected));
           const showCustom = Boolean(customOpen[group.key] || customSelected);
+          const inputId = `concept-positioning-${group.key}`;
           return (
-            <div key={group.key} className="rounded-md border border-slate-200 bg-slate-50 p-2">
-              <p className="mb-1.5 text-[11px] font-semibold text-slate-600">{group.label}</p>
-              <div className="flex flex-wrap gap-1.5">
-                {group.options.map(option => {
-                  const active = selected === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => {
-                        setDimension(group.key, active ? null : option.value);
-                        closeCustom(group.key);
-                      }}
-                      className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
-                        active
-                          ? 'border-blue-500 bg-blue-600 text-white'
-                          : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-800'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-                <button
-                  type="button"
-                  onClick={() => openCustom(group.key)}
-                  className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
-                    showCustom
-                      ? 'border-blue-500 bg-blue-50 text-blue-800'
-                      : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-800'
-                  }`}
-                >
-                  Other
-                </button>
-              </div>
+            <div key={group.key} className="space-y-1.5">
+              <Label htmlFor={inputId} className="text-xs font-medium text-slate-700">{group.label}</Label>
+              <select
+                id={inputId}
+                value={showCustom ? '__custom__' : selected ?? ''}
+                onChange={event => {
+                  if (event.target.value === '__custom__') {
+                    setCustomOpen(prev => ({ ...prev, [group.key]: true }));
+                    return;
+                  }
+                  setCustomOpen(prev => ({ ...prev, [group.key]: false }));
+                  setDimension(group.key, event.target.value || null);
+                }}
+                className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition-colors hover:border-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="">Not set</option>
+                {group.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                <option value="__custom__">Custom…</option>
+              </select>
               {showCustom && (
-                <div className="mt-2 flex items-center gap-2">
-                  <Input
-                    value={customSelected ? selected ?? '' : ''}
-                    onChange={event => setDimension(group.key, event.target.value.trim() ? event.target.value : null)}
-                    placeholder={`Custom ${group.label.toLowerCase()}`}
-                    className="h-8 bg-white text-xs"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDimension(group.key, null);
-                      closeCustom(group.key);
-                    }}
-                    className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-100"
-                  >
-                    Clear
-                  </button>
-                </div>
+                <Input
+                  value={customSelected ? selected ?? '' : ''}
+                  onChange={event => setDimension(group.key, event.target.value.trim() ? event.target.value : null)}
+                  placeholder={`Custom ${group.label.toLowerCase()}`}
+                  aria-label={`Custom ${group.label.toLowerCase()}`}
+                  className="h-10 bg-white text-sm"
+                />
               )}
             </div>
           );
         })}
-      </div>
     </div>
   );
 }
@@ -424,6 +384,8 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
     && draft.targetOccasion === consumerBriefSuggestions.occasions[0]
     && draft.description === consumerBriefSuggestions.promise
     && draft.keyBenefits === consumerBriefSuggestions.proofCues.join(', ');
+  const positioningFieldCount = variantDimensionGroups.filter(group => Boolean(draft.variantDimensions[group.key])).length;
+  const hasDecisionDetails = Boolean(draft.technicalChallenges.trim() || draft.forbiddenClaims.trim());
   const applyConsumerBriefSuggestions = () => onChange({
     ...draft,
     targetMarket: consumerBriefSuggestions.audience,
@@ -443,15 +405,17 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
   };
 
   return (
-    <div className="space-y-5">
+    <div className="mx-auto max-w-5xl space-y-8">
       <div>
-        <h2 className="text-xl font-semibold text-slate-900">Concept image brief</h2>
-        <p className="mt-1 text-sm text-slate-500">Only the inputs needed to generate credible concept visuals.</p>
+        <h2 className="text-xl font-semibold text-slate-950">Build the concept brief</h2>
+        <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Define the product, its intended consumer, and the single idea the concept should communicate.</p>
       </div>
 
-      <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
-        <SectionHeading title="Consumer brief" description="Define who this is for, the occasion, and the single promise the concept should communicate." />
-        <div className="grid gap-4 sm:grid-cols-2">
+      <section className="space-y-5" aria-labelledby="brief-product-heading">
+        <div id="brief-product-heading">
+          <SectionHeading title="Product basics" description="Start with the product identity. These details carry into the visuals, survey, and final report." />
+        </div>
+        <div className="grid gap-5 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="concept-product-name" className="font-medium">Product name <span className="text-rose-500">*</span></Label>
             <Input id="concept-product-name" value={draft.name} onChange={set('name')} placeholder="e.g. Vitacheeze Original Cheddar" />
@@ -463,31 +427,33 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
         </div>
 
         <ProductFormSelector draft={draft} onChange={onChange} />
+      </section>
 
-        <div className="flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50/60 p-3 sm:flex-row sm:items-start sm:justify-between">
+      <section className="space-y-5 border-t border-slate-200 pt-7" aria-labelledby="brief-consumer-heading">
+        <div id="brief-consumer-heading">
+          <SectionHeading title="Consumer and occasion" description="Describe who should want this product and when it should fit into their life." />
+        </div>
+        <div className="flex flex-col gap-3 rounded-lg bg-blue-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <p className="flex items-center gap-1.5 text-xs font-semibold text-blue-950">
-              <WandSparkles className="size-3.5" aria-hidden />
-              Smart brief suggestion
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-blue-950">
+              <WandSparkles className="size-4" aria-hidden />
+              Suggested brief direction
             </p>
-            <p className="mt-1 text-xs leading-5 text-blue-900/80">
-              {consumerBriefSuggestions.audience} Best fit: {consumerBriefSuggestions.occasions.slice(0, 2).join(' or ')}.
+            <p className="mt-1 text-xs leading-5 text-blue-900">
+              {consumerBriefSuggestions.audience} · Best fit: {consumerBriefSuggestions.occasions.slice(0, 2).join(' or ')}
             </p>
-            <p className="mt-1 text-xs text-blue-800">
-              Uses the category, selected product form, and available sensory cues. Review before using.
-            </p>
+            <p className="mt-0.5 text-xs leading-5 text-blue-800">Fills the audience, occasion, consumer promise, and sensory proof cues for you to review.</p>
           </div>
           <button
             type="button"
             onClick={applyConsumerBriefSuggestions}
             disabled={suggestedBriefIsApplied}
-            className="shrink-0 rounded-md border border-blue-300 bg-white px-3 py-1.5 text-xs font-semibold text-blue-800 transition-colors hover:bg-blue-100 disabled:cursor-default disabled:border-blue-200 disabled:bg-blue-50 disabled:text-blue-500"
+            className="min-h-10 shrink-0 rounded-md border border-blue-300 bg-white px-3 text-xs font-semibold text-blue-800 transition-colors hover:bg-blue-100 disabled:cursor-default disabled:border-blue-200 disabled:bg-blue-50 disabled:text-blue-600"
           >
-            {suggestedBriefIsApplied ? 'Suggestions applied' : 'Use suggestions'}
+            {suggestedBriefIsApplied ? 'Suggestion applied' : 'Apply suggestion'}
           </button>
         </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-5 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="concept-target-market" className="font-medium">Audience</Label>
             <Input
@@ -507,64 +473,80 @@ export function ConceptStep({ draft, onChange }: { draft: ConceptDraft; onChange
             />
           </div>
         </div>
+      </section>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="concept-description" className="font-medium">Consumer promise <span className="text-rose-500">*</span></Label>
-          <Textarea
-            id="concept-description"
-            value={draft.description}
-            onChange={set('description')}
-            placeholder="e.g. Familiar cheddar flavour and reliable melt for easy everyday meals."
-            rows={3}
-            className="resize-none"
-          />
-          <p className="text-xs text-slate-500">Keep this to one consumer-facing sentence. Evidence and technical boundaries stay separate below.</p>
+      <section className="space-y-5 border-t border-slate-200 pt-7" aria-labelledby="brief-message-heading">
+        <div id="brief-message-heading">
+          <SectionHeading title="Positioning message" description="Choose a starting direction, then refine the promise and sensory proof in your own words." />
         </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="concept-proof-cues" className="font-medium">Proof cues</Label>
-          <Textarea
-            id="concept-proof-cues"
-            value={draft.keyBenefits}
-            onChange={set('keyBenefits')}
-            placeholder="e.g. Smooth texture, clean breakdown, familiar cheddar flavour"
-            rows={2}
-            className="resize-none"
-          />
-          <p className="text-xs text-slate-500">Use observed sensory cues—not nutrition, health, or performance claims.</p>
+        <PresetButtons label="Optional starting direction" presets={promisePresets} onApply={applyPreset} />
+
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(16rem,0.75fr)]">
+          <div className="space-y-1.5">
+            <Label htmlFor="concept-description" className="font-medium">Consumer promise <span className="text-rose-500">*</span></Label>
+            <Textarea
+              id="concept-description"
+              value={draft.description}
+              onChange={set('description')}
+              placeholder="e.g. Familiar cheddar flavour and reliable melt for easy everyday meals."
+              rows={4}
+              className="resize-none"
+            />
+            <p className="text-xs leading-5 text-slate-500">Write one clear, consumer-facing sentence.</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="concept-proof-cues" className="font-medium">Sensory proof cues</Label>
+            <Textarea
+              id="concept-proof-cues"
+              value={draft.keyBenefits}
+              onChange={set('keyBenefits')}
+              placeholder="e.g. Smooth texture, clean breakdown, familiar cheddar flavour"
+              rows={4}
+              className="resize-none"
+            />
+            <p className="text-xs leading-5 text-slate-500">Use observed sensory cues, not unsupported claims.</p>
+          </div>
         </div>
+      </section>
 
-        <PresetButtons label="Suggested starting points" presets={promisePresets} onApply={applyPreset} />
-
-        {(draft.technicalChallenges.trim() || draft.forbiddenClaims.trim()) && (
-          <Collapsible open={evidenceOpen} onOpenChange={setEvidenceOpen} className="rounded-lg border border-slate-200 bg-slate-50">
-            <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left" aria-label="Toggle evidence used for this concept brief">
+      <div className="space-y-2 border-t border-slate-200 pt-6">
+        <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="rounded-lg border border-slate-200">
+          <CollapsibleTrigger className="flex min-h-14 w-full items-center justify-between gap-4 px-4 py-2.5 text-left" aria-label="Toggle positioning metadata">
+            <span className="flex min-w-0 items-center gap-3">
+              <SlidersHorizontal className="size-4 shrink-0 text-slate-500" aria-hidden />
               <span>
-                <span className="block text-xs font-semibold text-slate-800">Evidence used</span>
-                <span className="mt-0.5 block text-xs text-slate-500">Read-only decision context and claim boundaries</span>
+                <span className="block text-sm font-semibold text-slate-900">Positioning metadata</span>
+                <span className="mt-0.5 block text-xs text-slate-500">Optional fields for comparison and visual direction</span>
+              </span>
+            </span>
+            <span className="flex shrink-0 items-center gap-2">
+              <span className="text-xs text-slate-500">{positioningFieldCount > 0 ? `${positioningFieldCount} set` : 'Optional'}</span>
+              <ChevronDown className={`size-4 text-slate-500 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} aria-hidden />
+            </span>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="border-t border-slate-200 px-4 py-4">
+            <PositioningFields draft={draft} onChange={setVariantDimensions} />
+          </CollapsibleContent>
+        </Collapsible>
+
+        {hasDecisionDetails && (
+          <Collapsible open={evidenceOpen} onOpenChange={setEvidenceOpen} className="rounded-lg border border-slate-200">
+            <CollapsibleTrigger className="flex min-h-14 w-full items-center justify-between gap-4 px-4 py-2.5 text-left" aria-label="Toggle decision notes and claim boundaries">
+              <span>
+                <span className="block text-sm font-semibold text-slate-900">Decision notes and claim boundaries</span>
+                <span className="mt-0.5 block text-xs text-slate-500">Read-only context carried forward from the product decision</span>
               </span>
               <ChevronDown className={`size-4 shrink-0 text-slate-500 transition-transform ${evidenceOpen ? 'rotate-180' : ''}`} aria-hidden />
             </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-2 border-t border-slate-200 px-3 py-3 text-xs leading-5 text-slate-700">
+            <CollapsibleContent className="space-y-2 border-t border-slate-200 px-4 py-4 text-xs leading-5 text-slate-700">
               {draft.technicalChallenges.trim() && <p>{draft.technicalChallenges}</p>}
               {draft.forbiddenClaims.trim() && <p><strong className="text-slate-900">Do not claim:</strong> {draft.forbiddenClaims}</p>}
             </CollapsibleContent>
           </Collapsible>
         )}
-
-        <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="rounded-lg border border-slate-200">
-          <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left" aria-label="Toggle advanced positioning controls">
-            <span className="flex items-center gap-2 text-xs font-semibold text-slate-800">
-              <SlidersHorizontal className="size-4 text-slate-500" aria-hidden />
-              More positioning controls
-            </span>
-            <ChevronDown className={`size-4 shrink-0 text-slate-500 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} aria-hidden />
-          </CollapsibleTrigger>
-          <CollapsibleContent className="border-t border-slate-200 p-3">
-            <PositioningTags draft={draft} onChange={setVariantDimensions} />
-          </CollapsibleContent>
-        </Collapsible>
-      </section>
+      </div>
     </div>
   );
 }

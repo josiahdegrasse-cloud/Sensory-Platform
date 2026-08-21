@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
-import { useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,18 +19,17 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 import {
-  ChevronRight, ChevronLeft, Send, CheckCircle2,
-  AlertTriangle, Gauge, Circle, Loader2, CloudOff, RotateCcw,
+  ArrowRight, Beaker, ChevronRight, ChevronLeft, Send, CheckCircle2,
+  AlertTriangle, Gauge, Loader2, CloudOff, RotateCcw,
+  Search, FileText, Clock3,
 } from 'lucide-react';
 import {
   deleteConceptWorkspaceDraft,
   fetchConceptWorkspaceDraft,
   hydrateConceptWorkspaceImageUrls,
   insertConceptTest,
-  insertDecisionRecord,
   listConceptWorkspaceDrafts,
   saveConceptWorkspaceDraft,
-  saveEvidenceBundle,
 } from '../lib/database';
 import type { ConceptWorkspaceDraftRecord, DecisionRecord } from '../lib/database';
 import { ENHANCED_SENSORY_DATA, type EnhancedSensoryProfile } from '../data/enhanced-sensory';
@@ -47,18 +51,19 @@ import { useAuth } from '../contexts/auth-context';
 import {
   useConceptGenerationSettings,
   useConceptLabDiagnostics,
+  useConceptResponseCounts,
   useDecisionFreshness,
   useDecisionRecords,
   useImportBatches,
   useInstrumentalDataset,
+  useAdminConceptTests,
   usePanelists,
   useWorkspaceSettings,
 } from '../lib/hooks';
-import { queryKeys } from '../lib/hooks';
 import { useSurveyData } from '../lib/use-survey-data';
-import { calculateGoStopTweakDecision, type GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
-import { buildEvidenceBundleFromProfiles } from '../lib/report-evidence';
+import { calculateGoStopTweakDecision } from '../utils/go-stop-tweak-engine';
 import { findPendingConceptGoDecisions } from '../lib/concept-candidates';
+import { conceptBelongsToProject } from '../lib/concept-project-scope';
 import type { ConceptDraft, Question, WizardStep } from './concept-testing/types';
 import { EMPTY_VARIANT_DIMENSIONS } from './concept-testing/types';
 import type { AIReviewState } from './ai-review-card';
@@ -280,10 +285,11 @@ function conceptSeedFromDecisionRecord(
 }
 
 const STEP_LABELS: Record<WizardStep, string> = {
-  concept: 'Brief & visuals',
+  concept: 'Brief',
+  visuals: 'Visuals',
   survey: 'Survey',
   panel: 'Panel',
-  review: 'Launch',
+  review: 'Review',
   launched: '',
 };
 
@@ -292,7 +298,6 @@ const STEP_LABELS: Record<WizardStep, string> = {
 export function ConceptTesting() {
   const navigate = useNavigate();
   const location = useLocation();
-  const queryClient = useQueryClient();
   const { projectId: routeProjectId } = useParams<{ projectId?: string }>();
   const { foodType } = useFoodType();
   const { user } = useAuth();
@@ -324,16 +329,22 @@ export function ConceptTesting() {
   const [sourceDecision, setSourceDecision] = useState<SourceDecisionSeed | null>(null);
   const [conceptSourceChosen, setConceptSourceChosen] = useState(false);
   const [decisionHistoryOpen, setDecisionHistoryOpen] = useState(false);
+  const [workspaceView, setWorkspaceView] = useState<'work' | 'tests'>('work');
+  const [conceptSearch, setConceptSearch] = useState('');
   const settingsQuery = useConceptGenerationSettings();
   const workspaceQuery = useWorkspaceSettings();
   const diagnosticsQuery = useConceptLabDiagnostics();
   const decisionsQuery = useDecisionRecords();
   const batchesQuery = useImportBatches();
+  const conceptTestsQuery = useAdminConceptTests();
+  const responseCountsQuery = useConceptResponseCounts();
   const { data: settings } = settingsQuery;
   const { data: workspaceSettings } = workspaceQuery;
   const { data: diagnostics } = diagnosticsQuery;
   const { data: decisionRecords = [] } = decisionsQuery;
   const { data: importBatches = [] } = batchesQuery;
+  const { data: conceptTests = [] } = conceptTestsQuery;
+  const { data: conceptResponseCounts = {} } = responseCountsQuery;
   const { data: decisionFreshness } = useDecisionFreshness(sourceDecision?.id);
   const instrumentalQuery = useInstrumentalDataset(user?.role === 'admin');
   const { data: instrumentalDataset } = instrumentalQuery;
@@ -345,8 +356,6 @@ export function ConceptTesting() {
   const minimumResponses = workspaceSettings?.decisionMinResponses ?? 12;
   const stopThreshold = workspaceSettings?.decisionStopThreshold ?? 45;
   const goThreshold = workspaceSettings?.decisionGoThreshold ?? 75;
-  const [confirmingSampleId, setConfirmingSampleId] = useState<string | null>(null);
-  const [confirmationError, setConfirmationError] = useState('');
 
   const projectBatchIds = useMemo(() => new Set(importBatches
     .filter(batch => batch.status === 'active' && batch.projectId === routeProjectId)
@@ -366,7 +375,7 @@ export function ConceptTesting() {
     return [...ENHANCED_SENSORY_DATA, ...importedProfiles];
   }, [instrumentalDataset, liveAggregations, minimumResponses]);
 
-  const STEPS: Exclude<WizardStep, 'launched'>[] = ['concept', 'survey', 'panel', 'review'];
+  const STEPS: Exclude<WizardStep, 'launched'>[] = ['concept', 'visuals', 'survey', 'panel', 'review'];
   const activeWizardStep: Exclude<WizardStep, 'launched'> = step === 'launched' ? 'review' : step;
   const stepIndex = STEPS.indexOf(activeWizardStep);
 
@@ -383,6 +392,7 @@ export function ConceptTesting() {
     && Boolean(sourceDecision?.id)
     && decisionFreshness?.allowed === true;
   const conceptStepReady = readinessItems.filter(item => item.fixStep === 'concept').every(item => item.ready);
+  const visualsStepReady = readinessItems.filter(item => item.fixStep === 'visuals').every(item => item.ready);
   const surveyStepReady = readinessItems.filter(item => item.fixStep === 'survey').every(item => item.ready);
   const panelStepReady = readinessItems.filter(item => item.fixStep === 'panel').every(item => item.ready);
   const setupWarnings = diagnostics?.messages ?? [];
@@ -636,7 +646,9 @@ export function ConceptTesting() {
         evidenceBundleId: sourceDecision.evidenceBundleId,
         formulationVersionId: sourceDecision.formulationVersionId,
         createdBy: user.id,
-        currentStep: step,
+        // The database metadata keeps its legacy four-step vocabulary; the
+        // exact five-step position is preserved in the JSON draft payload.
+        currentStep: step === 'visuals' ? 'concept' : step,
         payload: workspacePayload,
       }).then(record => {
         setWorkspaceDraftId(record.id);
@@ -746,7 +758,7 @@ export function ConceptTesting() {
         evidenceBundleId: sourceDecision.evidenceBundleId,
         formulationVersionId: sourceDecision.formulationVersionId,
         createdBy: user.id,
-        currentStep: activeWizardStep,
+        currentStep: activeWizardStep === 'visuals' ? 'concept' : activeWizardStep,
         payload: workspacePayload,
       });
       const records = await listConceptWorkspaceDrafts<StoredConceptDraft>(routeProjectId);
@@ -829,6 +841,38 @@ export function ConceptTesting() {
       routeProjectId,
       stopThreshold,
     ]);
+  const projectConceptTests = useMemo(() => conceptTests
+    .filter(concept => conceptBelongsToProject(concept, routeProjectId))
+    .sort((left, right) => Date.parse(right.launchedAt ?? right.createdAt) - Date.parse(left.launchedAt ?? left.createdAt)),
+  [conceptTests, routeProjectId]);
+  const draftDecisionIds = useMemo(() => new Set(resumableDrafts.flatMap(entry => [
+    entry.payload.sourceDecision?.id,
+    entry.payload.sourceDecision?.evidenceBundleId,
+  ].filter((value): value is string => Boolean(value)))), [resumableDrafts]);
+  const readyToStartDecisions = useMemo(() => confirmedGoDecisions.filter(record => (
+    !draftDecisionIds.has(record.id)
+    && !draftDecisionIds.has(record.evidenceBundleId ?? '')
+  )), [confirmedGoDecisions, draftDecisionIds]);
+  const normalizedConceptSearch = conceptSearch.trim().toLocaleLowerCase();
+  const matchesConceptSearch = (...values: Array<string | null | undefined>) => (
+    !normalizedConceptSearch
+    || values.some(value => value?.toLocaleLowerCase().includes(normalizedConceptSearch))
+  );
+  const visibleResumableDrafts = resumableDrafts.filter(entry => matchesConceptSearch(
+    entry.payload.draft.name,
+    entry.payload.draft.category,
+    entry.payload.sourceDecision?.sampleName,
+  ));
+  const visibleReadyDecisions = readyToStartDecisions.filter(record => matchesConceptSearch(
+    record.sampleName,
+    record.note,
+  ));
+  const visiblePendingDecisions = pendingGoDecisions.filter(decision => matchesConceptSearch(decision.sampleName));
+  const visibleConceptTests = projectConceptTests.filter(concept => matchesConceptSearch(
+    concept.name,
+    concept.category,
+    concept.description,
+  ));
 
   const startFromDecision = async (record: DecisionRecord) => {
     const existingDraft = resumableDrafts.find(entry => (
@@ -880,89 +924,6 @@ export function ConceptTesting() {
         : `Started from the confirmed GO decision for "${record.sampleName}".`
     );
     localStorage.removeItem(draftStorageKey);
-  };
-
-  const confirmGoAndStart = async (decision: GoStopTweakDecision) => {
-    if (!user?.id || !routeProjectId || confirmingSampleId) return;
-    setConfirmingSampleId(decision.sampleId);
-    setConfirmationError('');
-    try {
-      const evidenceProfile = evidenceProfiles.find(profile => profile.sampleId === decision.sampleId);
-      if (!evidenceProfile) throw new Error('The selected sample evidence is unavailable.');
-      const matchingSamples = projectInstrumentSamples.filter(sample => sample.sampleId === decision.sampleId);
-      const instrumentalSampleId = matchingSamples.length === 1
-        ? matchingSamples[0].instrumentalSampleId ?? null
-        : null;
-      const formulationVersionId = instrumentalDataset?.formulationVersions?.[decision.sampleId]
-        ?.find(version => version.isCurrent && version.projectId === routeProjectId)?.id ?? null;
-      const evidencePayload = buildEvidenceBundleFromProfiles({
-        projectId: decision.sampleId,
-        profiles: [evidenceProfile],
-        foodTypeSlug: foodType,
-        createdBy: user.id,
-        thresholds: { go: goThreshold, stop: stopThreshold },
-        minimumResponses,
-      });
-      const evidenceBundle = await saveEvidenceBundle({
-        projectId: decision.sampleId,
-        canonicalProjectId: routeProjectId,
-        formulationVersionId,
-        schemaVersion: evidencePayload.schemaVersion,
-        sourceDataVersion: evidencePayload.sourceDataVersion,
-        payload: evidencePayload as unknown as Record<string, unknown>,
-      });
-      const timestamp = new Date().toISOString();
-      const decisionRecordId = await insertDecisionRecord({
-        sampleId: decision.sampleId,
-        sampleName: decision.sampleName,
-        decision: 'GO',
-        issfScore: decision.issfScore,
-        confidence: decision.confidenceScore,
-        note: 'Confirmed in Concept Lab to begin concept development.',
-        methodVersion: decision.methodVersion,
-        decisionFingerprint: decision.decisionFingerprint,
-        createdBy: user.id,
-        projectId: routeProjectId,
-        instrumentalSampleId,
-        formulationVersionId,
-        evidenceBundleId: evidenceBundle.id,
-      });
-      if (!decisionRecordId) throw new Error('The GO decision could not be saved.');
-      await saveEvidenceBundle({
-        projectId: decision.sampleId,
-        canonicalProjectId: routeProjectId,
-        decisionRecordId,
-        formulationVersionId,
-        schemaVersion: evidencePayload.schemaVersion,
-        sourceDataVersion: evidencePayload.sourceDataVersion,
-        payload: evidencePayload as unknown as Record<string, unknown>,
-      });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.decisionRecords });
-      await startFromDecision({
-        id: decisionRecordId,
-        timestamp,
-        sampleId: decision.sampleId,
-        sampleName: decision.sampleName,
-        decision: 'GO',
-        issfScore: decision.issfScore,
-        confidence: decision.confidenceScore,
-        user: 'Administrator',
-        note: 'Confirmed in Concept Lab to begin concept development.',
-        methodVersion: decision.methodVersion,
-        decisionFingerprint: decision.decisionFingerprint,
-        projectId: routeProjectId,
-        instrumentalSampleId,
-        parentDecisionId: null,
-        formulationVersionId,
-        evidenceBundleId: evidenceBundle.id,
-        researchRefreshedAt: null,
-        researchFingerprint: null,
-      });
-    } catch (error) {
-      setConfirmationError(error instanceof Error ? error.message : 'Unable to confirm this GO decision.');
-    } finally {
-      setConfirmingSampleId(null);
-    }
   };
 
   const handleLaunch = async () => {
@@ -1091,6 +1052,8 @@ export function ConceptTesting() {
 
   const currentStepReady = step === 'concept'
     ? conceptStepReady
+    : step === 'visuals'
+      ? visualsStepReady
     : step === 'survey'
       ? surveyStepReady
       : step === 'panel'
@@ -1099,7 +1062,10 @@ export function ConceptTesting() {
   const currentBlockers = readinessItems.filter(item => !item.ready && (
     step === 'review' || item.fixStep === step
   ));
-  const blockerMessage = currentBlockers[0]?.detail ?? '';
+  const blockerMessage = currentBlockers[0]?.detail
+    ?? (step === 'review' && sourceDecision?.id && decisionFreshness?.allowed === false
+      ? decisionFreshness.reason ?? 'The linked GO evidence needs review before launch.'
+      : '');
   const nextStep = STEPS[stepIndex + 1];
   const nextActionLabel = nextStep ? `Continue to ${STEP_LABELS[nextStep]}` : 'Continue';
   const conceptWorkspaceStarted = Boolean(sourceDecision?.id && sourceDecision.evidenceBundleId);
@@ -1122,8 +1088,8 @@ export function ConceptTesting() {
     <div className="space-y-6 pb-8">
       <WorkflowPageHeader
         title="Concept Lab"
-        description="Prepare one consumer concept test for launch."
-        actions={saveStatus}
+        description="Build and launch consumer concepts from confirmed product decisions."
+        actions={conceptWorkspaceStarted ? saveStatus : undefined}
       />
 
       <FormulationContextStrip projectId={routeProjectId} context="concept" />
@@ -1150,199 +1116,328 @@ export function ConceptTesting() {
       )}
 
       {!conceptWorkspaceStarted && (
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-slate-900">GO prototypes ready for concept work</h2>
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
-                Confirm a calculated GO here, or reopen an existing confirmed GO. The concept workspace inherits the exact prototype and evidence record.
-              </p>
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="flex flex-col gap-4 border-b border-slate-200 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="inline-flex w-fit rounded-lg bg-slate-100 p-1" role="tablist" aria-label="Concept Lab views">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={workspaceView === 'work'}
+                onClick={() => setWorkspaceView('work')}
+                className={`min-h-11 rounded-md px-4 text-sm font-semibold transition-colors ${workspaceView === 'work' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-600 hover:text-slate-950'}`}
+              >
+                Work queue
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={workspaceView === 'tests'}
+                onClick={() => setWorkspaceView('tests')}
+                className={`min-h-11 rounded-md px-4 text-sm font-semibold transition-colors ${workspaceView === 'tests' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-600 hover:text-slate-950'}`}
+              >
+                Tests
+                {projectConceptTests.length > 0 && <span className="ml-2 text-xs text-slate-500">{projectConceptTests.length}</span>}
+              </button>
             </div>
-            <Button asChild type="button" variant="outline" className="shrink-0">
-              <Link to={workflowStagePath('decision', routeProjectId)}>
-                <Gauge className="size-4" />
-                Review decisions
-              </Link>
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <label className="relative block min-w-0 sm:w-64">
+                <span className="sr-only">Search concepts</span>
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="search"
+                  value={conceptSearch}
+                  onChange={event => setConceptSearch(event.target.value)}
+                  placeholder="Search concepts"
+                  className="h-11 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm text-slate-900 outline-none placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </label>
+              <Button asChild type="button" variant="outline">
+                <Link to={workflowStagePath('decision', routeProjectId)}>
+                  <Gauge className="size-4" />
+                  Decision review
+                </Link>
+              </Button>
+            </div>
           </div>
 
-          {(workspaceDraftsLoading || resumableDrafts.length > 0) && (
-            <div className="mt-5 border-t border-slate-200 pt-5">
-              <div className="flex items-end justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-900">In-progress concepts</h3>
-                  <p className="mt-1 text-xs text-slate-600">Resume the exact brief, survey, panel, and step you last saved.</p>
+          {workspaceView === 'work' ? (
+            <div className="divide-y divide-slate-200">
+              <div className="px-4 py-5 sm:px-5">
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <h2 className="text-base font-semibold text-slate-950">Continue working</h2>
+                    <p className="mt-1 text-sm text-slate-600">Pick up a saved concept at the step where you left it.</p>
+                  </div>
+                  {!workspaceDraftsLoading && <span className="text-xs text-slate-500">{visibleResumableDrafts.length} open</span>}
                 </div>
-                {!workspaceDraftsLoading && (
-                  <span className="text-xs text-slate-500">{resumableDrafts.length} draft{resumableDrafts.length === 1 ? '' : 's'}</span>
+                {workspaceDraftsLoading ? (
+                  <div className="mt-4 flex items-center gap-2 py-4 text-sm text-slate-600">
+                    <Loader2 className="size-4 animate-spin text-blue-600" />
+                    Loading saved concepts…
+                  </div>
+                ) : visibleResumableDrafts.length > 0 ? (
+                  <div className="mt-4 divide-y divide-slate-200 border-y border-slate-200">
+                    {visibleResumableDrafts.map(entry => {
+                      const name = entry.payload.draft.name || entry.payload.sourceDecision?.sampleName || 'Untitled concept';
+                      const currentStep = entry.payload.step ?? 'concept';
+                      return (
+                        <div key={entry.key} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex min-w-0 items-start gap-3">
+                            <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+                              <FileText className="size-4" aria-hidden />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-slate-950">{name}</p>
+                              <p className="mt-1 text-xs leading-5 text-slate-600">
+                                {entry.payload.sourceDecision?.sampleName ?? 'Linked GO decision'} · {STEP_LABELS[currentStep]} · Saved {new Date(entry.updatedAt).toLocaleString()}
+                                {entry.storage === 'browser' ? ' · This browser' : ''}
+                              </p>
+                            </div>
+                          </div>
+                          <Button type="button" size="sm" className="min-h-11 bg-blue-600 text-white hover:bg-blue-700" aria-label={`Continue ${name}`} onClick={() => void resumeDraft(entry)}>
+                            Continue <ArrowRight className="size-4" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="mt-4 border-y border-slate-200 py-4 text-sm text-slate-600">
+                    {normalizedConceptSearch ? 'No saved concepts match your search.' : 'No concepts are in progress.'}
+                  </p>
                 )}
               </div>
-              {workspaceDraftsLoading ? (
-                <div className="mt-3 flex items-center gap-2 py-3 text-sm text-slate-600">
-                  <Loader2 className="size-4 animate-spin text-blue-600" />
-                  Loading saved concepts…
+
+              <div className="px-4 py-5 sm:px-5">
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <h2 className="text-base font-semibold text-slate-950">Ready to start</h2>
+                    <p className="mt-1 text-sm text-slate-600">Confirmed GO decisions with evidence are ready for concept development.</p>
+                  </div>
+                  <span className="text-xs text-slate-500">{visibleReadyDecisions.length} ready</span>
                 </div>
-              ) : (
-                <div className="mt-3 divide-y divide-slate-200 border-y border-slate-200">
-                  {resumableDrafts.map(entry => {
-                    const name = entry.payload.draft.name || entry.payload.sourceDecision?.sampleName || 'Untitled concept';
-                    const currentStep = entry.payload.step ?? 'concept';
-                    return (
-                      <div key={entry.key} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-slate-900">{name}</p>
-                          <p className="mt-1 text-xs text-slate-600">
-                            {entry.payload.sourceDecision?.sampleName ?? 'Linked GO decision'} · {STEP_LABELS[currentStep]} · Saved {new Date(entry.updatedAt).toLocaleString()}
-                            {entry.storage === 'browser' ? ' · This browser' : ''}
-                          </p>
+                {visibleReadyDecisions.length > 0 ? (
+                  <div className="mt-4 divide-y divide-slate-200 border-y border-slate-200">
+                    {visibleReadyDecisions.map(record => (
+                      <div key={record.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+                            <CheckCircle2 className="size-4" aria-hidden />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate text-sm font-semibold text-slate-950">{record.sampleName}</p>
+                              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">Confirmed GO</span>
+                            </div>
+                            <p className="mt-1 text-xs leading-5 text-slate-600">
+                              ISSF {record.issfScore.toFixed(0)} · {record.confidence.toFixed(0)}% confidence · Confirmed {new Date(record.timestamp).toLocaleDateString()}
+                            </p>
+                          </div>
                         </div>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="shrink-0"
-                          aria-label={`Continue ${name}`}
-                          onClick={() => void resumeDraft(entry)}
-                        >
-                          Continue
-                          <ChevronRight className="size-4" />
+                        <Button type="button" size="sm" variant="outline" className="min-h-11" onClick={() => void startFromDecision(record)}>
+                          Start concept <ArrowRight className="size-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-4 border-y border-slate-200 py-4 text-sm text-slate-600">
+                    {normalizedConceptSearch ? 'No confirmed decisions match your search.' : 'No new confirmed GO decisions are waiting.'}
+                  </p>
+                )}
+                {historicalGoDecisions.length > 0 && !normalizedConceptSearch && (
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      onClick={() => setDecisionHistoryOpen(open => !open)}
+                      aria-expanded={decisionHistoryOpen}
+                      className="flex min-h-11 w-full items-center justify-between gap-3 rounded-md px-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-950"
+                    >
+                      Earlier confirmed decisions
+                      <span className="font-normal text-slate-500">{historicalGoDecisions.length} record{historicalGoDecisions.length === 1 ? '' : 's'}</span>
+                    </button>
+                    {decisionHistoryOpen && (
+                      <div className="divide-y divide-slate-200 border-y border-slate-200">
+                        {historicalGoDecisions.map(record => (
+                          <button key={record.id} type="button" onClick={() => void startFromDecision(record)} className="flex min-h-11 w-full items-center justify-between gap-3 px-2 py-2 text-left hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                            <span className="text-sm font-semibold text-slate-900">{record.sampleName}</span>
+                            <span className="text-xs text-slate-500">{new Date(record.timestamp).toLocaleDateString()} · ISSF {record.issfScore.toFixed(0)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="px-4 py-5 sm:px-5">
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <h2 className="text-base font-semibold text-slate-950">Needs a decision</h2>
+                    <p className="mt-1 text-sm text-slate-600">Calculated GO candidates must be confirmed in Decision Review before concept work starts.</p>
+                  </div>
+                  <span className="text-xs text-slate-500">{visiblePendingDecisions.length} waiting</span>
+                </div>
+                {visiblePendingDecisions.length > 0 ? (
+                  <div className="mt-4 divide-y divide-slate-200 border-y border-slate-200">
+                    {visiblePendingDecisions.map(decision => (
+                      <div key={`${decision.sampleId}:${decision.decisionFingerprint}`} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
+                            <Clock3 className="size-4" aria-hidden />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-950">{decision.sampleName}</p>
+                            <p className="mt-1 text-xs leading-5 text-slate-600">Calculated GO · ISSF {decision.issfScore.toFixed(0)} · {decision.confidenceScore.toFixed(0)}% evidence confidence</p>
+                          </div>
+                        </div>
+                        <Button asChild type="button" size="sm" variant="outline" className="min-h-11">
+                          <Link to={workflowStagePath('decision', routeProjectId)}>Review decision <ArrowRight className="size-4" /></Link>
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-4 border-y border-slate-200 py-4 text-sm text-slate-600">
+                    {normalizedConceptSearch ? 'No pending decisions match your search.' : 'No calculated GO decisions are waiting for confirmation.'}
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="px-4 py-5 sm:px-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-950">Concept tests</h2>
+                  <p className="mt-1 text-sm text-slate-600">Track fieldwork here. Use Insights for detailed response analysis.</p>
+                </div>
+                <span className="text-xs text-slate-500">{visibleConceptTests.length} test{visibleConceptTests.length === 1 ? '' : 's'}</span>
+              </div>
+              {conceptTestsQuery.isLoading || responseCountsQuery.isLoading ? (
+                <div className="mt-4 flex items-center gap-2 border-y border-slate-200 py-5 text-sm text-slate-600">
+                  <Loader2 className="size-4 animate-spin text-blue-600" />
+                  Loading concept tests…
+                </div>
+              ) : conceptTestsQuery.isError || responseCountsQuery.isError ? (
+                <div className="mt-4 flex flex-col gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between" role="alert">
+                  <div>
+                    <p className="text-sm font-semibold text-rose-900">Concept test progress could not be loaded</p>
+                    <p className="mt-0.5 text-xs text-rose-800">Check the connection, then try again.</p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      void conceptTestsQuery.refetch();
+                      void responseCountsQuery.refetch();
+                    }}
+                  >
+                    Try again
+                  </Button>
+                </div>
+              ) : visibleConceptTests.length > 0 ? (
+                <div className="mt-4 divide-y divide-slate-200 border-y border-slate-200">
+                  {visibleConceptTests.map(concept => {
+                    const responseCount = conceptResponseCounts[concept.id] ?? 0;
+                    const targetCount = concept.assignedPanelistIds.length || concept.panelSize;
+                    const progress = targetCount > 0 ? Math.min(100, Math.round((responseCount / targetCount) * 100)) : 0;
+                    const complete = concept.status === 'completed';
+                    const statusClasses = complete
+                      ? 'bg-emerald-50 text-emerald-800'
+                      : concept.status === 'active'
+                        ? 'bg-blue-50 text-blue-800'
+                        : 'bg-slate-100 text-slate-700';
+                    return (
+                      <div key={concept.id} className="grid gap-3 py-4 md:grid-cols-[minmax(0,1fr)_12rem_auto] md:items-center">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <div className={`mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg ${complete ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'}`}>
+                            <Beaker className="size-4" aria-hidden />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate text-sm font-semibold text-slate-950">{concept.name}</p>
+                              <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClasses}`}>
+                                {complete ? 'Completed' : concept.status === 'active' ? 'Collecting responses' : concept.status}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-slate-600">{concept.category || 'Uncategorised'} · Launched {new Date(concept.launchedAt ?? concept.createdAt).toLocaleDateString()}</p>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between gap-3 text-xs text-slate-600">
+                            <span>{responseCount} of {targetCount || '—'} responses</span>
+                            <span>{progress}%</span>
+                          </div>
+                          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200" aria-label={`${progress}% response progress`} role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
+                            <div className={`h-full rounded-full ${complete ? 'bg-emerald-600' : 'bg-blue-600'}`} style={{ width: `${progress}%` }} />
+                          </div>
+                        </div>
+                        <Button asChild type="button" size="sm" variant="outline" className="min-h-11">
+                          <Link to={workflowStagePath('insights', routeProjectId)}>Open results <ArrowRight className="size-4" /></Link>
                         </Button>
                       </div>
                     );
                   })}
                 </div>
-              )}
-            </div>
-          )}
-
-          {confirmationError && (
-            <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">
-              {confirmationError}
-            </div>
-          )}
-
-          {pendingGoDecisions.length > 0 && (
-            <div className="mt-5 space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold text-slate-900">Awaiting confirmation</h3>
-                <span className="text-xs text-slate-500">{pendingGoDecisions.length} calculated GO{pendingGoDecisions.length === 1 ? '' : 's'}</span>
-              </div>
-              <div className="grid gap-2 lg:grid-cols-2">
-                {pendingGoDecisions.map(decision => {
-                  const confirming = confirmingSampleId === decision.sampleId;
-                  return (
-                    <div key={`${decision.sampleId}:${decision.decisionFingerprint}`} className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-slate-900">{decision.sampleName}</p>
-                          <p className="mt-1 text-xs text-emerald-800">
-                            ISSF {decision.issfScore.toFixed(0)} · {decision.confidenceScore.toFixed(0)}% evidence
-                          </p>
-                        </div>
-                        <span className="rounded-full border border-emerald-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-emerald-800">Calculated GO</span>
-                      </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="mt-3 w-full bg-emerald-700 text-white hover:bg-emerald-800"
-                        disabled={Boolean(confirmingSampleId)}
-                        onClick={() => void confirmGoAndStart(decision)}
-                      >
-                        {confirming ? 'Confirming…' : 'Confirm GO and start concept'}
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {confirmedGoDecisions.length > 0 ? (
-            <div className="mt-5 space-y-3">
-              <h3 className="text-sm font-semibold text-slate-900">Confirmed GO decisions</h3>
-              <div className="grid gap-2 lg:grid-cols-2">
-              {confirmedGoDecisions.map(record => (
-                <button
-                  key={record.id}
-                  type="button"
-                  onClick={() => void startFromDecision(record)}
-                  className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-left transition-colors hover:border-emerald-300 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-900">{record.sampleName}</p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        ISSF {record.issfScore.toFixed(0)} · {record.confidence.toFixed(0)}% confidence · {new Date(record.timestamp).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-emerald-700 px-2 py-0.5 text-[11px] font-semibold text-white">GO</span>
-                  </div>
-                  {record.note.trim() && (
-                    <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-600">{record.note}</p>
-                  )}
-                </button>
-              ))}
-              </div>
-              {historicalGoDecisions.length > 0 && (
-                <div className="rounded-lg border border-slate-200 bg-slate-50">
-                  <button
-                    type="button"
-                    onClick={() => setDecisionHistoryOpen(open => !open)}
-                    aria-expanded={decisionHistoryOpen}
-                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:text-slate-950"
-                  >
-                    Earlier confirmed decisions
-                    <span className="font-normal text-slate-500">{historicalGoDecisions.length} record{historicalGoDecisions.length === 1 ? '' : 's'}</span>
-                  </button>
-                  {decisionHistoryOpen && (
-                    <div className="grid gap-2 border-t border-slate-200 p-2 lg:grid-cols-2">
-                      {historicalGoDecisions.map(record => (
-                        <button
-                          key={record.id}
-                          type="button"
-                          onClick={() => void startFromDecision(record)}
-                          className="rounded-md border border-slate-200 bg-white p-3 text-left hover:border-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
-                        >
-                          <p className="text-sm font-semibold text-slate-900">{record.sampleName}</p>
-                          <p className="mt-1 text-xs text-slate-500">GO recorded {new Date(record.timestamp).toLocaleDateString()} · ISSF {record.issfScore.toFixed(0)}</p>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+              ) : (
+                <div className="mt-4 border-y border-slate-200 py-8 text-center">
+                  <Beaker className="mx-auto size-5 text-slate-400" aria-hidden />
+                  <p className="mt-2 text-sm font-semibold text-slate-900">{normalizedConceptSearch ? 'No tests match your search' : 'No concept tests launched yet'}</p>
+                  <p className="mt-1 text-sm text-slate-600">Finish a concept in the work queue to start collecting responses.</p>
                 </div>
               )}
             </div>
-          ) : pendingGoDecisions.length === 0 ? (
-            <div className="mt-5 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-600">
-              No calculated or confirmed GO decisions with linked evidence are available yet.
-            </div>
-          ) : null}
+          )}
         </section>
       )}
 
       {conceptWorkspaceStarted && sourceDecision && (
-        <div className="flex flex-col gap-3 border-y border-slate-200 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-700" />
-            <div>
-              <p className="text-sm font-semibold text-slate-900">
-                Linked GO evidence
-              </p>
-              <p className="mt-0.5 text-xs leading-5 text-slate-600">
-                {sourceDecision.sampleName} · ISSF {sourceDecision.issfScore.toFixed(0)} · {sourceDecision.confidence.toFixed(0)}% confidence · Confirmed {new Date(sourceDecision.timestamp).toLocaleDateString()}
-                {' · '}Concept: {draft.name.trim() || 'Untitled concept'}
-              </p>
-            </div>
+        <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+            <Button type="button" size="sm" variant="ghost" className="min-h-11 w-fit text-slate-700" onClick={() => void returnToDraftDashboard()}>
+              <ChevronLeft className="size-4" />
+              Back to Concept Lab
+            </Button>
+            <div className="hidden h-6 w-px bg-slate-200 sm:block" aria-hidden />
+            <Select
+              value={sourceDecision.id}
+              onValueChange={value => {
+                const target = resumableDrafts.find(entry => entry.payload.sourceDecision?.id === value);
+                if (!target || value === sourceDecision.id) return;
+                void (async () => {
+                  await returnToDraftDashboard();
+                  await resumeDraft(target);
+                })();
+              }}
+            >
+              <SelectTrigger size="sm" className="min-h-11 w-full border-slate-300 bg-white sm:w-64" aria-label="Switch concept">
+                <SelectValue>{draft.name.trim() || sourceDecision.sampleName}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={sourceDecision.id}>{draft.name.trim() || sourceDecision.sampleName}</SelectItem>
+                {resumableDrafts
+                  .filter(entry => entry.payload.sourceDecision?.id && entry.payload.sourceDecision.id !== sourceDecision.id)
+                  .map(entry => (
+                    <SelectItem key={entry.key} value={entry.payload.sourceDecision!.id}>
+                      {entry.payload.draft.name || entry.payload.sourceDecision?.sampleName || 'Untitled concept'}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            <p className="truncate text-xs text-slate-600">
+              Linked prototype: <span className="font-semibold text-slate-800">{sourceDecision.sampleName}</span>
+            </p>
           </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
-            <Button size="sm" variant="ghost" className="text-slate-700" onClick={() => setStartOverOpen(true)}>
+          <div className="flex shrink-0 flex-wrap items-center gap-1">
+            <Button size="sm" variant="ghost" className="min-h-11 text-slate-700" onClick={() => setStartOverOpen(true)}>
               <RotateCcw className="size-4" />
               Start over
             </Button>
-            <Button asChild size="sm" variant="ghost" className="text-slate-700">
+            <Button asChild size="sm" variant="ghost" className="min-h-11 text-slate-700">
               <Link to={workflowStagePath('decision', routeProjectId)}>
                 <Gauge className="size-4" />
-                View source decision
+                Source decision
               </Link>
             </Button>
           </div>
@@ -1374,45 +1469,46 @@ export function ConceptTesting() {
       </AlertDialog>
 
       {conceptWorkspaceStarted && (
-        <>
-          <nav aria-label="Concept test progress" className="flex gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-white p-1">
-            {STEPS.map((s, i) => {
-              const done = i < stepIndex;
-              const active = s === step;
-              return (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => i <= stepIndex && setStep(s)}
-                  disabled={i > stepIndex}
-                  aria-current={active ? 'step' : undefined}
-                  className={`flex min-w-fit items-center gap-1.5 rounded-md px-3 py-2 text-left text-xs font-semibold transition-colors ${
-                    active
-                      ? 'bg-slate-900 text-white'
-                      : done
-                        ? 'text-emerald-800 hover:bg-emerald-50'
-                        : 'text-slate-500 hover:bg-slate-50 disabled:hover:bg-transparent'
-                  }`}
-                >
-                  {done ? <CheckCircle2 className="size-3.5 shrink-0" /> : <Circle className="size-3.5 shrink-0" />}
-                  <span><span className="hidden sm:inline">{i + 1}. </span>{STEP_LABELS[s]}</span>
-                </button>
-              );
-            })}
-          </nav>
+        <div className="min-w-0 space-y-4">
+            <nav aria-label="Concept test progress" className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-1.5">
+              <div className="flex min-w-max gap-1 xl:min-w-0">
+                {STEPS.map((s, i) => {
+                  const done = i < stepIndex;
+                  const active = s === step;
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => i <= stepIndex && setStep(s)}
+                      disabled={i > stepIndex}
+                      aria-current={active ? 'step' : undefined}
+                      className={`flex min-h-11 min-w-28 flex-1 items-center justify-center gap-2 rounded-lg px-3 text-left text-xs font-semibold transition-colors ${
+                        active
+                          ? 'bg-blue-600 text-white'
+                          : done
+                            ? 'text-emerald-800 hover:bg-emerald-50'
+                            : 'text-slate-500 hover:bg-slate-50 disabled:hover:bg-transparent'
+                      }`}
+                    >
+                      <span className={`flex size-5 items-center justify-center rounded-full text-[11px] ${active ? 'bg-white/20' : done ? 'bg-emerald-100' : 'bg-slate-100'}`}>
+                        {done ? <CheckCircle2 className="size-3.5" /> : i + 1}
+                      </span>
+                      {STEP_LABELS[s]}
+                    </button>
+                  );
+                })}
+              </div>
+            </nav>
 
-          <Card className="border border-slate-200 shadow-none">
-            <CardContent className="space-y-8 py-6">
-              {step === 'concept' && (
-                <>
-                  <ConceptStep draft={draft} onChange={setDraft} />
-                  <ImagesStep
-                    draft={draft}
-                    onChange={setDraft}
-                    settings={settings}
-                    requireApproval={requireApprovedVisuals}
-                  />
-                </>
+            <section className="rounded-xl border border-slate-200 bg-white px-4 py-5 sm:px-6 sm:py-6">
+              {step === 'concept' && <ConceptStep draft={draft} onChange={setDraft} />}
+              {step === 'visuals' && (
+                <ImagesStep
+                  draft={draft}
+                  onChange={setDraft}
+                  settings={settings}
+                  requireApproval={requireApprovedVisuals}
+                />
               )}
               {step === 'survey' && (
                 <QuestionsStep
@@ -1441,72 +1537,68 @@ export function ConceptTesting() {
                   assignedPanelistIds={assignedPanelistIds}
                   requireApprovedVisuals={requireApprovedVisuals}
                   onEditConcept={() => setStep('concept')}
+                  onEditVisuals={() => setStep('visuals')}
                   onEditSurvey={() => setStep('survey')}
                   onEditPanel={() => setStep('panel')}
                 />
               )}
-            </CardContent>
-          </Card>
+            </section>
 
-          {launchError && (
-            <p className="text-sm text-rose-600 font-medium text-center">{launchError}</p>
-          )}
+            {launchError && (
+              <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700" role="alert">{launchError}</p>
+            )}
 
-          <div className="border-t border-slate-200 pt-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  const previous = STEPS[stepIndex - 1];
-                  if (previous) setStep(previous);
-                  else void returnToDraftDashboard();
-                }}
-                className="gap-1.5 sm:w-auto"
-              >
-                <ChevronLeft className="size-4" /> {stepIndex === 0 ? 'Back to concepts' : 'Back'}
-              </Button>
+            <div className="sticky bottom-0 z-20 rounded-xl border border-slate-200 bg-white p-3 shadow-[0_-4px_8px_rgba(15,23,42,0.04)]">
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const previous = STEPS[stepIndex - 1];
+                    if (previous) setStep(previous);
+                    else void returnToDraftDashboard();
+                  }}
+                  className="gap-1.5 sm:w-auto"
+                >
+                  <ChevronLeft className="size-4" /> {stepIndex === 0 ? 'Back to Concept Lab' : `Back to ${STEP_LABELS[STEPS[stepIndex - 1]]}`}
+                </Button>
 
-              <div className="flex min-w-0 flex-col gap-1 sm:items-end">
-                {step === 'review' ? (
-                  <Button
-                    onClick={handleLaunch}
-                    disabled={launching || !launchReady}
-                    className="gap-2 bg-emerald-600 px-8 text-white hover:bg-emerald-700"
-                  >
-                    <Send className="size-4" />
-                    {launching ? 'Launching…' : 'Launch concept test'}
-                  </Button>
-                ) : (
-                  <>
-                    <Button
-                      onClick={() => {
-                        if (nextStep) setStep(nextStep);
-                      }}
-                      disabled={!currentStepReady}
-                      className="gap-1.5 bg-blue-600 text-white hover:bg-blue-700"
-                    >
-                      {nextActionLabel} <ChevronRight className="size-4" />
-                    </Button>
-                    {!currentStepReady && blockerMessage && (
-                      <div className="flex max-w-md flex-col gap-1 text-xs text-amber-700 sm:items-end sm:text-right">
-                        <p>{blockerMessage}</p>
-                        {currentBlockers[0] && (
-                          <button
-                            type="button"
-                            onClick={() => setStep(currentBlockers[0].fixStep)}
-                            className="font-semibold text-blue-700 hover:text-blue-900"
-                          >
-                            Fix {currentBlockers[0].label.toLowerCase()}
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
+                <div className="flex min-w-0 flex-col gap-1 sm:items-end">
+                  {step === 'review' ? (
+                    <>
+                      <Button
+                        onClick={handleLaunch}
+                        disabled={launching || !launchReady}
+                        className="gap-2 bg-emerald-700 px-6 text-white hover:bg-emerald-800"
+                      >
+                        <Send className="size-4" />
+                        {launching ? 'Launching…' : 'Launch concept test'}
+                      </Button>
+                      {!launchReady && (
+                        <p className="max-w-md text-xs leading-5 text-amber-700 sm:text-right">
+                          {blockerMessage || decisionFreshness?.reason || 'Complete the missing review items before launch.'}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        onClick={() => {
+                          if (nextStep) setStep(nextStep);
+                        }}
+                        disabled={!currentStepReady}
+                        className="gap-1.5 bg-blue-600 text-white hover:bg-blue-700"
+                      >
+                        {nextActionLabel} <ChevronRight className="size-4" />
+                      </Button>
+                      {!currentStepReady && blockerMessage && (
+                        <p className="max-w-md text-xs leading-5 text-amber-700 sm:text-right">{blockerMessage}</p>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        </>
+        </div>
       )}
     </div>
   );

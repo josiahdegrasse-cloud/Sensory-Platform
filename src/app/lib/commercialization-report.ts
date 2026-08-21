@@ -1,9 +1,11 @@
-import type { ConceptQuestion, ConceptResponse, ConceptTest, DecisionRecord } from './database';
+import type { ConceptQuestion, ConceptResponse, ConceptTest, DecisionRecord, PanelistInfo } from './database';
 import type { GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
 import type { LiteratureCitation } from './report-agents/types';
 import type { ReportSafeEvidenceCard } from './evidence-assist';
 import type { EvidenceBundle } from './report-evidence-types';
 import { NFI_LOGO_URL, NFI_ORGANIZATION_NAME } from './nfi-brand';
+import { ethnicityGroup, ethnicityLabel } from './panelist-demographics';
+import { panelistValueLabel } from './panelist-profile';
 
 /** Default platform branding shown when no client/tenant profile is configured. */
 export const DEFAULT_REPORT_ORGANIZATION_NAME = NFI_ORGANIZATION_NAME;
@@ -21,11 +23,36 @@ export function resolveReportLogoUrl(
 }
 
 export interface ConceptEvidenceSummary {
+  provenance?: 'live' | 'synthetic';
   responseCount: number;
   scaleMetrics: Array<{ question: string; average: number; count: number }>;
   topSelections: Array<{ option: string; count: number; percentage: number }>;
+  imagePreferences?: Array<{ imageUrl: string; optionIndex: number; count: number; percentage: number }>;
   comments: string[];
   purchaseIntent: number | null;
+}
+
+export interface DemographicGroupSummary {
+  label: string;
+  count: number;
+  percentage: number;
+}
+
+export interface DemographicDimensionSummary {
+  key: string;
+  label: string;
+  knownCount: number;
+  groups: DemographicGroupSummary[];
+  suppressedCount: number;
+}
+
+export interface PanelDemographicSummary {
+  participantCount: number;
+  matchedProfileCount: number;
+  profileCoveragePercentage: number;
+  minimumCellSize: number;
+  dimensions: DemographicDimensionSummary[];
+  representativenessNote: string;
 }
 
 export interface CommercializationReportSnapshot {
@@ -68,6 +95,10 @@ export interface CommercializationReportSnapshot {
     reportCoverApprovedForExternalUse?: boolean;
   };
   evidence: ConceptEvidenceSummary;
+  /** Aggregate, privacy-protected profile of concept respondents. No names,
+   * contact details, user ids, or cells smaller than the disclosure threshold
+   * are persisted in the report snapshot. */
+  panelDemographics?: PanelDemographicSummary;
   formulation?: {
     versionId: string;
     versionNumber: number;
@@ -117,6 +148,80 @@ export interface CommercializationReportSnapshot {
   generatedAt: string;
 }
 
+const DEMOGRAPHIC_MINIMUM_CELL_SIZE = 3;
+
+function demographicCounts(
+  key: string,
+  label: string,
+  values: Array<string | null | undefined>,
+  transform: (value: string) => string = panelistValueLabel,
+): DemographicDimensionSummary {
+  const counts = values.reduce((map, value) => {
+    if (value && value !== 'prefer_not_to_say') map.set(value, (map.get(value) ?? 0) + 1);
+    return map;
+  }, new Map<string, number>());
+  const knownCount = [...counts.values()].reduce((sum, count) => sum + count, 0);
+  const visible = [...counts.entries()]
+    .filter(([, count]) => count >= DEMOGRAPHIC_MINIMUM_CELL_SIZE)
+    .sort((left, right) => right[1] - left[1]);
+  const visibleCount = visible.reduce((sum, [, count]) => sum + count, 0);
+  return {
+    key,
+    label,
+    knownCount,
+    groups: visible.map(([value, count]) => ({
+      label: transform(value),
+      count,
+      percentage: knownCount ? count / knownCount * 100 : 0,
+    })),
+    suppressedCount: knownCount - visibleCount,
+  };
+}
+
+/** Builds a respondent-only, aggregate demographic profile for the report.
+ * It deliberately excludes PII and suppresses cells below n=3. */
+export function buildPanelDemographicSummary(
+  responses: ConceptResponse[],
+  panelists: PanelistInfo[],
+): PanelDemographicSummary {
+  const respondentIds = new Set(responses.map(response => response.userId));
+  const matched = panelists.filter(panelist => respondentIds.has(panelist.id));
+  const participantCount = respondentIds.size;
+  const profileCoveragePercentage = participantCount ? matched.length / participantCount * 100 : 0;
+  const dimensions = [
+    demographicCounts('age', 'Age', matched.map(panelist => panelist.ageBand), value => value),
+    demographicCounts('gender', 'Gender', matched.map(panelist => panelist.gender)),
+    demographicCounts('region', 'Region', matched.map(panelist => panelist.region), value => value),
+    demographicCounts(
+      'ethnicity',
+      'Ethnic group',
+      matched.map(panelist => ethnicityGroup(panelist.ethnicity)),
+      ethnicityLabel,
+    ),
+    demographicCounts('dietary', 'Dietary pattern', matched.map(panelist => panelist.dietaryPattern)),
+    demographicCounts('grocery_role', 'Grocery role', matched.map(panelist => panelist.groceryRole)),
+    demographicCounts('category_usage', 'Category usage', matched.map(panelist => panelist.categoryUsageFrequency)),
+    demographicCounts(
+      'household',
+      'Household size',
+      matched.map(panelist => panelist.householdSize ? String(panelist.householdSize) : null),
+      value => `${value} ${value === '1' ? 'person' : 'people'}`,
+    ),
+  ];
+  return {
+    participantCount,
+    matchedProfileCount: matched.length,
+    profileCoveragePercentage,
+    minimumCellSize: DEMOGRAPHIC_MINIMUM_CELL_SIZE,
+    dimensions,
+    representativenessNote: participantCount === 0
+      ? 'No concept respondents were available for a demographic profile.'
+      : matched.length === 0
+        ? 'Respondent profiles were not attached to this report version. Demographic representativeness cannot be assessed.'
+        : `Profiles cover ${profileCoveragePercentage.toFixed(0)}% of concept respondents. This is an unweighted descriptive profile, not proof that the panel represents the target market.`,
+  };
+}
+
 /**
  * Replaces short-lived signed image URLs in an immutable report snapshot with
  * fresh URLs from the linked concept. Stored ids and approval provenance stay
@@ -156,14 +261,24 @@ export function refreshCommercializationSnapshotImageUrls(
 
 export type EvidenceStrength = 'Limited' | 'Directional' | 'Developing' | 'Established';
 
-export function getEvidenceStrength(responseCount: number): EvidenceStrength {
+export function getEvidenceStrength(
+  responseCount: number,
+  provenance: ConceptEvidenceSummary['provenance'] = 'live',
+): EvidenceStrength {
+  if (provenance === 'synthetic') return 'Limited';
   if (responseCount < 5) return 'Limited';
   if (responseCount < 15) return 'Directional';
   if (responseCount < 30) return 'Developing';
   return 'Established';
 }
 
-export function getEvidenceStrengthNote(responseCount: number) {
+export function getEvidenceStrengthNote(
+  responseCount: number,
+  provenance: ConceptEvidenceSummary['provenance'] = 'live',
+) {
+  if (provenance === 'synthetic') {
+    return `Synthetic test evidence includes ${responseCount} generated responses. It validates report functionality only and must not be interpreted as panel or market evidence.`;
+  }
   if (responseCount === 0) {
     return 'No concept responses are available. Concept preference and purchase intent have not been validated.';
   }
@@ -218,7 +333,9 @@ export function getDecisionQualifier(
       `${weak.join(' and ')} ${weak.length === 1 ? 'is' : 'are'} below the ${WEAK_DIMENSION_THRESHOLD}/100 readiness line and must be remediated before launch`,
     );
   }
-  if (snapshot.evidence.responseCount === 0) {
+  if (snapshot.evidence.provenance === 'synthetic') {
+    caveats.push('concept and image-preference results are synthetic test data and must be replaced before client release');
+  } else if (snapshot.evidence.responseCount === 0) {
     caveats.push('the decision rests on sensory data only — no concept validation has been collected (n=0)');
   }
   const conditional = caveats.length > 0;
@@ -236,10 +353,15 @@ function questionById(questions: ConceptQuestion[]) {
 export function summarizeConceptResponses(
   questions: ConceptQuestion[],
   responses: ConceptResponse[],
+  options: {
+    provenance?: ConceptEvidenceSummary['provenance'];
+    imageUrls?: string[];
+  } = {},
 ): ConceptEvidenceSummary {
   const byId = questionById(questions);
   const scales = new Map<string, number[]>();
   const selections = new Map<string, number>();
+  const imageSelections = new Map<string, number>();
   const comments: string[] = [];
   const purchaseScores: number[] = [];
 
@@ -252,6 +374,8 @@ export function summarizeConceptResponses(
         values.push(answer);
         scales.set(question.text, values);
         if (question.category === 'purchase') purchaseScores.push(answer);
+      } else if (question.type === 'image_choice' && typeof answer === 'string' && answer.trim()) {
+        imageSelections.set(answer, (imageSelections.get(answer) ?? 0) + 1);
       } else if (Array.isArray(answer)) {
         answer.forEach(option => selections.set(option, (selections.get(option) ?? 0) + 1));
       } else if (question.type === 'open_text' && answer.trim()) {
@@ -263,6 +387,7 @@ export function summarizeConceptResponses(
   });
 
   return {
+    provenance: options.provenance ?? 'live',
     responseCount: responses.length,
     scaleMetrics: [...scales.entries()]
       .map(([question, values]) => ({
@@ -279,6 +404,14 @@ export function summarizeConceptResponses(
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 8),
+    imagePreferences: [...imageSelections.entries()]
+      .map(([imageUrl, count]) => ({
+        imageUrl,
+        optionIndex: Math.max(0, options.imageUrls?.indexOf(imageUrl) ?? -1),
+        count,
+        percentage: responses.length ? (count / responses.length) * 100 : 0,
+      }))
+      .sort((a, b) => b.count - a.count),
     comments: comments.slice(0, 12),
     purchaseIntent: purchaseScores.length
       ? purchaseScores.reduce((sum, value) => sum + value, 0) / purchaseScores.length
@@ -364,16 +497,26 @@ export function buildCommercializationSnapshot(input: {
     sourceKind: 'uploaded_reference' | 'reference_generated' | 'text_generated';
     approvedForExternalUse: boolean;
   } | null;
+  evidenceProvenance?: ConceptEvidenceSummary['provenance'];
+  panelists?: PanelistInfo[];
 }): CommercializationReportSnapshot {
   if (input.decisionRecord.decision !== 'GO' || input.liveDecision.decision !== 'GO') {
     throw new Error('Commercialization reports require a confirmed GO decision.');
   }
-  const evidence = summarizeConceptResponses(input.concept.questions, input.responses);
+  const evidence = summarizeConceptResponses(input.concept.questions, input.responses, {
+    provenance: input.evidenceProvenance,
+    imageUrls: input.concept.imageUrls,
+  });
   const strongestDimensions = Object.entries(input.liveDecision.dimensionScores)
     .sort(([, a], [, b]) => b - a)
     .slice(0, 2)
     .map(([name, score]) => `${formatDecisionDimension(name as keyof GoStopTweakDecision['dimensionScores'])} (${score.toFixed(0)})`);
+  const leadingImage = evidence.imagePreferences?.[0];
+  const leadingImageSignal = leadingImage
+    ? `Visual option ${leadingImage.optionIndex + 1} (${leadingImage.percentage.toFixed(0)}% preference)`
+    : null;
   const likedSignals = [
+    ...(leadingImageSignal ? [leadingImageSignal] : []),
     ...evidence.topSelections.slice(0, 3).map(item => item.option),
     ...strongestDimensions,
   ];
@@ -421,16 +564,23 @@ export function buildCommercializationSnapshot(input: {
       reportCoverApprovedForExternalUse: Boolean(input.reportCoverImageMeta?.approvedForExternalUse),
     },
     evidence,
+    panelDemographics: buildPanelDemographicSummary(input.responses, input.panelists ?? []),
     narrative: {
-      executiveSummary: `${input.liveDecision.sampleName} has a confirmed GO recommendation, with an ISSF score of ${input.liveDecision.issfScore.toFixed(1)}. The linked ${input.concept.name} concept was evaluated by ${evidence.responseCount} panelist${evidence.responseCount === 1 ? '' : 's'}. ${getEvidenceStrengthNote(evidence.responseCount)}`,
-      whyLiked: likedSignals.length
+      executiveSummary: evidence.provenance === 'synthetic'
+        ? `${input.liveDecision.sampleName} has a confirmed GO recommendation, with an ISSF score of ${input.liveDecision.issfScore.toFixed(1)}. The linked ${input.concept.name} report flow is being tested with ${evidence.responseCount} synthetic responses. ${getEvidenceStrengthNote(evidence.responseCount, evidence.provenance)}`
+        : `${input.liveDecision.sampleName} has a confirmed GO recommendation, with an ISSF score of ${input.liveDecision.issfScore.toFixed(1)}. The linked ${input.concept.name} concept was evaluated by ${evidence.responseCount} panelist${evidence.responseCount === 1 ? '' : 's'}. ${getEvidenceStrengthNote(evidence.responseCount, evidence.provenance)}`,
+      whyLiked: evidence.provenance === 'synthetic'
+        ? `Synthetic test signals are ${likedSignals.join(', ')}. They exist only to exercise calculations, layouts, and narrative generation; they do not describe panel or market preference.`
+        : likedSignals.length
         ? `The strongest available signals are ${likedSignals.join(', ')}. These findings combine the confirmed sensory dimensions with language selected during concept evaluation.`
         : `The formulation achieved a GO decision through its sensory performance. Additional concept responses will strengthen the consumer-language evidence.`,
       packagingRationale: input.packagingImageUrl
-        ? `The selected packaging expresses the current concept positioning for ${input.concept.targetMarket || 'the target market'} and is the recommended lead visual for the next review round.`
+        ? `${leadingImage && leadingImage.imageUrl === input.packagingImageUrl
+          ? `The selected packaging was the ${evidence.provenance === 'synthetic' ? 'synthetic test-data ' : ''}leading visual direction (${leadingImage.count} of ${evidence.responseCount} selections, ${leadingImage.percentage.toFixed(0)}%). `
+          : ''}The selected packaging expresses the current concept positioning for ${input.concept.targetMarket || 'the target market'} and is the recommended lead visual for the next review round.`
         : 'A packaging visual must be selected before this report can be approved.',
       launchRecommendation: `Advance ${input.liveDecision.sampleName} and the selected packaging into buyer review. This recommendation is tied to the confirmed GO decision for this product, while broader concept validation continues.`,
-      claimCaution: `${getEvidenceStrengthNote(evidence.responseCount)} Broader consumer, nutrition, or commercial claims require representative validation and legal review.`,
+      claimCaution: `${getEvidenceStrengthNote(evidence.responseCount, evidence.provenance)} Broader consumer, nutrition, or commercial claims require representative validation and legal review.`,
     },
     generatedAt: new Date().toISOString(),
   };

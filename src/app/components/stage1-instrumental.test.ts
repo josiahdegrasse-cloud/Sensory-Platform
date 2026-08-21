@@ -195,10 +195,17 @@ describe('CSV import workflow intelligence', () => {
     expect(dataset.foodTypeResolution).toEqual({ status: 'matched', declaredValues: ['Cheese'] });
     expect(mozzarella).toMatchObject({ sampleName: 'Mozza ref', type: 'cheese', category: 'Cheese' });
     expect(cheddar?.measurements).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: 'Fat', unit: '%', mean: 25, observationCount: 2 }),
+      expect.objectContaining({
+        label: 'Fat',
+        unit: '%',
+        mean: 25,
+        observationCount: 2,
+        replicateValues: [20, 30],
+        metadata: expect.objectContaining({ dataType: 'proportion', scaleType: 'bounded' }),
+      }),
       expect.objectContaining({ label: 'Moisture', unit: '%', mean: 42, observationCount: 2 }),
       expect.objectContaining({ label: 'Melting', unit: 'cm', mean: 7, observationCount: 2 }),
-      expect.objectContaining({ label: 'Hardness', unit: 'g', mean: 200, observationCount: 3 }),
+      expect.objectContaining({ label: 'Hardness', unit: 'g', mean: 200, standardDeviation: 100, observationCount: 3 }),
     ]));
   });
 

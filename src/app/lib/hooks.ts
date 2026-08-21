@@ -29,7 +29,7 @@ import {
   insertProduct, updateProduct, updateProductAssignments, deleteProduct,
   insertTemplate, deleteTemplate, updatePanelistId, updatePanelistTrainingLevel, updatePanelistStatus,
   insertConceptTest, updateConceptTestStatus, insertConceptResponse,
-  insertInstrumentalImport, createSurveysForImportBatch, archiveFoodTypeRecord, restoreFoodTypeRecord, deleteFoodTypeRecord, updateImportBatchStatus, updateImportBatchName, deleteImportBatch, updateIngredientStatement, reviewFormulationVersion,
+  insertInstrumentalImport, createSurveysForImportBatch, archiveFoodTypeRecord, restoreFoodTypeRecord, deleteFoodTypeRecord, updateImportBatchStatus, updateImportBatchName, deleteImportBatch, updateIngredientStatement, updateInstrumentalChartPreference, reviewFormulationVersion,
   fetchPendingImports, dismissPendingImport, markPendingImportImported, uploadAndQueueImport,
   rejectPendingImport, listDriveFiles, importDriveFiles,
   type ConceptTest, type InstrumentalImportInput, type ConceptGenerationSettings,
@@ -1175,6 +1175,14 @@ export function useUpdateIngredientStatement() {
       qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset })
       qc.invalidateQueries({ queryKey: ['formulationVersions'] })
     },
+  })
+}
+
+export function useUpdateInstrumentalChartPreference() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: updateInstrumentalChartPreference,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.instrumentalDataset }),
   })
 }
 

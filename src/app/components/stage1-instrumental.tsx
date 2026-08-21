@@ -434,7 +434,6 @@ export function Stage1Instrumental() {
     pcaData,
     selectedSampleData,
     selectedGCMSData,
-    selectedCompositionData,
     selectedColor,
     activeFoodTypeLabel,
     radarData,
@@ -1106,9 +1105,10 @@ export function Stage1Instrumental() {
 
       {!showPreview && (<>
       <div id="machine-results" className="grid scroll-mt-6 gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
-        <div className="min-w-0 lg:sticky lg:top-24 lg:self-start">
+        <div className="min-w-0 lg:sticky lg:top-[7.5rem] lg:z-20 lg:self-start">
           <ProductListPanel
             title="Samples"
+            className="lg:max-h-[calc(100dvh-8.5rem)]"
             description={compareMode
               ? comparisonLimitReached
                 ? `${selectedSamples.length}/${comparisonLimit} selected · Remove one to choose another`
@@ -1303,13 +1303,19 @@ export function Stage1Instrumental() {
                   )}
                 </div>
 
-                <ResponsiveContainer width="100%" height={470}>
+                <ResponsiveContainer width="100%" height={500}>
                   <RadarChart
                     data={compareMode ? compareRadarChartData : radarData}
-                    margin={{ top: 6, right: 20, bottom: 6, left: 20 }}
+                    cy="46%"
+                    margin={{ top: 16, right: 16, bottom: 24, left: 16 }}
+                    outerRadius="66%"
                   >
                     <PolarGrid stroke={CHART_CHROME.grid} strokeWidth={1} />
-                    <PolarAngleAxis dataKey="taste" tick={{ fill: CHART_CHROME.axis, fontSize: 13, fontWeight: 500 }} />
+                    <PolarAngleAxis
+                      dataKey="taste"
+                      tickSize={36}
+                      tick={{ fill: CHART_CHROME.axis, fontSize: 13, fontWeight: 500 }}
+                    />
                     <PolarRadiusAxis angle={90} domain={[0, 5]} tick={{ fill: CHART_CHROME.muted, fontSize: 11 }} tickCount={6} />
                     {compareMode ? (
                       compareRadarSeries.map((series) => (
@@ -1397,13 +1403,13 @@ export function Stage1Instrumental() {
           <Card className="border-2 border-slate-200 shadow-sm">
             <CardHeader className="bg-slate-50 border-b rounded-t-lg">
               <CardTitle className="text-lg flex items-center gap-2">
-                <FlaskConical className="size-5 text-slate-700" />
-                Chemical Composition Analysis
+                <ClipboardList className="size-5 text-slate-700" />
+                Ingredients &amp; formulation
               </CardTitle>
-              <p className="text-xs text-slate-700 mt-1">Proximate analysis and key chemical properties</p>
+              <p className="text-xs text-slate-700 mt-1">Record the supplied ingredient statement and review the structured formulation</p>
             </CardHeader>
             <CardContent className="pt-4">
-              <section className="mb-4 border-b border-slate-200 pb-4" aria-labelledby="ingredient-statement-heading">
+              <section aria-labelledby="ingredient-statement-heading">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -1474,32 +1480,6 @@ export function Stage1Instrumental() {
                   sampleId={selectedSampleData.sampleId}
                   versions={selectedFormulationVersions}
                 />
-              )}
-
-              {selectedCompositionData && Object.keys(selectedCompositionData).length > 0 ? (
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-                  {[
-                    { label: "Protein",  value: selectedCompositionData.protein?.toFixed(1),  unit: "%" },
-                    { label: "Fat",      value: selectedCompositionData.fat?.toFixed(1),      unit: "%" },
-                    { label: "Moisture", value: selectedCompositionData.moisture?.toFixed(1), unit: "%" },
-                    { label: "pH",       value: selectedCompositionData.pH?.toFixed(1),       unit: ""  },
-                    { label: "Salt",     value: selectedCompositionData.saltContent?.toFixed(1), unit: "%" },
-                    { label: "Calcium",  value: selectedCompositionData.calciumMg?.toFixed(0), unit: "mg" },
-                  ].map(({ label, value, unit }) => (
-                    <div key={label} className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                      <div className="text-xs text-slate-700 mb-1">{label}</div>
-                      <div className="text-2xl font-bold text-slate-900">
-                        {value || "—"}
-                        {unit && value && <span className="text-sm text-slate-700 ml-1">{unit}</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <FlaskConical className="size-12 text-slate-300 mx-auto mb-2" />
-                  <p className="text-sm text-slate-500">No composition data available</p>
-                </div>
               )}
             </CardContent>
           </Card>

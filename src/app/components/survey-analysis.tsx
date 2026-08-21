@@ -27,14 +27,18 @@ import {
 import { useProjectStatus } from '../lib/use-project-status';
 import { assessSampleWorkflow, summarizeProjectReadiness } from '../lib/workflow-readiness';
 import { useSurveyData } from '../lib/use-survey-data';
+import { downloadCommercializationDataWorkbook } from '../lib/commercialization-data-export';
+import { DEFAULT_REPORT_ORGANIZATION_NAME } from '../lib/commercialization-report';
 import { formatFoodTypeLabel } from '../lib/food-intelligence';
 import {
   buildConceptTestingResultsRows,
-  buildFoodPanelResultsRows,
   downloadInsightsCsv,
   exportFilename,
-  filterPanelResultsByProductIds,
 } from '../utils/insights-csv-export';
+import {
+  buildFoodPanelWorkbookSheets,
+  filterPanelResponsesByProductIds,
+} from '../utils/insights-workbook-export';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import {
@@ -129,9 +133,10 @@ export function SurveyAnalysis() {
   const surveyData = useSurveyData();
   const {
     liveDataFetchFailed, multiSampleResponses, selectedMultiProduct,
-    setSelectedMultiProduct, liveAggregations, commentsByProduct,
+    setSelectedMultiProduct, liveAggregations, commentsByProduct, responses,
   } = surveyData;
   const [requestedSample, setRequestedSample] = useState('');
+  const [foodPanelExporting, setFoodPanelExporting] = useState(false);
 
   const minimumResponses = settings?.decisionMinResponses ?? 12;
   const projectInstrumentSamples = useMemo(
@@ -161,9 +166,9 @@ export function SurveyAnalysis() {
     () => new Set(projectProducts.map(product => product.id)),
     [projectProducts],
   );
-  const projectLiveAggregations = useMemo(
-    () => filterPanelResultsByProductIds(liveAggregations, projectProductIds),
-    [liveAggregations, projectProductIds],
+  const projectPanelResponses = useMemo(
+    () => filterPanelResponsesByProductIds(responses, projectProductIds),
+    [responses, projectProductIds],
   );
   // Same per-sample rollup Decision uses, so both pages agree on "where are
   // we" instead of Insights staying silent while Decision says something else.
@@ -496,11 +501,17 @@ export function SurveyAnalysis() {
     };
   });
   const exportScopeName = routeScope?.projectName ?? status.projectName ?? formatFoodTypeLabel(scopedFoodType);
-  const exportFoodPanelResults = () => {
-    downloadInsightsCsv(
-      buildFoodPanelResultsRows(projectLiveAggregations),
-      exportFilename(exportScopeName, 'food-panel-results'),
-    );
+  const exportFoodPanelResults = async () => {
+    setFoodPanelExporting(true);
+    try {
+      await downloadCommercializationDataWorkbook({
+        sheets: buildFoodPanelWorkbookSheets(projectProducts, projectPanelResponses),
+        organizationName: settings?.organizationName ?? DEFAULT_REPORT_ORGANIZATION_NAME,
+        reportTitle: `${exportScopeName} food panel results`,
+      });
+    } finally {
+      setFoodPanelExporting(false);
+    }
   };
   const exportConceptTestingResults = () => {
     downloadInsightsCsv(
@@ -532,16 +543,18 @@ export function SurveyAnalysis() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-72">
                 <DropdownMenuItem
-                  onSelect={exportFoodPanelResults}
-                  disabled={projectLiveAggregations.length === 0}
+                  onSelect={() => { void exportFoodPanelResults(); }}
+                  disabled={foodPanelExporting || projectPanelResponses.length === 0}
                   className="items-start py-2.5"
                 >
                   <Users className="mt-0.5 size-4" aria-hidden />
                   <span>
-                    <span className="block font-semibold">Food panel results CSV</span>
+                    <span className="block font-semibold">Food panel results workbook</span>
                     <span className="mt-0.5 block text-xs text-slate-500">
-                      {projectLiveAggregations.length > 0
-                        ? `${projectLiveAggregations.length} project prototype${projectLiveAggregations.length === 1 ? '' : 's'}, aggregated results`
+                      {foodPanelExporting
+                        ? 'Preparing Raw Data and Means and SD sheets…'
+                        : projectPanelResponses.length > 0
+                          ? `${projectPanelResponses.length} raw response${projectPanelResponses.length === 1 ? '' : 's'}, means and sample SD`
                         : 'No live food-panel results to export'}
                     </span>
                   </span>
@@ -690,7 +703,7 @@ export function SurveyAnalysis() {
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-900">Export scope</h3>
-            <p className="mt-1 text-sm text-slate-700">Use <strong>Export results</strong> above to download either project-scoped food-panel metrics or concept responses with panelist IDs excluded. The two normalized datasets are designed to become separate workbook sheets in report exports later.</p>
+            <p className="mt-1 text-sm text-slate-700">Use <strong>Export results</strong> above to download a project-scoped food-panel workbook with <strong>Raw Data</strong> and <strong>Means and SD</strong> sheets, or a concept-response CSV. Panelist identities are excluded from both exports.</p>
           </div>
         </div>
       </RawDataAppendix>

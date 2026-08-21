@@ -126,7 +126,11 @@ export interface ConceptDraft {
   reportCover: ConceptReportAsset | null;
 }
 
-export type WizardStep = 'concept' | 'survey' | 'panel' | 'review' | 'launched';
+/**
+ * `concept` is retained as the persisted key for the Brief step so workspace
+ * drafts saved before the five-step workbench continue to restore correctly.
+ */
+export type WizardStep = 'concept' | 'visuals' | 'survey' | 'panel' | 'review' | 'launched';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

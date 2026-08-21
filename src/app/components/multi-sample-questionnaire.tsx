@@ -12,6 +12,7 @@ import { AlertCircle, CheckCircle2, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
 import { AttributeTooltip } from './attribute-tooltip';
+import { RangeScaleTicks } from './range-scale-ticks';
 import { getBlindStudyCategoryLabel, getBlindStudyDisplayName, getPanelistSampleOrder } from '../lib/blind-study';
 import { useScrollToTop } from '../lib/use-scroll-to-top';
 import { queryClient } from '../lib/query-client';
@@ -528,10 +529,11 @@ export function MultiSampleQuestionnaire() {
                     style={sliderFill(intensityRatings[attr] ?? SLIDER_MIDPOINT, SLIDER_MIN, SLIDER_MAX, '#334155')}
                     className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-slate-700"
                   />
+                  <RangeScaleTicks min={SLIDER_MIN} max={SLIDER_MAX} />
                   <div className="flex justify-between text-xs text-slate-500">
-                    <span>1 — Not present</span>
-                    <span>5 — Moderate</span>
-                    <span>9 — Extremely intense</span>
+                    <span>Not present</span>
+                    <span>Moderate</span>
+                    <span>Extremely intense</span>
                   </div>
                 </div>
               ))}
@@ -570,10 +572,11 @@ export function MultiSampleQuestionnaire() {
                     style={sliderFill(value, SLIDER_MIN, SLIDER_MAX, '#334155')}
                     className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-slate-700"
                   />
+                  <RangeScaleTicks min={SLIDER_MIN} max={SLIDER_MAX} />
                   <div className="flex justify-between text-xs text-slate-500">
-                    <span>Dislike extremely (1)</span>
-                    <span>Neither (5)</span>
-                    <span>Like extremely (9)</span>
+                    <span>Dislike extremely</span>
+                    <span>Neither</span>
+                    <span>Like extremely</span>
                   </div>
                 </div>
               ))}
@@ -617,6 +620,7 @@ export function MultiSampleQuestionnaire() {
                         style={sliderFill(emotions[emotion] ?? SLIDER_MIDPOINT, SLIDER_MIN, SLIDER_MAX, '#059669')}
                         className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-emerald-600"
                       />
+                      <RangeScaleTicks min={SLIDER_MIN} max={SLIDER_MAX} />
                     </div>
                   ))}
                 </div>
@@ -647,6 +651,7 @@ export function MultiSampleQuestionnaire() {
                         style={sliderFill(emotions[emotion] ?? SLIDER_MIDPOINT, SLIDER_MIN, SLIDER_MAX, '#e11d48')}
                         className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-rose-600"
                       />
+                      <RangeScaleTicks min={SLIDER_MIN} max={SLIDER_MAX} />
                     </div>
                   ))}
                 </div>

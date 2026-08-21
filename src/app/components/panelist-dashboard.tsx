@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -9,6 +10,7 @@ import { Link } from 'react-router';
 import { isPanelistAssignedToProduct } from '../lib/assignments';
 import { getBlindStudyCategoryLabel, getBlindStudyDisplayName } from '../lib/blind-study';
 import { taskSummary } from '../lib/panelist-box-workflow';
+import { firstResponseTimestamp, responseRepeatWindow } from '../lib/response-repeat-window';
 
 export function PanelistDashboard() {
   const { user } = useAuth();
@@ -17,6 +19,7 @@ export function PanelistDashboard() {
   const { data: userResponses = [], isLoading: responsesLoading, isError: responsesError } = useUserResponses(userId)
   const { data: conceptTests = [], isLoading: conceptsLoading, isError: conceptsError } = useConceptTestsForPanelist(userId)
   const { data: conceptResponses = [], isLoading: conceptResponsesLoading, isError: conceptResponsesError } = useConceptResponses(userId)
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const loading = productsLoading || responsesLoading || conceptsLoading || conceptResponsesLoading
   const fetchError = (productsError || responsesError || conceptsError || conceptResponsesError)
@@ -31,6 +34,17 @@ export function PanelistDashboard() {
   const completedConceptIds = new Set(conceptResponses.map(r => r.conceptTestId));
   const availableConceptTests = conceptTests.filter(t => !completedConceptIds.has(t.id));
   const completedConceptTests = conceptTests.filter(t => completedConceptIds.has(t.id));
+
+  useEffect(() => {
+    const nextClosure = completedProductsList.reduce<number | null>((earliest, product) => {
+      const repeatWindow = responseRepeatWindow(firstResponseTimestamp(userResponses, product.id), nowMs);
+      if (!repeatWindow?.isOpen) return earliest;
+      return earliest == null ? repeatWindow.closesAt : Math.min(earliest, repeatWindow.closesAt);
+    }, null);
+    if (nextClosure == null) return;
+    const timeout = window.setTimeout(() => setNowMs(Date.now()), Math.max(0, nextClosure - nowMs + 25));
+    return () => window.clearTimeout(timeout);
+  }, [completedProductsList, nowMs, userResponses]);
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -158,7 +172,11 @@ export function PanelistDashboard() {
           </h2>
           <div className="grid gap-4">
             {completedProductsList.map(product => {
-              const response = userResponses.find(r => r.productId === product.id);
+              const firstSubmittedAt = firstResponseTimestamp(userResponses, product.id);
+              const response = userResponses.find(r => r.productId === product.id && r.runNumber === 1)
+                ?? userResponses.find(r => r.productId === product.id);
+              const repeatWindow = responseRepeatWindow(firstSubmittedAt, nowMs);
+              const canAddRun = !product.isMultiSample && product.status !== 'completed' && repeatWindow?.isOpen;
               const displayName = getBlindStudyDisplayName(product);
               const categoryLabel = getBlindStudyCategoryLabel(product);
               return (
@@ -205,10 +223,10 @@ export function PanelistDashboard() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    {!product.isMultiSample ? (
+                    {canAddRun ? (
                       <div className="space-y-3">
                         <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                          <p className="text-xs text-slate-700">Submitting again creates a new run. Your earlier response remains in the study record.</p>
+                          <p className="text-xs text-slate-700">Submitting again creates a new run. This option locks at {new Date(repeatWindow.closesAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}, 30 minutes after your first submission.</p>
                         </div>
                         <Link to={`/questionnaire/${product.id}`}>
                           <Button variant="outline" className="w-full border-slate-200 text-slate-700 hover:bg-slate-50">
@@ -217,7 +235,7 @@ export function PanelistDashboard() {
                           </Button>
                         </Link>
                       </div>
-                    ) : (
+                    ) : product.isMultiSample ? (
                       <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
                         <p className="text-sm text-slate-900 font-medium">
                           <CheckCircle2 className="size-4 inline mr-1" />Multi-sample evaluation completed
@@ -225,6 +243,11 @@ export function PanelistDashboard() {
                         <p className="text-xs text-slate-700 mt-1">
                           Multi-sample evaluations cannot be edited after submission to preserve data integrity
                         </p>
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                        <p className="text-sm font-medium text-slate-900"><CheckCircle2 className="size-4 inline mr-1" />Survey locked</p>
+                        <p className="text-xs text-slate-700 mt-1">The 30-minute window for adding another run has ended.</p>
                       </div>
                     )}
                   </CardContent>

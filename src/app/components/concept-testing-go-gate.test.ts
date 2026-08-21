@@ -15,9 +15,12 @@ describe('Concept Lab GO gate', () => {
   it('does not expose an unlinked concept-work path', () => {
     expect(source).not.toContain('Start without decision');
     expect(source).not.toContain('startFromScratch');
+    expect(source).not.toContain('Confirm GO and start concept');
     expect(source).toContain(
       'Boolean(sourceDecision?.id && sourceDecision.evidenceBundleId)',
     );
+    expect(source).toContain('Needs a decision');
+    expect(source).toContain("workflowStagePath('decision', routeProjectId)");
   });
 
   it('rejects route seeds and restored drafts without linked GO evidence', () => {

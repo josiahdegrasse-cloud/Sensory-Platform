@@ -25,6 +25,7 @@ import {
   nationalityOptions,
 } from '../lib/panelist-demographics';
 import { isSamePasswordAuthError, panelistResearchProfileError } from '../lib/panelist-onboarding';
+import { clearPanelistProfileDraft, loadPanelistProfileDraft, savePanelistProfileDraft } from '../lib/panelist-profile-draft';
 import { supabase } from '../lib/supabase';
 import { Alert, AlertDescription } from './ui/alert';
 import { Button } from './ui/button';
@@ -56,43 +57,66 @@ export function PanelistProfileSetupPage() {
   const { user, refreshProfile } = useAuth();
   const isProfileUpdate = Boolean(user?.profileCompletedAt);
   const ownProfile = useOwnPanelistProfileSetup(isProfileUpdate);
+  const [restoredDraft] = useState(() => {
+    if (!user?.id || isProfileUpdate || typeof window === 'undefined') return null;
+    return loadPanelistProfileDraft(window.sessionStorage, user.id);
+  });
   const hydratedProfile = useRef(false);
   const submitting = useRef(false);
   const [step, setStep] = useState(0);
-  const [name, setName] = useState(user?.name === user?.email ? '' : user?.name ?? '');
+  const [name, setName] = useState(restoredDraft?.name ?? (user?.name === user?.email ? '' : user?.name ?? ''));
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [birthMonth, setBirthMonth] = useState('');
-  const [birthYear, setBirthYear] = useState('');
-  const [noKnownAllergies, setNoKnownAllergies] = useState(false);
-  const [allergenAvoidances, setAllergenAvoidances] = useState<AllergenCode[]>([]);
-  const [lactoseIntolerance, setLactoseIntolerance] = useState(false);
-  const [otherAvoidances, setOtherAvoidances] = useState('');
-  const [healthConsent, setHealthConsent] = useState(false);
-  const [gender, setGender] = useState('');
-  const [genderSelfDescription, setGenderSelfDescription] = useState('');
-  const [nationalityCode, setNationalityCode] = useState('');
-  const [ethnicity, setEthnicity] = useState('');
-  const [householdSize, setHouseholdSize] = useState('');
-  const [dietaryPattern, setDietaryPattern] = useState('');
-  const [dietaryOther, setDietaryOther] = useState('');
-  const [smokerStatus, setSmokerStatus] = useState('');
-  const [weeklyFoodSpend, setWeeklyFoodSpend] = useState('');
-  const [occupationGroup, setOccupationGroup] = useState('');
-  const [annualIncomeRange, setAnnualIncomeRange] = useState('');
-  const [groceryRole, setGroceryRole] = useState('');
-  const [phone, setPhone] = useState('');
-  const [addressLine1, setAddressLine1] = useState('');
-  const [addressLine2, setAddressLine2] = useState('');
-  const [city, setCity] = useState('');
-  const [region, setRegion] = useState('');
-  const [postalCode, setPostalCode] = useState('');
-  const [country, setCountry] = useState('United Kingdom');
-  const [consent, setConsent] = useState(false);
+  const [birthMonth, setBirthMonth] = useState(restoredDraft?.birthMonth ?? '');
+  const [birthYear, setBirthYear] = useState(restoredDraft?.birthYear ?? '');
+  const [noKnownAllergies, setNoKnownAllergies] = useState(restoredDraft?.noKnownAllergies ?? false);
+  const [allergenAvoidances, setAllergenAvoidances] = useState<AllergenCode[]>(restoredDraft?.allergenAvoidances ?? []);
+  const [lactoseIntolerance, setLactoseIntolerance] = useState(restoredDraft?.lactoseIntolerance ?? false);
+  const [otherAvoidances, setOtherAvoidances] = useState(restoredDraft?.otherAvoidances ?? '');
+  const [healthConsent, setHealthConsent] = useState(restoredDraft?.healthConsent ?? false);
+  const [gender, setGender] = useState(restoredDraft?.gender ?? '');
+  const [genderSelfDescription, setGenderSelfDescription] = useState(restoredDraft?.genderSelfDescription ?? '');
+  const [nationalityCode, setNationalityCode] = useState(restoredDraft?.nationalityCode ?? '');
+  const [ethnicity, setEthnicity] = useState(restoredDraft?.ethnicity ?? '');
+  const [householdSize, setHouseholdSize] = useState(restoredDraft?.householdSize ?? '');
+  const [dietaryPattern, setDietaryPattern] = useState(restoredDraft?.dietaryPattern ?? '');
+  const [dietaryOther, setDietaryOther] = useState(restoredDraft?.dietaryOther ?? '');
+  const [smokerStatus, setSmokerStatus] = useState(restoredDraft?.smokerStatus ?? '');
+  const [weeklyFoodSpend, setWeeklyFoodSpend] = useState(restoredDraft?.weeklyFoodSpend ?? '');
+  const [occupationGroup, setOccupationGroup] = useState(restoredDraft?.occupationGroup ?? '');
+  const [annualIncomeRange, setAnnualIncomeRange] = useState(restoredDraft?.annualIncomeRange ?? '');
+  const [groceryRole, setGroceryRole] = useState(restoredDraft?.groceryRole ?? '');
+  const [phone, setPhone] = useState(restoredDraft?.phone ?? '');
+  const [addressLine1, setAddressLine1] = useState(restoredDraft?.addressLine1 ?? '');
+  const [addressLine2, setAddressLine2] = useState(restoredDraft?.addressLine2 ?? '');
+  const [city, setCity] = useState(restoredDraft?.city ?? '');
+  const [region, setRegion] = useState(restoredDraft?.region ?? '');
+  const [postalCode, setPostalCode] = useState(restoredDraft?.postalCode ?? '');
+  const [country, setCountry] = useState(restoredDraft?.country ?? 'United Kingdom');
+  const [consent, setConsent] = useState(restoredDraft?.consent ?? false);
   const [showConsentTerms, setShowConsentTerms] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const nationalityChoices = useMemo(() => nationalityOptions(), []);
+
+  useEffect(() => {
+    if (!user?.id || isProfileUpdate) return;
+    savePanelistProfileDraft(window.sessionStorage, user.id, {
+      name, birthMonth, birthYear, noKnownAllergies, allergenAvoidances,
+      lactoseIntolerance, otherAvoidances, healthConsent, gender,
+      genderSelfDescription, nationalityCode, ethnicity, householdSize,
+      dietaryPattern, dietaryOther, smokerStatus, weeklyFoodSpend,
+      occupationGroup, annualIncomeRange, groceryRole, phone, addressLine1,
+      addressLine2, city, region, postalCode, country, consent,
+    });
+  }, [
+    addressLine1, addressLine2, allergenAvoidances, annualIncomeRange, birthMonth,
+    birthYear, city, consent, country, dietaryOther, dietaryPattern,
+    ethnicity, gender, genderSelfDescription, groceryRole, healthConsent,
+    householdSize, isProfileUpdate, lactoseIntolerance, name, nationalityCode,
+    noKnownAllergies, occupationGroup, otherAvoidances, phone, postalCode, region,
+    smokerStatus, user?.id, weeklyFoodSpend,
+  ]);
 
   useEffect(() => {
     if (!ownProfile.data || hydratedProfile.current) return;
@@ -239,6 +263,7 @@ export function PanelistProfileSetupPage() {
         occupationGroup: occupationGroup || null,
         annualIncomeRange: annualIncomeRange || null,
       });
+      if (user?.id) clearPanelistProfileDraft(window.sessionStorage, user.id);
       await refreshProfile();
       navigate('/panelist', { replace: true });
     } catch (caught) {
@@ -257,6 +282,8 @@ export function PanelistProfileSetupPage() {
         <p className="mt-2 text-sm leading-6 text-slate-600">Complete your research and safety profile before joining any study. We use it to exclude unsuitable samples automatically and understand results across consumer groups.</p>
       </header>
 
+      {restoredDraft && <Alert className="mb-5 max-w-3xl border-emerald-200 bg-emerald-50 text-emerald-950"><CheckCircle2 className="size-4" /><AlertDescription>Your saved answers have been restored. For security, re-enter your password before finishing.</AlertDescription></Alert>}
+
       <nav aria-label="Profile setup progress" className="mb-5 overflow-x-auto pb-1">
         <ol className="grid min-w-[620px] grid-cols-5 border-b border-slate-200">
           {STEPS.map((item, index) => {
@@ -271,7 +298,7 @@ export function PanelistProfileSetupPage() {
       <form onSubmit={handleSubmit} className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="p-5 sm:p-8">
           {step === 0 && <section aria-labelledby="account-heading" className="space-y-6">
-            <div><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Step 1 of 5</p><h2 id="account-heading" className="mt-1 text-xl font-bold text-slate-950">Account details</h2><p className="mt-1 text-sm leading-6 text-slate-600">{isProfileUpdate ? 'Confirm your account details before updating the rest of your panelist profile.' : 'Your invite is tied to this email. Create the password you will use when returning to studies.'}</p></div>
+            <div><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Step 1 of 5</p><h2 id="account-heading" className="mt-1 text-xl font-bold text-slate-950">Account details</h2><p className="mt-1 text-sm leading-6 text-slate-600">{isProfileUpdate ? 'Confirm your account details before updating the rest of your panelist profile.' : 'Your invite is tied to this email. Create the password you will use when returning to studies. Your other answers are saved in this browser tab as you go; your password is never saved.'}</p></div>
             <div className="grid max-w-2xl gap-4 sm:grid-cols-2">
               <div className="space-y-1.5 sm:col-span-2"><Label htmlFor="profile-email">Invited email</Label><Input id="profile-email" value={user?.email ?? ''} disabled className="bg-slate-50" /></div>
               <div className="space-y-1.5 sm:col-span-2"><Label htmlFor="profile-name">Full name</Label><Input id="profile-name" value={name} onChange={event => setName(event.target.value)} autoComplete="name" required /></div>

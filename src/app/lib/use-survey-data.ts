@@ -37,6 +37,7 @@ interface UseSurveyDataResult {
   multiSampleResponses: MultiSampleSession[];
   selectedMultiProduct: string;
   setSelectedMultiProduct: (id: string) => void;
+  responses: QuestionnaireResponse[];
   liveAggregations: LiveAggregation[];
   commentsByProduct: Record<string, string[]>;
 }
@@ -177,6 +178,7 @@ export function useSurveyData(): UseSurveyDataResult {
     multiSampleResponses,
     selectedMultiProduct,
     setSelectedMultiProduct,
+    responses: allResponsesData ?? [],
     liveAggregations,
     commentsByProduct,
   };

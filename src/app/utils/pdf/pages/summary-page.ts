@@ -78,7 +78,7 @@ export function buildFinalSummary(input: CommercializationReportPdfInput): Final
     decisionStatement: snapshot.narrative.launchRecommendation,
     issfScore: snapshot.decision.issfScore,
     confidence: snapshot.decision.confidence,
-    evidenceStrength: getEvidenceStrength(snapshot.evidence.responseCount),
+    evidenceStrength: getEvidenceStrength(snapshot.evidence.responseCount, snapshot.evidence.provenance),
     responseCount: snapshot.evidence.responseCount,
     dimensions: Object.entries(snapshot.decision.dimensions).map(([key, value]) => ({
       label: formatDecisionDimension(key as keyof typeof snapshot.decision.dimensions),

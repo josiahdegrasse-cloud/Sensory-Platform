@@ -14,6 +14,19 @@ export const GREEN: Rgb = [5, 150, 105];
 export const AMBER: Rgb = [180, 83, 9];
 export const ROSE: Rgb = [190, 18, 60];
 
+// Premium scientific report palette. Forest is the editorial anchor, mineral
+// teal is reserved for measured evidence, and clay signals controlled caution.
+// Neutrals stay chroma-free so the report reads cleanly in print.
+export const REPORT_PAPER: Rgb = [250, 250, 249];
+export const REPORT_FOREST: Rgb = [30, 58, 47];
+export const REPORT_FOREST_SOFT: Rgb = [232, 239, 235];
+export const REPORT_LEAF: Rgb = [70, 111, 79];
+export const REPORT_ORANGE: Rgb = [178, 75, 35];
+export const REPORT_BLUE: Rgb = [42, 91, 103];
+export const REPORT_INK: Rgb = [29, 33, 31];
+export const REPORT_MUTED: Rgb = [85, 94, 89];
+export const REPORT_LINE: Rgb = [214, 220, 216];
+
 // The legacy template key is retained for saved reports, but now renders the
 // NFI house style established by its authored food-industry publications.
 export const NFI_CORAL: Rgb = [124, 154, 137];
@@ -103,7 +116,7 @@ export function setText(doc: PdfDocument, color: Rgb, size: number, weight: 'nor
 
 export function setDisplayText(doc: PdfDocument, color: Rgb, size: number, weight: 'normal' | 'bold' = 'bold') {
   doc.setTextColor(...color);
-  doc.setFont('helvetica', weight);
+  doc.setFont('times', weight);
   doc.setFontSize(size);
 }
 
@@ -256,7 +269,7 @@ export function addContentPage(ctx: PdfContext) {
   return 64;
 }
 
-/** Consistent conclusion-led heading used by the eight-page client report. */
+/** Consistent conclusion-led heading retained for the legacy report renderer. */
 export function reportPageHeading(
   ctx: PdfContext,
   page: number,
@@ -361,7 +374,7 @@ export function chapterBanner(ctx: PdfContext, chapter: string, title: string, y
  * Branded footer applied to every page with a quiet publication-style folio.
  */
 export function renderFooter(ctx: PdfContext, page: number, reportFooter?: string) {
-  const { doc, width, height, margin, primary, template, documentWarning } = ctx;
+  const { doc, width, height, margin, template, documentWarning } = ctx;
   if (documentWarning) {
     setText(doc, AMBER, 6.5, 'bold');
     const warning = doc.splitTextToSize(documentWarning, width - margin * 2 - 42) as string[];
@@ -380,11 +393,11 @@ export function renderFooter(ctx: PdfContext, page: number, reportFooter?: strin
     doc.text(String(page).padStart(2, '0'), width - margin, height - 13, { align: 'right' });
     return;
   }
-  doc.setDrawColor(...SLATE_200);
+  doc.setDrawColor(...REPORT_LINE);
   doc.setLineWidth(0.5);
   doc.line(margin, height - 34, width - margin, height - 34);
-  setText(doc, SLATE_500, 7);
+  setText(doc, REPORT_MUTED, 6.8);
   doc.text(reportFooter || 'Confidential commercialization report', margin, height - 19);
-  setText(doc, primary, 8, 'bold');
+  setText(doc, REPORT_FOREST, 8, 'bold');
   doc.text(String(page).padStart(2, '0'), width - margin, height - 19, { align: 'right' });
 }

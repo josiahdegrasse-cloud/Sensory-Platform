@@ -92,7 +92,10 @@ export function ReportOverviewPanel({
     ? { scale: 10, entries: Object.entries(sensoryProfile.intensity).slice(0, 5).map(([label, value]) => ({ label, value: value as number })) }
     : null;
   const topCompounds = [...compounds].sort((a, b) => b.concentration - a.concentration).slice(0, 5);
-  const strongestSignal = evidence?.topSelections[0]
+  const leadingVisual = evidence?.imagePreferences?.[0];
+  const strongestSignal = leadingVisual
+    ? `Visual option ${leadingVisual.optionIndex + 1} (${leadingVisual.percentage.toFixed(0)}% preference)`
+    : evidence?.topSelections[0]
     ? `${evidence.topSelections[0].option} (${evidence.topSelections[0].percentage.toFixed(0)}% concept selection)`
     : matchingLiveSensory
       ? `Overall liking ${matchingLiveSensory.hedonic.overall?.toFixed(1) ?? 'N/A'}/9 from ${matchingLiveSensory.n} live responses`
@@ -142,7 +145,7 @@ export function ReportOverviewPanel({
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
             <div className="mb-1.5 text-xs font-semibold text-slate-700">Concept evidence</div>
             {evidence && evidence.responseCount > 0
-              ? <DataProvenanceBadge provenance="live" n={evidence.responseCount} />
+              ? <DataProvenanceBadge provenance={evidence.provenance === 'synthetic' ? 'synthetic' : 'live'} n={evidence.responseCount} />
               : <span className="text-xs text-slate-500">{projectConcept ? 'No responses yet' : 'No concept linked'}</span>}
           </div>
           <MetricTile label="Purchase intent" value={evidence?.purchaseIntent ? evidence.purchaseIntent.toFixed(1) : 'N/A'} sub="1–9 scale" />
@@ -312,9 +315,16 @@ export function ReportOverviewPanel({
         )}
         {evidence && evidence.responseCount > 0 ? (
           <>
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className={`grid gap-2 ${leadingVisual ? 'sm:grid-cols-2 xl:grid-cols-4' : 'sm:grid-cols-3'}`}>
               <MetricTile label="Responses" value={String(evidence.responseCount)} />
               <MetricTile label="Purchase intent" value={evidence.purchaseIntent ? evidence.purchaseIntent.toFixed(1) : 'N/A'} sub="1–9 scale" />
+              {leadingVisual && (
+                <MetricTile
+                  label="Leading visual"
+                  value={`Option ${leadingVisual.optionIndex + 1}`}
+                  sub={`${leadingVisual.count} selections · ${leadingVisual.percentage.toFixed(0)}%`}
+                />
+              )}
               <MetricTile label="Top selection" value={evidence.topSelections[0]?.option ?? '—'} sub={evidence.topSelections[0] ? `${evidence.topSelections[0].percentage.toFixed(0)}% of panel` : undefined} />
             </div>
             {evidence.comments.length > 0 && (

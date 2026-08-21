@@ -171,12 +171,12 @@ function approvalStatus(status: CommercializationReportRecord['status']): Approv
 }
 
 function provenanceFromContext(ctx: ReportContext): ReportReadiness['evidenceProvenance'] {
-  const reference = /reference\/demo|reference-demo/i.test(ctx.evidenceProvenance);
+  const reference = /reference\/demo|reference-demo|synthetic concept responses/i.test(ctx.evidenceProvenance);
   return {
     sensory: reference ? 'reference' : ctx.dimensions.some(d => d.sampleSize && d.sampleSize > 0) ? 'live' : 'none',
     instrumental: ctx.instrumental.available ? 'live' : 'none',
-    concept: ctx.concept.responseCount > 0 ? 'live' : 'none',
-    purchaseIntent: ctx.concept.purchaseIntent !== null ? 'live' : 'none',
+    concept: ctx.concept.responseCount > 0 ? (reference ? 'reference' : 'live') : 'none',
+    purchaseIntent: ctx.concept.purchaseIntent !== null ? (reference ? 'reference' : 'live') : 'none',
   };
 }
 
@@ -224,8 +224,16 @@ export function buildReportReadiness(input: {
     evidenceBundleStatus: input.evidenceBundleStatus,
     sensoryStatus: provenance.sensory === 'live' ? `Live sensory evidence (${input.ctx.dimensions[0]?.population ?? 'panel documented'})` : provenance.sensory === 'reference' ? 'Reference/demo sensory evidence' : 'No sensory evidence',
     instrumentalStatus: input.ctx.instrumental.available ? 'Instrumental evidence included' : input.ctx.instrumental.absenceNote ?? 'No instrumental evidence',
-    conceptStatus: input.ctx.concept.responseCount > 0 ? `${input.ctx.concept.responseCount} concept responses` : 'Missing concept evidence',
-    purchaseIntentStatus: input.ctx.concept.purchaseIntent !== null ? `${input.ctx.concept.purchaseIntent.toFixed(1)}/9 purchase intent` : 'Purchase intent not available',
+    conceptStatus: input.ctx.concept.responseCount > 0
+      ? provenance.concept === 'reference'
+        ? `${input.ctx.concept.responseCount} synthetic concept responses (test only)`
+        : `${input.ctx.concept.responseCount} concept responses`
+      : 'Missing concept evidence',
+    purchaseIntentStatus: input.ctx.concept.purchaseIntent !== null
+      ? provenance.purchaseIntent === 'reference'
+        ? `${input.ctx.concept.purchaseIntent.toFixed(1)}/9 synthetic purchase intent (test only)`
+        : `${input.ctx.concept.purchaseIntent.toFixed(1)}/9 purchase intent`
+      : 'Purchase intent not available',
     approvalBlockers: [...new Set(approvalBlockers)],
     exportBlockers: [...new Set(exportBlockers)],
     qcWarnings: qc.score.warnings,

@@ -1,5 +1,6 @@
 import { formatDecisionDimension } from '../lib/commercialization-report';
-import { reportPageHeadings, type CommercializationReportPdfInput } from './pdf/sections';
+import type { CommercializationReportPdfInput } from './pdf/sections';
+import { CLIENT_REPORT_V2_PAGE_COUNT, CLIENT_REPORT_V2_PAGE_HEADINGS } from './pdf/report-v2';
 import type { PdfDocument } from './pdf/theme';
 import { excerptAppearsInClientCopy, scanClientFacingText } from '../lib/evidence-assist';
 
@@ -105,7 +106,7 @@ export function evaluateCommercializationReport(
   const clientReport = pageTexts.join(' ').toLowerCase();
   const dimensions = Object.keys(input.snapshot.decision.dimensions) as Array<keyof typeof input.snapshot.decision.dimensions>;
   const repeatedWarnings = repeatedCaveats(pageTexts);
-  const expectedHeadings: string[] = [...reportPageHeadings];
+  const expectedHeadings: string[] = [...CLIENT_REPORT_V2_PAGE_HEADINGS];
   const readinessThreshold = input.reportContext?.thresholds.readiness ?? 60;
   const productGo = input.snapshot.decision.outcome === 'GO'
     && !(input.snapshot.decision.gates ?? []).some(gate => gate.status === 'fail')
@@ -122,12 +123,12 @@ export function evaluateCommercializationReport(
   const malformedCopy = /Shoppers who value the sensory strengths validated in screening/i.test(pageTexts.join(' '))
     || /\.\s+(?:bagels|crackers|dips|sandwiches|seeking|looking)\b/.test(pageTexts.join(' '));
   const cashewIdentity = /cashew.*cream cheese/i.test(`${input.snapshot.product.sampleName} ${input.snapshot.concept.name}`);
-  const identityDrift = cashewIdentity && /\b(?:cheddar|coconut-based|melting cheese|hard cheese)\b/i.test(pageTexts[5] ?? '');
+  const identityDrift = cashewIdentity && /\b(?:cheddar|coconut-based|melting cheese|hard cheese)\b/i.test(pageTexts[3] ?? '');
   const checks: QualityCheck[] = [
     {
       id: 'page-count',
-      passed: pageTexts.length === 8,
-      detail: `Expected 8 pages; generated ${pageTexts.length}.`,
+      passed: pageTexts.length === CLIENT_REPORT_V2_PAGE_COUNT,
+      detail: `Expected ${CLIENT_REPORT_V2_PAGE_COUNT} pages; generated ${pageTexts.length}.`,
     },
     {
       id: 'required-headings',
@@ -136,17 +137,17 @@ export function evaluateCommercializationReport(
     },
     {
       id: 'cover-decision',
-      passed: includesAll(pageTexts[0] ?? '', [input.snapshot.product.sampleName, input.snapshot.product.foodType, 'Sensory decision', 'Readiness stage', 'Recommended next action']),
-      detail: 'Cover identifies the product, decision, readiness, and next action.',
+      passed: includesAll(pageTexts[0] ?? '', [input.snapshot.product.sampleName, input.snapshot.product.foodType, 'Client product decision report', input.snapshot.decision.outcome, 'Version']),
+      detail: 'The branded cover must identify the product, category, decision, and report version.',
     },
     {
       id: 'decision-facts',
-      passed: includesAll(pageTexts[0] ?? '', ['ISSF score', 'Evidence strength', 'Concept evidence', 'Core strength', 'Main watch point']),
-      detail: 'Executive decision page includes the canonical decision facts and watch point.',
+      passed: includesAll(pageTexts[1] ?? '', ['Recommendation', 'ISSF', 'GO threshold', 'Decision margin', 'Evidence strength', 'Protect', 'Watch', 'What this means by audience', 'Immediate priorities']),
+      detail: 'Executive recommendation includes the canonical decision facts, strength, watch point, audience meaning, and priorities.',
     },
     {
       id: 'product-go-framing',
-      passed: !productGo || includesAll(pageTexts[0] ?? '', ['PRODUCT DECISION: GO', 'Approved for launch preparation', 'claims evidence limited']),
+      passed: !productGo || includesAll(`${pageTexts[0] ?? ''} ${pageTexts[1] ?? ''}`, ['GO', 'Approved for launch preparation', 'claims evidence limited']),
       detail: 'A clean product GO must authorize launch preparation without being downgraded by concept evidence.',
     },
     {
@@ -162,35 +163,44 @@ export function evaluateCommercializationReport(
     },
     {
       id: 'flow',
-      passed: expectedHeadings.every((heading, index) => pageTexts[index]?.includes(heading)),
-      detail: 'Report follows decision, evidence, product direction, and validation/release flow.',
+      passed: expectedHeadings.every((heading, index) => pageTexts[index]?.toLowerCase().includes(heading.toLowerCase())),
+      detail: 'Report follows cover, recommendation, performance, response, action, and evidence/release flow.',
     },
     {
       id: 'decision-basis',
-      passed: includesAll(pageTexts[1] ?? '', ['Decision margin', 'Evidence populations and provenance', 'What would change the decision', 'Material limitations', 'Management decision']),
-      detail: 'Decision basis must explain evidence quality, sensitivity, limitations, and the management authorization.',
+      passed: includesAll(pageTexts[1] ?? '', ['Decision margin', 'Evidence strength', 'Executive', 'R&D', 'Marketing']),
+      detail: 'The executive page must explain evidence quality and translate the management authorization for each audience.',
     },
     {
       id: 'commercial-actions',
-      passed: includesAll(pageTexts[6] ?? '', ['Protocol', 'Pass / next gate', 'Owner:', 'Timing:', 'Budget:', 'If not met', 'Next decision gate']),
-      detail: 'Validation protocol identifies the method, passing criteria, ownership, timing, budget status, and next gate.',
+      passed: includesAll(pageTexts[6] ?? '', ['Protect', 'Improve', 'Validate', 'Why / protocol', 'Passing evidence', 'Owner / gate', 'Timing:', 'Next gate:', 'Next decision gate']),
+      detail: 'The action plan identifies controlled workstreams, methods, passing evidence, ownership, timing, and gates.',
     },
     {
       id: 'product-readiness',
-      passed: includesAll(pageTexts[4] ?? '', ['Pilot manufacturing', 'Packaging compatibility', 'Regulatory, labeling, and nutrition', 'Required next evidence'])
-        && !/shelf[- ]?life/i.test(pageTexts[4] ?? ''),
-      detail: 'Product readiness covers manufacturing, packaging, regulatory, labeling, and nutrition evidence without the deferred shelf-life workstream.',
+      passed: includesAll(pageTexts[6] ?? '', ['Protect', 'Improve', 'Validate', 'Passing evidence'])
+        && !/shelf[- ]?life/i.test(pageTexts[6] ?? ''),
+      detail: 'Product readiness is converted into explicit protect, improve, and validate controls.',
     },
     {
       id: 'commercial-readiness',
-      passed: includesAll(pageTexts[5] ?? '', ['Competitive benchmark', 'Price architecture', 'Unit economics', 'Channel and buyer strategy', 'Demand and launch forecast', 'Required next evidence']),
-      detail: 'Commercial readiness covers competition, price, economics, channel, buyer strategy, and demand evidence.',
+      passed: includesAll(pageTexts[3] ?? '', ['Working proposition', 'Priority consumer', 'Product promise', 'Price hypothesis', 'Commercial meaning', 'Concept evidence boundary']),
+      detail: 'Consumer/concept response translates the proposition, target, promise, price hypothesis, evidence boundary, and commercial meaning.',
     },
     {
       id: 'blocked-language-scope',
-      passed: !pageTexts.slice(0, 7).some(page => /\bblocked\b/i.test(page))
-        && includesAll(pageTexts[7] ?? '', ['Blocked', 'External claim']),
-      detail: 'Blocked status is reserved for external claims; ordinary commercial evidence gaps use validation language.',
+      passed: !/\bblocked\b/i.test(pageTexts[7] ?? '') || /external claim/i.test(pageTexts[7] ?? ''),
+      detail: 'Blocked claim status must be defined inside the final external-claim release record.',
+    },
+    {
+      id: 'panel-study-profile',
+      passed: includesAll(pageTexts[4] ?? '', ['Panel and study profile', 'Sensory evidence', 'Concept evidence', 'Profile coverage', 'Representativeness boundary', 'Privacy and provenance']),
+      detail: 'The report must disclose study populations, respondent-profile coverage, privacy suppression, and the representativeness boundary.',
+    },
+    {
+      id: 'literature-evidence-map',
+      passed: includesAll(pageTexts[5] ?? '', ['Scientific literature and evidence map', 'What literature contributes', 'What literature cannot prove', 'Approved source register', 'How the literature changes the next study']),
+      detail: 'Literature must be presented as a source register with explicit uses, non-uses, and study-design implications.',
     },
     {
       id: 'score-interpretation',
@@ -198,33 +208,38 @@ export function evaluateCommercializationReport(
         const label = formatDecisionDimension(dimension).toLowerCase();
         const page = (pageTexts[2] ?? '').toLowerCase();
         const labelIndex = page.indexOf(label);
-        return labelIndex >= 0 && page.includes('what the evidence supports');
+        return labelIndex >= 0 && page.includes('readiness line');
       }),
-      detail: 'Every major score has a nearby business implication.',
+      detail: 'Every deterministic decision factor is shown against the readiness line with a business implication.',
     },
     {
       id: 'scientific-context-separation',
-      passed: includesAll(pageTexts[3] ?? '', ['Instrumental status', 'Technical and execution risks', 'Evidence-led recommendations for the next study', 'Sources']),
-      detail: 'Project instrumental evidence, product risks, and citation-backed scientific context must remain visibly separate.',
+      passed: includesAll(pageTexts[2] ?? '', ['Instrumental context', 'Literature strengthens the next study', 'Study basis and definitions']),
+      detail: 'Project instrumental context, literature guidance, and the project study basis must remain visibly separate.',
     },
     {
       id: 'consumer-evidence-boundary',
-      passed: includesAll(pageTexts[5] ?? '', ['Concept evidence boundary', `n=${input.snapshot.evidence.responseCount}`]),
+      passed: includesAll(pageTexts[3] ?? '', ['Concept evidence boundary', `n=${input.snapshot.evidence.responseCount}`]),
       detail: 'The commercial proposition must disclose the concept sample size and evidence boundary.',
     },
     {
       id: 'concept-strategy',
-      passed: includesAll(pageTexts[5] ?? '', ['Working proposition', 'Priority consumer', 'Promise', 'Price hypothesis', 'Directional concept visual', 'Competitive benchmark', 'Unit economics', 'Commercial conclusion']),
-      detail: 'Commercial case presents the proposition and visually summarizes consumer, competition, price, economics, channel, and demand readiness.',
+      passed: includesAll(pageTexts[3] ?? '', ['Working proposition', 'Priority consumer', 'Product promise', 'Price hypothesis', 'Observed response']),
+      detail: 'Consumer/concept page presents the proposition, priority consumer, product promise, price hypothesis, and observed response.',
     },
     {
       id: 'final-summary',
-      passed: includesAll(pageTexts[7] ?? '', ['Claims release status by evidence level', 'Current release boundary', 'Internal decision statement', 'External claim', 'Permitted wording', 'Requirement', 'Report status']),
-      detail: 'Final page closes with a claim-by-claim release matrix and report status.',
+      passed: includesAll(pageTexts[7] ?? '', ['Claim-to-evidence register', 'Evidence', 'Permitted wording / requirement', 'Approved literature guidance', 'Material limitations', 'Release decision']),
+      detail: 'Final page closes with claim-level evidence, wording permissions, limitations, literature, and release status.',
+    },
+    {
+      id: 'evidence-traceability',
+      passed: includesAll(pageTexts[7] ?? '', ['E1', 'E5', 'Evidence populations', 'Requirement:']),
+      detail: 'Material claims must map to stable evidence-register entries and state their release requirement.',
     },
     {
       id: 'scanability',
-      passed: pageTexts.every((_, index) => pageWordCounts[index] >= (index === 0 ? 50 : 40) && pageWordCounts[index] <= 400),
+      passed: pageTexts.every((_, index) => pageWordCounts[index] >= (index === 0 ? 24 : 45) && pageWordCounts[index] <= 520),
       detail: `Page word counts: ${pageWordCounts.join(', ')}.`,
     },
     {
@@ -269,7 +284,7 @@ export function evaluateCommercializationReport(
     },
     {
       id: 'translated-positioning',
-      passed: !/e-tongue|GC-MS|GC-O|ISTD|\bppm\b|emotion balance/i.test(pageTexts[5] ?? ''),
+      passed: !/e-tongue|GC-MS|GC-O|ISTD|\bppm\b|emotion balance/i.test(pageTexts[3] ?? ''),
       detail: 'Product direction must translate evidence rather than dump raw metrics.',
     },
     {
@@ -281,12 +296,12 @@ export function evaluateCommercializationReport(
 
   const scores: Record<RubricCategory, number> = {
     A: scoreChecks(checks, ['cover-decision', 'decision-facts', 'product-go-framing', 'claims-layer-separation', 'decision-basis']),
-    B: scoreChecks(checks, ['page-count', 'required-headings', 'flow', 'scanability', 'final-summary']),
-    C: scoreChecks(checks, ['commercial-actions', 'product-readiness', 'commercial-readiness', 'score-interpretation', 'consumer-evidence-boundary']),
-    D: scoreChecks(checks, ['score-interpretation', 'scientific-context-separation', 'specific-language', 'number-formatting']),
+    B: scoreChecks(checks, ['page-count', 'required-headings', 'flow', 'scanability', 'panel-study-profile', 'literature-evidence-map', 'final-summary']),
+    C: scoreChecks(checks, ['commercial-actions', 'product-readiness', 'commercial-readiness', 'score-interpretation', 'consumer-evidence-boundary', 'panel-study-profile']),
+    D: scoreChecks(checks, ['score-interpretation', 'scientific-context-separation', 'literature-evidence-map', 'specific-language', 'number-formatting']),
     E: scoreChecks(checks, ['concept-strategy', 'commercial-readiness', 'blocked-language-scope', 'product-identity', 'translated-positioning']),
     F: scoreChecks(checks, ['scanability', 'flow', 'final-summary']),
-    G: scoreChecks(checks, ['appendix-discipline']),
+    G: scoreChecks(checks, ['appendix-discipline', 'evidence-traceability']),
     H: scoreChecks(checks, ['specific-language', 'warning-repetition', 'internal-language', 'raw-source-metadata', 'copy-integrity', 'no-unsupported-launch-block']),
   };
   const weaknesses = checks.filter(check => !check.passed).map(check => check.detail);

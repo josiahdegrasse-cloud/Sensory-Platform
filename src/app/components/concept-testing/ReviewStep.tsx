@@ -1,6 +1,4 @@
-import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -36,6 +34,7 @@ export function ReviewStep({
   assignedPanelistIds,
   requireApprovedVisuals,
   onEditConcept,
+  onEditVisuals,
   onEditSurvey,
   onEditPanel,
 }: {
@@ -45,6 +44,7 @@ export function ReviewStep({
   assignedPanelistIds: string[];
   requireApprovedVisuals: boolean;
   onEditConcept: () => void;
+  onEditVisuals: () => void;
   onEditSurvey: () => void;
   onEditPanel: () => void;
 }) {
@@ -71,166 +71,139 @@ export function ReviewStep({
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-bold text-slate-900">Review before sending</h2>
-        <p className="text-slate-500 text-sm mt-1">
-          Check the concept, visuals, survey, and recipients before sending.
+        <h2 className="text-xl font-semibold text-slate-950">Review before launch</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Confirm the study setup at a glance. Edit any section that needs a final change.
         </p>
       </div>
 
       {blockers.length > 0 ? (
-        <Card className="border border-amber-300 bg-amber-50">
-          <CardContent className="py-4">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-700" aria-hidden />
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-amber-950">A few things need attention</h3>
-                <p className="mt-1 text-sm text-amber-800">Complete these items before sending the survey.</p>
-                <ul className="mt-3 space-y-2">
-                  {blockers.map(item => (
-                    <li key={item.id} className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-white/70 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-                      <span className="text-sm text-amber-950"><strong>{item.label}:</strong> {item.detail}</span>
-                      <button
-                        type="button"
-                        onClick={item.fixStep === 'panel' ? onEditPanel : item.fixStep === 'survey' ? onEditSurvey : onEditConcept}
-                        className="shrink-0 text-left text-xs font-semibold text-blue-700 hover:text-blue-900"
-                      >
-                        Edit {item.fixStep === 'panel' ? 'panel' : item.fixStep === 'survey' ? 'survey' : 'concept'}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-700" aria-hidden />
+            <div className="min-w-0 flex-1">
+              <h3 className="font-semibold text-amber-950">Complete {blockers.length} item{blockers.length === 1 ? '' : 's'} before launch</h3>
+              <ul className="mt-2 divide-y divide-amber-200">
+                {blockers.map(item => (
+                  <li key={item.id} className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between">
+                    <span className="text-sm text-amber-950"><strong>{item.label}:</strong> {item.detail}</span>
+                    <button
+                      type="button"
+                      onClick={item.fixStep === 'panel'
+                        ? onEditPanel
+                        : item.fixStep === 'survey'
+                          ? onEditSurvey
+                          : item.fixStep === 'visuals'
+                            ? onEditVisuals
+                            : onEditConcept}
+                      className="min-h-11 shrink-0 text-left text-xs font-semibold text-blue-700 hover:text-blue-900"
+                    >
+                      Edit {item.fixStep === 'concept' ? 'brief' : item.fixStep}
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ) : (
         <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
           <CheckCircle2 className="size-4" aria-hidden />
-          Everything needed is selected. Review the details below, then send when you are ready.
+          Everything needed is ready. Review the summary, then launch the test.
         </div>
       )}
 
-      <Accordion type="multiple" className="rounded-lg border border-slate-200 px-4">
-        <AccordionItem value="concept">
-          <AccordionTrigger>
-            <span className="flex items-center gap-2">
-              <FolderKanban className="size-4 text-slate-500" aria-hidden />
-              Concept brief
-              <span className="font-normal text-slate-500">{draft.name || 'Untitled'}</span>
-            </span>
-          </AccordionTrigger>
-          <AccordionContent className="space-y-3">
-            <div className="flex justify-end">
-              <button type="button" onClick={onEditConcept} className="text-xs font-semibold text-blue-700 hover:text-blue-900">Edit concept</button>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div><p className="text-xs font-semibold text-slate-500">Project</p><p className="text-sm text-slate-900">{draft.projectName || '(project not named)'}</p></div>
-              <div><p className="text-xs font-semibold text-slate-500">Category</p><p className="text-sm text-slate-900">{draft.category || '(category not set)'}</p></div>
-            </div>
-            {draft.description && <p className="text-sm text-slate-700">{draft.description}</p>}
-            <div className="flex flex-wrap gap-3 text-xs text-slate-700">
-              {draft.targetMarket && <span><strong>Target:</strong> {draft.targetMarket}</span>}
-              {draft.pricePoint && <span><strong>Price:</strong> {draft.pricePoint}</span>}
-              {draft.keyBenefits && <span><strong>Benefits:</strong> {draft.keyBenefits}</span>}
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-
-        <AccordionItem value="visuals">
-          <AccordionTrigger>
-            <span className="flex items-center gap-2">
-              <ImageIcon className="size-4 text-slate-500" aria-hidden />
-              Visuals
-              <span className="font-normal text-slate-500">{selectedImages.length} selected</span>
-            </span>
-          </AccordionTrigger>
-          <AccordionContent>
-            <div className="mb-3 flex justify-end">
-              <button type="button" onClick={onEditConcept} className="text-xs font-semibold text-blue-700 hover:text-blue-900">Edit visuals</button>
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {selectedImageEntries.map(({ image, review, originalIndex }, index) => {
-                return (
-                  <div key={`${image}-${originalIndex}`} className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-                    <img src={image} alt={`Selected concept visual ${index + 1}`} loading="lazy" decoding="async" className="aspect-square w-full object-cover" />
-                    <div className="space-y-1.5 border-t border-slate-200 p-2">
-                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${visualStatusClasses(review?.status)}`}>
-                        {visualStatusLabel(review?.status)}
-                      </span>
-                      {requireApprovedVisuals && review?.status !== 'approved' && (
-                        <p className="text-[11px] leading-4 text-amber-700">Approval required before launch.</p>
-                      )}
-                      {review?.notes && (
-                        <p className="line-clamp-2 text-[11px] leading-4 text-slate-500">{review.notes}</p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-
-        <AccordionItem value="survey">
-          <AccordionTrigger>
-            <span className="flex items-center gap-2">
-              <FileText className="size-4 text-slate-500" aria-hidden />
-              Survey
-              <span className="font-normal text-slate-500">{questions.length} questions, {estimatedDuration}</span>
-            </span>
-          </AccordionTrigger>
-          <AccordionContent>
-            <div className="mb-3 flex justify-end">
-              <button type="button" onClick={onEditSurvey} className="text-xs font-semibold text-blue-700 hover:text-blue-900">Edit survey</button>
-            </div>
-            <ol className="space-y-1.5">
-              {questions.map((q, i) => (
-                <li key={q.id} className="flex items-start gap-2 text-sm">
-                  <span className="text-slate-500 font-bold w-5 flex-shrink-0">{i + 1}.</span>
-                  <span className="text-slate-700 line-clamp-1">{q.text || <em className="text-slate-500">Empty question</em>}</span>
-                  <span className={`ml-auto flex-shrink-0 text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${CATEGORY_COLORS[q.category]}`}>{q.category}</span>
-                </li>
-              ))}
-            </ol>
-          </AccordionContent>
-        </AccordionItem>
-
-        <AccordionItem value="panel">
-          <AccordionTrigger>
-            <span className="flex items-center gap-2">
-              <Users className="size-4 text-slate-500" aria-hidden />
-              Panel
-              <span className="font-normal text-slate-500">{assignedPanelistIds.length} assigned</span>
-            </span>
-          </AccordionTrigger>
-          <AccordionContent className="space-y-3">
-            <div className="flex justify-end">
-              <button type="button" onClick={onEditPanel} className="text-xs font-semibold text-blue-700 hover:text-blue-900">Edit panel</button>
-            </div>
-            {assignedPanelists.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {assignedPanelists.map((name, index) => (
-                  <Badge key={`${assignedPanelistIds[index]}-${name}`} variant="outline">{name}</Badge>
-                ))}
+      <div className="divide-y divide-slate-200 border-y border-slate-200">
+        <section className="py-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><FolderKanban className="size-4" aria-hidden /></span>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-950">Concept brief</h3>
+                <p className="mt-0.5 text-xs text-slate-600">{draft.name || 'Untitled'} · {draft.category || 'Category not set'}</p>
               </div>
-            ) : (
-              <p className="text-sm text-amber-700">No panelists assigned. The test cannot launch.</p>
-            )}
-            <p className="text-xs text-slate-500">The survey will be available only to the assigned panelists above.</p>
-            {segments.length > 0 && (
-              <>
-                <p className="text-xs font-semibold text-slate-700">Segments noted for setup</p>
-                <div className="flex flex-wrap gap-2">
-                  {segments.map(s => (
-                    <Badge key={s} variant="outline" className="text-xs">{s}</Badge>
-                  ))}
-                </div>
-              </>
-            )}
-          </AccordionContent>
-        </AccordionItem>
+            </div>
+            <button type="button" onClick={onEditConcept} className="min-h-11 shrink-0 text-xs font-semibold text-blue-700 hover:text-blue-900">Edit brief</button>
+          </div>
+          {draft.description && <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-700">{draft.description}</p>}
+          <dl className="mt-3 grid gap-3 text-xs sm:grid-cols-3">
+            <div><dt className="text-slate-500">Project</dt><dd className="mt-0.5 font-semibold text-slate-800">{draft.projectName || 'Not named'}</dd></div>
+            <div><dt className="text-slate-500">Target market</dt><dd className="mt-0.5 font-semibold text-slate-800">{draft.targetMarket || 'Not set'}</dd></div>
+            <div><dt className="text-slate-500">Price point</dt><dd className="mt-0.5 font-semibold text-slate-800">{draft.pricePoint || 'Not set'}</dd></div>
+          </dl>
+        </section>
 
-      </Accordion>
+        <section className="py-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><ImageIcon className="size-4" aria-hidden /></span>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-950">Visuals</h3>
+                <p className="mt-0.5 text-xs text-slate-600">{selectedImages.length} selected for the study</p>
+              </div>
+            </div>
+            <button type="button" onClick={onEditVisuals} className="min-h-11 shrink-0 text-xs font-semibold text-blue-700 hover:text-blue-900">Edit visuals</button>
+          </div>
+          <div className="mt-3 flex gap-3 overflow-x-auto pb-1">
+            {selectedImageEntries.map(({ image, review, originalIndex }, index) => (
+              <div key={`${image}-${originalIndex}`} className="w-28 shrink-0">
+                <img src={image} alt={`Selected concept visual ${index + 1}`} loading="lazy" decoding="async" className="aspect-square w-full rounded-lg border border-slate-200 object-cover" />
+                <span className={`mt-1.5 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${visualStatusClasses(review?.status)}`}>
+                  {visualStatusLabel(review?.status)}
+                </span>
+              </div>
+            ))}
+            {selectedImages.length === 0 && <p className="text-sm text-amber-700">No concept visual selected.</p>}
+          </div>
+        </section>
+
+        <section className="py-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><FileText className="size-4" aria-hidden /></span>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-950">Survey</h3>
+                <p className="mt-0.5 text-xs text-slate-600">{questions.length} question{questions.length === 1 ? '' : 's'} · about {estimatedDuration}</p>
+              </div>
+            </div>
+            <button type="button" onClick={onEditSurvey} className="min-h-11 shrink-0 text-xs font-semibold text-blue-700 hover:text-blue-900">Edit survey</button>
+          </div>
+          <ol className="mt-3 space-y-2">
+            {questions.slice(0, 5).map((question, index) => (
+              <li key={question.id} className="flex items-start gap-2 text-sm text-slate-700">
+                <span className="w-5 shrink-0 text-xs font-semibold text-slate-500">{index + 1}.</span>
+                <span className="min-w-0 flex-1 truncate">{question.text || 'Empty question'}</span>
+                <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${CATEGORY_COLORS[question.category]}`}>{question.category}</span>
+              </li>
+            ))}
+          </ol>
+          {questions.length > 5 && <p className="mt-2 text-xs text-slate-500">And {questions.length - 5} more questions</p>}
+        </section>
+
+        <section className="py-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Users className="size-4" aria-hidden /></span>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-950">Panel</h3>
+                <p className="mt-0.5 text-xs text-slate-600">{assignedPanelistIds.length} panelist{assignedPanelistIds.length === 1 ? '' : 's'} assigned</p>
+              </div>
+            </div>
+            <button type="button" onClick={onEditPanel} className="min-h-11 shrink-0 text-xs font-semibold text-blue-700 hover:text-blue-900">Edit panel</button>
+          </div>
+          {assignedPanelists.length > 0 ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {assignedPanelists.slice(0, 8).map((name, index) => (
+                <Badge key={`${assignedPanelistIds[index]}-${name}`} variant="outline">{name}</Badge>
+              ))}
+              {assignedPanelists.length > 8 && <Badge variant="outline">+{assignedPanelists.length - 8} more</Badge>}
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-amber-700">No active panelists assigned.</p>
+          )}
+          {segments.length > 0 && <p className="mt-3 text-xs text-slate-600">Segments: {segments.join(', ')}</p>}
+        </section>
+      </div>
     </div>
   );
 }

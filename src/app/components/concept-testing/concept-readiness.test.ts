@@ -119,7 +119,7 @@ describe('getConceptReadiness', () => {
 
     expect(items.find(item => item.id === 'visuals')).toMatchObject({
       ready: false,
-      fixStep: 'concept',
+      fixStep: 'visuals',
     });
   });
 
@@ -136,7 +136,7 @@ describe('getConceptReadiness', () => {
 
     expect(items.find(item => item.id === 'visuals')).toMatchObject({
       ready: false,
-      fixStep: 'concept',
+      fixStep: 'visuals',
     });
   });
 

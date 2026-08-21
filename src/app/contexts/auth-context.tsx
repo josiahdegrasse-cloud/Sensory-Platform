@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef, type ReactNode 
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { acceptPanelistConsent, CURRENT_CONSENT_VERSION, requestAdminAccess } from '../lib/database';
+import { PANELIST_PROFILE_DRAFT_STORAGE_PREFIX } from '../lib/panelist-profile-draft';
 import { checkTenantAccess, tenantAuthRedirectUrl } from '../lib/tenant';
 
 export interface User {
@@ -44,6 +45,7 @@ function clearBrowserSessionArtifacts() {
       if (
         key.startsWith('qs_draft_')
         || key.startsWith('panelist_kit_')
+        || key.startsWith(PANELIST_PROFILE_DRAFT_STORAGE_PREFIX)
         || key.startsWith('concept_lab_draft_')
       ) {
         storage.removeItem(key);

@@ -74,6 +74,21 @@ function sampleInput(): CommercializationReportPdfInput {
         comments: ['Feels easy to use every day.', 'The melt claim needs to be believable.'],
         purchaseIntent: 6.8,
       },
+      panelDemographics: {
+        participantCount: 24,
+        matchedProfileCount: 22,
+        profileCoveragePercentage: 91.7,
+        minimumCellSize: 3,
+        dimensions: [
+          { key: 'age', label: 'Age', knownCount: 22, groups: [{ label: '25-34', count: 9, percentage: 40.9 }, { label: '35-44', count: 8, percentage: 36.4 }, { label: '45-54', count: 5, percentage: 22.7 }], suppressedCount: 0 },
+          { key: 'gender', label: 'Gender', knownCount: 22, groups: [{ label: 'Female', count: 13, percentage: 59.1 }, { label: 'Male', count: 7, percentage: 31.8 }], suppressedCount: 2 },
+          { key: 'region', label: 'Region', knownCount: 21, groups: [{ label: 'London', count: 8, percentage: 38.1 }, { label: 'South East', count: 7, percentage: 33.3 }, { label: 'Midlands', count: 4, percentage: 19 }], suppressedCount: 2 },
+          { key: 'ethnicity', label: 'Ethnic group', knownCount: 21, groups: [{ label: 'White', count: 12, percentage: 57.1 }, { label: 'Asian or Asian British', count: 5, percentage: 23.8 }, { label: 'Mixed or Multiple ethnic groups', count: 3, percentage: 14.3 }], suppressedCount: 1 },
+          { key: 'dietary', label: 'Dietary pattern', knownCount: 22, groups: [{ label: 'Flexitarian', count: 14, percentage: 63.6 }, { label: 'Vegetarian', count: 5, percentage: 22.7 }, { label: 'Vegan', count: 3, percentage: 13.6 }], suppressedCount: 0 },
+          { key: 'grocery_role', label: 'Grocery role', knownCount: 22, groups: [{ label: 'Main shopper', count: 15, percentage: 68.2 }, { label: 'Shared shopper', count: 7, percentage: 31.8 }], suppressedCount: 0 },
+        ],
+        representativenessNote: 'Profiles cover 92% of concept respondents. This is an unweighted descriptive profile, not proof that the panel represents the target market.',
+      },
       narrative: {
         executiveSummary: 'Coconut Cheddar v3 has a confirmed GO recommendation.',
         whyLiked: 'creamy texture, familiar cheddar character, and versatile everyday use.',
@@ -132,14 +147,16 @@ describe('commercialization report quality evaluation', { timeout: 20_000 }, () 
     expect(evaluation.checks.find(check => check.id === 'claims-layer-separation')?.passed).toBe(true);
     expect(evaluation.checks.find(check => check.id === 'product-identity')?.passed).toBe(true);
     expect(evaluation.checks.find(check => check.id === 'internal-language')?.passed).toBe(true);
-    expect(evaluation.pageTexts[0]).toContain('COMMERCIAL DECISION REPORT');
-    expect(evaluation.pageTexts[0]).toContain('NFI VIEW');
-    expect(evaluation.pageTexts[1]).toContain('NFI VIEW');
-    expect(evaluation.pageTexts[7]).toContain('NFI RELEASE VIEW');
+    expect(evaluation.pageTexts[0]).toContain('CLIENT PRODUCT DECISION REPORT');
+    expect(evaluation.pageTexts[1]).toContain('Executive recommendation');
+    expect(evaluation.pageTexts[4]).toContain('Panel and study profile');
+    expect(evaluation.pageTexts[5]).toContain('Scientific literature and evidence map');
+    expect(evaluation.pageTexts[7]).toContain('Evidence and release record');
+    expect(evaluation.pageTexts[7]).toContain('Claim-to-evidence register');
     expect(evaluation.pageTexts.every(page => page.includes('Prepared by New Food Innovation'))).toBe(true);
     expect(evaluation.pageTexts.join(' ')).not.toContain('…');
     expect(evaluation.pageTexts.join(' ')).not.toMatch(/shelf[- ]?life/i);
-    expect(evaluation.pageTexts.join(' ')).not.toMatch(/deterministic decision context|client-safe summary|study type not captured/i);
+    expect(evaluation.pageTexts.join(' ')).not.toMatch(/deterministic decision context|client-safe summary/i);
   });
 
   it('rejects launch-blocking language and raw numeric artifacts in a GO report', async () => {
@@ -195,14 +212,14 @@ describe('commercialization report quality evaluation', { timeout: 20_000 }, () 
 
     const { doc } = await buildCommercializationReportPdf(input);
     const evaluation = evaluateCommercializationReport(doc, input);
-    const scientificPage = evaluation.pageTexts[3];
-    const conceptPage = evaluation.pageTexts[5];
+    const scientificPage = evaluation.pageTexts[5];
+    const conceptPage = evaluation.pageTexts[3];
 
-    expect(scientificPage).toContain('Evidence-led recommendations for the next study');
+    expect(scientificPage).toContain('Scientific literature and evidence map');
     expect(scientificPage).toContain('Study design and reporting');
-    expect(scientificPage).toMatch(/Sources:/i);
+    expect(scientificPage).toContain('[L1]');
     expect(scientificPage).not.toMatch(/nfi_publications|sensory_rag_bulk_pack|\.pdf|\.txt/i);
-    expect(conceptPage).toContain('The proposition is defined; market proof and economics remain open');
+    expect(conceptPage).toContain('Consumer and concept response');
     expect(conceptPage).toContain('CONCEPT EVIDENCE BOUNDARY');
     expect(conceptPage).toContain('Concept test n=1');
     expect(conceptPage).not.toContain('$5-$8');
@@ -234,14 +251,14 @@ describe('commercialization report quality evaluation', { timeout: 20_000 }, () 
     input.reportContext = coconutCheddarContext();
     const { doc } = await buildCommercializationReportPdf(input);
     const evaluation = evaluateCommercializationReport(doc, input);
-    const instrumentalPage = evaluation.pageTexts[3];
+    const instrumentalPage = evaluation.pageTexts[2];
+    const literaturePage = evaluation.pageTexts[5];
 
     expect(instrumentalPage).toContain('E-tongue / composition model');
     expect(instrumentalPage).toContain('GC-MS / GC-O');
-    expect(instrumentalPage).toContain('Internal-standard QC');
-    expect(instrumentalPage).toContain('Evidence-led recommendations for the next study');
-    expect(instrumentalPage).toMatch(/Sources:/i);
-    expect(instrumentalPage).not.toMatch(/nfi_publications|sensory_rag_bulk_pack|\.pdf|\.txt/i);
+    expect(literaturePage).toContain('Scientific literature and evidence map');
+    expect(literaturePage).toContain('Approved source register');
+    expect(literaturePage).not.toMatch(/nfi_publications|sensory_rag_bulk_pack|\.pdf|\.txt/i);
     expect(evaluation.pageTexts.join(' ')).not.toContain('…');
     expect(evaluation.pageTexts.join(' ')).not.toMatch(/shelf[- ]?life/i);
     expect(evaluation.pageTexts[2]).toContain(`concept test n=${input.snapshot.evidence.responseCount}`);
@@ -279,13 +296,15 @@ describe('commercialization report quality evaluation', { timeout: 20_000 }, () 
 
     const { doc } = await buildCommercializationReportPdf(input);
     const evaluation = evaluateCommercializationReport(doc, input);
-    const scientificPage = evaluation.pageTexts[3];
+    const scientificPage = evaluation.pageTexts[2];
+    const evidencePage = evaluation.pageTexts[5];
 
     expect(scientificPage).toContain('Pilot Texture Confirmation');
     expect(scientificPage).toContain('NFI recommends this as the next validation step');
     expect(scientificPage).toContain('Texture performance is 43/100');
-    expect(scientificPage).toContain('Texture confirmation in plant-based cheese');
+    expect(evidencePage).toContain('Texture confirmation in plant-based cheese');
     expect(evaluation.pageTexts.join(' ')).not.toMatch(/chunkId|retrievedExcerpt|sourcePath|retrievalScore|\bRAG\b/i);
+    expect(evaluation.weaknesses).toEqual([]);
     expect(evaluation.passed).toBe(true);
 
     if (process.env.GENERATE_REPORT_ARTIFACTS === '1') {
@@ -314,12 +333,12 @@ describe('commercialization report quality evaluation', { timeout: 20_000 }, () 
 
     const { doc } = await buildCommercializationReportPdf(input);
     const evaluation = evaluateCommercializationReport(doc, input);
-    const scientificPage = evaluation.pageTexts[3];
+    const evidencePage = evaluation.pageTexts[5];
 
-    expect(scientificPage).toContain('Birke Rune, Clausen & Giacalone (2026)');
-    expect(scientificPage).toContain('DOI 10.1080/10408398.2025.2531220');
-    expect(scientificPage).toContain('Guggenbühl et al. (2026)');
-    expect(scientificPage).toContain('DOI 10.1016/j.foodqual.2025.105713');
+    expect(evidencePage).toContain('Birke Rune, Clausen & Giacalone (2026)');
+    expect(evidencePage).toContain('DOI 10.1080/10408398.2025.2531220');
+    expect(evidencePage).toContain('Guggenbühl et al. (2026)');
+    expect(evidencePage).toContain('DOI 10.1016/j.foodqual.2025.105713');
     expect(evaluation.checks.find(check => check.id === 'number-formatting')?.passed).toBe(true);
     expect(evaluation.passed).toBe(true);
   });

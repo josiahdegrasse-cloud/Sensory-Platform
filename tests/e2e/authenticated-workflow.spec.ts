@@ -83,9 +83,10 @@ test.describe('authenticated admin workflow', () => {
 
     await page.goto('/concept-testing');
     await expect(page.getByRole('heading', { name: 'Concept Lab' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'GO prototypes ready for concept work' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Work queue' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('heading', { name: 'Continue working' })).toBeVisible();
     await expect(page.getByRole('button', { name: /Start without decision/i })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Review decisions' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Decision review' })).toBeVisible();
   });
 
   test('Concept Lab saves progress, returns to drafts, and resumes the exact survey step', async ({ page }) => {
@@ -185,9 +186,11 @@ test.describe('authenticated admin workflow', () => {
     try {
       await loginAsAdmin(page);
       await page.goto(`/project/${decision!.project_id}/concept`);
-      await expect(page.getByRole('heading', { name: 'In-progress concepts' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Continue working' })).toBeVisible();
       await page.getByRole('button', { name: `Continue ${initialName}` }).click();
       await page.getByLabel('Product name').fill(editedName);
+      await page.getByRole('button', { name: 'Continue to Visuals' }).click();
+      await expect(page.getByRole('heading', { name: 'Create visual options' })).toBeVisible();
       await page.getByRole('button', { name: 'Continue to Survey' }).click();
       await expect(page.getByRole('heading', { name: 'Design your survey' })).toBeVisible();
       await expect(page.getByText(/Saved to workspace/)).toBeVisible({ timeout: 10_000 });

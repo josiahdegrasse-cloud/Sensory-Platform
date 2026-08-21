@@ -33,7 +33,7 @@ describe('commercialization report filename', () => {
     })).toBe('new-food-innovation-sample-s4-commercialization-report-go-2026-06-11-r3.pdf');
   });
 
-  it('builds the eight-page client report', async () => {
+  it('builds the eight-page evidence-led client report', async () => {
     const { doc } = await buildCommercializationReportPdf({
       organizationName: 'New Food Innovation',
       workspaceName: 'Sensory Workspace',

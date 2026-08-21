@@ -68,14 +68,15 @@ export function buildReportContext(input: BuildContextInput): ReportContext {
   const { snapshot, decision, augmentation } = input;
   const readiness = input.readinessThreshold ?? 60;
   const responseCount = snapshot.evidence.responseCount;
+  const validatedResponseCount = snapshot.evidence.provenance === 'synthetic' ? 0 : responseCount;
 
-  const gates = buildGates(decision, snapshot, responseCount, input.approvalStatus, Boolean(input.claimsApproved));
+  const gates = buildGates(decision, snapshot, validatedResponseCount, input.approvalStatus, Boolean(input.claimsApproved));
   const weakest = Math.min(...Object.values(snapshot.decision.dimensions).map(Number));
 
   const thresholds = { go: input.goThreshold ?? 75, stop: input.stopThreshold ?? 45, readiness };
   const stageInputs = {
     sensoryOutcome: decision.decision,
-    responseCount,
+    responseCount: validatedResponseCount,
     gates,
     weakestDimensionScore: weakest,
     readinessThreshold: readiness,
@@ -90,7 +91,7 @@ export function buildReportContext(input: BuildContextInput): ReportContext {
     'Dimension-score completeness across sensory acceptance, texture, descriptor profile, and emotional response',
     'Critical sensory gate outcomes (off-note, instrument QC)',
   ];
-  const conditions = buildConditions(dimensions, responseCount, readiness);
+  const conditions = buildConditions(dimensions, validatedResponseCount, readiness);
 
   const semantics = buildDecisionSemantics({
     ...stageInputs,
@@ -116,7 +117,7 @@ export function buildReportContext(input: BuildContextInput): ReportContext {
   });
 
   const instrumental = buildInstrumental(augmentation.instrumentalFindings ?? []);
-  const limitations = buildLimitations(snapshot, dimensions, responseCount, weakest, readiness, instrumental, input.commercialProfile);
+  const limitations = buildLimitations(snapshot, dimensions, validatedResponseCount, weakest, readiness, instrumental, input.commercialProfile);
   const claims = buildClaims(snapshot, augmentation.sourceEvidenceIds);
 
   return {
@@ -144,7 +145,9 @@ export function buildReportContext(input: BuildContextInput): ReportContext {
       representativeComments: snapshot.evidence.comments.slice(0, 3),
     },
     sourceEvidenceIds: augmentation.sourceEvidenceIds,
-    evidenceProvenance: input.commercialProfile?.evidenceLabel ?? 'Evidence provenance is inherited from the linked source records.',
+    evidenceProvenance: snapshot.evidence.provenance === 'synthetic'
+      ? 'Synthetic concept responses for report workflow testing; not panel evidence and not valid for client release.'
+      : input.commercialProfile?.evidenceLabel ?? 'Evidence provenance is inherited from the linked source records.',
     methodVersion: snapshot.decision.methodVersion,
     decisionFingerprint: snapshot.decision.fingerprint,
     reportVersion: input.reportVersion,
@@ -160,11 +163,11 @@ export function buildReportContext(input: BuildContextInput): ReportContext {
       coverAttached: Boolean(snapshot.concept.reportCoverImageUrl),
       externalUseApproved: Boolean(snapshot.concept.reportCoverApprovedForExternalUse),
     },
-    risks: buildRisks(snapshot, responseCount, input.commercialProfile),
+    risks: buildRisks(snapshot, validatedResponseCount, input.commercialProfile),
     actions: buildActions(snapshot, decision, readiness, input.commercialProfile),
     claims,
     limitations,
-    conceptStrategy: buildConceptStrategy(snapshot, responseCount, input.commercialProfile),
+    conceptStrategy: buildConceptStrategy(snapshot, validatedResponseCount, input.commercialProfile),
   };
 }
 

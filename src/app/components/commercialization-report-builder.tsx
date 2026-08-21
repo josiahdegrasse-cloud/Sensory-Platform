@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpenCheck, CheckCircle2, Cpu, ExternalLink, PackageCheck, ShieldCheck, Sparkles, X } from 'lucide-react';
+import { BookOpenCheck, CheckCircle2, Cpu, ExternalLink, FlaskConical, PackageCheck, ShieldCheck, Sparkles, X } from 'lucide-react';
 import type { GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
 import {
   buildCommercializationSnapshot,
@@ -16,6 +16,7 @@ import {
   useDecisionFreshness,
   useDecisionRecords,
   useFormulationVersions,
+  usePanelists,
   useProjectEvidenceBundle,
   useSaveEvidenceBundle,
 } from '../lib/hooks';
@@ -32,6 +33,10 @@ import { fetchReportGrounding, type ReportGrounding } from '../lib/evidence-assi
 import { openResearchSource } from '../lib/rag-client';
 import { conceptBelongsToProject } from '../lib/concept-project-scope';
 import { reportBelongsToProject } from '../lib/report-project-scope';
+import {
+  buildSyntheticConceptResponses,
+  SYNTHETIC_CONCEPT_RESPONSE_COUNT,
+} from '../lib/concept-response-preview';
 import { getConceptImageMode } from '../../../supabase/functions/_shared/concept-image-catalog.ts';
 import { preferredConceptImageIndex } from './concept-testing/smart-defaults';
 import { Button } from './ui/button';
@@ -61,6 +66,7 @@ export function CommercializationReportBuilder({
   const [open, setOpen] = useState(false);
   const [conceptId, setConceptId] = useState('');
   const [imageIndexOverride, setImageIndex] = useState<number | null>(null);
+  const [useSyntheticResponses, setUseSyntheticResponses] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generationStatus, setGenerationStatus] = useState('');
   const [generationProgress, setGenerationProgress] = useState(0);
@@ -80,6 +86,7 @@ export function CommercializationReportBuilder({
   const { data: concepts = [] } = useAdminConceptTests();
   const { data: reports = [] } = useCommercializationReports();
   const { data: formulationVersions = [] } = useFormulationVersions();
+  const { data: panelists = [] } = usePanelists(open);
   const confirmedGo = decisions.find(record =>
     record.sampleId === decision.sampleId
     && record.decision === 'GO'
@@ -97,6 +104,11 @@ export function CommercializationReportBuilder({
   const selectedConcept = governedConcepts.find(concept => concept.id === effectiveConceptId);
   const responsesQuery = useConceptTestResponses(effectiveConceptId);
   const responses = useMemo(() => responsesQuery.data ?? [], [responsesQuery.data]);
+  const syntheticResponses = useMemo(
+    () => selectedConcept ? buildSyntheticConceptResponses(selectedConcept) : [],
+    [selectedConcept],
+  );
+  const reportResponses = useSyntheticResponses ? syntheticResponses : responses;
   const evidenceQuery = useProjectEvidenceBundle(decision.sampleId, userId, open);
   const evidenceBundle = evidenceQuery.data ?? null;
   const { data: decisionFreshness } = useDecisionFreshness(confirmedGo?.id);
@@ -109,7 +121,7 @@ export function CommercializationReportBuilder({
     confirmedGo
     && selectedConcept
     && selectedConcept.imageUrls.length > 0
-    && responsesQuery.isSuccess
+    && (responsesQuery.isSuccess || useSyntheticResponses)
     && evidenceBundle
     && userId
     && decisionFreshness?.allowed === true
@@ -141,7 +153,8 @@ export function CommercializationReportBuilder({
     confirmedGo?.id ?? '',
     effectiveConceptId,
     evidenceBundle?.sourceDataVersion ?? '',
-    responses.length,
+    useSyntheticResponses ? 'synthetic' : 'live',
+    reportResponses.length,
   ].join(':');
   const reviewedGrounding = groundingReview?.key === groundingReviewKey ? groundingReview : null;
 
@@ -151,7 +164,8 @@ export function CommercializationReportBuilder({
       decisionRecord: confirmedGo,
       liveDecision: decision,
       concept: selectedConcept,
-      responses,
+      responses: reportResponses,
+      evidenceProvenance: useSyntheticResponses ? 'synthetic' : 'live',
       foodType,
       packagingImageId: selectedConcept.imageIds?.[imageIndex] ?? null,
       packagingImageUrl: selectedConcept.imageUrls[imageIndex] ?? '',
@@ -163,6 +177,7 @@ export function CommercializationReportBuilder({
         sourceKind: selectedConcept.reportCoverImageMeta.sourceKind,
         approvedForExternalUse: selectedConcept.reportCoverImageMeta.approvedForExternalUse,
       } : null,
+      panelists,
     });
   };
 
@@ -374,7 +389,7 @@ export function CommercializationReportBuilder({
         evidenceBundleId,
         formulationVersionId: confirmedGo.formulationVersionId ?? selectedConcept.formulationVersionId ?? null,
       });
-      if (reportSnapshot.concept.packagingImageId) {
+      if (reportSnapshot.concept.packagingImageId && !useSyntheticResponses) {
         await updateConceptImageReviewStatus([reportSnapshot.concept.packagingImageId], 'approved').catch(() => {});
       }
       setGenerationStatus('Complete. Opening the report...');
@@ -421,7 +436,11 @@ export function CommercializationReportBuilder({
             <aside className="space-y-5 border-b border-slate-200 bg-slate-50 p-6 lg:border-b-0 lg:border-r">
               <div>
                 <Label>Concept study</Label>
-                <Select value={effectiveConceptId} onValueChange={value => { setConceptId(value); setImageIndex(null); }}>
+                <Select value={effectiveConceptId} onValueChange={value => {
+                  setConceptId(value);
+                  setImageIndex(null);
+                  setUseSyntheticResponses(false);
+                }}>
                   <SelectTrigger className="mt-1"><SelectValue placeholder="Select concept" /></SelectTrigger>
                   <SelectContent>
                     {governedConcepts.map(concept => <SelectItem key={concept.id} value={concept.id}>{concept.name}</SelectItem>)}
@@ -487,6 +506,41 @@ export function CommercializationReportBuilder({
                       No approved portrait cover is attached. The report will use the selected directional packaging image as a legacy cover fallback.
                     </p>
                   )}
+                </div>
+              )}
+
+              {selectedConcept && (
+                <div className="border-t border-slate-200 pt-5">
+                  <Label>Concept responses</Label>
+                  <div className={`mt-2 rounded-md border p-3 ${useSyntheticResponses ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'}`}>
+                    <div className="flex items-start gap-2.5">
+                      <FlaskConical className={`mt-0.5 size-4 shrink-0 ${useSyntheticResponses ? 'text-amber-700' : 'text-slate-500'}`} aria-hidden />
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-slate-900">
+                          {useSyntheticResponses
+                            ? `${SYNTHETIC_CONCEPT_RESPONSE_COUNT} synthetic test responses`
+                            : `${responses.length} live response${responses.length === 1 ? '' : 's'}`}
+                        </p>
+                        <p className="mt-1 text-[11px] leading-4 text-slate-600">
+                          {useSyntheticResponses
+                            ? 'Includes weighted image choices, scale ratings, rankings, selections, and comments. The saved report is blocked from approval.'
+                            : 'Use live panel submissions, or switch to generated data to exercise the complete report flow.'}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="mt-3 h-8 w-full text-xs"
+                      onClick={() => {
+                        setUseSyntheticResponses(current => !current);
+                        setGroundingReview(null);
+                      }}
+                    >
+                      {useSyntheticResponses ? 'Return to live responses' : 'Use synthetic test responses'}
+                    </Button>
+                  </div>
                 </div>
               )}
             </aside>
@@ -563,6 +617,13 @@ export function CommercializationReportBuilder({
                 </div>
               )}
               {error && <p role="alert" className="mt-5 rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</p>}
+
+              {useSyntheticResponses && (
+                <div className="mt-5 flex items-start gap-2.5 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                  <FlaskConical className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  <p><strong>Test-data mode.</strong> The report will contain simulated concept-image results and cannot be approved for client release.</p>
+                </div>
+              )}
 
               <div className="mt-auto pt-6">
                 <div className="flex gap-2">

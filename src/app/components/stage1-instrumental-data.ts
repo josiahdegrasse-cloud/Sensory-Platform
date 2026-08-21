@@ -9,6 +9,11 @@ import {
   type FoodTypeDetection,
 } from "../lib/food-intelligence";
 import { getRawImportColumns } from "../lib/csv-import-mapping";
+import {
+  inferInstrumentalParameterMetadata,
+  type InstrumentalChartPreference,
+  type InstrumentalParameterMetadata,
+} from '../lib/instrumental-parameter-metadata';
 import { STATUS } from "../styles/tokens";
 
 export interface InstrumentalMeasurement {
@@ -17,9 +22,16 @@ export interface InstrumentalMeasurement {
   unit: string;
   mean: number;
   observationCount: number;
+  standardDeviation?: number;
+  minimum?: number;
+  maximum?: number;
+  replicateValues?: number[];
+  metadata?: InstrumentalParameterMetadata;
+  chartPreference?: InstrumentalChartPreference;
 }
 
 export interface ETongueMeasurement {
+  instrumentalSampleId?: string;
   sampleId: string;
   sampleName?: string;
   sourness: number;
@@ -456,6 +468,7 @@ interface MetricTotal extends NumericTotal {
   key: string;
   label: string;
   unit: string;
+  metadata: InstrumentalParameterMetadata;
 }
 
 interface CompoundReplicateTotals {
@@ -514,8 +527,20 @@ function rowMeasurements(row: Record<string, string>) {
     if (NON_MEASUREMENT_COLUMNS.has(normalizedColumn(header))) return [];
     const numeric = Number(value);
     if (!value.trim() || !Number.isFinite(numeric)) return [];
-    return [{ ...parseMeasurementHeader(header), value: numeric }];
+    const definition = parseMeasurementHeader(header);
+    return [{
+      ...definition,
+      value: numeric,
+      metadata: inferInstrumentalParameterMetadata(definition),
+    }];
   });
+}
+
+function sampleStandardDeviation(values: number[]) {
+  if (values.length < 2) return 0;
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const variance = values.reduce((sum, value) => sum + ((value - mean) ** 2), 0) / (values.length - 1);
+  return Math.sqrt(variance);
 }
 
 function meanAcrossReplicates(
@@ -587,6 +612,7 @@ export function buildImportedDataset(previewData: Record<string, string>[], _upl
         key: measurement.key,
         label: measurement.label,
         unit: measurement.unit,
+        metadata: measurement.metadata,
         sum: 0,
         count: 0,
       };
@@ -642,7 +668,7 @@ export function buildImportedDataset(previewData: Record<string, string>[], _upl
       };
     }
 
-    const metricDefinitions = new Map<string, Pick<MetricTotal, 'key' | 'label' | 'unit'>>();
+    const metricDefinitions = new Map<string, Pick<MetricTotal, 'key' | 'label' | 'unit' | 'metadata'>>();
     formulation.replicates.forEach(replicate => replicate.measurements.forEach(metric => {
       if (!metricDefinitions.has(metric.key)) metricDefinitions.set(metric.key, metric);
     }));
@@ -655,6 +681,10 @@ export function buildImportedDataset(previewData: Record<string, string>[], _upl
         ...definition,
         mean: replicateMeans.reduce((sum, value) => sum + value, 0) / replicateMeans.length,
         observationCount: replicateMeans.length,
+        standardDeviation: sampleStandardDeviation(replicateMeans),
+        minimum: Math.min(...replicateMeans),
+        maximum: Math.max(...replicateMeans),
+        replicateValues: replicateMeans,
       };
     });
 

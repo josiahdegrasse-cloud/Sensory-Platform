@@ -15,6 +15,14 @@ import {
   type StructuredIngredient,
 } from '../formulation-profile';
 import type { SurveySection } from '../survey-sections';
+import {
+  applyInstrumentalChartPreference,
+  inferInstrumentalParameterMetadata,
+  parseInstrumentalChartPreference,
+  parseInstrumentalParameterMetadata,
+  type InstrumentalChartPreference,
+  type InstrumentalParameterMetadata,
+} from '../instrumental-parameter-metadata';
 
 type Tables = Database['public']['Tables'];
 
@@ -53,6 +61,12 @@ export interface InstrumentalMeasurementRecord {
   unit: string;
   mean: number;
   observationCount: number;
+  standardDeviation?: number;
+  minimum?: number;
+  maximum?: number;
+  replicateValues?: number[];
+  metadata?: InstrumentalParameterMetadata;
+  chartPreference?: InstrumentalChartPreference;
 }
 
 export interface GCMSCompoundRecord {
@@ -84,6 +98,12 @@ export interface InstrumentalDataset {
   ingredientStatements?: Record<string, IngredientStatementRecord>;
   formulationVersions?: Record<string, FormulationVersion[]>;
   importBatchId?: string;
+}
+
+function optionalFiniteNumber(value: unknown) {
+  if (value === null || value === undefined || value === '') return undefined;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : undefined;
 }
 
 function toStructuredIngredient(row: Tables['formulation_ingredients']['Row']): StructuredIngredient {
@@ -646,12 +666,29 @@ export async function fetchInstrumentalDataset(): Promise<InstrumentalDataset> {
       const mean = Number(metric.mean);
       const observationCount = Number(metric.observationCount);
       if (!String(metric.key ?? '').trim() || !Number.isFinite(mean) || !Number.isFinite(observationCount)) return [];
-      return [{
-        key: String(metric.key),
+      const definition = {
         label: String(metric.label ?? metric.key),
         unit: String(metric.unit ?? ''),
+      };
+      const replicateValues = Array.isArray(metric.replicateValues)
+        ? metric.replicateValues.map(Number).filter(Number.isFinite)
+        : [];
+      return [{
+        key: String(metric.key),
+        ...definition,
         mean,
         observationCount,
+        ...(optionalFiniteNumber(metric.standardDeviation) !== undefined
+          ? { standardDeviation: optionalFiniteNumber(metric.standardDeviation) }
+          : {}),
+        ...(optionalFiniteNumber(metric.minimum) !== undefined ? { minimum: optionalFiniteNumber(metric.minimum) } : {}),
+        ...(optionalFiniteNumber(metric.maximum) !== undefined ? { maximum: optionalFiniteNumber(metric.maximum) } : {}),
+        ...(replicateValues.length > 0 ? { replicateValues } : {}),
+        metadata: parseInstrumentalParameterMetadata(
+          metric.metadata,
+          inferInstrumentalParameterMetadata(definition),
+        ),
+        chartPreference: parseInstrumentalChartPreference(metric.chartPreference),
       }];
     });
     eTongueData.push({
@@ -701,6 +738,35 @@ export async function fetchInstrumentalDataset(): Promise<InstrumentalDataset> {
   }, {});
 
   return { eTongueData, gcmsData, compositionData, ingredientStatements, formulationVersions };
+}
+
+export async function updateInstrumentalChartPreference(input: {
+  instrumentalSampleIds: string[];
+  parameterKey: string;
+  chartPreference: InstrumentalChartPreference;
+}): Promise<void> {
+  const sampleIds = [...new Set(input.instrumentalSampleIds.filter(Boolean))];
+  if (sampleIds.length === 0 || !input.parameterKey.trim()) return;
+
+  const { data, error } = await supabase
+    .from('instrumental_measurement_profiles')
+    .select('sample_id, metrics')
+    .in('sample_id', sampleIds);
+  if (error) throw dbError(error);
+
+  await Promise.all(((data ?? []) as Array<{ sample_id: string; metrics: unknown }>).map(async profile => {
+    const { metrics: nextMetrics, matched } = applyInstrumentalChartPreference(
+      profile.metrics,
+      input.parameterKey,
+      input.chartPreference,
+    );
+    if (!matched) return;
+    const { error: updateError } = await supabase
+      .from('instrumental_measurement_profiles')
+      .update({ metrics: asJson(nextMetrics), updated_at: new Date().toISOString() })
+      .eq('sample_id', profile.sample_id);
+    if (updateError) throw dbError(updateError);
+  }));
 }
 
 export interface UpdateIngredientStatementInput {

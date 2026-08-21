@@ -7,7 +7,7 @@ import { Label } from './ui/label';
 import { Progress } from './ui/progress';
 import { useAuth } from '../contexts/auth-context';
 import { SURVEY_EMOTIONS, getDefaultCataAttributes, type Product } from '../data/survey-domain';
-import { fetchProduct, fetchLatestUserResponse, insertResponse, markPanelistKitSubmitted } from '../lib/database';
+import { fetchProduct, fetchLatestUserResponse, fetchUserResponseAtRun, insertResponse, markPanelistKitSubmitted } from '../lib/database';
 import { CATA_DEFINITIONS, INTENSITY_DEFINITIONS, HEDONIC_DEFINITIONS, EMOTION_DEFINITIONS, getCataDefinition } from '../data/attribute-definitions';
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Edit2 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
@@ -18,6 +18,8 @@ import { queryClient } from '../lib/query-client';
 import { queryKeys } from '../lib/hooks';
 import { DEFAULT_SURVEY_SECTIONS, SURVEY_SECTION_LABELS, type SurveySection } from '../lib/survey-sections';
 import { PanelistSubmissionSuccess, PanelistTaskLoading, PanelistTaskUnavailable } from './panelist-task-state';
+import { responseRepeatWindow } from '../lib/response-repeat-window';
+import { RangeScaleTicks } from './range-scale-ticks';
 
 function sliderFill(value: number, min: number, max: number, color: string): React.CSSProperties {
   const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
@@ -59,6 +61,7 @@ export function QuestionnaireForm() {
   const [alreadyCompleted, setAlreadyCompleted] = useState(false);
   const [existingResponseDate, setExistingResponseDate] = useState<string | null>(null);
   const [showDraftBanner, setShowDraftBanner] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   // Form state
   const [formData, setFormData] = useState<FormData>({
@@ -103,9 +106,12 @@ export function QuestionnaireForm() {
   // Load existing response or draft — DB check runs first; draft restore only fires if no DB response
   useEffect(() => {
     if (!user?.id || !productId) return;
-    fetchLatestUserResponse(user.id, productId).then(existing => {
+    Promise.all([
+      fetchLatestUserResponse(user.id, productId),
+      fetchUserResponseAtRun(user.id, productId, 1),
+    ]).then(([existing, firstResponse]) => {
       if (existing) {
-        setExistingResponseDate(existing.timestamp);
+        setExistingResponseDate(firstResponse?.timestamp ?? existing.timestamp);
         setFormData({
           selectedCata: existing.cataAttributes || [],
           intensityRatings: existing.intensityRatings || {},
@@ -133,6 +139,14 @@ export function QuestionnaireForm() {
       setResponseCheckLoading(false);
     });
   }, [productId, user?.id]);
+
+  const repeatWindow = responseRepeatWindow(existingResponseDate, nowMs);
+
+  useEffect(() => {
+    if (!repeatWindow?.isOpen) return;
+    const timeout = window.setTimeout(() => setNowMs(Date.now()), Math.max(0, repeatWindow.closesAt - nowMs + 25));
+    return () => window.clearTimeout(timeout);
+  }, [nowMs, repeatWindow?.closesAt, repeatWindow?.isOpen]);
 
   // Persist draft on every formData change — guarded so we never overwrite a real draft on mount
   useEffect(() => {
@@ -187,6 +201,10 @@ export function QuestionnaireForm() {
   const handleSubmit = async () => {
     if (!user?.id || !productId) return;
     if (isSubmitting) return;
+    if (alreadyCompleted && !responseRepeatWindow(existingResponseDate, Date.now())?.isOpen) {
+      setSubmitError('This survey is locked. Additional runs are available only for 30 minutes after the first submission.');
+      return;
+    }
     setIsSubmitting(true);
     setSubmitError('');
     if (user.role !== 'panelist') {
@@ -367,6 +385,10 @@ export function QuestionnaireForm() {
     );
   }
 
+  if (alreadyCompleted && !repeatWindow?.isOpen) {
+    return <PanelistTaskUnavailable message="This survey is locked. Additional runs are available only for 30 minutes after the first submission." onBack={() => navigate('/panelist')} />;
+  }
+
   const progressPercent = (currentStep / totalSteps) * 100;
 
   return (
@@ -404,7 +426,7 @@ export function QuestionnaireForm() {
           <AlertDescription>
             You completed this evaluation on{' '}
             {existingResponseDate ? new Date(existingResponseDate).toLocaleDateString() : 'a previous date'}.
-            {' '}Submit again to record a new run.
+            {' '}Submit again before {repeatWindow ? new Date(repeatWindow.closesAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'the repeat window closes'} to record a new run.
           </AlertDescription>
         </Alert>
       )}
@@ -507,10 +529,11 @@ export function QuestionnaireForm() {
                       style={sliderFill(formData.intensityRatings[attr] ?? SLIDER_MIDPOINT, SLIDER_MIN, SLIDER_MAX, '#334155')}
                       className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-slate-700"
                     />
+                    <RangeScaleTicks min={SLIDER_MIN} max={SLIDER_MAX} />
                     <div className="flex justify-between text-xs text-slate-500">
-                      <span>1 — Not present</span>
-                      <span>5 — Moderate</span>
-                      <span>9 — Extremely intense</span>
+                      <span>Not present</span>
+                      <span>Moderate</span>
+                      <span>Extremely intense</span>
                     </div>
                   </div>
                 ))}
@@ -555,10 +578,11 @@ export function QuestionnaireForm() {
                     style={sliderFill(value, SLIDER_MIN, SLIDER_MAX, '#334155')}
                     className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-slate-700"
                   />
+                  <RangeScaleTicks min={SLIDER_MIN} max={SLIDER_MAX} />
                   <div className="flex justify-between text-xs text-slate-500">
-                    <span>1 — Dislike extremely</span>
-                    <span>5 — Neither</span>
-                    <span>9 — Like extremely</span>
+                    <span>Dislike extremely</span>
+                    <span>Neither</span>
+                    <span>Like extremely</span>
                   </div>
                 </div>
               ))}
@@ -611,6 +635,7 @@ export function QuestionnaireForm() {
                         style={sliderFill(formData.emotions[emotion] ?? SLIDER_MIDPOINT, SLIDER_MIN, SLIDER_MAX, '#059669')}
                         className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-emerald-600"
                       />
+                      <RangeScaleTicks min={SLIDER_MIN} max={SLIDER_MAX} />
                     </div>
                   ))}
                 </div>
@@ -643,8 +668,9 @@ export function QuestionnaireForm() {
                         style={sliderFill(formData.emotions[emotion] ?? SLIDER_MIDPOINT, SLIDER_MIN, SLIDER_MAX, '#e11d48')}
                         className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-rose-600"
                       />
+                      <RangeScaleTicks min={SLIDER_MIN} max={SLIDER_MAX} />
                       <div className="flex justify-between text-xs text-slate-500">
-                        <span>1 — Not at all</span><span>9 — Very strongly</span>
+                        <span>Not at all</span><span>Very strongly</span>
                       </div>
                     </div>
                   ))}

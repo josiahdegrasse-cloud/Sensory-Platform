@@ -75,7 +75,7 @@ export function getConceptReadiness({
           ? `${approvedImageCount}/${validImageCount} selected visual${validImageCount === 1 ? '' : 's'} approved for panelist use.`
           : `${validImageCount} visual${validImageCount === 1 ? '' : 's'} selected.`
         : 'Select or add at least one concept visual.',
-      fixStep: 'concept',
+      fixStep: 'visuals',
     },
     {
       id: 'questions',

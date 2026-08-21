@@ -90,7 +90,7 @@ export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, 
   }));
 
   return (
-      <Card>
+      <Card className="h-full">
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <CardTitle className="flex items-center gap-2">
@@ -113,16 +113,22 @@ export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, 
               Top Attributes (CATA)
               <span className="ml-2 text-xs font-normal text-slate-500">* p&lt;0.05 &nbsp; ** p&lt;0.01 &nbsp; (binomial test vs chance, n={activePanelistN})</span>
             </h3>
-            <ResponsiveContainer width="100%" height={Math.max(300, dataWithSig.length * 28)} key={`cata-chart-container-${activeSampleId}`}>
+            <ResponsiveContainer width="100%" height={Math.max(320, dataWithSig.length * 32)} key={`cata-chart-container-${activeSampleId}`}>
               <BarChart
                 data={dataWithSig}
                 layout="vertical"
-                margin={{ left: 100, right: 40 }}
+                margin={{ left: 8, right: 32 }}
                 id={`cata-chart-${activeSampleId}`}
               >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis type="number" domain={[0, activePanelistN]} />
-                <YAxis type="category" dataKey="attribute" width={90} />
+                <YAxis
+                  type="category"
+                  dataKey="attribute"
+                  width={118}
+                  interval={0}
+                  tick={{ fill: CHART_CHROME.axis, fontSize: 12 }}
+                />
                 <RechartsTooltip
                   content={({ active, payload }) => {
                     if (active && payload && payload.length) {
@@ -236,11 +242,20 @@ export function IntensityTab({
         </CardHeader>
         <CardContent>
           <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(220px,1fr)] lg:items-center">
-            <div className="h-[380px] min-w-0 sm:h-[460px] lg:h-[520px]">
+            <div className="h-[360px] min-w-0 sm:h-[440px] lg:h-[500px]">
               <ResponsiveContainer width="100%" height="100%">
-                <RadarChart data={activeIntensityData}>
+                <RadarChart
+                  data={activeIntensityData}
+                  cy="46%"
+                  margin={{ top: 16, right: 16, bottom: 24, left: 16 }}
+                  outerRadius="72%"
+                >
                   <PolarGrid />
-                  <PolarAngleAxis dataKey="attribute" />
+                  <PolarAngleAxis
+                    dataKey="attribute"
+                    tickSize={26}
+                    tick={{ fill: CHART_CHROME.axis, fontSize: 12, fontWeight: 500 }}
+                  />
                   <PolarRadiusAxis angle={90} domain={[INTENSITY_SCALE_MIN, INTENSITY_SCALE_MAX]} tickCount={9} />
                   <Radar
                     name="Intensity"
@@ -330,7 +345,7 @@ export function HedonicTab({
   }));
 
   return (
-      <Card>
+      <Card className="h-full">
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <CardTitle className="flex items-center gap-2">

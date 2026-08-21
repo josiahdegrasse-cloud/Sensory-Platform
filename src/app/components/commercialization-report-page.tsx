@@ -7,16 +7,19 @@ import {
   DEFAULT_REPORT_ORGANIZATION_NAME,
   DEFAULT_REPORT_WORKSPACE_NAME,
   refreshCommercializationSnapshotImageUrls,
+  buildPanelDemographicSummary,
   rebuildDecisionForCommercialization,
   resolveReportLogoUrl,
   type CommercializationReportSnapshot,
 } from '../lib/commercialization-report';
 import {
   useAdminConceptTests,
+  useConceptTestResponses,
   useCommercializationReports,
   useDecisionRecords,
   useDecisionFreshness,
   useInstrumentalDataset,
+  usePanelists,
   useProjectEvidenceBundle,
   useWorkspaceSettings,
 } from '../lib/hooks';
@@ -120,12 +123,18 @@ export function CommercializationReportPage() {
         && reportBelongsToProject(report, routeProjectId)
       )) ?? null
     : null);
+  const panelistsQuery = usePanelists(Boolean(savedReport));
+  const reportResponsesQuery = useConceptTestResponses(selectedConcept?.id, Boolean(savedReport));
   const snapshot = savedReport?.reportSnapshot as unknown as CommercializationReportSnapshot | undefined;
-  const pdfSnapshot = useMemo(() => (
-    savedReport && snapshot
-      ? refreshCommercializationSnapshotImageUrls(snapshot, savedReport, selectedConcept)
-      : undefined
-  ), [savedReport, selectedConcept, snapshot]);
+  const pdfSnapshot = useMemo(() => {
+    if (!savedReport || !snapshot) return undefined;
+    const withCurrentImages = refreshCommercializationSnapshotImageUrls(snapshot, savedReport, selectedConcept);
+    if (withCurrentImages.panelDemographics || !reportResponsesQuery.data) return withCurrentImages;
+    return {
+      ...withCurrentImages,
+      panelDemographics: buildPanelDemographicSummary(reportResponsesQuery.data, panelistsQuery.data ?? []),
+    };
+  }, [panelistsQuery.data, reportResponsesQuery.data, savedReport, selectedConcept, snapshot]);
   const reportDecision = focusDecision && evidenceBundle
     ? rebuildDecisionForCommercialization(focusDecision, evidenceBundle)
     : null;
@@ -166,7 +175,8 @@ export function CommercializationReportPage() {
   } : null;
   const usingDemoEvidence = focusDecision?.id === TEMPORARY_CHEESE_DECISION.id
     || selectedConcept?.approvalNotes === TEMPORARY_CHEESE_DEMO_LABEL
-    || evidenceBundle?.commercialProfile?.evidenceStatus === 'reference_demo';
+    || evidenceBundle?.commercialProfile?.evidenceStatus === 'reference_demo'
+    || snapshot?.evidence.provenance === 'synthetic';
 
   const openSavedReport = (reportId: string) => {
     setWorkspaceTab('report');
@@ -186,7 +196,14 @@ export function CommercializationReportPage() {
     }
   };
 
-  const reportSourceQueries = [decisionsQuery, reportsQuery, conceptsQuery, instrumentalQuery, settingsQuery];
+  const reportSourceQueries = [
+    decisionsQuery,
+    reportsQuery,
+    conceptsQuery,
+    instrumentalQuery,
+    settingsQuery,
+    ...(savedReport ? [panelistsQuery, reportResponsesQuery] : []),
+  ];
   if (reportSourceQueries.some(query => query.isLoading)) {
     return <WorkflowLoadingState title="Loading report evidence" />;
   }

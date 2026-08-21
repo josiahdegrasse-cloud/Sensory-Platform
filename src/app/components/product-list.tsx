@@ -32,7 +32,10 @@ export function ProductListPanel({
         </div>
         {controls && <div className="mt-3 space-y-2">{controls}</div>}
       </div>
-      <div aria-label={listLabel ?? title} className="min-h-0 flex-1 space-y-1 p-2">
+      <div
+        aria-label={listLabel ?? title}
+        className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-2 [scrollbar-gutter:stable]"
+      >
         {children}
       </div>
       {footer && <div className="border-t border-slate-200 bg-slate-50 px-4 py-3">{footer}</div>}

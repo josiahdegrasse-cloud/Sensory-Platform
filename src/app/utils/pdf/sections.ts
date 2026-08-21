@@ -158,6 +158,23 @@ export interface ConsumerEvidenceData {
   boundary: string;
 }
 
+export interface PanelStudyProfileData {
+  sensoryPopulation: string;
+  conceptPopulation: string;
+  profileCoverage: string;
+  profileStatus: 'available' | 'partial' | 'missing';
+  dimensions: Array<{
+    key: string;
+    label: string;
+    knownCount: number;
+    groups: Array<{ label: string; count: number; percentage: number }>;
+    suppressedCount: number;
+  }>;
+  samplingBoundary: string;
+  disclosureRule: string;
+  provenance: string;
+}
+
 export interface CommercialInsight {
   title: string;
   evidence: string;
@@ -396,7 +413,7 @@ function literatureMetadata(citation: LiteratureCitation) {
         ? 'Category study'
         : /technical|method|framework/.test(lower)
           ? 'Technical/method source'
-          : 'Study type not captured';
+          : 'Classification unavailable';
   const evidenceRole = studyType === 'Systematic review'
     ? 'Higher-level methodological context'
     : studyType === 'Category study'
@@ -484,6 +501,9 @@ function evidenceAssistGuidance(
 }
 
 function primaryWatchPoint(snapshot: CommercializationReportSnapshot) {
+  if (snapshot.evidence.provenance === 'synthetic') {
+    return 'Replace the synthetic concept responses with a real target-panel study before interpreting concept or image preference.';
+  }
   const prescription = snapshot.decision.prescriptions[0];
   if (prescription) return `${prescription.target}: ${prescription.action}`;
   if (snapshot.evidence.responseCount < 30) {
@@ -583,7 +603,9 @@ export function buildDecisionBasis(input: CommercializationReportPdfInput): Deci
   const sensoryN = ctx?.dimensions.find(item => item.sampleSize)?.sampleSize ?? null;
   const instrumentalCount = ctx?.instrumental.findings.length ?? 0;
   const limitations = ctx?.limitations.map(item => item.limitation) ?? [
-    snapshot.evidence.responseCount < 30
+    snapshot.evidence.provenance === 'synthetic'
+      ? 'Concept and image-preference results are synthetic test data and provide no panel evidence.'
+      : snapshot.evidence.responseCount < 30
       ? `Concept evidence is below the n>=30 operational threshold (current n=${snapshot.evidence.responseCount}).`
       : '',
     'External claims require claim-specific substantiation and approval.',
@@ -597,7 +619,13 @@ export function buildDecisionBasis(input: CommercializationReportPdfInput): Deci
     evidenceStrengthDefinition: 'Evidence strength summarizes coverage and quality of the available decision inputs. It is not a calibrated probability that the decision is correct.',
     populations: [
       { label: 'Sensory evidence', value: sensoryN ? `n=${sensoryN}` : 'Sample size not captured', provenance: ctx?.dimensions[0]?.source ?? 'Saved sensory study' },
-      { label: 'Concept evidence', value: `n=${snapshot.evidence.responseCount}`, provenance: snapshot.evidence.responseCount >= 30 ? 'Target-consumer evidence' : 'Directional only' },
+      {
+        label: 'Concept evidence',
+        value: `n=${snapshot.evidence.responseCount}`,
+        provenance: snapshot.evidence.provenance === 'synthetic'
+          ? 'Synthetic test data — not panel evidence'
+          : snapshot.evidence.responseCount >= 30 ? 'Target-consumer evidence' : 'Directional only',
+      },
       { label: 'Instrumental evidence', value: instrumentalCount ? `${instrumentalCount} finding${instrumentalCount === 1 ? '' : 's'}` : 'Not attached', provenance: ctx?.instrumental.includedInDecision ? 'Included in decision' : 'Context only or unavailable' },
     ],
     whatThisMeans: 'The product has cleared the internal product decision gate. The next question is not whether the tested sample can advance; it is whether the formula, packaging, claims, and commercial case can be validated for release.',
@@ -652,13 +680,15 @@ export function buildPerformanceDashboard(input: CommercializationReportPdfInput
         value: purchaseIntent.toFixed(1),
         score: null,
         evidence: `${snapshot.evidence.responseCount} concept response${snapshot.evidence.responseCount === 1 ? '' : 's'}`,
-        implication: snapshot.evidence.responseCount >= 30
+        implication: snapshot.evidence.provenance !== 'synthetic' && snapshot.evidence.responseCount >= 30
           ? 'Use as supporting buyer evidence after confirming the panel matches the target consumer.'
-          : 'Use only as a directional signal; repeat with a broader target panel before forecasting demand.',
+          : snapshot.evidence.provenance === 'synthetic'
+            ? 'Test output only; replace with real panel evidence before interpreting purchase intent.'
+            : 'Use only as a directional signal; repeat with a broader target panel before forecasting demand.',
       }] : []),
     ],
     readinessThreshold: reportContext?.thresholds.readiness ?? 60,
-    evidenceNote: getEvidenceStrengthNote(snapshot.evidence.responseCount),
+    evidenceNote: getEvidenceStrengthNote(snapshot.evidence.responseCount, snapshot.evidence.provenance),
     definitions: reportContext
       ? `Study basis: ${reportContext.dimensions[0]?.population ?? 'sensory panel not documented'}; concept test n=${snapshot.evidence.responseCount}. Scores are shown on a 0–100 scale. Evidence caveat: variability and agreement statistics were not included in this report snapshot and should be added to the next validation round.`
       : `Study basis: sensory screening plus concept test n=${snapshot.evidence.responseCount}. Scores are shown on a 0–100 scale. Evidence caveat: variability and agreement statistics were not included in this report snapshot and should be added to the next validation round.`,
@@ -694,7 +724,7 @@ export function buildConsumerEvidence(input: CommercializationReportPdfInput): C
   const { evidence } = input.snapshot;
   return {
     responseCount: evidence.responseCount,
-    evidenceStrength: getEvidenceStrength(evidence.responseCount),
+    evidenceStrength: getEvidenceStrength(evidence.responseCount, evidence.provenance),
     purchaseIntent: evidence.purchaseIntent,
     scaleMetrics: evidence.scaleMetrics.slice(0, 4),
     descriptors: evidence.topSelections.slice(0, 6).map(item => ({
@@ -703,7 +733,38 @@ export function buildConsumerEvidence(input: CommercializationReportPdfInput): C
       count: item.count,
     })),
     comments: evidence.comments.slice(0, 2),
-    boundary: getEvidenceStrengthNote(evidence.responseCount),
+    boundary: getEvidenceStrengthNote(evidence.responseCount, evidence.provenance),
+  };
+}
+
+export function buildPanelStudyProfile(input: CommercializationReportPdfInput): PanelStudyProfileData {
+  const profile = input.snapshot.panelDemographics;
+  const conceptCount = input.snapshot.evidence.responseCount;
+  const profileMatchesEvidence = Boolean(profile && profile.participantCount === conceptCount);
+  const matched = profileMatchesEvidence ? profile?.matchedProfileCount ?? 0 : 0;
+  const profileStatus = !profileMatchesEvidence || matched === 0
+    ? 'missing'
+    : (profile?.profileCoveragePercentage ?? 0) >= 80
+      ? 'available'
+      : 'partial';
+  return {
+    sensoryPopulation: input.reportContext?.dimensions[0]?.population ?? 'Sensory panel size not documented',
+    conceptPopulation: `Concept respondents n=${conceptCount}`,
+    profileCoverage: profileMatchesEvidence && profile
+      ? `${profile.matchedProfileCount}/${profile.participantCount} respondent profiles (${profile.profileCoveragePercentage.toFixed(0)}%)`
+      : profile
+        ? `Profile summary n=${profile.participantCount} does not match concept evidence n=${conceptCount}`
+        : 'Respondent profiles not attached',
+    profileStatus,
+    dimensions: profileMatchesEvidence ? profile?.dimensions ?? [] : [],
+    samplingBoundary: profileMatchesEvidence
+      ? profile?.representativenessNote
+        ?? 'Respondent profiles were not attached to this report version. Demographic representativeness cannot be assessed.'
+      : profile
+        ? 'The saved demographic summary does not match the current concept-response population. Regenerate this report before interpreting panel composition.'
+        : 'Respondent profiles were not attached to this report version. Demographic representativeness cannot be assessed.',
+    disclosureRule: `Only aggregate demographics are shown. Cells below n=${profile?.minimumCellSize ?? 3} are suppressed and no participant identifiers are included.`,
+    provenance: input.reportContext?.evidenceProvenance ?? input.snapshot.evidence.provenance ?? 'Not documented',
   };
 }
 
@@ -768,7 +829,7 @@ export function buildCommercialInsights(input: CommercializationReportPdfInput):
         ? `${snapshot.decision.prescriptions[0].action} Recheck the dimension after the next prototype.`
         : 'Define a scale-up acceptance range and confirm the result in the next validation round.',
     },
-    snapshot.evidence.responseCount >= 30 && snapshot.evidence.topSelections.length > 0
+    snapshot.evidence.provenance !== 'synthetic' && snapshot.evidence.responseCount >= 30 && snapshot.evidence.topSelections.length > 0
       ? {
           title: 'Concept language can sharpen the product story',
           evidence: `The most-selected concept descriptors are: ${selectedDescriptors(snapshot)}.`,
@@ -790,11 +851,15 @@ export function buildCommercialInsights(input: CommercializationReportPdfInput):
           },
     {
       title: 'Keep concept conclusions proportional to the study',
-      evidence: `${snapshot.evidence.responseCount} response${snapshot.evidence.responseCount === 1 ? '' : 's'} provide ${getEvidenceStrength(snapshot.evidence.responseCount).toLowerCase()} concept evidence.`,
-      commercialMeaning: snapshot.evidence.responseCount >= 30
+      evidence: snapshot.evidence.provenance === 'synthetic'
+        ? `${snapshot.evidence.responseCount} synthetic responses exercise the report workflow but provide no panel evidence.`
+        : `${snapshot.evidence.responseCount} response${snapshot.evidence.responseCount === 1 ? '' : 's'} provide ${getEvidenceStrength(snapshot.evidence.responseCount, snapshot.evidence.provenance).toLowerCase()} concept evidence.`,
+      commercialMeaning: snapshot.evidence.provenance !== 'synthetic' && snapshot.evidence.responseCount >= 30
         ? 'The concept read can support buyer discussion, but representativeness still determines how broadly it can be generalized.'
-        : 'The direction is useful for iteration, but it is not yet a demand forecast or representative consumer claim.',
-      action: snapshot.evidence.responseCount >= 30
+        : snapshot.evidence.provenance === 'synthetic'
+          ? 'Use this output to test layout and calculations only, then replace it with a real study.'
+          : 'The direction is useful for iteration, but it is not yet a demand forecast or representative consumer claim.',
+      action: snapshot.evidence.provenance !== 'synthetic' && snapshot.evidence.responseCount >= 30
         ? 'Segment the results and document panel fit before externalizing the claim.'
         : 'Run a broader target-consumer validation before final packaging, volume assumptions, or demand claims.',
     },
