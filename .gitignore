@@ -11,13 +11,13 @@ DEMO_CREDENTIALS.local.md
 test-results
 playwright-report
 tmp/
+*.tsbuildinfo
 
-# Generated report review output — canonical fixtures remain tracked explicitly
-output/pdf/*-preview.pdf
-output/pdf/*-v6.pdf
-output/pdf/*-rendered/
-tests/artifacts/commercialization-report/commercialization-readiness-iteration-[0-9][0-9].json
-tests/artifacts/commercialization-report/commercialization-readiness-iteration-[0-9][0-9].pdf
+# Generated report and presentation output. Test source fixtures such as
+# everyday-melt-concept.png remain tracked; rendered reports do not.
+/output/
+/tests/artifacts/**/*.pdf
+/tests/artifacts/**/*.json
 
 # Supabase CLI local state
 supabase/.temp
