@@ -61,61 +61,64 @@ BEGIN
   LIMIT 1;
 
   IF v_operator_id IS NULL THEN
-    RAISE EXCEPTION 'No platform operator exists to sponsor the fermIQ bootstrap administrator';
-  END IF;
-
-  INSERT INTO public.organization_admin_bootstrap_invites (
-    org_id,
-    email,
-    invited_by
-  )
-  VALUES (
-    v_org_id,
-    'contact@fermiq.uk',
-    v_operator_id
-  )
-  ON CONFLICT (org_id, email) DO NOTHING;
-
-  SELECT u.id, p.org_id
-  INTO v_existing_user_id, v_existing_user_org_id
-  FROM auth.users u
-  LEFT JOIN public.profiles p ON p.id = u.id
-  WHERE lower(u.email) = 'contact@fermiq.uk'
-  LIMIT 1;
-
-  IF v_existing_user_id IS NOT NULL AND v_existing_user_org_id IS NULL THEN
-    UPDATE public.profiles
-    SET org_id = v_org_id,
-        role = 'admin',
-        status = 'active',
-        email = COALESCE(email, 'contact@fermiq.uk')
-    WHERE id = v_existing_user_id;
-  ELSIF v_existing_user_id IS NOT NULL AND v_existing_user_org_id <> v_org_id THEN
-    RAISE EXCEPTION 'The fermIQ administrator email already belongs to another workspace';
-  END IF;
-
-  INSERT INTO public.audit_events (
-    actor_id,
-    event_type,
-    entity_type,
-    entity_id,
-    org_id,
-    metadata
-  )
-  VALUES (
-    v_operator_id,
-    'platform_organization_brand_seeded',
-    'organizations',
-    v_org_id,
-    (SELECT p.org_id FROM public.profiles p WHERE p.id = v_operator_id),
-    jsonb_build_object(
-      'organization_name', 'FermIQ Food',
-      'organization_slug', 'fermiq',
-      'administrator_email', 'contact@fermiq.uk',
-      'email_domains', ARRAY['fermiq.uk'],
-      'brand_primary', '#0E3A5F',
-      'brand_accent', '#5EB12E'
+    -- Fresh and disposable databases do not contain runtime users. Keep the
+    -- tenant identity seed deterministic without fabricating a privileged
+    -- account or preventing the remaining schema migrations from applying.
+    RAISE NOTICE 'Skipping fermIQ administrator bootstrap because no platform operator exists';
+  ELSE
+    INSERT INTO public.organization_admin_bootstrap_invites (
+      org_id,
+      email,
+      invited_by
     )
-  );
+    VALUES (
+      v_org_id,
+      'contact@fermiq.uk',
+      v_operator_id
+    )
+    ON CONFLICT (org_id, email) DO NOTHING;
+
+    SELECT u.id, p.org_id
+    INTO v_existing_user_id, v_existing_user_org_id
+    FROM auth.users u
+    LEFT JOIN public.profiles p ON p.id = u.id
+    WHERE lower(u.email) = 'contact@fermiq.uk'
+    LIMIT 1;
+
+    IF v_existing_user_id IS NOT NULL AND v_existing_user_org_id IS NULL THEN
+      UPDATE public.profiles
+      SET org_id = v_org_id,
+          role = 'admin',
+          status = 'active',
+          email = COALESCE(email, 'contact@fermiq.uk')
+      WHERE id = v_existing_user_id;
+    ELSIF v_existing_user_id IS NOT NULL AND v_existing_user_org_id <> v_org_id THEN
+      RAISE EXCEPTION 'The fermIQ administrator email already belongs to another workspace';
+    END IF;
+
+    INSERT INTO public.audit_events (
+      actor_id,
+      event_type,
+      entity_type,
+      entity_id,
+      org_id,
+      metadata
+    )
+    VALUES (
+      v_operator_id,
+      'platform_organization_brand_seeded',
+      'organizations',
+      v_org_id,
+      (SELECT p.org_id FROM public.profiles p WHERE p.id = v_operator_id),
+      jsonb_build_object(
+        'organization_name', 'FermIQ Food',
+        'organization_slug', 'fermiq',
+        'administrator_email', 'contact@fermiq.uk',
+        'email_domains', ARRAY['fermiq.uk'],
+        'brand_primary', '#0E3A5F',
+        'brand_accent', '#5EB12E'
+      )
+    );
+  END IF;
 END
 $$;
