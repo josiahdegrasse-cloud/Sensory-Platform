@@ -20,7 +20,7 @@ lane_for_path() {
   local path="$1"
 
   case "$path" in
-    AGENTS.md|CLAUDE.md|docs/agent-workstreams.md)
+    AGENTS.md|CLAUDE.md)
       echo "assistant-context" ;;
     .claude/*|.cursor/*|.codex/*|agentdb.rvf.lock|zen-agentic-engineer-config/*)
       echo "agent-tooling" ;;

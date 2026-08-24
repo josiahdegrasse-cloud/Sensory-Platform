@@ -10,6 +10,7 @@ DEMO_CREDENTIALS.local.md
 # Test & build artifacts
 test-results
 playwright-report
+coverage
 tmp/
 *.tsbuildinfo
 
