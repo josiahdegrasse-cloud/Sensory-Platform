@@ -96,8 +96,8 @@ describe.skipIf(!CONFIGURED)('RLS tenant isolation', () => {
 
     // Seed one product per org. org_id is set explicitly because the service
     // role has no auth.uid() for the trigger to derive from.
-    const pa = must('product A insert', await admin.from('products').insert({ name: 'Secret Formula A', category: 'Test', status: 'active', org_id: ids.orgA }).select().single());
-    const pb = must('product B insert', await admin.from('products').insert({ name: 'Secret Formula B', category: 'Test', status: 'active', org_id: ids.orgB }).select().single());
+    const pa = must('product A insert', await admin.from('products').insert({ name: 'Secret Formula A', category: 'Test', status: 'draft', org_id: ids.orgA }).select().single());
+    const pb = must('product B insert', await admin.from('products').insert({ name: 'Secret Formula B', category: 'Test', status: 'draft', org_id: ids.orgB }).select().single());
     ids.productA = (pa as unknown as { id: string }).id; ids.productB = (pb as unknown as { id: string }).id;
 
     const decisionBase = {
@@ -170,8 +170,10 @@ describe.skipIf(!CONFIGURED)('RLS tenant isolation', () => {
   it('cannot write into another organization (WITH CHECK blocks it)', async () => {
     // Even if the client forges org_id, the RESTRICTIVE policy's WITH CHECK
     // requires org_id = current_org_id(), so the insert must fail.
-    const { error } = await clientA.from('products').insert({ name: 'Injected', org_id: ids.orgB });
-    expect(error).not.toBeNull();
+    const { error } = await clientA.from('products').insert({
+      name: 'Injected', category: 'Test', status: 'draft', org_id: ids.orgB,
+    });
+    expect(error?.code).toBe('42501');
   });
 
   it('cannot update another organization\'s product', async () => {
