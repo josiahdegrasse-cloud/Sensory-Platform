@@ -184,6 +184,16 @@ describe.skipIf(!CONFIGURED)('RLS tenant isolation', () => {
     expect(check!.name).toBe('Secret Formula B');
   });
 
+  it('cannot delete another organization\'s product', async () => {
+    const { data, error } = await clientA.from('products').delete().eq('id', ids.productB).select('id');
+    expect(error).toBeNull();
+    expect(data ?? []).toHaveLength(0);
+
+    const { data: check, error: checkError } = await admin.from('products').select('id').eq('id', ids.productB).single();
+    expect(checkError).toBeNull();
+    expect(check?.id).toBe(ids.productB);
+  });
+
   it('the reverse holds: org B cannot see org A\'s product', async () => {
     const { data } = await clientB.from('products').select('id').eq('id', ids.productA);
     expect(data ?? []).toHaveLength(0);
