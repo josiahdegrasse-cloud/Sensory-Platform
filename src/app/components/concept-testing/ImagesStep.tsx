@@ -185,6 +185,7 @@ export function ImagesStep({
   });
 
   const brandKit = workspaceSettings?.brandKit ?? null;
+  const imageGenerationEnabled = workspaceSettings?.conceptImageGenerationEnabled ?? true;
   const lockedDesignActive = Boolean(draft.brandReference && options.useLockedDesign);
 
   const detection = useMemo(
@@ -193,11 +194,12 @@ export function ImagesStep({
   );
   const profile = getFoodTypeProfile(detection.slug);
   const validImages = draft.marketingImages.filter(url => url.trim() && isValidImageUrl(url));
-  const canGenerate = !!(
+  const generationBriefReady = !!(
     draft.name.trim()
     && draft.category.trim()
     && draft.description.trim()
   );
+  const canGenerate = imageGenerationEnabled && generationBriefReady;
   // Quality-aware: the configured per-image rate is the medium baseline.
   // Not shown to the admin as a dollar figure — expressed as a credits-bar
   // fraction of the monthly budget instead (see ConceptCreditsBar).
@@ -582,7 +584,14 @@ export function ImagesStep({
         </div>
       </div>
 
-      <ReportCoverStudio draft={draft} onChange={onChange} settings={settings} />
+      {!imageGenerationEnabled && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">
+          <p className="font-semibold">Demo visuals are view-only</p>
+          <p className="mt-1 text-xs leading-5 text-blue-800">New AI images are disabled for this workspace. You can still review the approved concept images and concept report.</p>
+        </div>
+      )}
+
+      <ReportCoverStudio draft={draft} onChange={onChange} settings={settings} imageGenerationEnabled={imageGenerationEnabled} />
 
       <section className="rounded-lg border border-slate-200 bg-white">
         <div className="border-b border-slate-200 px-4 py-3">
@@ -661,7 +670,7 @@ export function ImagesStep({
                   type="button"
                   variant="outline"
                   onClick={handleCheckService}
-                  disabled={checkingService || generating}
+                  disabled={!imageGenerationEnabled || checkingService || generating}
                 >
                   {checkingService
                     ? <><Loader2 className="mr-2 size-4 animate-spin" />Checking</>
@@ -682,12 +691,16 @@ export function ImagesStep({
               </div>
             </div>
 
-            {!canGenerate && (
+            {!imageGenerationEnabled ? (
+              <p className="mt-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                Image generation is disabled for this workspace. Previously approved visuals remain available below.
+              </p>
+            ) : !generationBriefReady && (
               <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mt-3">
                 Complete the product name, category, and positioning promise before generating visuals.
               </p>
             )}
-            {canGenerate && (
+            {imageGenerationEnabled && generationBriefReady && (
               <p className="mt-3 flex items-center gap-1.5 text-xs font-medium text-emerald-700">
                 <CheckCircle2 className="size-3.5" />
                 Brief is ready for visual generation.
@@ -704,7 +717,7 @@ export function ImagesStep({
                 Image service is ready. No image credits were used by this check.
               </p>
             )}
-            {canGenerate && !generating && (
+            {imageGenerationEnabled && generationBriefReady && !generating && (
               <div className="mt-3">
                 <ConceptCreditsBar usage={creditsUsage} previewFraction={previewFraction} compact />
               </div>

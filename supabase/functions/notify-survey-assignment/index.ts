@@ -1,5 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
+import { isPublicDemoWorkspace, PUBLIC_DEMO_EXTERNAL_ACTION_ERROR } from '../_shared/demo-guard.ts'
 
 interface NotifyBody {
   panelistIds?: string[];
@@ -68,8 +69,14 @@ Deno.serve(async (req: Request) => {
     .eq('id', callerUser.id)
     .single();
 
-  if (callerProfileError || callerProfile?.role !== 'admin' || callerProfile?.status !== 'active') {
+  if (callerProfileError || callerProfile?.role !== 'admin' || callerProfile?.status !== 'active' || !callerProfile.org_id) {
     return new Response(JSON.stringify({ error: 'Forbidden' }), {
+      status: 403,
+      headers: { ...headers, 'Content-Type': 'application/json' },
+    });
+  }
+  if (await isPublicDemoWorkspace(callerClient, callerProfile.org_id)) {
+    return new Response(JSON.stringify({ error: PUBLIC_DEMO_EXTERNAL_ACTION_ERROR }), {
       status: 403,
       headers: { ...headers, 'Content-Type': 'application/json' },
     });

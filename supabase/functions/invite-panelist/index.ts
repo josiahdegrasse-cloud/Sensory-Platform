@@ -1,5 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
+import { isPublicDemoWorkspace, PUBLIC_DEMO_EXTERNAL_ACTION_ERROR } from '../_shared/demo-guard.ts'
 
 interface InvitePanelistBody {
   email?: string
@@ -42,6 +43,9 @@ Deno.serve(async (req: Request) => {
 
   if (profileError || callerProfile?.role !== 'admin' || callerProfile?.status !== 'active' || !callerProfile.org_id) {
     return jsonResponse({ error: 'Only active administrators can invite panelists' }, 403, headers)
+  }
+  if (await isPublicDemoWorkspace(callerClient, callerProfile.org_id)) {
+    return jsonResponse({ error: PUBLIC_DEMO_EXTERNAL_ACTION_ERROR }, 403, headers)
   }
 
   let body: InvitePanelistBody

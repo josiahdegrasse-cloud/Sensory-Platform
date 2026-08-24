@@ -1,5 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
+import { isPublicDemoWorkspace, PUBLIC_DEMO_EXTERNAL_ACTION_ERROR } from '../_shared/demo-guard.ts'
 
 // ════════════════════════════════════════════════════════════════════════════
 // generate-report-narrative — AI prose for a commercialization report,
@@ -42,7 +43,6 @@ Deno.serve(async (req: Request) => {
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
   const openAiKey = Deno.env.get('OPENAI_API_KEY');
   const reportModel = Deno.env.get('OPENAI_REPORT_MODEL') ?? 'gpt-4o';
-  if (!openAiKey) return json({ error: 'OPENAI_API_KEY is not configured for this Supabase project.' }, 500, headers);
 
   const callerToken = authHeader.replace(/^Bearer\s+/i, '');
   const authClient = createClient(supabaseUrl, anonKey);
@@ -52,12 +52,17 @@ Deno.serve(async (req: Request) => {
   const callerClient = createClient(supabaseUrl, anonKey, { global: { headers: { authorization: authHeader } } });
   const { data: profile, error: profileError } = await callerClient
     .from('profiles')
-    .select('role, status')
+    .select('role, status, org_id')
     .eq('id', callerUser.id)
     .single();
   if (profileError || profile?.role !== 'admin' || profile?.status !== 'active') {
     return json({ error: 'Admin access required' }, 403, headers);
   }
+  if (!profile.org_id) return json({ error: 'Organization context is required.' }, 403, headers);
+  if (await isPublicDemoWorkspace(callerClient, profile.org_id)) {
+    return json({ error: PUBLIC_DEMO_EXTERNAL_ACTION_ERROR }, 403, headers);
+  }
+  if (!openAiKey) return json({ error: 'OPENAI_API_KEY is not configured for this Supabase project.' }, 500, headers);
 
   let body: NarrativeBody;
   try {

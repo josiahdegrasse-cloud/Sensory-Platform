@@ -1,5 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
+import { isPublicDemoWorkspace, PUBLIC_DEMO_EXTERNAL_ACTION_ERROR } from '../_shared/demo-guard.ts'
 
 type JsonSchema = Record<string, unknown>
 
@@ -559,7 +560,6 @@ Deno.serve(async (req: Request) => {
     8_000,
   )
   if (!supabaseUrl || !anonKey) return json({ error: 'Supabase environment is not configured.' }, 500, headers)
-  if (!openAiKey) return json({ error: 'OPENAI_API_KEY is not configured for this Supabase project.' }, 500, headers)
 
   const callerToken = authHeader.replace(/^Bearer\s+/i, '')
   const authClient = createClient(supabaseUrl, anonKey)
@@ -578,6 +578,10 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Active admin access required.' }, 403, headers)
   }
   if (!profile.org_id) return json({ error: 'Organization context is required.' }, 403, headers)
+  if (await isPublicDemoWorkspace(callerClient, profile.org_id)) {
+    return json({ error: PUBLIC_DEMO_EXTERNAL_ACTION_ERROR }, 403, headers)
+  }
+  if (!openAiKey) return json({ error: 'OPENAI_API_KEY is not configured for this Supabase project.' }, 500, headers)
 
   let rawBody: unknown
   try {

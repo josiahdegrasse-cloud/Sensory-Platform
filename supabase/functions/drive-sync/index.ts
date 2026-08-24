@@ -1,5 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
+import { isPublicDemoWorkspace, PUBLIC_DEMO_EXTERNAL_ACTION_ERROR } from '../_shared/demo-guard.ts'
 
 // ════════════════════════════════════════════════════════════════════════════
 // drive-sync — pull instrument CSVs / Google Sheets from a connected Drive folder.
@@ -213,11 +214,14 @@ Deno.serve(async (req: Request) => {
   // Admin-only: confirm role/status via service role (bypasses RLS recursion).
   const { data: profile } = await serviceClient
     .from('profiles')
-    .select('role, status')
+    .select('role, status, org_id')
     .eq('id', callerUser.id)
     .single();
-  if (!profile || (profile as { role?: string }).role !== 'admin' || (profile as { status?: string }).status !== 'active') {
+  if (!profile || profile.role !== 'admin' || profile.status !== 'active' || !profile.org_id) {
     return json({ error: 'Admin access required' }, 403, headers);
+  }
+  if (await isPublicDemoWorkspace(serviceClient, profile.org_id)) {
+    return json({ error: PUBLIC_DEMO_EXTERNAL_ACTION_ERROR }, 403, headers);
   }
 
   let body: { mode?: string; fileIds?: unknown };

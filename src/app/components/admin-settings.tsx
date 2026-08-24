@@ -54,6 +54,8 @@ const fallbackSettings: WorkspaceSettings = {
   requirePanelistId: false,
   allowPanelistsViewHistory: false,
   inactivePanelistDays: 90,
+  demoModeEnabled: false,
+  conceptImageGenerationEnabled: true,
   conceptMaxGenerationsPerConcept: 12,
   conceptMonthlyBudgetCents: 2500,
   conceptRequireApproval: false,
@@ -94,11 +96,12 @@ function formatMetadata(metadata: Record<string, unknown>) {
   ).join(' · ');
 }
 
-function ToggleRow({ title, detail, checked, onChange }: {
+function ToggleRow({ title, detail, checked, onChange, disabled = false }: {
   title: string;
   detail: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
+  disabled?: boolean;
 }) {
   const id = `setting-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
   return (
@@ -107,7 +110,7 @@ function ToggleRow({ title, detail, checked, onChange }: {
         <span className="block text-sm font-semibold text-slate-900">{title}</span>
         <span className="text-xs leading-5 text-slate-500">{detail}</span>
       </Label>
-      <Switch id={id} checked={checked} onCheckedChange={onChange} aria-label={title} />
+      <Switch id={id} checked={checked} onCheckedChange={onChange} aria-label={title} disabled={disabled} />
     </div>
   );
 }
@@ -385,6 +388,15 @@ export function AdminSettings() {
             <Card className="border-slate-200 shadow-sm">
               <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><KeyRoundIcon />Concept Lab limits</CardTitle></CardHeader>
               <CardContent className="space-y-4">
+                <ToggleRow
+                  title="Allow AI image generation"
+                  detail={draft.demoModeEnabled
+                    ? 'Locked off for the public demo. Existing concept visuals and reports stay available.'
+                    : 'Turn off every new Concept Lab image request for this workspace. Existing concept visuals and reports stay available.'}
+                  checked={draft.conceptImageGenerationEnabled}
+                  onChange={checked => updateDraft('conceptImageGenerationEnabled', checked)}
+                  disabled={draft.demoModeEnabled}
+                />
                 <NumberField id="concept-generations" label="Max generations per concept" value={draft.conceptMaxGenerationsPerConcept} min={1} max={100} onChange={value => updateDraft('conceptMaxGenerationsPerConcept', value)} />
                 <NumberField id="concept-budget" label="Monthly image budget" value={Math.round(draft.conceptMonthlyBudgetCents / 100)} min={0} max={10000} suffix="USD" onChange={value => updateDraft('conceptMonthlyBudgetCents', value * 100)} />
                 <ToggleRow title="Require image approval" detail="Generated images need admin approval before being used in a concept survey." checked={draft.conceptRequireApproval} onChange={checked => updateDraft('conceptRequireApproval', checked)} />

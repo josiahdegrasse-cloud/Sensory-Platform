@@ -3529,6 +3529,7 @@ export type Database = {
           auto_create_food_types: boolean
           auto_create_surveys_from_imports: boolean
           brand_kit: Json
+          concept_image_generation_enabled: boolean
           concept_max_generations_per_concept: number
           concept_monthly_budget_cents: number
           concept_require_approval: boolean
@@ -3541,6 +3542,7 @@ export type Database = {
           default_panel_size: number
           default_report_title: string | null
           default_timezone: string
+          demo_mode_enabled: boolean
           drive_folder_id: string | null
           drive_folder_name: string | null
           duplicate_sample_policy: string
@@ -3576,6 +3578,7 @@ export type Database = {
           auto_create_food_types?: boolean
           auto_create_surveys_from_imports?: boolean
           brand_kit?: Json
+          concept_image_generation_enabled?: boolean
           concept_max_generations_per_concept?: number
           concept_monthly_budget_cents?: number
           concept_require_approval?: boolean
@@ -3588,6 +3591,7 @@ export type Database = {
           default_panel_size?: number
           default_report_title?: string | null
           default_timezone?: string
+          demo_mode_enabled?: boolean
           drive_folder_id?: string | null
           drive_folder_name?: string | null
           duplicate_sample_policy?: string
@@ -3623,6 +3627,7 @@ export type Database = {
           auto_create_food_types?: boolean
           auto_create_surveys_from_imports?: boolean
           brand_kit?: Json
+          concept_image_generation_enabled?: boolean
           concept_max_generations_per_concept?: number
           concept_monthly_budget_cents?: number
           concept_require_approval?: boolean
@@ -3635,6 +3640,7 @@ export type Database = {
           default_panel_size?: number
           default_report_title?: string | null
           default_timezone?: string
+          demo_mode_enabled?: boolean
           drive_folder_id?: string | null
           drive_folder_name?: string | null
           duplicate_sample_policy?: string
@@ -4651,6 +4657,7 @@ export type Database = {
           auto_create_food_types: boolean
           auto_create_surveys_from_imports: boolean
           brand_kit: Json
+          concept_image_generation_enabled: boolean
           concept_max_generations_per_concept: number
           concept_monthly_budget_cents: number
           concept_require_approval: boolean
@@ -4663,6 +4670,7 @@ export type Database = {
           default_panel_size: number
           default_report_title: string | null
           default_timezone: string
+          demo_mode_enabled: boolean
           drive_folder_id: string | null
           drive_folder_name: string | null
           duplicate_sample_policy: string

@@ -166,6 +166,8 @@ const settings = {
   requirePanelistId: false,
   allowPanelistsViewHistory: true,
   inactivePanelistDays: 90,
+  demoModeEnabled: false,
+  conceptImageGenerationEnabled: true,
   conceptMaxGenerationsPerConcept: 5,
   conceptMonthlyBudgetCents: 5000,
   conceptRequireApproval: true,

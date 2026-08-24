@@ -108,10 +108,12 @@ export function ReportCoverStudio({
   draft,
   onChange,
   settings,
+  imageGenerationEnabled = true,
 }: {
   draft: ConceptDraft;
   onChange: (draft: ConceptDraft) => void;
   settings?: ConceptGenerationSettings;
+  imageGenerationEnabled?: boolean;
 }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -127,8 +129,8 @@ export function ReportCoverStudio({
   const [error, setError] = useState('');
 
   const productBriefReady = foodMasterBriefReady(draft);
-  const canGenerateMaster = canGenerateFoodMaster({ ...draft, busy: Boolean(busyStage) });
-  const canGenerateCover = Boolean(draft.productTruth?.imageId && !busyStage);
+  const canGenerateMaster = imageGenerationEnabled && canGenerateFoodMaster({ ...draft, busy: Boolean(busyStage) });
+  const canGenerateCover = imageGenerationEnabled && Boolean(draft.productTruth?.imageId && !busyStage);
   const selectedCover = coverCandidates[selectedCoverIndex] ?? null;
   const failedQa = coverQaFailures(qaScores);
 
@@ -254,6 +256,11 @@ export function ReportCoverStudio({
       </header>
 
       <div className="divide-y divide-slate-200">
+        {!imageGenerationEnabled && (
+          <p className="border-b border-blue-200 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-800">
+            This demo is view-only. The approved food master and report cover are available below, but new AI images cannot be generated.
+          </p>
+        )}
         <div className="grid gap-6 p-4 lg:grid-cols-[minmax(0,1fr)_280px]">
           <div>
             <div className="flex items-start gap-3">

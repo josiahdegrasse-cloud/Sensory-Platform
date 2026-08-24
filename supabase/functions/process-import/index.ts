@@ -1,5 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
+import { isPublicDemoWorkspace, PUBLIC_DEMO_EXTERNAL_ACTION_ERROR } from '../_shared/demo-guard.ts'
 
 function escapeHtml(value: string): string {
   return value
@@ -128,6 +129,29 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  // Caller-scoped client — RLS stamps org_id correctly via set_org_id() trigger
+  const callerClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: `Bearer ${callerToken}` } },
+  });
+
+  const { data: profile, error: profileError } = await callerClient
+    .from('profiles')
+    .select('role, status, org_id')
+    .eq('id', callerUser.id)
+    .single();
+  if (profileError || profile?.role !== 'admin' || profile?.status !== 'active' || !profile.org_id) {
+    return new Response(JSON.stringify({ error: 'Admin access required' }), {
+      status: 403,
+      headers: { ...headers, 'Content-Type': 'application/json' },
+    });
+  }
+  if (await isPublicDemoWorkspace(callerClient, profile.org_id)) {
+    return new Response(JSON.stringify({ error: PUBLIC_DEMO_EXTERNAL_ACTION_ERROR }), {
+      status: 403,
+      headers: { ...headers, 'Content-Type': 'application/json' },
+    });
+  }
+
   let body: ProcessImportBody;
   try {
     body = await req.json();
@@ -147,23 +171,6 @@ Deno.serve(async (req: Request) => {
   }
 
   const fileName = storagePath.split('/').pop() ?? storagePath;
-
-  // Caller-scoped client — RLS stamps org_id correctly via set_org_id() trigger
-  const callerClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: `Bearer ${callerToken}` } },
-  });
-
-  const { data: profile, error: profileError } = await callerClient
-    .from('profiles')
-    .select('role, status')
-    .eq('id', callerUser.id)
-    .single();
-  if (profileError || profile?.role !== 'admin' || profile?.status !== 'active') {
-    return new Response(JSON.stringify({ error: 'Admin access required' }), {
-      status: 403,
-      headers: { ...headers, 'Content-Type': 'application/json' },
-    });
-  }
 
   if (!storagePath.startsWith(`${callerUser.id}/`)) {
     return new Response(JSON.stringify({ error: 'Storage path is outside the caller upload scope' }), {

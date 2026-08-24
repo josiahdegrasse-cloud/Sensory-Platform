@@ -1,5 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
+import { isPublicDemoWorkspace, PUBLIC_DEMO_EXTERNAL_ACTION_ERROR } from '../_shared/demo-guard.ts'
 import {
   buildModeSequence,
   estimateConceptImageCost,
@@ -224,6 +225,13 @@ Deno.serve(async (req: Request) => {
 
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
 
+  if (await isPublicDemoWorkspace(serviceClient, orgId)) {
+    return new Response(JSON.stringify({ error: PUBLIC_DEMO_EXTERNAL_ACTION_ERROR }), {
+      status: 403,
+      headers: { ...headers, 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
     const body = await req.json() as GenerateConceptImagesBody;
     if (clean(body.intent) === 'diagnostic') {
@@ -265,7 +273,7 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify({
           error: [...dependencyErrors, ...missing.map(item => `${item} is unavailable`)].join('; '),
           phase: 'readiness',
-          functionVersion: 27,
+          functionVersion: 29,
         }), {
           status: 503,
           headers: { ...headers, 'Content-Type': 'application/json' },
@@ -275,7 +283,7 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({
         ok: true,
         phase: 'ready',
-        functionVersion: 27,
+        functionVersion: 29,
       }), {
         headers: { ...headers, 'Content-Type': 'application/json' },
       });
@@ -296,11 +304,23 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
     // select('*') so the optional brand_kit / branding columns are tolerated on
     // databases that have not run the newest migrations yet.
-    const { data: workspaceSettings } = await serviceClient
+    const { data: workspaceSettings, error: workspaceSettingsError } = await serviceClient
       .from('workspace_settings')
       .select('*')
       .eq('org_id', orgId)
       .maybeSingle();
+    if (workspaceSettingsError) throw workspaceSettingsError;
+    if (
+      (workspaceSettings as Record<string, unknown> | null)?.demo_mode_enabled === true
+      || (workspaceSettings as Record<string, unknown> | null)?.concept_image_generation_enabled === false
+    ) {
+      return new Response(JSON.stringify({
+        error: 'Concept image generation is disabled for this workspace. Existing concept visuals and reports remain available.',
+      }), {
+        status: 403,
+        headers: { ...headers, 'Content-Type': 'application/json' },
+      });
+    }
 
     const configuredCount = Number(settings?.default_image_count) || DEFAULT_IMAGE_COUNT;
     const configuredMax = Number(settings?.max_images_per_concept) || MAX_IMAGE_COUNT;

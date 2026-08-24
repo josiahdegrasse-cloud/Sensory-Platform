@@ -46,6 +46,8 @@ export interface WorkspaceSettings {
   requirePanelistId: boolean;
   allowPanelistsViewHistory: boolean;
   inactivePanelistDays: number;
+  demoModeEnabled: boolean;
+  conceptImageGenerationEnabled: boolean;
   conceptMaxGenerationsPerConcept: number;
   conceptMonthlyBudgetCents: number;
   conceptRequireApproval: boolean;
@@ -192,6 +194,8 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     requirePanelistId: false,
     allowPanelistsViewHistory: false,
     inactivePanelistDays: 90,
+    demoModeEnabled: false,
+    conceptImageGenerationEnabled: true,
     conceptMaxGenerationsPerConcept: 12,
     conceptMonthlyBudgetCents: 2500,
     conceptRequireApproval: false,
@@ -255,6 +259,8 @@ function toWorkspaceSettings(row: Tables['workspace_settings']['Row']): Workspac
     requirePanelistId: Boolean(row.require_panelist_id ?? false),
     allowPanelistsViewHistory: Boolean(row.allow_panelists_view_history ?? false),
     inactivePanelistDays: Number(row.inactive_panelist_days ?? 90),
+    demoModeEnabled: Boolean(row.demo_mode_enabled ?? false),
+    conceptImageGenerationEnabled: Boolean(row.concept_image_generation_enabled ?? true),
     conceptMaxGenerationsPerConcept: Number(row.concept_max_generations_per_concept ?? 12),
     conceptMonthlyBudgetCents: Number(row.concept_monthly_budget_cents ?? 2500),
     conceptRequireApproval: Boolean(row.concept_require_approval ?? false),
@@ -439,6 +445,8 @@ export async function updateWorkspaceSettings(
     require_panelist_id: updates.requirePanelistId,
     allow_panelists_view_history: updates.allowPanelistsViewHistory,
     inactive_panelist_days: Math.min(730, Math.max(1, Number(updates.inactivePanelistDays) || 90)),
+    demo_mode_enabled: updates.demoModeEnabled,
+    concept_image_generation_enabled: updates.conceptImageGenerationEnabled,
     concept_max_generations_per_concept: Math.min(100, Math.max(1, Number(updates.conceptMaxGenerationsPerConcept) || 12)),
     concept_monthly_budget_cents: Math.min(1000000, Math.max(0, Number(updates.conceptMonthlyBudgetCents) || 0)),
     concept_require_approval: updates.conceptRequireApproval,
