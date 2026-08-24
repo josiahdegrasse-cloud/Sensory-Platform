@@ -37,7 +37,7 @@ if (!Array.isArray(workflow.steps) || workflow.steps.length < 4) errors.push('Wo
 if (workflow.steps?.some((step) => !step.agent)) errors.push('Every workflow step needs an agent.');
 const verifierSource = readFileSync(resolve(root, 'agent-system/scripts/verify.mjs'), 'utf8');
 if (/\*\.test\.ts/.test(verifierSource)) errors.push('Verifier commands must enumerate test files; shell globs are not expanded.');
-for (const variable of ['E2E_ADMIN_EMAIL','E2E_ADMIN_PASSWORD']) if (!verifierSource.includes(variable)) errors.push(`Verifier lacks ${variable} credential check.`);
+for (const variable of ['DEMO_ADMIN_EMAIL','DEMO_ADMIN_PASSWORD']) if (!verifierSource.includes(variable)) errors.push(`Verifier lacks ${variable} credential check.`);
 const reportUi = evals.find(({id})=>id==='report-ui-safety');
 for (const gate of ['report-tests','decision-tests','go-gate-static','e2e','visual-evidence']) if (!reportUi?.hardGateIds.includes(gate)) errors.push(`report-ui-safety lacks ${gate}.`);
 

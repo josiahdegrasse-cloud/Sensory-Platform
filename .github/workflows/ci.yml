@@ -77,8 +77,17 @@ jobs:
       - name: Lint
         run: npx pnpm@10 run lint
 
-      - name: Test
-        run: npx pnpm@10 test
+      - name: Test with domain coverage
+        run: npx pnpm@10 run test:coverage
+
+      - name: Upload coverage report
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: domain-coverage
+          path: coverage/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Validate migrations
         run: |
@@ -113,8 +122,10 @@ jobs:
       - name: Browser smoke tests
         run: npx pnpm@10 run test:e2e
         env:
-          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
-          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          DEMO_ADMIN_EMAIL: ${{ secrets.DEMO_ADMIN_EMAIL }}
+          DEMO_ADMIN_PASSWORD: ${{ secrets.DEMO_ADMIN_PASSWORD }}
+          DEMO_PANELIST_EMAIL: ${{ secrets.DEMO_PANELIST_EMAIL }}
+          DEMO_PANELIST_PASSWORD: ${{ secrets.DEMO_PANELIST_PASSWORD }}
 
       - name: Audit production dependencies
         run: npx pnpm@10 audit --prod --audit-level=moderate

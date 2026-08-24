@@ -24,8 +24,8 @@ jobs:
       - run: npx pnpm@10 install --frozen-lockfile
       - name: Verify production twice before alerting
         env:
-          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
-          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          DEMO_ADMIN_EMAIL: ${{ secrets.DEMO_ADMIN_EMAIL }}
+          DEMO_ADMIN_PASSWORD: ${{ secrets.DEMO_ADMIN_PASSWORD }}
           NFI_EXPECTED_DOCUMENTS: "386"
           NFI_MAX_LATENCY_MS: "10000"
         run: |

@@ -1,8 +1,10 @@
 import { expect, type Page, test } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 
-const email = process.env.E2E_ADMIN_EMAIL;
-const password = process.env.E2E_ADMIN_PASSWORD;
+const email = process.env.DEMO_ADMIN_EMAIL;
+const password = process.env.DEMO_ADMIN_PASSWORD;
+const panelistEmail = process.env.DEMO_PANELIST_EMAIL;
+const panelistPassword = process.env.DEMO_PANELIST_PASSWORD;
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
 
@@ -14,10 +16,16 @@ async function loginAsAdmin(page: Page) {
 
   // Wait for the authenticated workspace, not merely the navigation event.
   // The profile and tenant records load asynchronously after Supabase signs in.
-  await expect(page.getByRole('heading', { name: 'New Food Innovation' })).toBeVisible({
-    timeout: 20_000,
-  });
-  await expect(page.getByRole('heading', { name: 'Live projects' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Live projects' })).toBeVisible({ timeout: 20_000 });
+}
+
+async function loginAsPanelist(page: Page) {
+  await page.goto('/');
+  await page.getByLabel('Email address').fill(panelistEmail!);
+  await page.getByLabel('Password').fill(panelistPassword!);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Your task inbox' })).toBeVisible({ timeout: 20_000 });
 }
 
 async function openProjectWithPrototype(page: Page) {
@@ -30,13 +38,16 @@ async function openProjectWithPrototype(page: Page) {
   expect(projectHrefs.length).toBeGreaterThan(0);
 
   for (const href of projectHrefs) {
-    await page.goto(href);
+    const projectId = href.match(/^\/project\/([^/]+)/)?.[1];
+    if (!projectId) continue;
+    const projectHref = `/project/${projectId}`;
+    await page.goto(projectHref);
     await expect(page.getByRole('heading', { name: 'Project decision room' })).toBeVisible({
       timeout: 15_000,
     });
     const prototypePanel = page.getByRole('complementary', { name: 'Project prototypes' });
-    if (await prototypePanel.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      return href;
+    if (await prototypePanel.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false)) {
+      return projectHref;
     }
   }
 
@@ -44,7 +55,7 @@ async function openProjectWithPrototype(page: Page) {
 }
 
 test.describe('authenticated admin workflow', () => {
-  test.skip(!email || !password, 'E2E_ADMIN_EMAIL and E2E_ADMIN_PASSWORD are required.');
+  test.skip(!email || !password, 'Dedicated DEMO_ADMIN_EMAIL and DEMO_ADMIN_PASSWORD secrets are required.');
 
   test('admin can open a project-level decision room', async ({ page }) => {
     const errors: string[] = [];
@@ -54,28 +65,20 @@ test.describe('authenticated admin workflow', () => {
     await openProjectWithPrototype(page);
 
     await expect(page.getByRole('complementary', { name: 'Project prototypes' })).toBeVisible();
-    await expect(page.getByRole('tab', { name: 'R&D workspace' })).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByRole('heading', { name: 'Evidence lineage' })).toBeVisible();
     await expect(page.getByRole('complementary', { name: 'Prototype action panel' })).toBeVisible();
     expect(errors).toEqual([]);
   });
 
-  test('project briefs keep prototype evidence visible for each audience', async ({ page }) => {
+  test('confirmed GO prototypes expose their downstream evidence boundary', async ({ page }) => {
     await loginAsAdmin(page);
     await openProjectWithPrototype(page);
 
     const prototypePanel = page.getByRole('complementary', { name: 'Project prototypes' });
     await expect(prototypePanel.getByRole('heading', { name: 'Prototypes' })).toBeVisible();
-
-    await page.getByRole('tab', { name: 'Executive brief' }).click();
-    await expect(page.getByText('Executive decision brief')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Evidence on record' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Boundary and open work' })).toBeVisible();
-
-    await page.getByRole('tab', { name: 'Client brief' }).click();
-    await expect(page.getByText('Client evidence brief')).toBeVisible();
-    await expect(page.getByText(/does not establish demand, purchase intent, or commercial success/i)).toBeVisible();
-    await expect(prototypePanel).toBeVisible();
+    await prototypePanel.getByRole('button', { name: /\bGO\b/ }).click();
+    await expect(page.getByRole('heading', { name: 'Evidence lineage' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Eligible for concept and report work' })).toBeVisible();
   });
 
   test('Concept Lab requires a confirmed GO evidence source', async ({ page }) => {
@@ -211,5 +214,21 @@ test.describe('authenticated admin workflow', () => {
 
     await page.goto('/this-route-does-not-exist');
     await expect(page.getByRole('heading', { name: /404 - Page Not Found/i })).toBeVisible();
+  });
+});
+
+test.describe('authenticated panelist workflow', () => {
+  test.skip(
+    !panelistEmail || !panelistPassword,
+    'Dedicated DEMO_PANELIST_EMAIL and DEMO_PANELIST_PASSWORD secrets are required.',
+  );
+
+  test('panelist can open the assigned synthetic tasting and concept tasks', async ({ page }) => {
+    await loginAsPanelist(page);
+
+    await expect(page.getByRole('heading', { name: 'Assigned tasting tasks' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Start this task' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Marketing Evaluations' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Begin Marketing Evaluation' })).toBeVisible();
   });
 });

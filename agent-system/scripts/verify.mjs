@@ -41,7 +41,7 @@ const startedAt = new Date().toISOString();
 const results = [];
 
 function runCheck(id) {
-  if (id === 'e2e' && (!process.env.E2E_ADMIN_EMAIL || !process.env.E2E_ADMIN_PASSWORD) && evalItems.some((item)=>item.tags.includes('visual'))) {
+  if (id === 'e2e' && (!process.env.DEMO_ADMIN_EMAIL || !process.env.DEMO_ADMIN_PASSWORD) && evalItems.some((item)=>item.tags.includes('visual'))) {
     return Promise.resolve({ id, command: 'pnpm run test:e2e', status: 'skip', required: true, hardGate: true, exitCode: null, durationMs: 0, stdoutTail: '', stderrTail: '', reason: 'Authenticated/visual evidence credentials are unavailable.' });
   }
   const [command, commandArgs] = commands[id];

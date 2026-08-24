@@ -6,10 +6,11 @@ const readEnv = path => Object.fromEntries(fs.readFileSync(path, 'utf8').split(/
   .filter(line => line && !line.startsWith('#') && line.includes('='))
   .map(line => { const index = line.indexOf('='); return [line.slice(0, index), line.slice(index + 1).replace(/^['"]|['"]$/g, '')]; }));
 const env = readEnv('.env');
-const credentials = fs.existsSync('DEMO_CREDENTIALS.local.md') ? fs.readFileSync('DEMO_CREDENTIALS.local.md', 'utf8') : '';
-const email = process.env.E2E_ADMIN_EMAIL || credentials.match(/## Admin[\s\S]*?- Email:\s*`?([^`\s]+)`?/i)?.[1];
-const password = process.env.E2E_ADMIN_PASSWORD || credentials.match(/## Admin[\s\S]*?- Password:\s*`?([^`\n]+)`?/i)?.[1]?.trim();
-if (!email || !password) throw new Error('Admin verification credentials are unavailable.');
+const email = process.env.DEMO_ADMIN_EMAIL;
+const password = process.env.DEMO_ADMIN_PASSWORD;
+if (!email || !password) {
+  throw new Error('Dedicated demo-admin verification credentials are unavailable in the process environment.');
+}
 
 const supabase = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
 const { data: sessionData, error: sessionError } = await supabase.auth.signInWithPassword({ email, password });
