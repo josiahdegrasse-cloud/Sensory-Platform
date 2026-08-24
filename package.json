@@ -21,13 +21,6 @@
     "test:demo-boundaries": "vitest run src/app/data/demo-boundaries.test.ts",
     "test:migration-drift": "bash scripts/test-migration-drift.sh",
     "test:rls:local": "bash scripts/run-local-rls-tests.sh",
-    "agent:status": "bash scripts/agent-worktree-summary.sh",
-    "agent:start": "node agent-system/scripts/start.mjs",
-    "agent:verify": "node agent-system/scripts/verify.mjs",
-    "agent:verify:full": "node agent-system/scripts/verify.mjs --profile full",
-    "agent:promote": "node agent-system/scripts/promote.mjs",
-    "agent:visual-manifest": "node agent-system/scripts/visual-manifest.mjs",
-    "agent:test": "node --test agent-system/tests/system.test.mjs",
     "test:watch": "vitest",
     "test:e2e": "playwright test --config config/playwright.config.ts",
     "db:types": "supabase gen types typescript --linked > src/app/lib/db/database.types.ts"

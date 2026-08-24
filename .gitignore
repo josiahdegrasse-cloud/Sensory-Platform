@@ -21,23 +21,23 @@ tmp/
 /tests/artifacts/**/*.json
 
 # Supabase CLI local state
+supabase/.branches
 supabase/.temp
 
-# Agent/automation tooling scratch — not part of the application
-.swarm
-ruvector.db
-.agents
-.claude-flow/metrics
-.claude-flow/security
-.claude-flow/agents
-.claude-flow/swarm
-.claude-flow/system
-.claude-flow/intelligence
-.impeccable/critique
-.ruflo
-.ruvector
-agent-system/runs
-agent-system/state/candidates.jsonl
-agent-system/state/promoted.jsonl
+# Local assistant, review, and portfolio tooling — never part of the product
+/.agents/
+/.claude/
+/.claude-flow/
+/.codex/
+/.impeccable/
+/.ruflo/
+/.ruvector/
+/.swarm/
+/agent-system/
+/agents/
+/clients/
+/portfolio/
+/.mcp.json
+/ruvector.db
 .vercel
 .env*
