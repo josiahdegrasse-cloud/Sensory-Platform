@@ -1,102 +1,82 @@
-# NFI Platform Demo Instructions
+# Sensory Platform demo guide
 
-## Quick Start
+The public demo follows one synthetic food product from instrumental evidence to
+a commercialization recommendation. It contains no client, employee, or real
+panelist data.
 
-The NFI Platform is a sensory evaluation, consumer research, and concept-testing system that
-takes a product from R&D to market. It combines instrumental (machine) measurements, semi-trained
-sensory panels, and consumer concept testing into one workflow, organized by **food type**
-(e.g., cheese, bread, and any custom types an admin adds).
+[Open Sensory Platform](https://sensory-platform.vercel.app)
 
-This is a real **Supabase-backed** application — authentication, roles, and data are all live, not
-mocked or stored in localStorage.
+## Demo accounts
 
-## Demo Accounts
+Enter either account manually on the sign-in page:
 
-There are two roles: **admin** and **panelist**. Use the credentials in
-`DEMO_CREDENTIALS.local.md` (not committed to git — ask Josiah for the current login).
+| Account | Email | Password |
+| --- | --- | --- |
+| Administrator | `admin@sensorydemo.test` | `eOKS3x3o1_r7nI1oi2aP6Z_q` |
+| Panelist | `panelist@sensorydemo.test` | `EwDDy-TB1DBpFTtAee_1pIZ3` |
 
-| Role | Access |
-|------|--------|
-| Admin | Full platform: machine testing, survey analysis, final decision, concept testing, configuration |
-| Panelist | Only their own questionnaires at `/panelist` — cannot see other panelists' data or admin features |
+These credentials provide access only to the isolated synthetic demo workspace.
+Never reuse them for another account.
 
-> Note: there is no separate "developer" role in this version — admins have full access.
+## Prepared journey
 
----
+| Stage | Demo content |
+| --- | --- |
+| Project | **Plant-Based Cheddar Optimisation** |
+| Data | Three instrumental prototypes: `DEMO-S1`, `DEMO-S2`, and `DEMO-S3` |
+| Studies | Prepared tasting tasks and synthetic response evidence |
+| Decision | Confirmed **GO** for `DEMO-S2` / **Coconut Cheddar v2 — Creamier** |
+| Concept | **Everyday Melt Cheddar**, with a prepared image and 11 of 12 responses |
+| Report | **Everyday Melt Cheddar concept report**, version 1, in review |
 
-## Navigation (Admin)
+The final concept response is intentionally left open for the demo panelist.
 
-The left sidebar lists food-type "projects" (e.g., Cheese, Bread, plus any custom or imported
-types), each showing its most recent import date. The top nav has:
+## Administrator walkthrough
 
-| Page | Route | What it does |
-|------|-------|--------------|
-| **Overview** | `/` | Landing dashboard — module grid, panel capacity summary |
-| **Machine Testing** | `/stage1` | Objective sensory data via E-Tongue and GC-O instrumentation |
-| **Analyze Results** | `/survey-analysis` | CATA + hedonic scoring analysis across the panelist pool |
-| **Final Decision** | `/decision` | Integrated GO / TWEAK / STOP recommendation engine (this is where "ISSF" — Integrated Sensory Screening Framework, the platform's branded scoring methodology — appears; be ready to explain it if asked) |
-| **Concept Testing** | `/concept-testing` | Build AI-assisted 20–30 question consumer surveys and send them to panelists |
-| **Configure** | `/admin` | Create/manage surveys, panelists, templates, and CSV imports — has four tabs: **Surveys**, **Panelists**, **Templates**, **Imports** |
-| **Settings** | `/settings` | Admin account/workspace settings |
+Allow about 7 minutes.
 
-## Navigation (Panelist)
+1. Sign in as the administrator and open **Plant-Based Cheddar Optimisation**.
+   Use the project overview to introduce the connected workflow.
+2. Open **Data** and follow `DEMO-S2`. Show how imported measurements retain
+   their project, batch, sample, and validation identity.
+3. Open **Studies** and review the questionnaire, sample-safety checks,
+   assignments, and explicit launch boundary.
+4. Open **Insights** and compare the synthetic sensory and instrumental results.
+   Note the sample sizes and evidence labels.
+5. Open **Decision** and select **Coconut Cheddar v2 — Creamier**. Review its
+   confirmed GO result, score, confidence, rationale, and linked evidence.
+6. Open **Concept → Tests** and select **Everyday Melt Cheddar**. Review the
+   prepared concept stimulus and response summary.
+7. Open **Report** and select **Everyday Melt Cheddar concept report**. Review
+   the recommendation, evidence lineage, concept findings, actions, limitations,
+   and demonstration-only release status.
 
-Panelists land on `/panelist` ("Welcome, [Name]") with four sections:
-- **Available Questionnaires** — sensory evaluations waiting to be filled out
-- **Marketing Evaluations** — concept-test surveys assigned to them
-- **Completed Questionnaires** — their submitted sensory evaluations
-- **Completed Marketing Evaluations** — their submitted concept tests
+## Panelist walkthrough
 
----
+Allow about 2 minutes.
 
-## Testing Workflow
+1. Sign out and sign in with the panelist account.
+2. Open **Everyday Melt Cheddar** under **Marketing Evaluations**.
+3. Review the prepared concept image, price, and five-question survey.
+4. Return to the task list without submitting the final response.
 
-### As an Admin
-1. Log in with the admin account.
-2. From **Overview**, note the two tracks — **R&D** (objective scoring → GO/TWEAK/STOP) and
-   **Marketing** (concept testing → consumer validation).
-3. Open **Configure** → **Surveys** tab to create or assign a questionnaire for a food type.
-4. Check the **Imports** tab — recent CSV import batches now show up here with their import
-   dates (this was the bug fixed in commit `51a9b4d`).
-5. Visit **Machine Testing** to view instrumental (E-Tongue/GC-O) data for the active food type.
-6. Visit **Analyze Results** to see aggregated CATA, hedonic, and emotional-profile data.
-7. Visit **Final Decision** to see the GO/TWEAK/STOP recommendation, generated by the
-   `go-stop-tweak-engine`.
-8. Optionally walk through **Concept Testing** to show how a consumer survey is built and sent
-   to panelists.
+The tasting task can also be opened to show blinded sample cues and the sensory
+questionnaire flow.
 
-### As a Panelist
-1. Log in with a panelist account.
-2. From `/panelist`, click into an **Available Questionnaire**.
-3. Fill out the sensory evaluation:
-   - **CATA** (Check-All-That-Apply attribute selection)
-   - **Intensity ratings** (1–5 scale, only for attributes selected in CATA)
-   - **Hedonic / liking scores** (1–9 scale)
-   - **Emotional profile** (EsSense25 — 25 emotions)
-4. Submit and confirm it now appears under **Completed Questionnaires**.
-5. Try to reopen the same questionnaire — it should show as already completed (no duplicate
-   submissions allowed).
-6. If a concept test is assigned, repeat the flow under **Marketing Evaluations**.
+## Demo safeguards
 
----
+- The workspace contains synthetic data and is isolated by organization and
+  role through Supabase Row Level Security.
+- New image generation, hosted report AI, invitations, assignment emails,
+  Google Drive sync, and instrument imports are disabled server-side.
+- Existing concept images and the prepared report remain available.
+- Demonstration evidence cannot be approved for client release.
 
-## Things to Know Before Presenting
+## Keep the demo reusable
 
-- **"ISSF"** appears on the Final Decision page without inline explanation — it stands for
-  *Integrated Sensory Screening Framework*, this platform's branded scoring methodology. There's
-  a glossary entry for it, but no on-page tooltip yet.
-- **Data is live**, not mocked — anything created or submitted during the demo will persist.
-  Avoid submitting throwaway responses against real food-type projects unless you intend to
-  clean them up afterward.
-- **Panel capacity** is up to 100 panelists per workspace; panelists only ever see `/panelist`.
+The demo uses the live data layer. Avoid actions that change its prepared state,
+including submitting the final concept response, changing studies or settings,
+creating another concept or report version, or changing the report review state.
 
----
-
-## Technical Notes
-
-- **Auth & data:** Supabase (real authentication + Postgres with Row Level Security), not
-  localStorage.
-- **Decision engine:** `/decision` is powered by `go-stop-tweak-engine.ts`, which scores
-  responses and produces GO / TWEAK / STOP recommendations per food type.
-- **Imports:** CSV import batches are tracked in the `import_batches` table (`imported_at`
-  column) and surfaced in **Configure → Imports** and the sidebar's "Last import" dates.
+Navigation, filtering, opening records, viewing report pages, and inspecting
+survey questions are safe.

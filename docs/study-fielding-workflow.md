@@ -51,20 +51,13 @@ This is the operating workflow for product sensory and triangle studies. It repl
 
 An unresolved box issue blocks product access and completion until an administrator resolves it. Expiry follows the study response deadline when one is configured.
 
-## Deployment checklist
+## Release verification
 
-1. Confirm the linked migration list has no remote-only migrations: `./scripts/check-migration-drift.sh`.
-2. Dry-run the database release: `supabase db push --linked --dry-run`.
-3. Apply migrations in order:
-   - `20260819000000_panelist_kit_lifecycle_enforcement.sql`
-   - `20260819010000_product_study_launch_gate.sql`
-4. Regenerate and compare `database.types.ts`. These migrations add private enforcement only, so the public generated TypeScript surface should remain unchanged.
-5. Run `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `pnpm build`.
-6. Smoke-test one manual draft and one import-created draft:
-   - confirm neither appears to a panelist before launch;
-   - confirm launch fails before safety/assignment completion;
-   - preview, assign, launch, and confirm exactly the assigned eligible panelist sees the task;
-   - scan one QR, try the fallback code, submit every task, and confirm the pass closes only after the final task.
+For changes to this workflow, run the migration-drift, generated-type,
+tenant-isolation, type, unit, and production-build checks. Smoke-test one manual
+draft and one import-created draft, including preview, eligibility, launch,
+panelist visibility, QR and fallback-code entry, atomic response submission, and
+final pass completion.
 
 ## Operator troubleshooting
 

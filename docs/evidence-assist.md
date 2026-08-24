@@ -69,9 +69,9 @@ Prometheus metrics expose run counts, accepted cards by source type, rejection r
 From the dashboard repository:
 
 ```bash
-npm run typecheck
-npm test -- --run
-npm run build
+pnpm typecheck
+pnpm test
+pnpm build
 ```
 
 From the RAG service repository:
@@ -80,12 +80,7 @@ From the RAG service repository:
 .venv/bin/python -m pytest
 ```
 
-The tests cover authentication and role boundaries, canonical-context replacement, unverified context, category mismatch, corpus approval, classification boundaries, `n=1` concept evidence, GO preservation, deduplication and rejection, safe projection, writer-packet isolation, leakage scanning, raw-excerpt detection, endpoint integration, report orchestration, and PDF QC.
-
-## Schema note
-
-The live schema was audited on 2026-07-13. Local and remote migration histories matched through `20260713000001`, and a temporary live type generation matched `database.types.ts` byte-for-byte. The audit found that the backend expected hierarchical retrieval columns and `rag_index_config` that were absent from the deployed tables, while PostgreSQL repository constructors still contained runtime DDL.
-
-`20260713000002_rag_schema_alignment.sql` is the forward-only correction. It was applied to the linked Supabase project on 2026-07-13, then `database.types.ts` was regenerated from that live schema. It adds the missing retrieval contract and removes direct authenticated-browser access to backend-owned chunks and jobs. The RAG service now uses read-only startup verification; shared Supabase deployments must set `NFI_SCHEMA_MANAGEMENT=external`. The live migration-drift gate, generated-type check, typecheck, lint, tests, and production build all passed after deployment.
-
-`20260713000003_rag_auth_hook_rls.sql` was applied after an authenticated rollout check showed that the custom access-token hook safely failed open without adding claims. The hook's internal `supabase_auth_admin` executor had table grants but no RLS policies on `profiles` or `organizations`. The follow-up migration grants that internal role read-only RLS access to those two lookup tables. The Custom Access Token Hook is enabled at `pg-functions://postgres/public/custom_access_token_hook`; a fresh dashboard sign-in was verified to issue `tenant_id` and `roles` claims while retaining the expected issuer, audience, and subject.
+The tests cover authentication and role boundaries, canonical-context
+replacement, category mismatch, corpus approval, classification boundaries,
+GO preservation, safe projection, writer-packet isolation, leakage scanning,
+endpoint integration, report orchestration, and PDF quality checks.

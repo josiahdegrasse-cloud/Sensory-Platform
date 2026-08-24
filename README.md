@@ -1,85 +1,134 @@
-# Sensory Analysis Dashboard (NFI Platform)
+# Sensory Platform
 
-A Supabase-backed platform for food R&D and product development. It takes a product
-from lab to market by combining three tracks into one workflow, organized by **food type**
-(cheese, bread, or any custom type an admin adds):
+[![CI](https://github.com/josiahdegrasse-cloud/Sensory-Platform/actions/workflows/ci.yml/badge.svg)](https://github.com/josiahdegrasse-cloud/Sensory-Platform/actions/workflows/ci.yml)
 
-1. **Instrumental** — objective machine measurements (E-Tongue, GC-O/GC-MS, composition).
-2. **Sensory panel** — semi-trained panelist questionnaires (CATA, intensity, hedonic, EsSense25 emotion).
-3. **Consumer concept testing** — AI-assisted concept surveys and imagery for market validation.
+Sensory Platform connects food-product evidence, research operations, decisions,
+concept validation, and commercialization reporting in one project workspace.
 
-Results feed an **Integrated Sensory Screening Framework (ISSF)** decision engine that produces a
-**GO / TWEAK / STOP** recommendation per food type.
+**Data → Studies → Responses → Insights → Decision → Concept → Report**
 
-## Tech stack
+[Open the live demo](https://sensory-platform.vercel.app) ·
+[Use the demo accounts](DEMO_INSTRUCTIONS.md)
 
-- **Frontend:** React 19 + Vite 6, TypeScript, React Router 7 (data router, lazy routes)
-- **Server state:** TanStack Query
-- **UI:** Tailwind CSS 4 + Radix UI primitives (shadcn-style components in `src/app/components/ui`)
-- **Backend:** Supabase (Postgres + Auth + Row Level Security + Storage + Edge Functions)
-- **Errors:** Sentry
-- **Tests:** Vitest (unit), Playwright (e2e)
+<p align="center">
+  <img src="docs/assets/sensory-platform-mobile-overview.png" width="390" alt="Sensory Platform project overview showing the evidence-to-report workflow" />
+</p>
 
-## Prerequisites
+## The product
 
-- Node 20
-- pnpm 10 (`corepack enable` or `npx pnpm@10`)
-- A Supabase project (URL + anon key)
+Food-product evidence is often split across instrument exports, survey tools,
+spreadsheets, and presentation decks. Sensory Platform keeps that evidence tied
+to a stable project and answers three practical questions:
 
-## Setup
+- What evidence belongs to this formulation?
+- Is it ready to move forward?
+- What should the team do next?
+
+Each project retains its imports, studies, panel responses, analysis, confirmed
+decisions, concepts, and report versions. Recommendations remain traceable to
+the evidence and limitations behind them.
+
+## Workflow
+
+| Stage | What happens |
+| --- | --- |
+| **Data** | Import and validate E-Tongue, GC-MS, composition, and other instrumental datasets while preserving batch and sample lineage. |
+| **Studies** | Configure sensory or discrimination studies, verify sample safety, assign eligible panelists, preview, and launch. |
+| **Responses** | Collect focused tasting and concept feedback with consent, progress protection, and duplicate-submission controls. |
+| **Insights** | Compare sensory and instrumental results with sample sizes, evidence status, and provenance. |
+| **Decision** | Calculate an explainable ISSF result and confirm a GO, TWEAK, or STOP decision. |
+| **Concept** | Turn confirmed GO products into evidence-derived concepts and targeted validation studies. |
+| **Report** | Assemble evidence, decisions, concept results, risks, and next actions into a branded, versioned commercialization report. |
+
+## Key capabilities
+
+- One canonical project identity across imports, formulations, studies,
+  decisions, concepts, and reports.
+- Instrumental CSV and workbook import with mapping, validation, and source
+  lineage.
+- Single-sample, multi-sample, calibration, and blinded triangle studies.
+- Allergen-aware panel assignment, panelist box passes, QR entry, and mobile
+  survey flows.
+- Sensory and instrumental comparison views with deterministic ISSF scoring.
+- Confirmed, versioned GO/TWEAK/STOP decisions that govern downstream work.
+- GO-gated concept validation with governed images and survey evidence.
+- Evidence Assist for approved scientific context and controlled report claims.
+- On-device Llama report writing, deterministic quality checks, administrator
+  approval, and PDF/Excel exports.
+- Organization-scoped data, branding, settings, audit history, and role-based
+  access enforced with Supabase Row Level Security.
+
+## AI and evidence controls
+
+AI works inside explicit product boundaries:
+
+1. Canonical project records and approved evidence remain the source of truth.
+2. Deterministic code calculates scores, validates contracts, enforces workflow
+   gates, and checks report output.
+3. Evidence Assist rejects unapproved, rights-unclear, mismatched, or unsafe
+   literature before it can influence report prose.
+4. Commercialization-report prose is generated locally in a compatible browser
+   from a bounded evidence packet; incomplete output is not saved.
+5. Administrators review important outputs before they become panelist- or
+   client-facing.
+
+## Architecture
+
+| Layer | Technology |
+| --- | --- |
+| Frontend | React 18, TypeScript, Vite, React Router, TanStack Query, Tailwind CSS, and Radix UI |
+| Data | Supabase Postgres, Auth, Storage, Edge Functions, and Row Level Security |
+| Research | Authenticated literature retrieval and Evidence Assist |
+| Local inference | WebLLM with quantized Llama 3.2 models |
+| Operations | Vercel, Sentry, audit trails, dependency monitoring, bundle budgets, and schema-drift checks |
+
+## Local development
+
+Requirements:
+
+- Node.js 22.13–24
+- pnpm 10
+- A Supabase project
 
 ```bash
+corepack enable
 pnpm install
-cp .env.example .env   # then fill in your Supabase values
+cp .env.example .env
+pnpm dev
 ```
 
-Required environment variables (see `.env.example`):
+The minimum browser configuration is:
 
 | Variable | Purpose |
-|----------|---------|
+| --- | --- |
 | `VITE_SUPABASE_URL` | Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | Supabase anon (public) key — RLS is the real access gate |
-| `VITE_ROOT_DOMAIN` | Canonical apex used to resolve and enforce branded tenant subdomains |
-| `VITE_NFI_RAG_URL` | Authenticated Vercel Evidence Assist API URL; required in production |
-| `VITE_SENTRY_DSN` | Optional public browser DSN for privacy-safe runtime error reporting |
-| `SENTRY_AUTH_TOKEN` / `SENTRY_ORG` / `SENTRY_PROJECT` | Optional server-side build credentials for source-map upload; never expose the token to Vite |
+| `VITE_SUPABASE_ANON_KEY` | Public browser key; Row Level Security remains the authorization boundary |
 
-## Scripts
+Additional tenant, research, monitoring, and server settings are documented in
+[`.env.example`](.env.example) and the
+[operations runbook](docs/operations-runbook.md). Never expose service-role or
+provider secrets through `VITE_*` variables.
+
+## Verification
 
 ```bash
-pnpm dev          # start the Vite dev server
-pnpm check:runtime # verify the supported Node release baseline
-pnpm build        # production build
-pnpm test         # run unit tests (vitest)
-pnpm test:watch   # vitest in watch mode
-pnpm test:e2e     # Playwright browser smoke tests (config/playwright.config.ts)
+pnpm check:runtime
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm build
 ```
 
-## Project layout
+Authorization, migration, coverage, and browser checks are available through
+`test:rls:local`, `test:migration-drift`, `test:coverage`, and `test:e2e`.
 
-```
-src/app/
-  components/        feature components (+ ui/ for Radix/shadcn primitives)
-  contexts/          auth + food-type React contexts
-  data/              static/reference datasets (lexicon, attributes, samples)
-  lib/               data-access layer (Supabase mappers), query client, hooks
-  utils/             pure domain logic (decision engine, metrics, exports)
-  routes.tsx         route tree + role guards
-supabase/
-  migrations/        schema + RLS policies (timestamp-ordered)
-  functions/         edge functions (e.g. generate-concept-images)
-```
+## Documentation
 
-## Roles
-
-- **admin** — full platform: instrumental data, survey analysis, final decision, concept testing, configuration.
-- **panelist** — only their own questionnaires at `/panelist`; cannot see other panelists' or admin data.
-
-Access control is enforced server-side via Supabase RLS (see `supabase/migrations/*_rls_policies.sql`
-and `*_security_fixes.sql`), not just client-side route guards.
-
-## Further docs
-
-- `DEMO_INSTRUCTIONS.md` — end-to-end walkthrough of the admin and panelist flows.
-- `AGENTS.md` / `CLAUDE.md` — operating guides for AI coding assistants working in this repo.
-- `docs/operations-runbook.md` — branded tenant setup, health checks, cost controls, backups, and rollback.
+- [Demo guide](DEMO_INSTRUCTIONS.md)
+- [Product and design principles](PRODUCT.md)
+- [Evidence Assist](docs/evidence-assist.md)
+- [Local report writing](docs/local-llama-report-writing.md)
+- [Study fielding workflow](docs/study-fielding-workflow.md)
+- [Operations runbook](docs/operations-runbook.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
