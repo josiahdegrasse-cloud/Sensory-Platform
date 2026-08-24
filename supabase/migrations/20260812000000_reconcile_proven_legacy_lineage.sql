@@ -101,9 +101,11 @@ BEGIN
   SELECT count(*) INTO remaining_count
   FROM public.prototype_lineage_reconciliation;
 
-  IF remaining_count <> 16 THEN
-    RAISE EXCEPTION 'Expected 16 ambiguous reviewed records to remain, found %', remaining_count;
-  END IF;
+  -- This migration originally ran against a production snapshot with 16
+  -- ambiguous records. A fresh database correctly has none, while future
+  -- installations may have a different reviewed-data count. The exact proven
+  -- repairs above remain fail-closed; the snapshot count is diagnostic only.
+  RAISE NOTICE '% ambiguous lineage records remain for human review', remaining_count;
 END;
 $$;
 
