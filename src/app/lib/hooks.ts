@@ -1099,9 +1099,18 @@ export function useInsertConceptTest() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (test: Omit<ConceptTest, 'id' | 'createdAt'>) => insertConceptTest(test),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['conceptTests'] })
-      qc.invalidateQueries({ queryKey: ['conceptTest'] })
+    onSuccess: concept => {
+      qc.setQueryData<ConceptTest[]>(queryKeys.adminConceptTests, current => [
+        concept,
+        ...(current ?? []).filter(existing => existing.id !== concept.id),
+      ])
+      void Promise.all([
+        qc.invalidateQueries({ queryKey: queryKeys.adminConceptTests }),
+        qc.invalidateQueries({ queryKey: queryKeys.studyConceptTests }),
+        qc.invalidateQueries({ queryKey: queryKeys.conceptResponseCounts }),
+        qc.invalidateQueries({ queryKey: ['conceptTests'] }),
+        qc.invalidateQueries({ queryKey: ['conceptTest'] }),
+      ])
     },
   })
 }

@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { coconutCheddarContext } from '../report-qc/fixtures';
+import { coconutCheddarContext, coconutCheddarSnapshot } from '../report-qc/fixtures';
 import {
   buildLocalReportWriterPacket,
   buildLocalReportWriterPrompt,
   localReportDraftFromSections,
   parseLocalReportSections,
+  resolveLocalReportSections,
 } from './report-writer';
 import type { LocalReportSections } from './types';
 import type { ReportSafeEvidenceCard } from '../evidence-assist';
@@ -67,6 +68,31 @@ describe('local Llama report writer', () => {
     expect(parseLocalReportSections(JSON.stringify(sections))).toEqual(sections);
     expect(() => parseLocalReportSections(JSON.stringify({ executiveSummary: sections.executiveSummary })))
       .toThrow(/did not complete/i);
+  });
+
+  it('replaces only incomplete model sections with governed deterministic copy', () => {
+    const result = resolveLocalReportSections(JSON.stringify({
+      ...sections,
+      executiveSummary: 'Too short.',
+    }), coconutCheddarSnapshot());
+
+    expect(result.fallbackSections).toEqual(['executiveSummary']);
+    expect(result.sections.executiveSummary).toContain('Coconut Cheddar v3.0 reached a sensory GO');
+    expect(result.sections.productPerformance).toBe(sections.productPerformance);
+    expect(Object.values(result.sections).every(section => section.length >= 80)).toBe(true);
+  });
+
+  it('can produce a governed draft when the local model truncates its JSON', () => {
+    const result = resolveLocalReportSections('{"executiveSummary":', coconutCheddarSnapshot());
+
+    expect(result.fallbackSections).toEqual([
+      'executiveSummary',
+      'productPerformance',
+      'conceptDirection',
+      'commercialRecommendation',
+      'risksAndNextSteps',
+    ]);
+    expect(Object.values(result.sections).every(section => section.length >= 80)).toBe(true);
   });
 
   it('maps local prose into the existing governed report structure', () => {

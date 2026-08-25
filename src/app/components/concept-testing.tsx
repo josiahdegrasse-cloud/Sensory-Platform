@@ -27,7 +27,6 @@ import {
   deleteConceptWorkspaceDraft,
   fetchConceptWorkspaceDraft,
   hydrateConceptWorkspaceImageUrls,
-  insertConceptTest,
   listConceptWorkspaceDrafts,
   saveConceptWorkspaceDraft,
 } from '../lib/database';
@@ -57,6 +56,7 @@ import {
   useImportBatches,
   useInstrumentalDataset,
   useAdminConceptTests,
+  useInsertConceptTest,
   usePanelists,
   useWorkspaceSettings,
 } from '../lib/hooks';
@@ -337,6 +337,7 @@ export function ConceptTesting() {
   const decisionsQuery = useDecisionRecords();
   const batchesQuery = useImportBatches();
   const conceptTestsQuery = useAdminConceptTests();
+  const insertConcept = useInsertConceptTest();
   const responseCountsQuery = useConceptResponseCounts();
   const { data: settings } = settingsQuery;
   const { data: workspaceSettings } = workspaceQuery;
@@ -949,7 +950,7 @@ export function ConceptTesting() {
           return `Visual ${index + 1}: ${status}${note ? ` — ${note}` : ''}`;
         })
         .join('\n');
-      await insertConceptTest({
+      await insertConcept.mutateAsync({
         name: draft.name,
         category: draft.category,
         description: draft.description,

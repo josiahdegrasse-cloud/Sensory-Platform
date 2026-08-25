@@ -194,6 +194,47 @@ export function parseLocalReportSections(content: string): LocalReportSections {
   return sections;
 }
 
+function deterministicReportSections(snapshot: CommercializationReportSnapshot): LocalReportSections {
+  return {
+    executiveSummary: `${snapshot.narrative.executiveSummary} This draft remains subject to the evidence, claims and approval gates recorded in the report.`,
+    productPerformance: `${snapshot.narrative.whyLiked} This interpretation is limited to the recorded sensory, instrumental and concept evidence.`,
+    conceptDirection: `${snapshot.narrative.packagingRationale} Treat this direction as a validation hypothesis until broader testing confirms it.`,
+    commercialRecommendation: `${snapshot.narrative.launchRecommendation} Advance only through the next recorded gate; this is not unrestricted launch approval.`,
+    risksAndNextSteps: `${snapshot.narrative.claimCaution} Any unresolved evidence gap remains visible for human review before external use.`,
+  };
+}
+
+export function resolveLocalReportSections(
+  content: string,
+  snapshot: CommercializationReportSnapshot,
+): { sections: LocalReportSections; fallbackSections: Array<keyof LocalReportSections> } {
+  let record: Record<string, unknown> = {};
+  try {
+    const cleaned = content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+    const parsed = JSON.parse(cleaned) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      record = parsed as Record<string, unknown>;
+    }
+  } catch {
+    // A deterministic, evidence-bounded section is safer than losing the
+    // entire report because a local model returned truncated JSON.
+  }
+
+  const fallback = deterministicReportSections(snapshot);
+  const fallbackSections: Array<keyof LocalReportSections> = [];
+  const sections = {} as LocalReportSections;
+  for (const key of SECTION_KEYS) {
+    const generated = typeof record[key] === 'string' ? record[key].trim() : '';
+    if (generated.length >= 80) {
+      sections[key] = generated;
+    } else {
+      sections[key] = fallback[key];
+      fallbackSections.push(key);
+    }
+  }
+  return { sections, fallbackSections };
+}
+
 export function localReportDraftFromSections(context: ReportContext, sections: LocalReportSections): WrittenReportResult {
   const claimIds = context.claims
     .filter(claim => claim.reviewerStatus !== 'rejected' && claim.evidenceIds.length > 0)
@@ -291,7 +332,9 @@ export async function runLocalLlamaReportWriter(input: {
     }),
   });
   let usage = { ...first.usage };
-  let sections = parseLocalReportSections(first.content);
+  const firstSections = resolveLocalReportSections(first.content, input.snapshot);
+  let sections = firstSections.sections;
+  const fallbackSections = new Set(firstSections.fallbackSections);
   let repairs = 0;
   let draft = localReportDraftFromSections(input.context, sections);
   let snapshot = applyAgentDraftToSnapshot(input.snapshot, draft);
@@ -316,7 +359,9 @@ export async function runLocalLlamaReportWriter(input: {
       completionTokens: usage.completionTokens + repair.usage.completionTokens,
       totalTokens: usage.totalTokens + repair.usage.totalTokens,
     };
-    const repairedSections = parseLocalReportSections(repair.content);
+    const repaired = resolveLocalReportSections(repair.content, input.snapshot);
+    repaired.fallbackSections.forEach(key => fallbackSections.add(key));
+    const repairedSections = repaired.sections;
     if (JSON.stringify(repairedSections) === JSON.stringify(sections)) break;
     sections = repairedSections;
     draft = localReportDraftFromSections(input.context, sections);
@@ -327,7 +372,14 @@ export async function runLocalLlamaReportWriter(input: {
 
   emit({ stage: 'validating', progress: 0.95, message: 'Checking evidence, numbers, claims and limitations…' });
   const criticalBlockers = [...new Set(qc.score.blockers)];
-  const warnings = [...new Set([...qc.score.warnings, ...qc.missingEvidence.map(item => `Missing evidence: ${item}`)])];
+  const fallbackWarning = fallbackSections.size > 0
+    ? [`The on-device writer returned incomplete ${[...fallbackSections].join(', ')} content; governed deterministic copy was used for those sections.`]
+    : [];
+  const warnings = [...new Set([
+    ...qc.score.warnings,
+    ...qc.missingEvidence.map(item => `Missing evidence: ${item}`),
+    ...fallbackWarning,
+  ])];
   const status = criticalBlockers.length > 0 ? 'blocked' : warnings.length > 0 ? 'partial' : 'passed';
   const claims = input.context.claims.map(claim => normalizeClaimRecord(claim, input.context));
   emit({ stage: 'complete', progress: 1, message: 'Report ready for review.' });
