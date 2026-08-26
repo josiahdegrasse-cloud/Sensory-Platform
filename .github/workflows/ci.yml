@@ -131,6 +131,8 @@ jobs:
       - name: Browser smoke tests
         run: npx pnpm@10 run test:e2e
         env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           DEMO_ADMIN_EMAIL: ${{ secrets.DEMO_ADMIN_EMAIL }}
           DEMO_ADMIN_PASSWORD: ${{ secrets.DEMO_ADMIN_PASSWORD }}
           DEMO_PANELIST_EMAIL: ${{ secrets.DEMO_PANELIST_EMAIL }}
