@@ -11,8 +11,10 @@ concept validation, and commercialization reporting in one project workspace.
 [Use the demo accounts](DEMO_INSTRUCTIONS.md)
 
 <p align="center">
-  <img src="docs/assets/sensory-platform-mobile-overview.png" width="390" alt="Sensory Platform project overview showing the evidence-to-report workflow" />
+  <img src="docs/assets/sensory-platform-desktop-insights.jpg" width="100%" alt="Sensory Platform desktop insights workspace comparing live panel evidence across product prototypes" />
 </p>
+
+<p align="center"><sub>Live panel evidence, prototype comparison, and decision readiness in one project workspace.</sub></p>
 
 ## The product
 
@@ -39,6 +41,19 @@ the evidence and limitations behind them.
 | **Decision** | Calculate an explainable ISSF result and confirm a GO, TWEAK, or STOP decision. |
 | **Concept** | Turn confirmed GO products into evidence-derived concepts and targeted validation studies. |
 | **Report** | Assemble evidence, decisions, concept results, risks, and next actions into a branded, versioned commercialization report. |
+
+## Product in action
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/assets/sensory-platform-desktop-decision.jpg" alt="Decision Review showing a GO recommendation, ISSF score, threshold, and evidence details" /></td>
+    <td width="50%"><img src="docs/assets/sensory-platform-desktop-concept-results.jpg" alt="Concept testing results showing response coverage and live panel evidence" /></td>
+  </tr>
+  <tr>
+    <td><strong>Explainable decisions.</strong> Review GO, TWEAK, and STOP recommendations against the score, threshold, confidence, and underlying evidence.</td>
+    <td><strong>Connected concept validation.</strong> Carry a confirmed product decision into positioning, appeal, purchase intent, and next-step research.</td>
+  </tr>
+</table>
 
 ## Key capabilities
 
@@ -71,6 +86,12 @@ AI works inside explicit product boundaries:
    from a bounded evidence packet; incomplete output is not saved.
 5. Administrators review important outputs before they become panelist- or
    client-facing.
+
+<p align="center">
+  <img src="docs/assets/sensory-platform-desktop-literature.jpg" width="100%" alt="Governed literature library with publication counts, scientific topic filters, and approval controls" />
+</p>
+
+<p align="center"><sub>The governed literature library separates scientific status, usage rights, relevance, and approval before sources reach Evidence Assist.</sub></p>
 
 ## Architecture
 
@@ -124,8 +145,10 @@ Authorization, migration, coverage, and browser checks are available through
 ## Documentation
 
 - [Demo guide](DEMO_INSTRUCTIONS.md)
-- [Product and design principles](PRODUCT.md)
+- [Product principles](PRODUCT.md)
+- [Design contract](DESIGN.md)
 - [Evidence Assist](docs/evidence-assist.md)
+- [AI operations and governance](docs/ai-operations-governance.md)
 - [Local report writing](docs/local-llama-report-writing.md)
 - [Study fielding workflow](docs/study-fielding-workflow.md)
 - [Operations runbook](docs/operations-runbook.md)

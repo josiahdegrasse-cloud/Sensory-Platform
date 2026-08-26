@@ -33,6 +33,8 @@ The supported release runtime is Node 22.13 through Node 24 with pnpm 10. Run
 include the commit SHA, CI run, frontend deployment identifier, research API
 deployment identifier, schema drift result, tenant-isolation result, dependency
 audit result, and the operator who approved promotion.
+Use the [release evidence template](release-evidence-template.md) to keep that
+record complete and consistent.
 
 Application crashes and route-render failures are sent to Sentry only when
 `VITE_SENTRY_DSN` is configured. Reports carry a low-cardinality boundary tag;
