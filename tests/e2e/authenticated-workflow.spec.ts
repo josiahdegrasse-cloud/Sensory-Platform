@@ -26,6 +26,15 @@ async function loginAsPanelist(page: Page) {
   await page.getByRole('button', { name: 'Sign in' }).click();
 
   await expect(page.getByRole('heading', { name: 'Your task inbox' })).toBeVisible({ timeout: 20_000 });
+
+  // A newly issued Supabase JWT can arrive fractionally ahead of the database
+  // clock. Reload once when the first protected queries hit that short window.
+  const loadError = page.getByText('Unable to load questionnaires. Please check your connection and refresh the page.');
+  if (await loadError.isVisible().catch(() => false)) {
+    await page.waitForTimeout(1_000);
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Your task inbox' })).toBeVisible({ timeout: 20_000 });
+  }
 }
 
 async function openProjectWithPrototype(page: Page) {
@@ -92,7 +101,8 @@ test.describe('authenticated admin workflow', () => {
     await expect(page.getByRole('link', { name: 'Decision review' })).toBeVisible();
   });
 
-  test('Concept Lab saves progress, returns to drafts, and resumes the exact survey step', async ({ page }) => {
+  test('Concept Lab saves progress, returns to drafts, and resumes the exact survey step', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'chromium', 'The shared live-data write check runs once on desktop.');
     test.skip(!supabaseUrl || !supabaseAnonKey, 'VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required.');
     const client = createClient(supabaseUrl!, supabaseAnonKey!);
     const { data: auth, error: authError } = await client.auth.signInWithPassword({ email: email!, password: password! });
@@ -198,6 +208,16 @@ test.describe('authenticated admin workflow', () => {
       await expect(page.getByRole('heading', { name: 'Design your survey' })).toBeVisible();
       await expect(page.getByText(/Saved to workspace/)).toBeVisible({ timeout: 10_000 });
 
+      await expect.poll(async () => {
+        const { data } = await client
+          .from('concept_workspace_drafts')
+          .select('current_step, draft_payload')
+          .eq('id', seededDraft!.id)
+          .single();
+        const payload = data?.draft_payload as { draft?: { name?: string }; step?: string } | null;
+        return { name: payload?.draft?.name, step: payload?.step, currentStep: data?.current_step };
+      }, { timeout: 10_000 }).toEqual({ name: editedName, step: 'survey', currentStep: 'survey' });
+
       await page.goto(`/project/${decision!.project_id}/data`);
       await page.goto(`/project/${decision!.project_id}/concept`);
       await expect(page.getByRole('button', { name: `Continue ${editedName}` })).toBeVisible();
@@ -229,6 +249,6 @@ test.describe('authenticated panelist workflow', () => {
     await expect(page.getByRole('heading', { name: 'Assigned tasting tasks' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Start this task' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Marketing Evaluations' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Begin Marketing Evaluation' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Begin Marketing Evaluation' })).toBeVisible();
   });
 });
