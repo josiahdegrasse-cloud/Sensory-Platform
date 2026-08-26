@@ -73,17 +73,25 @@ the evidence and limitations behind them.
 - Organization-scoped data, branding, settings, audit history, and role-based
   access enforced with Supabase Row Level Security.
 
-## AI and evidence controls
+## Governed RAG and evidence controls
 
-AI works inside explicit product boundaries:
+The platform's AI layer uses retrieval-augmented generation (RAG). For each
+report, it retrieves tenant-scoped project evidence and relevant scientific
+literature, filters the results through Evidence Assist, and gives the local
+Llama writer a bounded, report-safe evidence packet.
+
+During ingestion, full-text sources are divided into section-aware chunks. Each
+chunk retains its document, heading, page range, parent context, evidence type,
+and food-science tags. Hybrid keyword and vector search can therefore retrieve
+the most relevant passages without loading entire papers into the model.
 
 1. Canonical project records and approved evidence remain the source of truth.
-2. Deterministic code calculates scores, validates contracts, enforces workflow
-   gates, and checks report output.
-3. Evidence Assist rejects unapproved, rights-unclear, mismatched, or unsafe
-   literature before it can influence report prose.
-4. Commercialization-report prose is generated locally in a compatible browser
-   from a bounded evidence packet; incomplete output is not saved.
+2. Only chunks from approved, rights-cleared literature can pass Evidence
+   Assist; mismatched, duplicate, low-relevance, or unsafe results are rejected.
+3. Deterministic code—not the language model—calculates scores, validates data
+   contracts, enforces workflow gates, and checks report output.
+4. The on-device model drafts report prose only from the approved evidence
+   packet; incomplete output is rejected rather than saved.
 5. Administrators review important outputs before they become panelist- or
    client-facing.
 
