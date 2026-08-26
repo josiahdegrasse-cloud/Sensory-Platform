@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -64,12 +67,19 @@ jobs:
             echo "::warning::SUPABASE_ACCESS_TOKEN not set — skipping database.types.ts drift check for this non-main run."
             exit 0
           fi
-          supabase link --project-ref "${SUPABASE_PROJECT_REF}"
-          npx pnpm@10 run db:types
-          if ! git diff --quiet -- src/app/lib/db/database.types.ts; then
+
+          generated_types="$(mktemp)"
+          trap 'rm -f "${generated_types}"' EXIT
+          curl --fail-with-body --silent --show-error \
+            --retry 3 --retry-all-errors \
+            --header "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/types/typescript?included_schemas=public%2Cgraphql_public" \
+            | jq --raw-output --exit-status '.types' > "${generated_types}"
+
+          if ! cmp --silent "${generated_types}" src/app/lib/db/database.types.ts; then
             echo "::error::database.types.ts is out of date with the live schema."
             echo "::error::Run 'npm run db:types' and commit the result."
-            git diff -- src/app/lib/db/database.types.ts | head -60
+            diff --unified src/app/lib/db/database.types.ts "${generated_types}" | head -60 || true
             exit 1
           fi
           echo "OK — database.types.ts matches the live schema."
@@ -94,7 +104,7 @@ jobs:
           test -n "$(find supabase/migrations -name '*.sql' -type f)"
           ! grep -RInE 'DROP (TABLE|SCHEMA).*CASCADE|TRUNCATE ' supabase/migrations
 
-      # Guard 1 (deploy-ordering): fail if the linked project's schema is AHEAD of
+      # Guard 1 (deploy-ordering): fail if the production schema is AHEAD of
       # this branch — i.e. a migration is applied on prod but missing here. That is
       # the shape of the 2026-06-25 outage. PRs without secrets warn and skip;
       # pushes to main fail closed if secrets are missing.
@@ -113,7 +123,6 @@ jobs:
             echo "::warning::SUPABASE_ACCESS_TOKEN not set — skipping migration drift check for this non-main run."
             exit 0
           fi
-          supabase link --project-ref "${SUPABASE_PROJECT_REF}"
           bash scripts/check-migration-drift.sh
 
       - name: Install browser

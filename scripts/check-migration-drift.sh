@@ -10,9 +10,10 @@
 # The reverse (local migrations not yet applied to prod) is the normal pre-deploy
 # state and is intentionally allowed.
 #
-# Requires:
-#   - supabase CLI on PATH, linked to the project (CI does `supabase link` first)
-#   - SUPABASE_ACCESS_TOKEN in the environment (Management API auth)
+# In CI, SUPABASE_ACCESS_TOKEN and SUPABASE_PROJECT_REF are used to read migration
+# history through the Supabase Management API. This deliberately avoids creating
+# a temporary database login role or granting the CI token database write access.
+# Local use without those variables falls back to `supabase migration list`.
 #
 # Testing the parser without a network call:
 #   CHECK_MIGRATION_DRIFT_FIXTURE=/path/to/sample-migration-list.txt \
@@ -21,30 +22,65 @@
 #
 set -euo pipefail
 
-list_output() {
-  if [ -n "${CHECK_MIGRATION_DRIFT_FIXTURE:-}" ]; then
-    cat "$CHECK_MIGRATION_DRIFT_FIXTURE"
+echo "Checking that the production schema is not ahead of this branch..."
+
+if [ -n "${CHECK_MIGRATION_DRIFT_FIXTURE:-}" ]; then
+  # Fixture and local-fallback output is a "Local | Remote | Time" table. A row
+  # with an empty Local column and a 14-digit Remote version is remote-only.
+  remote_only="$(
+    awk -F'|' '
+      NF >= 2 {
+        local = $1; remote = $2;
+        gsub(/[^0-9]/, "", local);
+        gsub(/[^0-9]/, "", remote);
+        if (remote ~ /^[0-9]{14}$/ && local == "") print remote;
+      }
+    ' "$CHECK_MIGRATION_DRIFT_FIXTURE"
+  )"
+elif [ -n "${CHECK_MIGRATION_DRIFT_API_FIXTURE:-}" ] || {
+  [ -n "${SUPABASE_ACCESS_TOKEN:-}" ] && [ -n "${SUPABASE_PROJECT_REF:-}" ]
+}; then
+  tmp_dir="$(mktemp -d)"
+  trap 'rm -rf "$tmp_dir"' EXIT
+
+  if [ -n "${CHECK_MIGRATION_DRIFT_API_FIXTURE:-}" ]; then
+    cp "$CHECK_MIGRATION_DRIFT_API_FIXTURE" "$tmp_dir/remote.json"
   else
-    supabase migration list --linked
+    curl --fail-with-body --silent --show-error \
+      --retry 3 --retry-all-errors \
+      --header "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+      "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/database/migrations" \
+      --output "$tmp_dir/remote.json"
   fi
-}
 
-echo "Checking that the linked project's schema is not ahead of this branch..."
+  if ! jq --exit-status '
+    type == "array" and
+    all(.[]; (.version | tostring | test("^[0-9]{14}$")))
+  ' "$tmp_dir/remote.json" >/dev/null; then
+    echo "::error::Supabase returned an invalid migration-history response."
+    exit 1
+  fi
 
-# `supabase migration list` prints a "Local | Remote | Time" table. A row with an
-# empty Local column but a 14-digit Remote version = applied on the remote DB but
-# absent from this branch's supabase/migrations/.
-remote_only="$(
-  list_output \
-    | awk -F'|' '
-        NF >= 2 {
-          local = $1; remote = $2;
-          gsub(/[^0-9]/, "", local);
-          gsub(/[^0-9]/, "", remote);
-          if (remote ~ /^[0-9]{14}$/ && local == "") print remote;
-        }
-      '
-)"
+  jq --raw-output '.[].version | tostring' "$tmp_dir/remote.json" \
+    | sort -u > "$tmp_dir/remote.txt"
+  find supabase/migrations -maxdepth 1 -type f -name '*.sql' -print \
+    | sed -E 's#.*/([0-9]{14})_.*#\1#' \
+    | sort -u > "$tmp_dir/local.txt"
+
+  remote_only="$(comm -23 "$tmp_dir/remote.txt" "$tmp_dir/local.txt")"
+else
+  remote_only="$(
+    supabase migration list --linked \
+      | awk -F'|' '
+          NF >= 2 {
+            local = $1; remote = $2;
+            gsub(/[^0-9]/, "", local);
+            gsub(/[^0-9]/, "", remote);
+            if (remote ~ /^[0-9]{14}$/ && local == "") print remote;
+          }
+        '
+  )"
+fi
 
 if [ -n "$remote_only" ]; then
   echo "::error::Schema drift: migrations applied on the linked Supabase project are"
