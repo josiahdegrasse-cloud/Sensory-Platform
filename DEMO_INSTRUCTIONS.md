@@ -67,8 +67,9 @@ questionnaire flow.
 
 - The workspace contains synthetic data and is isolated by organization and
   role through Supabase Row Level Security.
-- New image generation, hosted report AI, invitations, assignment emails,
-  Google Drive sync, and instrument imports are disabled server-side.
+- Server-side guards block paid or external actions, including new image
+  generation, hosted report AI, invitations, assignment emails, Google Drive
+  sync, and queued instrument processing.
 - Existing concept images and the prepared report remain available.
 - Demonstration evidence cannot be approved for client release.
 

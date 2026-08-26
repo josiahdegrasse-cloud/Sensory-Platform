@@ -81,9 +81,10 @@ literature, filters the results through Evidence Assist, and gives the local
 Llama writer a bounded, report-safe evidence packet.
 
 During ingestion, full-text sources are divided into section-aware chunks. Each
-chunk retains its document, heading, page range, parent context, evidence type,
-and food-science tags. Hybrid keyword and vector search can therefore retrieve
-the most relevant passages without loading entire papers into the model.
+chunk retains its source identity, heading, page range, parent context, evidence
+type, and food-science tags. Hybrid keyword and vector search can therefore
+retrieve the most relevant passages without loading entire papers into the
+model.
 
 1. Canonical project records and approved evidence remain the source of truth.
 2. Only chunks from approved, rights-cleared literature can pass Evidence
@@ -91,7 +92,8 @@ the most relevant passages without loading entire papers into the model.
 3. Deterministic code—not the language model—calculates scores, validates data
    contracts, enforces workflow gates, and checks report output.
 4. The on-device model drafts report prose only from the approved evidence
-   packet; incomplete output is rejected rather than saved.
+   packet. Missing sections receive bounded deterministic copy, while critical
+   quality findings block approval and export.
 5. Administrators review important outputs before they become panelist- or
    client-facing.
 
@@ -107,7 +109,7 @@ the most relevant passages without loading entire papers into the model.
 | --- | --- |
 | Frontend | React 18, TypeScript, Vite, React Router, TanStack Query, Tailwind CSS, and Radix UI |
 | Data | Supabase Postgres, Auth, Storage, Edge Functions, and Row Level Security |
-| Research | Authenticated literature retrieval and Evidence Assist |
+| Research | Tenant-scoped hybrid retrieval, section-aware chunks, and Evidence Assist |
 | Local inference | WebLLM with quantized Llama 3.2 models |
 | Operations | Vercel, Sentry, audit trails, dependency monitoring, bundle budgets, and schema-drift checks |
 

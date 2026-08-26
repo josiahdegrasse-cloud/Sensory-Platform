@@ -1,8 +1,8 @@
 # Local Llama report writing
 
 Commercialization-report prose is written on the administrator's device with
-WebLLM and a quantized Llama 3.2 instruct model. No report-writing request is
-sent to OpenAI or the remote research API.
+WebLLM and a quantized Llama 3.2 instruct model. The report-writing prompt and
+generated prose are not sent to OpenAI or the remote research API.
 
 ## Execution flow
 
@@ -25,9 +25,13 @@ sent to OpenAI or the remote research API.
 Model weights and WebGPU libraries are loaded from the WebLLM project's
 published Hugging Face and GitHub assets and cached in the browser.
 
-## Failure boundary
+## Fallback and failure boundaries
 
-There is no deterministic prose fallback. If WebGPU is unavailable, the model
-cannot load, generation is cancelled, or structured output is incomplete, no
-report is saved. The user receives a specific error and can retry, select the
-smaller model, or use another compatible device.
+If WebGPU is unavailable, the model cannot load, or generation is cancelled, no
+report is saved. The user can retry, select the smaller model, or use another
+compatible device.
+
+If the model returns missing, short, or malformed sections, the writer replaces
+only those sections with evidence-bounded deterministic copy and records a
+warning. Deterministic QC still evaluates the complete report; critical findings
+block approval and export.

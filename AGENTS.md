@@ -10,7 +10,7 @@ records, and commercialization reports across a workflow: **Data → Studies →
 → Decision → Concept → Report**.
 
 Core entities: `projects`, food-type-scoped studies (e.g. Bread, Cheese), machine/instrumental
-samples (E-tongue, GC-MS, composition), surveys/responses, GO/TWEAK/STOP decisions, concept tests,
+samples (E-Tongue, GC-MS, composition), surveys/responses, GO/TWEAK/STOP decisions, concept tests,
 and commercialization reports.
 
 ## Hard rules — do not violate these

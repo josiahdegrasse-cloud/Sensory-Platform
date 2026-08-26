@@ -15,10 +15,15 @@ before disclosure.
 ## Security boundaries
 
 - Supabase Row Level Security is the primary tenant and role authorization gate.
+- Research requests are authenticated and resolved against the caller's tenant
+  before project evidence or literature is returned.
 - Service credentials and model-provider keys belong only in server-side
   environments; browser configuration contains public identifiers only.
 - Database types are generated from the linked live schema and checked in CI.
-- Report prose is bounded by verified evidence contracts and deterministic QC.
+- Raw retrieval chunks and internal source metadata are removed before the
+  on-device report writer receives its evidence packet.
+- Report prose is bounded by verified evidence contracts and deterministic QC;
+  critical findings block approval and export.
 - Production dependencies are audited in CI and monitored by Dependabot.
 - Personal, client, and production credentials must never be used for demos or
   automated checks. The intentionally public accounts in
