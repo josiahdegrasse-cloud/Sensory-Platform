@@ -11,9 +11,11 @@ Requirements:
 ```bash
 corepack enable
 pnpm install
-cp .env.example .env
 pnpm dev
 ```
+
+Add the required Supabase browser configuration to an untracked `.env` file as
+described in the README before starting the development server.
 
 Keep changes focused, preserve unrelated work in the repository, and include
 tests or documentation when behavior changes.

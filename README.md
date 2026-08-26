@@ -93,11 +93,11 @@ Requirements:
 ```bash
 corepack enable
 pnpm install
-cp .env.example .env
 pnpm dev
 ```
 
-The minimum browser configuration is:
+Before starting the app, create an untracked `.env` file with the browser
+configuration for your Supabase project:
 
 | Variable | Purpose |
 | --- | --- |
@@ -105,9 +105,8 @@ The minimum browser configuration is:
 | `VITE_SUPABASE_ANON_KEY` | Public browser key; Row Level Security remains the authorization boundary |
 
 Additional tenant, research, monitoring, and server settings are documented in
-[`.env.example`](.env.example) and the
-[operations runbook](docs/operations-runbook.md). Never expose service-role or
-provider secrets through `VITE_*` variables.
+the [operations runbook](docs/operations-runbook.md). Never expose service-role
+or provider secrets through `VITE_*` variables.
 
 ## Verification
 
