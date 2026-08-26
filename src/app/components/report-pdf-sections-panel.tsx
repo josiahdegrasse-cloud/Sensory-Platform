@@ -59,7 +59,7 @@ export function ReportPdfSectionsPanel({ input }: { input: CommercializationRepo
       <aside className="rounded-lg border border-slate-200 bg-white p-2 lg:sticky lg:top-4">
         <div className="px-3 pb-3 pt-2">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><FileText className="size-4 text-slate-500" />Client report</div>
-          <p className="mt-1 text-xs text-slate-500">Six-page executive, R&amp;D, and marketing report</p>
+          <p className="mt-1 text-xs text-slate-500">Eight-page executive, R&amp;D, and marketing report</p>
         </div>
         <nav aria-label="Report pages" className="grid gap-1 sm:grid-cols-2 lg:grid-cols-1">
           {CLIENT_REPORT_V2_PAGES.map(item => (
@@ -164,14 +164,53 @@ export function ReportPdfSectionsPanel({ input }: { input: CommercializationRepo
 
         {activePage === 5 && (
           <PreviewPage page={5} title={page.title} accent={accent}>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-slate-200 p-4"><Field label="Sensory population" value={report.panel.sensoryPopulation} /></div>
+              <div className="rounded-lg border border-slate-200 p-4"><Field label="Concept population" value={report.panel.conceptPopulation} /></div>
+              <div className="rounded-lg border border-slate-200 p-4"><Field label="Profile coverage" value={report.panel.profileCoverage} /><div className="mt-3"><Status status={report.panel.profileStatus} /></div></div>
+            </div>
+            <SectionHeading>Participant profile</SectionHeading>
+            {report.panel.dimensions.length > 0 ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                {report.panel.dimensions.map(dimension => (
+                  <article key={dimension.key} className="rounded-lg border border-slate-200 p-4">
+                    <div className="flex items-center justify-between gap-3"><h4 className="font-semibold text-slate-950">{dimension.label}</h4><span className="text-xs text-slate-500">Known n={dimension.knownCount}</span></div>
+                    <div className="mt-3 space-y-2">{dimension.groups.slice(0, 6).map(group => <div key={group.label} className="flex items-center justify-between gap-3 text-xs"><span>{group.label}</span><strong className="text-slate-950">{group.percentage.toFixed(0)}% · {group.count}</strong></div>)}</div>
+                    {dimension.suppressedCount > 0 && <p className="mt-3 text-xs text-slate-500">{dimension.suppressedCount} response(s) suppressed by the disclosure rule.</p>}
+                  </article>
+                ))}
+              </div>
+            ) : <p className="rounded-lg border border-amber-200 bg-amber-50 p-4">No reportable demographic profile is available for this study.</p>}
+            <div className="grid gap-4 rounded-lg bg-slate-50 p-4 md:grid-cols-2"><Field label="Sampling boundary" value={report.panel.samplingBoundary} /><Field label="Disclosure rule" value={report.panel.disclosureRule} /></div>
+            <div className="rounded-lg border border-slate-200 p-4"><Field label="Provenance" value={report.panel.provenance} /></div>
+          </PreviewPage>
+        )}
+
+        {activePage === 6 && (
+          <PreviewPage page={6} title={page.title} accent={accent}>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-slate-200 p-4"><Field label="Instrumental dataset" value={report.scientific.instrumentalAvailable ? 'Available' : 'Not attached'} /></div>
+              <div className="rounded-lg border border-slate-200 p-4"><Field label="Decision use" value={report.scientific.instrumentalIncludedInDecision ? 'Included in decision' : 'Context only / not included'} /></div>
+              <div className="rounded-lg border border-slate-200 p-4"><Field label="Parameters" value={`${report.scientific.benchmarkedParameterCount} of ${report.scientific.parameterCount} benchmarked`} /></div>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4"><Field label="Evidence boundary" value={report.scientific.instrumentalNote} /></div>
+            <SectionHeading>Project evidence map</SectionHeading>
+            {report.scientific.findings.length > 0 ? <div className="space-y-3">{report.scientific.findings.slice(0, 5).map((finding, index) => <article key={`${finding.source}-${index}`} className="grid gap-3 rounded-lg border border-slate-200 p-4 md:grid-cols-[150px_1fr]"><div><Status status={finding.decisionEffect} /><p className="mt-2 text-xs font-semibold text-slate-950">{finding.source}</p></div><div><p>{finding.finding}</p><p className="mt-2 text-xs text-slate-500">{finding.benchmark}{finding.replicateCount !== null ? ` · replicates n=${finding.replicateCount}` : ''}</p></div></article>)}</div> : <p className="rounded-lg border border-amber-200 bg-amber-50 p-4">No approved project-level instrumental findings are attached.</p>}
+            <SectionHeading>Literature-guided study design</SectionHeading>
+            {report.scientific.guidance.length > 0 ? <div className="grid gap-3 md:grid-cols-2">{report.scientific.guidance.slice(0, 4).map(guidance => <article key={guidance.title} className="rounded-lg border p-4" style={{ borderColor: accent }}><h4 className="font-semibold text-slate-950">{guidance.title}</h4><p className="mt-2">{guidance.guidance}</p><p className="mt-3 text-xs text-slate-500">Sources: {guidance.citationIds.join(', ') || 'No approved citation linked'}</p></article>)}</div> : <p className="rounded-lg border border-amber-200 bg-amber-50 p-4">No approved literature guidance is attached. Literature must inform validation design, not substitute for project evidence.</p>}
+          </PreviewPage>
+        )}
+
+        {activePage === 7 && (
+          <PreviewPage page={7} title={page.title} accent={accent}>
             <p>{report.plan.intro}</p>
             <div className="space-y-4">{report.plan.rows.slice(0, 3).map((row, index) => <article key={row.workstream} className="rounded-lg border border-slate-200 p-5"><div className="flex flex-wrap items-center gap-3"><Status status={['Protect', 'Improve', 'Validate'][index]} /><h4 className="font-semibold text-slate-950">{row.workstream}</h4></div><div className="mt-5 grid gap-5 md:grid-cols-3"><Field label="Why / protocol" value={`${row.rationale} ${row.protocol}`} /><Field label="Passing evidence" value={`${row.completionEvidence} Pass: ${row.passingCriteria}`} /><Field label="Owner / gate" value={`Owner: ${row.owner}. Timing: ${row.timing}. Next gate: ${row.nextGate}.`} /></div></article>)}</div>
             <div className="grid gap-4 rounded-lg bg-slate-50 p-4 md:grid-cols-2"><Field label="Next decision gate" value={report.plan.decisionGate} /><Field label="Lead controlled risk" value={report.risks.rows[0] ? `${report.risks.rows[0].risk} Control: ${report.risks.rows[0].mitigation}` : report.risks.claimsNote} /></div>
           </PreviewPage>
         )}
 
-        {activePage === 6 && (
-          <PreviewPage page={6} title={page.title} accent={accent}>
+        {activePage === 8 && (
+          <PreviewPage page={8} title={page.title} accent={accent}>
             <SectionHeading>Claim-to-evidence register</SectionHeading>
             <div className="divide-y divide-slate-200 border-y border-slate-200">{report.claims.rows.slice(0, 5).map((row, index) => <article key={row.claim} className="grid gap-4 py-4 lg:grid-cols-[170px_1fr_1fr]"><div><div className="flex items-center gap-2"><span className="text-xs font-bold" style={{ color: accent }}>E{index + 1}</span><Status status={row.status} /></div><p className="mt-2 font-semibold text-slate-950">{row.claim}</p><p className="mt-1 text-xs text-slate-500">{row.scope}</p></div><Field label="Evidence" value={row.evidence} /><Field label="Permitted wording / requirement" value={`${row.permittedWording} Requirement: ${row.requirement}`} /></article>)}</div>
             <div className="grid gap-4 md:grid-cols-2"><div className="rounded-lg border p-4" style={{ borderColor: accent }}><Field label="Approved literature guidance" value={report.scientific.sources.length ? 'References used for context and study design' : 'No approved references attached'} /><ul className="mt-3 space-y-2 text-xs">{report.scientific.sources.slice(0, 3).map(source => <li key={source.id}>[{source.id}] {source.authors} {source.year && `(${source.year}).`} {source.title}{source.doi && `. DOI ${source.doi}`}</li>)}</ul></div><div className="rounded-lg border border-amber-200 bg-amber-50 p-4"><Field label="Material limitations" value={report.basis.limitations.join(' ') || 'No material limitations recorded.'} /><div className="mt-5"><Field label="Evidence populations" value={report.basis.populations.map(item => `${item.label}: ${item.value} (${item.provenance}).`).join(' ')} /></div></div></div>

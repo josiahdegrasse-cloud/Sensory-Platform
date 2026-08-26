@@ -91,7 +91,8 @@ function ReadinessBadges({
   loading: boolean;
 }) {
   const isReferenceEvidence = Object.values(entry.evidenceProvenance).some(value => value === 'reference');
-  const missingConceptEvidence = entry.evidenceProvenance.concept === 'none';
+  const missingConceptEvidence = entry.evidenceProvenance.concept === 'none'
+    && /missing concept evidence/i.test(entry.readiness?.conceptStatus ?? '');
   const releaseStatus = displayReleaseStatus(entry, loading);
   const release = releaseCopy[releaseStatus];
   return (

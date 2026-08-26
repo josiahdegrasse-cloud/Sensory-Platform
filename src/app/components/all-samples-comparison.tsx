@@ -4,7 +4,7 @@ import {
   Tooltip as RechartsTooltip, Legend
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { getSampleColor, SAMPLE_TYPE_LEGEND } from "../utils/sample-colors";
+import { getSampleColor } from "../utils/sample-colors";
 import { DataProvenanceBadge } from './data-provenance-badge';
 
 interface AllSampleHedonic {
@@ -16,22 +16,14 @@ interface AllSampleHedonic {
   appearance: number;
 }
 
-interface EnhancedSampleLike {
-  sampleId: string;
-  sampleName: string;
-  hedonic: { overall: number; flavour: number; texture: number; appearance: number };
-}
-
 interface AllSamplesComparisonViewProps {
   allSamplesHedonic: AllSampleHedonic[];
-  enhancedSensoryData: EnhancedSampleLike[];
   usingLiveData: boolean;
   responseCount: number;
 }
 
 export function AllSamplesComparisonView({
   allSamplesHedonic,
-  enhancedSensoryData,
   usingLiveData,
   responseCount,
 }: AllSamplesComparisonViewProps) {
@@ -43,7 +35,7 @@ export function AllSamplesComparisonView({
           <DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={responseCount} />
         </div>
         <p className="text-sm text-slate-700">
-          Comparative view of the {enhancedSensoryData.length} samples in the active project across liking dimensions.
+          Comparative view of the {allSamplesHedonic.length} samples in the active project across liking dimensions.
         </p>
       </CardHeader>
       <CardContent>
@@ -61,27 +53,17 @@ export function AllSamplesComparisonView({
           </LineChart>
         </ResponsiveContainer>
 
-        <div className="mt-4 flex flex-wrap gap-3 px-1">
-          {SAMPLE_TYPE_LEGEND.map(({ label, color }) => (
-            <div key={label} className="flex items-center gap-1.5 text-xs text-slate-700">
-              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-              {label}
-            </div>
-          ))}
-        </div>
-
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {enhancedSensoryData.map(sample => {
-            const avgScore = (sample.hedonic.overall + sample.hedonic.flavour +
-                             sample.hedonic.texture + sample.hedonic.appearance) / 4;
-            const typeColor = getSampleColor(sample.sampleName);
+          {allSamplesHedonic.map(sample => {
+            const avgScore = (sample.overall + sample.flavour + sample.texture + sample.appearance) / 4;
+            const typeColor = getSampleColor(sample.name);
             return (
               <div
-                key={sample.sampleId}
+                key={sample.id}
                 className="p-3 rounded-lg border-2 text-center"
                 style={{ borderColor: typeColor, backgroundColor: `${typeColor}18` }}
               >
-                <div className="font-bold text-slate-900 text-xs mb-1 leading-tight">{sample.sampleName}</div>
+                <div className="font-bold text-slate-900 text-xs mb-1 leading-tight">{sample.name}</div>
                 <div className="text-2xl font-bold mt-1" style={{ color: typeColor }}>{avgScore.toFixed(1)}</div>
                 <div className="text-xs text-slate-500 mt-1">/ 9</div>
               </div>

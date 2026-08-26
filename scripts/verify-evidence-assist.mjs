@@ -28,15 +28,17 @@ const [healthResponse, statusResponse, libraryResponse] = await Promise.all([
 const health = await healthResponse.json();
 const serviceStatus = await statusResponse.json();
 const library = await libraryResponse.json();
-const { data: decision, error: decisionError } = await supabase
+const { data: decisions, error: decisionError } = await supabase
   .from('decision_records')
   .select('id,project_id,sample_id,sample_name,decision,issf_score,evidence_bundle_id,formulation_version_id')
-  .eq('decision', 'TWEAK')
+  .in('decision', ['GO', 'TWEAK'])
   .not('project_id', 'is', null)
   .order('created_at', { ascending: false })
-  .limit(1)
-  .single();
+  .limit(20);
 if (decisionError) throw decisionError;
+const decision = decisions?.find(candidate => candidate.decision === 'TWEAK') ?? decisions?.[0];
+if (!decision) throw new Error('No project-scoped GO or TWEAK decision is available for the production check.');
+const isTweak = decision.decision === 'TWEAK';
 
 const request = {
   productContext: {
@@ -48,15 +50,21 @@ const request = {
     productName: decision.sample_name,
     foodType: 'plant-based cheese',
     productCategory: 'plant-based cheese',
-    decision: 'TWEAK',
+    decision: decision.decision,
     issfScore: decision.issf_score,
     dimensionScores: { texture: 69, acceptance: 73, categoryFit: 77 },
     sensoryPanelN: 14,
-    defects: ['Texture is the weakest measured dimension'],
-    openGates: ['Confirm the texture mechanism before reformulation'],
-    currentDecisionReason: 'The product is close to GO, with texture as the measured blocker.',
-    intendedReportSection: 'tweak_workplan',
-    validationNeeds: ['Run a focused control-plus-variant texture screen'],
+    defects: isTweak ? ['Texture is the weakest measured dimension'] : [],
+    openGates: isTweak
+      ? ['Confirm the texture mechanism before reformulation']
+      : ['Confirm the product at pilot scale before external claims'],
+    currentDecisionReason: isTweak
+      ? 'The product is close to GO, with texture as the measured blocker.'
+      : 'The product has a confirmed GO decision and requires controlled downstream validation.',
+    intendedReportSection: isTweak ? 'tweak_workplan' : 'executive_summary',
+    validationNeeds: isTweak
+      ? ['Run a focused control-plus-variant texture screen']
+      : ['Repeat the critical sensory and instrumental measures at pilot scale'],
     claimsQuestions: [],
   },
   options: { maxCards: 8, minimumRelevance: 0.18 },

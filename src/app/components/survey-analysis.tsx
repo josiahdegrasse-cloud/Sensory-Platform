@@ -641,7 +641,7 @@ export function SurveyAnalysis() {
                 <section className="space-y-4">
                   <InsightsSectionHeader id="sample-comparison" icon={Layers} title="Sample comparison" description="Compare only samples and multi-sample studies belonging to the active project." />
                   {comparisonProfiles.length > 1 && (
-                    <AllSamplesComparisonView allSamplesHedonic={allSamplesHedonic} enhancedSensoryData={comparisonProfiles} usingLiveData={comparisonProfiles.every(sample => liveAggregations.some(aggregation => aggregation.sourceSampleId === sample.sampleId))} responseCount={liveResponseCount} />
+                    <AllSamplesComparisonView allSamplesHedonic={allSamplesHedonic} usingLiveData={comparisonProfiles.every(sample => liveAggregations.some(aggregation => aggregation.sourceSampleId === sample.sampleId))} responseCount={liveResponseCount} />
                   )}
                   {multiSampleProducts.length > 0 && (
                     <MultiSampleAnalysis
