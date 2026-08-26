@@ -86,7 +86,7 @@ function adaptWorkflowToProjectStatus(summary: ProjectWorkflowSummary, minimumRe
     importedDatasets.some(item => /GC-MS/i.test(item)),
     importedDatasets.some(item => /Composition/i.test(item)),
   ].filter(Boolean).length;
-  const responseTarget = Math.max(summary.counts.activeStudies, 1) * minimumResponses;
+  const responseTarget = Math.max(summary.counts.studiesTotal, 1) * minimumResponses;
   const latestDecision = summary.latestDecision;
   const decisionStatus: DecisionStatus = latestDecision?.decision ?? (summary.stages.find(stage => stage.id === 'decision')?.status === 'ready' ? 'Pending' : 'Not started');
   const decisionTone: SemanticTone = latestDecision

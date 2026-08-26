@@ -36,6 +36,49 @@ describe('Evidence Bundle builder', () => {
     expect(bundle.commercialProfile?.actionPlan).toHaveLength(5);
   });
 
+  it('versions and registers arbitrary instrumental parameters as first-class evidence', () => {
+    const sample = ENHANCED_SENSORY_DATA.find(item => item.sampleId === 'S4')!;
+    const instrumentalParameters = [{
+      id: 'instrumental.s4.hardness-g',
+      sampleId: 'S4',
+      sampleName: sample.sampleName,
+      key: 'hardness-g',
+      label: 'Hardness',
+      family: 'texture_rheology' as const,
+      source: 'imported_parameter' as const,
+      unit: 'g',
+      mean: 1240,
+      observationCount: 4,
+      standardDeviation: 84,
+      minimum: 1110,
+      maximum: 1360,
+      replicateValues: [1110, 1220, 1270, 1360],
+      metadata: {
+        dataType: 'continuous' as const,
+        scaleType: 'ratio' as const,
+        zeroMeaningful: true,
+        direction: 'lower' as const,
+        expectedMinimum: 1000,
+        expectedMaximum: 1300,
+        source: 'declared' as const,
+      },
+      chartPreference: 'box' as const,
+      status: 'within_expected_range' as const,
+    }];
+    const withParameter = buildEvidenceBundleFromProfiles({ ...baseInput, profiles: [sample], instrumentalParameters });
+    const withoutParameter = buildEvidenceBundleFromProfiles({ ...baseInput, profiles: [sample] });
+
+    expect(withParameter.schemaVersion).toBe('evidence-bundle.v2');
+    expect(withParameter.sourceDataVersion).not.toBe(withoutParameter.sourceDataVersion);
+    expect(withParameter.instrumentalParameters).toEqual(instrumentalParameters);
+    expect(withParameter.evidence).toContainEqual(expect.objectContaining({
+      id: 'instrumental.s4.hardness-g',
+      sourceType: 'imported_parameter',
+      value: 1240,
+      unit: 'g',
+    }));
+  });
+
   it('surfaces critical gate failures as STOP evidence', () => {
     const sample = ENHANCED_SENSORY_DATA.find(item => item.sampleId === 'S3')!;
     const bundle = buildEvidenceBundleFromProfiles({ ...baseInput, projectId: 'S3', profiles: [sample] });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { coconutCheddarSnapshot } from '../../lib/report-qc/fixtures';
+import { coconutCheddarContext, coconutCheddarSnapshot } from '../../lib/report-qc/fixtures';
 import {
   buildCommercialInsights,
   buildClaimsMatrix,
@@ -126,6 +126,50 @@ describe('commercialization report section safety', () => {
     expect(consumer.responseCount).toBe(12);
     expect(consumer.descriptors).toEqual([{ label: 'Creamy', count: 8, percentage: 66.7 }]);
     expect(consumer.boundary).toMatch(/12 panelist responses/i);
+  });
+
+  it('carries every normalized measured parameter into the report evidence model', () => {
+    const reportContext = coconutCheddarContext();
+    reportContext.instrumental.parameters = [
+      {
+        id: 'instrumental.s4.hardness',
+        sampleId: 'S4',
+        sampleName: 'Coconut Cheddar v3.0',
+        key: 'hardness',
+        label: 'Hardness',
+        family: 'texture_rheology',
+        source: 'imported_parameter',
+        unit: 'g',
+        mean: 1240,
+        observationCount: 4,
+        standardDeviation: 84,
+        minimum: 1110,
+        maximum: 1360,
+        replicateValues: [1110, 1220, 1270, 1360],
+        metadata: {
+          dataType: 'continuous',
+          scaleType: 'ratio',
+          zeroMeaningful: true,
+          direction: 'lower',
+          expectedMinimum: 1000,
+          expectedMaximum: 1300,
+          source: 'declared',
+        },
+        chartPreference: 'box',
+        status: 'within_expected_range',
+      },
+    ];
+    const scientific = buildScientificContext({ ...inputWith({}), reportContext });
+
+    expect(scientific.parameterCount).toBe(1);
+    expect(scientific.benchmarkedParameterCount).toBe(1);
+    expect(scientific.parameters[0]).toMatchObject({
+      label: 'Hardness',
+      value: 1240,
+      unit: 'g',
+      observationCount: 4,
+      standardDeviation: 84,
+    });
   });
 
   it('separates a Cashew Cream Cheese product GO from directional claims evidence', () => {

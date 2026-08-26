@@ -263,6 +263,7 @@ describe('project workflow evaluator', () => {
 
     expect(stage('studies', summary).status).toBe('complete');
     expect(summary.counts.activeStudies).toBe(1);
+    expect(summary.counts.studiesTotal).toBe(1);
     expect(stage('studies', summary).relatedEntityIds.productIds).toEqual(['product-1']);
   });
 
@@ -452,6 +453,25 @@ describe('project workflow evaluator', () => {
 
     expect(stage('report', summary).status).toBe('needs_review');
     expect(stage('report', summary).nextActionLabel).toMatch(/open report/i);
+  });
+
+  it('keeps the overall status and next action aligned on an item needing review', () => {
+    const summary = workflow({
+      importBatches: [batch],
+      instrumentalDataset: dataset,
+      products: [product],
+      responseCountsBySampleId: { S1: 8 },
+      decisionRecords: [decision],
+      conceptTests: [concept],
+      conceptResponseCounts: { 'concept-1': 12 },
+      commercializationReports: [{ ...report, status: 'review', approvedAt: null, approvedBy: null }],
+    });
+
+    expect(stage('responses', summary).status).toBe('in_progress');
+    expect(stage('report', summary).status).toBe('needs_review');
+    expect(summary.overallStatusLabel).toBe('Next: Report');
+    expect(summary.nextAction.stageId).toBe('report');
+    expect(summary.nextAction.route).toBe('/project/batch-1/report?report=report-1');
   });
 
   it('marks approved export-ready report as complete', () => {

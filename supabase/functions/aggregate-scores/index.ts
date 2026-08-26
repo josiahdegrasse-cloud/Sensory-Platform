@@ -8,6 +8,12 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers })
   }
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { ...headers, 'Content-Type': 'application/json', Allow: 'POST' },
+    })
+  }
 
   // Verify the caller is an authenticated admin
   const authHeader = req.headers.get('authorization');
@@ -20,7 +26,6 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
   const callerToken = authHeader.replace(/^Bearer\s+/i, '')
 
@@ -44,11 +49,11 @@ Deno.serve(async (req: Request) => {
 
   const { data: profile, error: profileError } = await callerClient
     .from('profiles')
-    .select('role')
+    .select('role, status, org_id')
     .eq('id', callerUser.id)
     .single()
 
-  if (profileError || profile?.role !== 'admin') {
+  if (profileError || profile?.role !== 'admin' || profile.status !== 'active' || !profile.org_id) {
     return new Response(JSON.stringify({ error: 'Forbidden' }), {
       status: 403,
       headers: { ...headers, 'Content-Type': 'application/json' },
@@ -56,10 +61,32 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const serviceClient = createClient(supabaseUrl, serviceRoleKey)
     const { productId } = await req.json()
+    if (typeof productId !== 'string' || !productId.trim()) {
+      return new Response(JSON.stringify({ error: 'A productId is required' }), {
+        status: 400,
+        headers: { ...headers, 'Content-Type': 'application/json' },
+      })
+    }
 
-    const { data: responses, error } = await serviceClient
+    // Keep every data read on the caller-scoped client. Product and response
+    // RLS policies enforce organization ownership; the service role must never
+    // be used with an arbitrary caller-supplied product id.
+    const { data: product, error: productError } = await callerClient
+      .from('products')
+      .select('id')
+      .eq('id', productId)
+      .maybeSingle()
+
+    if (productError) throw productError
+    if (!product) {
+      return new Response(JSON.stringify({ error: 'Product not found' }), {
+        status: 404,
+        headers: { ...headers, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const { data: responses, error } = await callerClient
       .from('responses')
       .select('user_id, hedonic_scores, cata_attributes, intensity_ratings')
       .eq('product_id', productId)
@@ -97,8 +124,8 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({ count, hedonicMeans, topCataAttributes }),
       { headers: { ...headers, 'Content-Type': 'application/json' } }
     )
-  } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), {
+  } catch {
+    return new Response(JSON.stringify({ error: 'Unable to aggregate scores' }), {
       status: 500,
       headers: { ...headers, 'Content-Type': 'application/json' }
     })

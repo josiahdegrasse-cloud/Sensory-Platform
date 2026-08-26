@@ -1,5 +1,9 @@
 import type { EnhancedSensoryProfile } from '../data/enhanced-sensory';
 import type { DecisionOutcome, GoStopTweakDecision } from '../utils/go-stop-tweak-engine';
+import type {
+  InstrumentalChartPreference,
+  InstrumentalParameterMetadata,
+} from './instrumental-parameter-metadata';
 
 export type DecisionType = DecisionOutcome | 'INSUFFICIENT_DATA';
 export type ConfidenceLevel = 'high' | 'medium' | 'low';
@@ -93,7 +97,49 @@ export type EvidenceBundle = {
   /** Underlying sensory measures behind the dimension scores — the raw evidence
    *  the report dashboard and QC pipeline cite instead of "saved decision model". */
   sensoryProfile?: SensoryProfileEvidence | null;
+  /** Every numeric product parameter attached to the report sample. This is
+   * deliberately instrument-agnostic so new imported measurements are not
+   * lost merely because they are not one of the legacy E-tongue fields. */
+  instrumentalParameters?: InstrumentalParameterEvidence[];
   commercialProfile?: CommercializationProjectProfile | null;
+};
+
+export type InstrumentalParameterStatus =
+  | 'within_expected_range'
+  | 'below_expected_range'
+  | 'above_expected_range'
+  | 'not_benchmarked';
+
+export type InstrumentalParameterFamily =
+  | 'taste_flavour'
+  | 'texture_rheology'
+  | 'physical'
+  | 'composition'
+  | 'colour_appearance'
+  | 'aroma_volatiles'
+  | 'stability_shelf_life'
+  | 'process'
+  | 'microbiology_safety'
+  | 'other';
+
+export type InstrumentalParameterEvidence = {
+  id: string;
+  sampleId: string;
+  sampleName: string;
+  key: string;
+  label: string;
+  family: InstrumentalParameterFamily;
+  source: 'e_tongue' | 'composition' | 'imported_parameter';
+  unit: string;
+  mean: number;
+  observationCount: number;
+  standardDeviation?: number;
+  minimum?: number;
+  maximum?: number;
+  replicateValues: number[];
+  metadata: InstrumentalParameterMetadata;
+  chartPreference: InstrumentalChartPreference;
+  status: InstrumentalParameterStatus;
 };
 
 export type CommercializationProjectProfile = {
@@ -194,6 +240,7 @@ export type BuildEvidenceBundleInput = {
   generatedAt?: string;
   thresholds?: { go: number; stop: number };
   minimumResponses?: number;
+  instrumentalParameters?: InstrumentalParameterEvidence[];
 };
 
 export type EvidenceBundleRecord = {

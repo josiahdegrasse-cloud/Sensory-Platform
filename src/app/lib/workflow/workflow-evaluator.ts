@@ -47,9 +47,10 @@ function latestByDate<T>(items: T[], getDate: (item: T) => string | undefined | 
 
 function pickNextAction(stages: WorkflowStageSummary[]): WorkflowNextAction {
   const priority: WorkflowStageId[] = ['data', 'studies', 'responses', 'insights', 'decision', 'concept', 'report'];
-  const next = priority
-    .map(id => stages.find(item => item.id === id))
-    .find((item): item is WorkflowStageSummary => item !== undefined && item.status !== 'complete')
+  const next = stages.find(item => item.status === 'needs_review')
+    ?? priority
+      .map(id => stages.find(item => item.id === id))
+      .find((item): item is WorkflowStageSummary => item !== undefined && item.status !== 'complete')
     ?? stages[stages.length - 1]!;
   return {
     label: next.nextActionLabel,
@@ -406,6 +407,7 @@ export function evaluateProjectWorkflow(input: WorkflowEvaluatorInput): ProjectW
   const counts = {
     importedSamples: samples.length,
     activeStudies: activeStudies.length,
+    studiesTotal: projectProducts.length,
     responsesCollected: responseCompleted,
     decisionsRecorded: projectDecisions.length,
     conceptsActive: projectConcepts.length,

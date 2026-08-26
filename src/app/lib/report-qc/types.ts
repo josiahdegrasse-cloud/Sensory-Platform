@@ -5,6 +5,8 @@
 // ReportContext, claim records, validation results, and quality scores.
 // ════════════════════════════════════════════════════════════════════════════
 
+import type { InstrumentalParameterEvidence } from '../report-evidence-types';
+
 // ── 1. Stage-aware report types ─────────────────────────────────────────────
 export type ReportStage =
   | 'evidence_review'          // evidence insufficient for an advancement decision
@@ -275,6 +277,7 @@ export interface InstrumentalEvidence {
   available: boolean;
   includedInDecision: boolean;
   findings: InstrumentalFinding[];
+  parameters: InstrumentalParameterEvidence[];
   /** Stated explicitly when no instrumental evidence is in the decision snapshot. */
   absenceNote: string | null;
 }

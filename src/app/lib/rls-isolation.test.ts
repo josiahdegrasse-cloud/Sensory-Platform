@@ -53,6 +53,7 @@ describe.skipIf(!CONFIGURED)('RLS tenant isolation', () => {
     decisionA?: string;
     decisionB?: string;
     responseA?: string;
+    responseARepeat?: string;
     responseB?: string;
   } = {};
 
@@ -125,6 +126,13 @@ describe.skipIf(!CONFIGURED)('RLS tenant isolation', () => {
     }).select().single());
     ids.responseA = (ra as unknown as { id: string }).id;
     ids.responseB = (rb as unknown as { id: string }).id;
+    const raRepeat = must('response A repeat insert', await admin.from('responses').insert({
+      user_id: ids.userA,
+      product_id: ids.productA,
+      org_id: ids.orgA,
+      run_number: 2,
+    }).select().single());
+    ids.responseARepeat = (raRepeat as unknown as { id: string }).id;
 
     clientA = createClient(URL!, ANON!, { auth: { persistSession: false, autoRefreshToken: false } });
     clientB = createClient(URL!, ANON!, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -141,6 +149,7 @@ describe.skipIf(!CONFIGURED)('RLS tenant isolation', () => {
   afterAll(async () => {
     if (!admin) return;
     if (ids.responseA) await admin.from('responses').delete().eq('id', ids.responseA);
+    if (ids.responseARepeat) await admin.from('responses').delete().eq('id', ids.responseARepeat);
     if (ids.responseB) await admin.from('responses').delete().eq('id', ids.responseB);
     if (ids.decisionA) await admin.from('decision_records').delete().eq('id', ids.decisionA);
     if (ids.decisionB) await admin.from('decision_records').delete().eq('id', ids.decisionB);
@@ -226,5 +235,6 @@ describe.skipIf(!CONFIGURED)('RLS tenant isolation', () => {
     expect(productIds).not.toContain(ids.productB);
     expect(userIds).toContain(ids.userA);
     expect(userIds).not.toContain(ids.userB);
+    expect((byProduct ?? []).find((row: { product_id: string; response_count: number }) => row.product_id === ids.productA)?.response_count).toBe(1);
   });
 });

@@ -190,6 +190,7 @@ export function CommercializationReportBuilder({
       intensity: sensory?.intensity,
       foodTypeSlug: sensory?.foodTypeSlug ?? foodType,
       instrumentalFindings: sensory?.instrumentalFindings,
+      instrumentalParameters: evidenceBundle.instrumentalParameters ?? [],
       instrumentSignal: sensory?.instrumentSignal,
       gatePenalty: sensory?.gatePenalty,
       confidenceCalculation: sensory?.confidenceCalculation,

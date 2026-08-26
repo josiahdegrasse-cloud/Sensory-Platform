@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from 'react';
-import { FlaskConical, Search, SlidersHorizontal, TableProperties } from 'lucide-react';
+import { BarChart3, FlaskConical, Plus, Search, SlidersHorizontal, Sparkles, TableProperties } from 'lucide-react';
 import {
   Bar,
   BarChart,
@@ -23,6 +23,7 @@ import { Input } from './ui/input';
 import {
   buildInstrumentalParameterRadarModel,
   collectInstrumentalParameters,
+  formatInstrumentalValue,
   instrumentalAxisSupportsBuildChart,
   isInstrumentalRangeBand,
   orderInstrumentalAxesByBuildAvailability,
@@ -50,9 +51,9 @@ const BUILD_CHART_OPTIONS: Array<{
   label: string;
   description: string;
 }> = [
-  { type: 'radar', label: 'Radar', description: 'Three or more comparable continuous parameters' },
-  { type: 'bar', label: 'Bar charts', description: 'One or more parameters, grouped by compatible scale' },
-  { type: 'box', label: 'Box plots', description: 'Parameters with at least four replicate measurements' },
+  { type: 'radar', label: 'Radar profile', description: 'Compare three or more continuous measures' },
+  { type: 'bar', label: 'Grouped bars', description: 'Compare values on compatible scales' },
+  { type: 'box', label: 'Box plots', description: 'Inspect replicate distributions' },
 ];
 
 type ChartRow = Record<string, string | number | null> & {
@@ -79,7 +80,7 @@ interface TooltipEntry {
 }
 
 function formatMeasurement(value: number) {
-  return value.toLocaleString(undefined, { maximumFractionDigits: 3 });
+  return formatInstrumentalValue(value);
 }
 
 function formatMeasurementWithUnit(value: number, unit: string) {
@@ -345,10 +346,12 @@ export function InstrumentalParameterRadar({
     ? model.axes.filter(axis => displayedKeySet.has(axis.key))
     : customAxes;
   const barGroups = buildParameterBarGroups(barAxes, workspaceMode === 'custom');
-  const detailChartCount = new Set([
-    ...barAxes.map(axis => axis.key),
-    ...boxAxes.map(axis => axis.key),
-  ]).size;
+  const recommendedViewCount = Number(radarAxes.length >= 3)
+    + Number(barGroups.length > 0)
+    + Number(boxAxes.length > 0);
+  const customAvailableAxisCount = model.axes.filter(axis => (
+    customChartTypes.some(chart => instrumentalAxisSupportsBuildChart(axis, chart))
+  )).length;
   const parameterSelectionAxes = workspaceMode === 'recommended' ? radarEligibleAxes : model.axes;
   const filteredParameterAxes = (() => {
     const query = parameterQuery.trim().toLocaleLowerCase();
@@ -425,51 +428,63 @@ export function InstrumentalParameterRadar({
   };
 
   return (
-    <Card className="border-2 border-slate-200 shadow-sm">
-      <CardHeader className="border-b bg-slate-50">
+    <Card className="border-slate-200 shadow-sm">
+      <CardHeader className="border-b border-slate-200 bg-white">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <CardTitle className="flex items-center gap-2 text-lg">
               <FlaskConical className="size-5 text-slate-700" />
-              Instrumental parameter profile
+              Instrumental charts
             </CardTitle>
             <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-700">
               {workspaceMode === 'recommended'
-                ? 'See which measurements sit above or below the project average, with the raw evidence shown directly below.'
-                : 'Choose one or more chart types and parameters; compatible previews update together while raw evidence remains available below.'}
+                ? 'Best-fit views based on parameter type, scale, and available replicate evidence.'
+                : 'Build a focused comparison without mixing incompatible scales or measurement types.'}
             </p>
           </div>
-          <span className="rounded-md bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">
+          <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
             {workspaceMode === 'recommended'
-              ? `${selectedRadarParameterKeys.length}/${radarEligibleAxes.length} radar selected · ${detailChartCount} parameters detailed`
-              : `${customParameterKeys.length} parameter${customParameterKeys.length === 1 ? '' : 's'} · ${customChartTypes.length} chart type${customChartTypes.length === 1 ? '' : 's'}`}
+              ? `${recommendedViewCount} view${recommendedViewCount === 1 ? '' : 's'} · ${displayedAxes.length} parameters`
+              : `${customParameterKeys.length} selected · ${customChartTypes.length} chart type${customChartTypes.length === 1 ? '' : 's'}`}
           </span>
         </div>
-        <div className="mt-4 inline-flex rounded-lg border border-slate-300 bg-white p-1" aria-label="Chart workspace mode">
-          <button
-            type="button"
-            aria-pressed={workspaceMode === 'recommended'}
-            onClick={() => setWorkspaceMode('recommended')}
-            className={`min-h-10 rounded-md px-4 text-sm font-semibold transition-colors ${workspaceMode === 'recommended' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
-          >
-            Recommended
-          </button>
-          <button
-            type="button"
-            aria-pressed={workspaceMode === 'custom'}
-            onClick={() => setWorkspaceMode('custom')}
-            className={`min-h-10 rounded-md px-4 text-sm font-semibold transition-colors ${workspaceMode === 'custom' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
-          >
-            Build your own
-          </button>
+        <div className="mt-4 flex flex-col gap-2 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="inline-flex w-full rounded-lg bg-slate-100 p-1 sm:w-auto" aria-label="Chart workspace mode">
+            <button
+              type="button"
+              aria-pressed={workspaceMode === 'recommended'}
+              onClick={() => setWorkspaceMode('recommended')}
+              className={`flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors sm:flex-none ${workspaceMode === 'recommended' ? 'bg-[var(--brand)] text-[var(--primary-foreground)]' : 'text-slate-600 hover:bg-white hover:text-slate-900'}`}
+            >
+              <Sparkles className="size-4" aria-hidden />
+              Recommended
+            </button>
+            <button
+              type="button"
+              aria-pressed={workspaceMode === 'custom'}
+              onClick={() => setWorkspaceMode('custom')}
+              className={`flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors sm:flex-none ${workspaceMode === 'custom' ? 'bg-[var(--brand)] text-[var(--primary-foreground)]' : 'text-slate-600 hover:bg-white hover:text-slate-900'}`}
+            >
+              <Plus className="size-4" aria-hidden />
+              Build your own
+            </button>
+          </div>
+          <p className="text-xs leading-5 text-slate-600">
+            {workspaceMode === 'recommended'
+              ? 'Curated for a useful first read.'
+              : 'Choose chart types, then add compatible parameters.'}
+          </p>
         </div>
       </CardHeader>
       <CardContent className="space-y-6 pt-5">
         {workspaceMode === 'custom' && (
-          <section aria-labelledby="custom-chart-types-heading" className="border-b border-slate-200 pb-5">
+          <section aria-labelledby="custom-chart-types-heading" className="rounded-lg bg-slate-50 p-4">
             <div>
-              <h3 id="custom-chart-types-heading" className="text-sm font-semibold text-slate-950">Choose chart types</h3>
-              <p className="mt-1 text-xs leading-5 text-slate-600">Select one or more views. Parameters that cannot be represented correctly are unavailable.</p>
+              <h3 id="custom-chart-types-heading" className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+                <BarChart3 className="size-4 text-slate-600" aria-hidden />
+                Add charts
+              </h3>
+              <p className="mt-1 text-xs leading-5 text-slate-600">Pick one or more formats. The parameter list keeps compatible measurements at the top.</p>
             </div>
             <div className="mt-3 grid gap-2 md:grid-cols-3">
               {BUILD_CHART_OPTIONS.map(option => {
@@ -481,12 +496,15 @@ export function InstrumentalParameterRadar({
                   <label
                     key={option.type}
                     htmlFor={id}
-                    className={`flex min-h-20 items-start gap-3 rounded-lg border px-3 py-3 ${disabled ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-55' : checked ? 'cursor-pointer border-slate-400 bg-slate-100' : 'cursor-pointer border-slate-200 bg-white hover:border-slate-300'}`}
+                    className={`flex min-h-20 items-start gap-3 rounded-lg border px-3 py-3 transition-colors ${disabled ? 'cursor-not-allowed border-slate-200 bg-slate-100 opacity-55' : checked ? 'cursor-pointer border-[var(--brand)] bg-[var(--brand-soft)]' : 'cursor-pointer border-slate-200 bg-white hover:border-slate-300'}`}
                   >
                     <Checkbox id={id} checked={checked} disabled={disabled} onCheckedChange={() => toggleCustomChartType(option.type)} className="mt-0.5" />
-                    <span>
-                      <span className="block text-sm font-semibold text-slate-900">{option.label}</span>
-                      <span className="mt-0.5 block text-xs leading-5 text-slate-600">{option.description} · {availableCount} available</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center justify-between gap-2 text-sm font-semibold text-slate-900">
+                        {option.label}
+                        <span className="shrink-0 rounded bg-white/80 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600">{availableCount}</span>
+                      </span>
+                      <span className="mt-1 block text-xs leading-5 text-slate-600">{option.description}</span>
                     </span>
                   </label>
                 );
@@ -497,15 +515,17 @@ export function InstrumentalParameterRadar({
             )}
           </section>
         )}
-        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_19rem]">
-          <section aria-labelledby="relative-profile-heading" className="min-w-0">
+        <div className={`grid items-start gap-5 ${workspaceMode === 'recommended' ? 'xl:grid-cols-[minmax(0,1fr)_19rem]' : 'xl:grid-cols-[19rem_minmax(0,1fr)]'}`}>
+          <section aria-labelledby="relative-profile-heading" className={`min-w-0 ${workspaceMode === 'custom' ? 'xl:order-2' : ''}`}>
             <div>
               <h3 id="relative-profile-heading" className="text-sm font-semibold text-slate-950">
-                {workspaceMode === 'custom' && !customRadarEnabled ? 'Custom chart preview' : 'Difference from the project average'}
+                {workspaceMode === 'recommended'
+                  ? 'Recommended radar profile'
+                  : customRadarEnabled ? 'Radar preview' : 'Chart preview'}
               </h3>
               <p className="mt-1 text-xs leading-5 text-slate-600">
                 {workspaceMode === 'custom' && !customRadarEnabled
-                  ? 'Bar and box plot previews appear below as compatible parameters are selected.'
+                  ? 'Selected bar and box plot views appear directly below.'
                   : 'The middle ring is the project average. Values move inward when lower than average and outward when higher than average.'}
               </p>
             </div>
@@ -562,17 +582,17 @@ export function InstrumentalParameterRadar({
                 </div>
               </>
             ) : (
-              <div className="mt-4 flex min-h-80 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 text-center">
+              <div className={`mt-4 flex items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 text-center ${workspaceMode === 'custom' && !customRadarEnabled ? 'min-h-40' : 'min-h-80'}`}>
                 <div className="max-w-sm">
                   <SlidersHorizontal className="mx-auto size-6 text-slate-500" />
                   <p className="mt-3 text-sm font-semibold text-slate-900">
                     {workspaceMode === 'custom' && !customRadarEnabled
-                      ? 'Choose parameters for your selected charts'
+                      ? 'Choose parameters to generate your charts'
                       : series.length === 0 ? 'Select a sample to build the profile' : 'Choose at least three comparable parameters'}
                   </p>
                   <p className="mt-1 text-xs leading-5 text-slate-600">
                     {workspaceMode === 'custom' && !customRadarEnabled
-                      ? 'Use the parameter list to the right. Add Radar above when you want a normalized multi-parameter profile.'
+                      ? 'Use the parameter list alongside this preview. Add Radar above only when you need a normalized multi-parameter profile.'
                       : series.length === 0
                       ? 'The evidence table will populate when a sample is selected.'
                       : barAxes.length > 0
@@ -584,18 +604,18 @@ export function InstrumentalParameterRadar({
             )}
           </section>
 
-          <aside className="min-w-0 border-t border-slate-200 pt-5 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0" aria-label="Profile parameters">
+          <aside className={`min-w-0 border-t border-slate-200 pt-5 xl:border-t-0 xl:pt-0 ${workspaceMode === 'recommended' ? 'xl:border-l xl:pl-5' : 'xl:order-1 xl:border-r xl:pr-5'}`} aria-label="Profile parameters">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-sm font-semibold text-slate-950">{workspaceMode === 'recommended' ? 'Radar parameters' : 'Parameters'}</h3>
+                <h3 className="text-sm font-semibold text-slate-950">{workspaceMode === 'recommended' ? 'Radar parameters' : 'Parameters for your charts'}</h3>
                 <p className="mt-1 text-xs text-slate-600">
-                  {workspaceMode === 'recommended' ? 'Only compatible continuous measures' : 'Choose one or more compatible measurements'}
+                  {workspaceMode === 'recommended' ? 'Only compatible continuous measures' : 'Compatible measurements appear first'}
                 </p>
               </div>
               <span className="shrink-0 text-xs font-semibold text-slate-600">
                 {workspaceMode === 'recommended'
                   ? `${selectedRadarParameterKeys.length}/${radarEligibleAxes.length}`
-                  : `${customParameterKeys.length}/${model.axes.length}`}
+                  : `${customParameterKeys.length}/${customAvailableAxisCount}`}
               </span>
             </div>
             <div className="mt-3 flex gap-2">
@@ -609,7 +629,7 @@ export function InstrumentalParameterRadar({
                   ? setExcludedRadarParameterKeys([])
                   : setCustomParameterKeys(model.axes.filter(axis => customAxisEligible(axis)).map(axis => axis.key))}
               >
-                Select all
+                {workspaceMode === 'recommended' ? 'Select all' : 'Select available'}
               </Button>
               <Button
                 type="button"
@@ -650,6 +670,11 @@ export function InstrumentalParameterRadar({
                 const id = `${checkboxPrefix}-${workspaceMode}-${axis.key}`;
                 return (
                   <div key={axis.key}>
+                    {workspaceMode === 'custom' && eligible && index === 0 && (
+                      <p className="mb-1 px-2 py-1 text-[11px] font-semibold text-slate-600">
+                        Available for selected charts
+                      </p>
+                    )}
                     {showUnavailableHeading && (
                       <p className="mb-1 mt-3 border-t border-slate-200 px-2 pt-3 text-[11px] font-semibold text-slate-600">
                         Unavailable for selected charts
@@ -669,7 +694,7 @@ export function InstrumentalParameterRadar({
                       <span className="min-w-0">
                         <span className="block break-words font-medium leading-5 text-slate-800">{axis.label}</span>
                         <span className="block text-xs text-slate-500">
-                          {axis.unit || 'No unit supplied'}
+                          {axis.unit || 'Unitless'}
                           {workspaceMode === 'custom' && compatibleCharts.length > 0
                             ? ` · ${compatibleCharts.map(chart => chart === 'box' ? 'Box' : chart === 'bar' ? 'Bar' : 'Radar').join(', ')}`
                             : ''}
@@ -689,17 +714,6 @@ export function InstrumentalParameterRadar({
             </div>
           </aside>
         </div>
-
-        {workspaceMode === 'custom' && (customChartTypes.length === 0 || customParameterKeys.length === 0) && (
-          <div className="border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center">
-            <p className="text-sm font-semibold text-slate-900">Build a chart from your measurements</p>
-            <p className="mt-1 text-xs leading-5 text-slate-600">
-              {customChartTypes.length === 0
-                ? 'Choose at least one chart type, then select the parameters to include.'
-                : 'Select one or more compatible parameters to update the previews.'}
-            </p>
-          </div>
-        )}
 
         <InstrumentalBoxPlots
           axes={boxAxes}
@@ -874,7 +888,7 @@ export function InstrumentalParameterRadar({
                   <tr key={axis.key} className="align-top hover:bg-slate-50">
                     <th scope="row" className="px-3 py-3 font-semibold text-slate-900">
                       <span className="block break-words">{axis.label}</span>
-                      <span className="mt-0.5 block font-normal text-slate-500">{axis.unit || 'No unit supplied'}</span>
+                      <span className="mt-0.5 block font-normal text-slate-500">{axis.unit || 'Unitless'}</span>
                     </th>
                     {series.map(seriesItem => {
                       const value = axis.values[seriesItem.sampleId];

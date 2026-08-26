@@ -51,6 +51,8 @@ describe('insertResponseBatch', () => {
 
     await expect(insertResponseBatch(responses)).resolves.toHaveLength(3);
     expect(insertedRows.map(row => row.run_number)).toEqual([4, 5, 6]);
+    expect(new Set(insertedRows.map(row => row.response_session_id)).size).toBe(1);
+    expect(insertedRows.map(row => row.sample_ordinal)).toEqual([1, 2, 3]);
     expect(insertedRows.map(row => row.sample_code)).toEqual(['101', '202', '303']);
     expect(mocks.from).toHaveBeenCalledTimes(2);
   });

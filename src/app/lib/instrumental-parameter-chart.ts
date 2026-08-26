@@ -71,7 +71,57 @@ export interface InstrumentalParameterRelationship {
   sampleCount: number;
 }
 
+export interface InstrumentalDifferenceInsight {
+  parameterKey: string;
+  parameterLabel: string;
+  unit: string;
+  sampleId: string;
+  raw: number;
+  deviationFromProjectMean: number;
+  observationCount: number;
+}
+
 export type InstrumentalBuildChartType = 'radar' | 'bar' | 'box';
+
+export function formatInstrumentalValue(value: number) {
+  const absolute = Math.abs(value);
+  const maximumFractionDigits = absolute >= 100 ? 1 : absolute >= 1 ? 2 : 3;
+  return value.toLocaleString(undefined, { maximumFractionDigits });
+}
+
+export function rankInstrumentalDifferences(
+  axes: InstrumentalParameterAxis[],
+  sampleIds: string[],
+  limit = 4,
+): InstrumentalDifferenceInsight[] {
+  const ranked = axes
+    .flatMap(axis => sampleIds.flatMap(sampleId => {
+      const value = axis.values[sampleId];
+      if (!value || value.deviationFromProjectMean === null) return [];
+      return [{
+        parameterKey: axis.key,
+        parameterLabel: axis.label,
+        unit: axis.unit,
+        sampleId,
+        raw: value.raw,
+        deviationFromProjectMean: value.deviationFromProjectMean,
+        observationCount: value.observationCount,
+      }];
+    }))
+    .sort((left, right) => (
+      Math.abs(right.deviationFromProjectMean) - Math.abs(left.deviationFromProjectMean)
+      || left.parameterLabel.localeCompare(right.parameterLabel)
+      || left.sampleId.localeCompare(right.sampleId)
+    ));
+  const seenParameters = new Set<string>();
+  return ranked
+    .filter(insight => {
+      if (seenParameters.has(insight.parameterKey)) return false;
+      seenParameters.add(insight.parameterKey);
+      return true;
+    })
+    .slice(0, Math.max(0, limit));
+}
 
 function hasReplicateEvidence(axis: Pick<InstrumentalParameterAxis, 'values'>) {
   return Object.values(axis.values).some(value => (value?.replicateValues.length ?? 0) >= 4);

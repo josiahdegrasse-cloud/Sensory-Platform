@@ -8,6 +8,7 @@ import {
   type InstrumentalDataset,
 } from './database';
 import { buildEvidenceBundleFromProfiles } from './report-evidence';
+import { collectReportInstrumentalParameters } from './report-instrumental-parameters';
 
 function buildLiveAggregation(products: Product[], responses: QuestionnaireResponse[]) {
   const productsById = new Map(products.map(product => [product.id, product]));
@@ -137,5 +138,6 @@ export async function buildEvidenceBundle(sampleId: string, createdBy = 'system'
     createdBy,
     thresholds: { go: settings.decisionGoThreshold, stop: settings.decisionStopThreshold },
     minimumResponses: settings.decisionMinResponses,
+    instrumentalParameters: collectReportInstrumentalParameters(dataset, sampleId),
   });
 }

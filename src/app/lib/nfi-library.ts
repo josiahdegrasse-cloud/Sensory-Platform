@@ -78,6 +78,33 @@ export type LibraryBulkReview = Omit<LibraryDocumentReview, 'documentId'> & {
   documentIds: string[];
 };
 
+export type LibraryDocumentsResponse = { documents: LibraryDocument[] };
+
+/** Apply a review to the cached corpus while the research service persists it. */
+export function applyLibraryReviewToDocuments(
+  current: LibraryDocumentsResponse,
+  input: LibraryDocumentReview | LibraryBulkReview,
+): LibraryDocumentsResponse {
+  const documentIds = new Set('documentId' in input ? [input.documentId] : input.documentIds);
+  const reviewBasis: LibraryDocument['reviewBasis'] = 'documentId' in input
+    ? 'individual_review'
+    : 'bulk_review';
+
+  return {
+    ...current,
+    documents: current.documents.map(document => documentIds.has(document.documentId)
+      ? {
+          ...document,
+          reviewStatus: input.reviewStatus,
+          peerReviewStatus: input.peerReviewStatus,
+          licenseStatus: input.licenseStatus,
+          reviewBasis,
+          reviewNotes: input.notes ?? document.reviewNotes,
+        }
+      : document),
+  };
+}
+
 export type LibraryRequest = {
   libraryId?: string;
   force?: boolean;
@@ -89,7 +116,7 @@ export async function fetchLibraryStatus(): Promise<LibraryStatus> {
   return response.json() as Promise<LibraryStatus>;
 }
 
-export async function fetchLibraryDocuments(): Promise<{ documents: LibraryDocument[] }> {
+export async function fetchLibraryDocuments(): Promise<LibraryDocumentsResponse> {
   const response = await ragFetch('/api/library/documents');
   if (!response.ok) throw new Error(`Library documents unavailable (${response.status})`);
   return response.json() as Promise<{ documents: LibraryDocument[] }>;

@@ -385,12 +385,14 @@ export function SurveyAnalysis() {
   const activeHedonic = matchingLiveData
     ? ['overall', 'appearance', 'aroma', 'flavor', 'texture'].map(category => ({
         id: `hedonic-${category}`, category: category === 'flavor' ? 'Flavour' : category[0].toUpperCase() + category.slice(1),
-        score: matchingLiveData.hedonic[category] ?? 0, sd: matchingLiveData.hedonicSD[category] ?? 0,
-      }))
+        score: matchingLiveData.hedonic[category] ?? 0,
+        sd: matchingLiveData.hedonicSD[category] ?? 0,
+        n: matchingLiveData.hedonicN?.[category] ?? matchingLiveData.n,
+      })).filter(item => item.n > 0)
     : [
         ['Appearance', selectedData.hedonic.appearance], ['Flavour', selectedData.hedonic.flavour],
         ['Texture', selectedData.hedonic.texture], ['Overall', selectedData.hedonic.overall],
-      ].map(([category, score]) => ({ id: `hedonic-${category}`, category: String(category), score: Number(score), sd: 0.8 }));
+      ].map(([category, score]) => ({ id: `hedonic-${category}`, category: String(category), score: Number(score), sd: 0.8, n: 14 }));
   const panelN = matchingLiveData?.n ?? 14;
   const averageHedonic = activeHedonic.length
     ? activeHedonic.reduce((sum, item) => sum + item.score, 0) / activeHedonic.length
@@ -454,10 +456,10 @@ export function SurveyAnalysis() {
     return {
       id: sample.sampleId,
       name: sample.sampleName,
-      overall: live?.hedonic.overall ?? sample.hedonic.overall,
-      flavour: live?.hedonic.flavor ?? sample.hedonic.flavour,
-      texture: live?.hedonic.texture ?? sample.hedonic.texture,
-      appearance: live?.hedonic.appearance ?? sample.hedonic.appearance,
+      overall: live ? (live.hedonic.overall ?? 0) : sample.hedonic.overall,
+      flavour: live ? (live.hedonic.flavor ?? 0) : sample.hedonic.flavour,
+      texture: live ? (live.hedonic.texture ?? 0) : sample.hedonic.texture,
+      appearance: live ? (live.hedonic.appearance ?? 0) : sample.hedonic.appearance,
     };
   });
   const showComparison = comparisonProfiles.length > 1 || multiSampleProducts.length > 0;
@@ -466,7 +468,7 @@ export function SurveyAnalysis() {
     return {
       sample,
       live,
-      score: live?.hedonic.overall ?? sample.hedonic.overall ?? 0,
+      score: live ? (live.hedonic.overall ?? 0) : (sample.hedonic.overall ?? 0),
     };
   });
   const rankedPrototypeIds = [...prototypeScores]

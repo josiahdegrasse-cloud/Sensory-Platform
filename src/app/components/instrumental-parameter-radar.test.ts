@@ -38,9 +38,15 @@ describe('InstrumentalParameterRadar', () => {
       selectedColor: '#2563eb',
     }));
 
-    expect(markup).toContain('3/3 radar selected · 3 parameters detailed');
+    expect(markup).toContain('2 views · 6 parameters');
     expect(markup).toContain('Recommended');
     expect(markup).toContain('Build your own');
+    expect(markup).toContain('Best-fit views based on parameter type, scale, and available replicate evidence.');
+    expect(markup).toContain('Curated for a useful first read.');
+    expect(markup).not.toContain('What stands out');
+    expect(markup).not.toContain('Top 4 differences');
+    expect(markup).not.toContain('This is an internal comparison, not an external target.');
+    expect(markup).toContain('Recommended radar profile');
     expect(markup).toContain('aria-pressed="true"');
     expect(markup).toContain('Radar parameters');
     expect(markup.match(/role="checkbox"/g)).toHaveLength(3);

@@ -10,9 +10,82 @@ export interface LiveAggregation {
   n: number;
   cata: Record<string, number>;
   intensity: Record<string, number>;
+  intensityN?: Record<string, number>;
   hedonic: Record<string, number>;
   hedonicSD: Record<string, number>;
+  hedonicN?: Record<string, number>;
   emotions: { positive: number; negative: number };
+  emotionN?: { positive: number; negative: number };
+}
+
+type AggregationProduct = { id: string; name: string; sourceSampleId?: string | null; category?: string };
+
+function numericValues(values: unknown[]): number[] {
+  return values.filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+}
+
+export function aggregateLiveQuestionnaireResponses(
+  resps: QuestionnaireResponse[],
+  product?: AggregationProduct,
+): LiveAggregation {
+  const n = resps.length;
+  const productId = product?.id ?? resps[0]?.productId ?? '';
+  const cata: Record<string, number> = {};
+  resps.forEach(response => {
+    (response.cataAttributes || []).forEach(attribute => { cata[attribute] = (cata[attribute] || 0) + 1; });
+  });
+
+  const intensityTotals: Record<string, { sum: number; count: number }> = {};
+  resps.forEach(response => {
+    Object.entries(response.intensityRatings || {}).forEach(([attribute, rawValue]) => {
+      const value = Number(rawValue);
+      if (!Number.isFinite(value)) return;
+      if (!intensityTotals[attribute]) intensityTotals[attribute] = { sum: 0, count: 0 };
+      intensityTotals[attribute].sum += value;
+      intensityTotals[attribute].count += 1;
+    });
+  });
+
+  const hedonicKeys = ['overall', 'appearance', 'aroma', 'flavor', 'texture'] as const;
+  const hedonic: Record<string, number> = {};
+  const hedonicSD: Record<string, number> = {};
+  const hedonicN: Record<string, number> = {};
+  hedonicKeys.forEach(key => {
+    const values = numericValues(resps.map(response => response.hedonicScores?.[key]));
+    if (values.length === 0) return;
+    const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+    hedonic[key] = mean;
+    hedonicN[key] = values.length;
+    hedonicSD[key] = values.length > 1
+      ? Math.sqrt(values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length - 1))
+      : 0;
+  });
+
+  const positiveValues = numericValues(resps.flatMap(response =>
+    ESSENSE25_EMOTIONS.positive.map(emotion => response.emotionalProfile?.[emotion]),
+  ));
+  const negativeValues = numericValues(resps.flatMap(response =>
+    ESSENSE25_EMOTIONS.negative.map(emotion => response.emotionalProfile?.[emotion]),
+  ));
+  const meanOrZero = (values: number[]) => values.length
+    ? values.reduce((sum, value) => sum + value, 0) / values.length
+    : 0;
+
+  return {
+    productId,
+    productName: product?.name ?? productId,
+    sourceSampleId: product?.sourceSampleId,
+    category: product?.category,
+    n,
+    cata,
+    intensity: Object.fromEntries(Object.entries(intensityTotals).map(([key, value]) => [key, value.sum / value.count])),
+    intensityN: Object.fromEntries(Object.entries(intensityTotals).map(([key, value]) => [key, value.count])),
+    hedonic,
+    hedonicSD,
+    hedonicN,
+    emotions: { positive: meanOrZero(positiveValues), negative: meanOrZero(negativeValues) },
+    emotionN: { positive: positiveValues.length, negative: negativeValues.length },
+  };
 }
 
 interface MultiSampleSession {
@@ -42,6 +115,18 @@ interface UseSurveyDataResult {
   commentsByProduct: Record<string, string[]>;
 }
 
+export function selectPrimaryQuestionnaireResponses(
+  responses: readonly QuestionnaireResponse[],
+): QuestionnaireResponse[] {
+  const primaryByParticipant = new Map<string, QuestionnaireResponse>();
+  responses.forEach(response => {
+    const key = `${response.userId}:${response.productId}`;
+    const current = primaryByParticipant.get(key);
+    if (!current || response.runNumber < current.runNumber) primaryByParticipant.set(key, response);
+  });
+  return [...primaryByParticipant.values()];
+}
+
 export function useSurveyData(): UseSurveyDataResult {
   const responsesQuery = useAllResponses();
   const productsQuery = useProducts();
@@ -60,10 +145,10 @@ export function useSurveyData(): UseSurveyDataResult {
     );
     const sessionMap = new Map<string, MultiSampleSession>();
     multiRows.forEach((r: QuestionnaireResponse) => {
-      const key = `${r.userId}:${r.productId}`;
+      const key = r.responseSessionId ?? `${r.userId}:${r.productId}:legacy`;
       if (!sessionMap.has(key)) {
         sessionMap.set(key, {
-          id: r.id,
+          id: r.responseSessionId ?? r.id,
           userId: r.userId,
           productId: r.productId,
           differentSample: r.differentSample ?? '',
@@ -90,9 +175,9 @@ export function useSurveyData(): UseSurveyDataResult {
     if (!allResponsesData) return { liveAggregations: [], commentsByProduct: {} };
     const productsById = new Map(products.map(product => [product.id, product]));
 
-    const singleResponses = allResponsesData.filter(
+    const singleResponses = selectPrimaryQuestionnaireResponses(allResponsesData.filter(
       (r: QuestionnaireResponse) => !r.sessionType
-    );
+    ));
     if (singleResponses.length === 0) return { liveAggregations: [], commentsByProduct: {} };
 
     const grouped = new Map<string, QuestionnaireResponse[]>();
@@ -103,59 +188,8 @@ export function useSurveyData(): UseSurveyDataResult {
 
     const aggregations: LiveAggregation[] = [];
     grouped.forEach((resps, productId) => {
-      const n = resps.length;
       const product = productsById.get(productId);
-
-      const cata: Record<string, number> = {};
-      resps.forEach(r => {
-        (r.cataAttributes || []).forEach(attr => { cata[attr] = (cata[attr] || 0) + 1; });
-      });
-
-      const intensityTotals: Record<string, { sum: number; count: number }> = {};
-      resps.forEach(r => {
-        Object.entries(r.intensityRatings || {}).forEach(([attr, val]) => {
-          if (!intensityTotals[attr]) intensityTotals[attr] = { sum: 0, count: 0 };
-          intensityTotals[attr].sum += Number(val);
-          intensityTotals[attr].count += 1;
-        });
-      });
-
-      const hedonicKeys = ['overall', 'appearance', 'aroma', 'flavor', 'texture'] as const;
-      const hedonicSums: Record<string, number> = { overall: 0, appearance: 0, aroma: 0, flavor: 0, texture: 0 };
-      resps.forEach(r => {
-        hedonicKeys.forEach(k => { hedonicSums[k] += (r.hedonicScores as Record<string, number>)?.[k] || 0; });
-      });
-      const hedonicMeans = Object.fromEntries(hedonicKeys.map(k => [k, hedonicSums[k] / n]));
-      const hedonicSDs: Record<string, number> = {};
-      hedonicKeys.forEach(k => {
-        const vals = resps.map(r => (r.hedonicScores as Record<string, number>)?.[k] || 0);
-        const mean = hedonicMeans[k];
-        hedonicSDs[k] = Math.sqrt(vals.reduce((acc, v) => acc + (v - mean) ** 2, 0) / n);
-      });
-
-      let posSum = 0, negSum = 0;
-      resps.forEach(r => {
-        ESSENSE25_EMOTIONS.positive.forEach(e => { posSum += (r.emotionalProfile || {})[e] || 0; });
-        ESSENSE25_EMOTIONS.negative.forEach(e => { negSum += (r.emotionalProfile || {})[e] || 0; });
-      });
-
-      aggregations.push({
-        productId,
-        productName: product?.name ?? productId,
-        sourceSampleId: product?.sourceSampleId,
-        category: product?.category,
-        n,
-        cata,
-        intensity: Object.fromEntries(
-          Object.entries(intensityTotals).map(([k, v]) => [k, v.sum / v.count])
-        ),
-        hedonic: Object.fromEntries(hedonicKeys.map(k => [k, hedonicSums[k] / n])),
-        hedonicSD: hedonicSDs,
-        emotions: {
-          positive: posSum / (n * ESSENSE25_EMOTIONS.positive.length),
-          negative: negSum / (n * ESSENSE25_EMOTIONS.negative.length),
-        },
-      });
+      aggregations.push(aggregateLiveQuestionnaireResponses(resps, product));
     });
 
     const commentsMap: Record<string, string[]> = {};

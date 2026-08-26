@@ -33,7 +33,12 @@ export function buildEvidenceAssistProductContext(
     dimensionScores: Object.fromEntries(context.dimensions.map(dimension => [dimension.key, dimension.score])),
     sensoryPanelN: Math.max(0, ...context.dimensions.map(dimension => dimension.sampleSize ?? 0)),
     conceptPanelN: context.concept.responseCount,
-    instrumentalFindings: context.instrumental.findings.map(finding => `${finding.source}: ${finding.finding}`),
+    instrumentalFindings: [
+      ...context.instrumental.findings.map(finding => `${finding.source}: ${finding.finding}`),
+      ...context.instrumental.parameters.slice(0, 12).map(parameter => (
+        `${parameter.label}: ${parameter.mean}${parameter.unit ? ` ${parameter.unit}` : ''}; ${parameter.status.replace(/_/g, ' ')}`
+      )),
+    ],
     defects,
     openGates,
     currentDecisionReason: context.decision.conditions.join(' '),
@@ -82,6 +87,18 @@ export function buildReportWriterContext(context: ReportContext): ReportWriterCo
         finding: finding.finding,
         benchmark: finding.benchmark,
         decisionEffect: finding.decisionEffect,
+      })),
+      parameters: context.instrumental.parameters.map(parameter => ({
+        id: parameter.id,
+        label: parameter.label,
+        family: parameter.family,
+        value: parameter.mean,
+        unit: parameter.unit,
+        observationCount: parameter.observationCount,
+        standardDeviation: parameter.standardDeviation ?? null,
+        minimum: parameter.minimum ?? null,
+        maximum: parameter.maximum ?? null,
+        status: parameter.status,
       })),
     },
     concept: {

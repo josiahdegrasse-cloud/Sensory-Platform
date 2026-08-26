@@ -17,6 +17,11 @@ import {
   getPointColor,
 } from './stage1-instrumental-data';
 
+export function tasteRadarDomainMax(values: readonly number[]): number {
+  const finiteValues = values.filter(value => Number.isFinite(value));
+  return Math.max(5, Math.ceil(Math.max(0, ...finiteValues)));
+}
+
 interface UseInstrumentalWorkspaceArgs {
   remoteDataset?: {
     eTongueData: ETongueMeasurement[];
@@ -225,15 +230,19 @@ export function useInstrumentalChartViewModel({
   const selectedSampleInfo = displayedSamples.find(sample => sample.id === selectedSamples[0]);
   const selectedColor = getPointColor(selectedSampleInfo?.type, selectedSampleInfo?.category);
   const activeFoodTypeLabel = foodType === 'all' ? 'all sample types' : formatFoodTypeLabel(foodType);
-  const toFivePointTaste = (value: number) => Math.max(0, Math.min(5, value));
+  const tasteValues = filteredETongueData
+    .filter(sample => sample.hasETongueData !== false)
+    .flatMap(sample => [sample.sourness, sample.bitterness, sample.saltiness, sample.umami, sample.sweetness])
+    .filter(value => Number.isFinite(value));
+  const tasteDomainMax = tasteRadarDomainMax(tasteValues);
 
   const radarData = selectedSampleData
     ? [
-        { id: 'sourness', taste: 'Sourness', value: toFivePointTaste(selectedSampleData.sourness), fullMark: 5 },
-        { id: 'bitterness', taste: 'Bitterness', value: toFivePointTaste(selectedSampleData.bitterness), fullMark: 5 },
-        { id: 'saltiness', taste: 'Saltiness', value: toFivePointTaste(selectedSampleData.saltiness), fullMark: 5 },
-        { id: 'umami', taste: 'Umami', value: toFivePointTaste(selectedSampleData.umami), fullMark: 5 },
-        { id: 'sweetness', taste: 'Sweetness', value: toFivePointTaste(selectedSampleData.sweetness), fullMark: 5 },
+        { id: 'sourness', taste: 'Sourness', value: selectedSampleData.sourness, fullMark: tasteDomainMax },
+        { id: 'bitterness', taste: 'Bitterness', value: selectedSampleData.bitterness, fullMark: tasteDomainMax },
+        { id: 'saltiness', taste: 'Saltiness', value: selectedSampleData.saltiness, fullMark: tasteDomainMax },
+        { id: 'umami', taste: 'Umami', value: selectedSampleData.umami, fullMark: tasteDomainMax },
+        { id: 'sweetness', taste: 'Sweetness', value: selectedSampleData.sweetness, fullMark: tasteDomainMax },
       ]
     : [];
 
@@ -248,11 +257,11 @@ export function useInstrumentalChartViewModel({
             color: instrumentalComparisonColor(index),
             dataKey: `sample_${index}`,
             values: {
-              Sourness: toFivePointTaste(sample.sourness),
-              Bitterness: toFivePointTaste(sample.bitterness),
-              Saltiness: toFivePointTaste(sample.saltiness),
-              Umami: toFivePointTaste(sample.umami),
-              Sweetness: toFivePointTaste(sample.sweetness),
+              Sourness: sample.sourness,
+              Bitterness: sample.bitterness,
+              Saltiness: sample.saltiness,
+              Umami: sample.umami,
+              Sweetness: sample.sweetness,
             },
           };
         })
@@ -261,11 +270,11 @@ export function useInstrumentalChartViewModel({
 
   const compareRadarChartData = compareMode
     ? [
-        { id: 'sourness', taste: 'Sourness', fullMark: 5 },
-        { id: 'bitterness', taste: 'Bitterness', fullMark: 5 },
-        { id: 'saltiness', taste: 'Saltiness', fullMark: 5 },
-        { id: 'umami', taste: 'Umami', fullMark: 5 },
-        { id: 'sweetness', taste: 'Sweetness', fullMark: 5 },
+        { id: 'sourness', taste: 'Sourness', fullMark: tasteDomainMax },
+        { id: 'bitterness', taste: 'Bitterness', fullMark: tasteDomainMax },
+        { id: 'saltiness', taste: 'Saltiness', fullMark: tasteDomainMax },
+        { id: 'umami', taste: 'Umami', fullMark: tasteDomainMax },
+        { id: 'sweetness', taste: 'Sweetness', fullMark: tasteDomainMax },
       ].map(row => {
         const nextRow: Record<string, string | number> = { ...row };
         compareRadarSeries.forEach(series => {
@@ -286,5 +295,6 @@ export function useInstrumentalChartViewModel({
     radarData,
     compareRadarSeries,
     compareRadarChartData,
+    tasteDomainMax,
   };
 }

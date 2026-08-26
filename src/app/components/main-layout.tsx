@@ -18,7 +18,7 @@ import {
 import { TenantOrNfiLogo } from "./nfi-brand";
 import { ProjectSwitcher } from "./project-switcher";
 import { applyBrandTheme } from "../lib/brand-theme";
-import { NFI_BRAND_COLOR, NFI_BRAND_COLOR_DARK, NFI_ORGANIZATION_NAME } from "../lib/nfi-brand";
+import { resolveWorkspaceBrandIdentity } from "../lib/nfi-brand";
 
 export function MainLayout() {
   const location = useLocation();
@@ -35,17 +35,22 @@ export function MainLayout() {
     { pollIntervalMs: shouldPollPendingImports ? 30_000 : false },
   );
 
-  // Per-tenant branding (falls back to NFI when the org hasn't set its own).
-  const brandLogo = workspaceSettings?.logoUrl ?? null;
-  const brandName = workspaceSettings?.workspaceName ?? null;
-  const isNfiWorkspace = user?.orgSlug === 'nfi'
-    || workspaceSettings?.organizationName === NFI_ORGANIZATION_NAME;
-  const brandPrimaryColor = isNfiWorkspace
-    ? NFI_BRAND_COLOR
-    : (workspaceSettings?.primaryColor ?? null);
-  const brandAccentColor = isNfiWorkspace
-    ? NFI_BRAND_COLOR_DARK
-    : (workspaceSettings?.accentColor ?? null);
+  // The public demo is an NFI product demonstration, not a fictional tenant
+  // brand. Its workspace name remains visible in context while the shell uses
+  // the same NFI identity as the primary workspace.
+  const brandIdentity = resolveWorkspaceBrandIdentity({
+    workspaceName: workspaceSettings?.workspaceName,
+    organizationName: workspaceSettings?.organizationName,
+    organizationSlug: user?.orgSlug,
+    demoModeEnabled: workspaceSettings?.demoModeEnabled,
+    logoUrl: workspaceSettings?.logoUrl,
+    primaryColor: workspaceSettings?.primaryColor,
+    accentColor: workspaceSettings?.accentColor,
+  });
+  const brandLogo = brandIdentity.logoUrl;
+  const brandName = brandIdentity.workspaceName;
+  const brandPrimaryColor = brandIdentity.primaryColor;
+  const brandAccentColor = brandIdentity.accentColor;
 
   // Drive the complete global tenant palette from the workspace record so
   // actions, focus states, navigation, and surfaces share one brand language.
@@ -146,7 +151,7 @@ export function MainLayout() {
               <TenantOrNfiLogo
                 logoUrl={brandLogo}
                 organizationName={brandName}
-                tenant={!isNfiWorkspace}
+                tenant={!brandIdentity.usesNfiBrand}
                 markSize={36}
                 monochromeMark
                 textClassName="text-slate-700 [&_div]:text-[11px]"

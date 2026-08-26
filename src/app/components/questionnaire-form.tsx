@@ -20,6 +20,7 @@ import { DEFAULT_SURVEY_SECTIONS, SURVEY_SECTION_LABELS, type SurveySection } fr
 import { PanelistSubmissionSuccess, PanelistTaskLoading, PanelistTaskUnavailable } from './panelist-task-state';
 import { responseRepeatWindow } from '../lib/response-repeat-window';
 import { RangeScaleTicks } from './range-scale-ticks';
+import { answeredNinePointValues } from '../lib/sensory-scales';
 
 function sliderFill(value: number, min: number, max: number, color: string): React.CSSProperties {
   const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
@@ -29,17 +30,18 @@ function sliderFill(value: number, min: number, max: number, color: string): Rea
 const SLIDER_MIN = 1;
 const SLIDER_MAX = 9;
 const SLIDER_MIDPOINT = 5;
+const HEDONIC_ASPECTS = ['overall', 'appearance', 'aroma', 'flavor', 'texture'] as const;
+
+function optionalSliderFill(value: number | undefined, color: string): React.CSSProperties {
+  return value === undefined
+    ? { background: '#e2e8f0' }
+    : sliderFill(value, SLIDER_MIN, SLIDER_MAX, color);
+}
 
 type FormData = {
   selectedCata: string[];
   intensityRatings: Record<string, number>;
-  hedonicScores: {
-    overall: number;
-    appearance: number;
-    aroma: number;
-    flavor: number;
-    texture: number;
-  };
+  hedonicScores: Partial<Record<(typeof HEDONIC_ASPECTS)[number], number>>;
   emotions: Record<string, number>;
   comments: string;
 };
@@ -67,13 +69,7 @@ export function QuestionnaireForm() {
   const [formData, setFormData] = useState<FormData>({
     selectedCata: [],
     intensityRatings: {},
-    hedonicScores: {
-      overall: 5,
-      appearance: 5,
-      aroma: 5,
-      flavor: 5,
-      texture: 5,
-    },
+    hedonicScores: {},
     emotions: {},
     comments: '',
   });
@@ -115,7 +111,7 @@ export function QuestionnaireForm() {
         setFormData({
           selectedCata: existing.cataAttributes || [],
           intensityRatings: existing.intensityRatings || {},
-          hedonicScores: { overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5, ...existing.hedonicScores },
+          hedonicScores: existing.hedonicScores || {},
           emotions: existing.emotionalProfile || {},
           comments: existing.comments || '',
         });
@@ -213,10 +209,10 @@ export function QuestionnaireForm() {
       return;
     }
     const completedIntensityRatings = configuredSections.includes('intensity')
-      ? Object.fromEntries(intensityAttributes.map(attr => [attr, formData.intensityRatings[attr] ?? SLIDER_MIDPOINT]))
+      ? answeredNinePointValues(intensityAttributes, formData.intensityRatings)
       : {};
     const completedEmotionalProfile = configuredSections.includes('emotions')
-      ? Object.fromEntries(emotionAttributes.map(emotion => [emotion, formData.emotions[emotion] ?? SLIDER_MIDPOINT]))
+      ? answeredNinePointValues(emotionAttributes, formData.emotions)
       : {};
     try {
       let hasCompletionWarning = false;
@@ -225,7 +221,9 @@ export function QuestionnaireForm() {
         productId,
         cataAttributes: configuredSections.includes('cata') ? formData.selectedCata : [],
         intensityRatings: completedIntensityRatings,
-        hedonicScores: configuredSections.includes('hedonic') ? formData.hedonicScores : {},
+        hedonicScores: configuredSections.includes('hedonic')
+          ? answeredNinePointValues(HEDONIC_ASPECTS, formData.hedonicScores)
+          : {},
         emotionalProfile: completedEmotionalProfile,
         comments: configuredSections.includes('comments') ? formData.comments : '',
         sampleCode: product?.blinded ? product.blindCode ?? undefined : undefined,
@@ -264,6 +262,19 @@ export function QuestionnaireForm() {
     setCurrentStep(step);
     window.scrollTo(0, 0);
   };
+
+  const reviewCardProps = (section: SurveySection, label: string) => ({
+    role: 'button' as const,
+    tabIndex: 0,
+    'aria-label': `Edit ${label}`,
+    onClick: () => jumpToStep(section),
+    onKeyDown: (event: React.KeyboardEvent) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        jumpToStep(section);
+      }
+    },
+  });
 
   if (productLoading) {
     return <PanelistTaskLoading message="Loading your tasting task…" />;
@@ -440,7 +451,7 @@ export function QuestionnaireForm() {
               onClick={() => {
                 sessionStorage.removeItem(`qs_draft_${user?.id}_${productId}`);
                 localStorage.removeItem(`qs_draft_${user?.id}_${productId}`);
-                setFormData({ selectedCata: [], intensityRatings: {}, hedonicScores: { overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5 }, emotions: {}, comments: '' });
+                setFormData({ selectedCata: [], intensityRatings: {}, hedonicScores: {}, emotions: {}, comments: '' });
                 setShowDraftBanner(false);
               }}
               className="ml-4 text-xs text-amber-700 underline hover:text-amber-900 whitespace-nowrap"
@@ -506,27 +517,31 @@ export function QuestionnaireForm() {
               </div>
             ) : (
               <div className="space-y-6">
-                {intensityAttributes.map(attr => (
-                  <div key={attr} className="space-y-2">
+                {intensityAttributes.map(attr => {
+                  const value = formData.intensityRatings[attr];
+                  const controlId = `intensity-${attr.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+                  return <div key={attr} className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label>
+                      <Label htmlFor={controlId}>
                         <AttributeTooltip
                           term={attr}
                           definition={INTENSITY_DEFINITIONS[attr] || CATA_DEFINITIONS[attr] || 'Rate the intensity of this attribute'}
                         />
                       </Label>
                       <span className="text-sm font-bold text-slate-900">
-                        {formData.intensityRatings[attr] ?? SLIDER_MIDPOINT}
+                        {value ?? 'Not answered'}
                       </span>
                     </div>
                     <input
+                      id={controlId}
                       type="range"
                       min={SLIDER_MIN}
                       max={SLIDER_MAX}
                       step="1"
-                      value={formData.intensityRatings[attr] ?? SLIDER_MIDPOINT}
+                      value={value ?? SLIDER_MIDPOINT}
                       onChange={(e) => handleIntensityChange(attr, parseInt(e.target.value))}
-                      style={sliderFill(formData.intensityRatings[attr] ?? SLIDER_MIDPOINT, SLIDER_MIN, SLIDER_MAX, '#334155')}
+                      style={optionalSliderFill(value, '#334155')}
+                      aria-valuetext={value === undefined ? `${attr}: not answered` : `${attr}: ${value} out of 9`}
                       className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-slate-700"
                     />
                     <RangeScaleTicks min={SLIDER_MIN} max={SLIDER_MAX} />
@@ -535,8 +550,8 @@ export function QuestionnaireForm() {
                       <span>Moderate</span>
                       <span>Extremely intense</span>
                     </div>
-                  </div>
-                ))}
+                  </div>;
+                })}
               </div>
             )}
           </CardContent>
@@ -557,25 +572,29 @@ export function QuestionnaireForm() {
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {Object.entries(formData.hedonicScores).map(([aspect, value]) => (
-                <div key={aspect} className="space-y-2">
+              {HEDONIC_ASPECTS.map(aspect => {
+                const value = formData.hedonicScores[aspect];
+                const controlId = `hedonic-${aspect}`;
+                return <div key={aspect} className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label className="capitalize">
+                    <Label htmlFor={controlId} className="capitalize">
                       <AttributeTooltip
                         term={aspect.replace(/([A-Z])/g, ' $1').trim()}
                         definition={HEDONIC_DEFINITIONS[aspect] || 'Rate your liking'}
                       />
                     </Label>
-                    <span className="text-sm font-bold text-slate-900">{value} / 9</span>
+                    <span className="text-sm font-bold text-slate-900">{value === undefined ? 'Not answered' : `${value} / 9`}</span>
                   </div>
                   <input
+                    id={controlId}
                     type="range"
                     min={SLIDER_MIN}
                     max={SLIDER_MAX}
                     step="1"
-                    value={value}
+                    value={value ?? SLIDER_MIDPOINT}
                     onChange={(e) => handleHedonicChange(aspect, parseInt(e.target.value))}
-                    style={sliderFill(value, SLIDER_MIN, SLIDER_MAX, '#334155')}
+                    style={optionalSliderFill(value, '#334155')}
+                    aria-valuetext={value === undefined ? `${aspect}: not answered` : `${aspect}: ${value} out of 9`}
                     className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-slate-700"
                   />
                   <RangeScaleTicks min={SLIDER_MIN} max={SLIDER_MAX} />
@@ -584,8 +603,8 @@ export function QuestionnaireForm() {
                     <span>Neither</span>
                     <span>Like extremely</span>
                   </div>
-                </div>
-              ))}
+                </div>;
+              })}
             </div>
           </CardContent>
         </Card>
@@ -612,32 +631,36 @@ export function QuestionnaireForm() {
               <div>
                 <h4 className="font-bold text-emerald-700 mb-4">Positive Emotions</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {SURVEY_EMOTIONS.positive.map(emotion => (
-                    <div key={emotion} className="space-y-1">
+                  {SURVEY_EMOTIONS.positive.map(emotion => {
+                    const value = formData.emotions[emotion];
+                    const controlId = `emotion-positive-${emotion.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+                    return <div key={emotion} className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <Label className="text-sm">
+                        <Label htmlFor={controlId} className="text-sm">
                           <AttributeTooltip
                             term={emotion}
                             definition={EMOTION_DEFINITIONS[emotion] || emotion}
                           />
                         </Label>
                         <span className="text-xs font-bold text-emerald-600">
-                          {formData.emotions[emotion] ?? SLIDER_MIDPOINT}
+                          {value ?? '—'}
                         </span>
                       </div>
                       <input
+                        id={controlId}
                         type="range"
                         min={SLIDER_MIN}
                         max={SLIDER_MAX}
                         step="1"
-                        value={formData.emotions[emotion] ?? SLIDER_MIDPOINT}
+                        value={value ?? SLIDER_MIDPOINT}
                         onChange={(e) => handleEmotionChange(emotion, parseInt(e.target.value))}
-                        style={sliderFill(formData.emotions[emotion] ?? SLIDER_MIDPOINT, SLIDER_MIN, SLIDER_MAX, '#059669')}
+                        style={optionalSliderFill(value, '#059669')}
+                        aria-valuetext={value === undefined ? `${emotion}: not answered` : `${emotion}: ${value} out of 9`}
                         className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-emerald-600"
                       />
                       <RangeScaleTicks min={SLIDER_MIN} max={SLIDER_MAX} />
-                    </div>
-                  ))}
+                    </div>;
+                  })}
                 </div>
               </div>
 
@@ -645,35 +668,39 @@ export function QuestionnaireForm() {
               <div>
                 <h4 className="font-bold text-rose-700 mb-4">Negative Emotions</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {SURVEY_EMOTIONS.negative.map(emotion => (
-                    <div key={emotion} className="space-y-1">
+                  {SURVEY_EMOTIONS.negative.map(emotion => {
+                    const value = formData.emotions[emotion];
+                    const controlId = `emotion-negative-${emotion.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+                    return <div key={emotion} className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <Label className="text-sm">
+                        <Label htmlFor={controlId} className="text-sm">
                           <AttributeTooltip
                             term={emotion}
                             definition={EMOTION_DEFINITIONS[emotion] || emotion}
                           />
                         </Label>
                         <span className="text-xs font-bold text-rose-600">
-                          {formData.emotions[emotion] ?? SLIDER_MIDPOINT}
+                          {value ?? '—'}
                         </span>
                       </div>
                       <input
+                        id={controlId}
                         type="range"
                         min={SLIDER_MIN}
                         max={SLIDER_MAX}
                         step="1"
-                        value={formData.emotions[emotion] ?? SLIDER_MIDPOINT}
+                        value={value ?? SLIDER_MIDPOINT}
                         onChange={(e) => handleEmotionChange(emotion, parseInt(e.target.value))}
-                        style={sliderFill(formData.emotions[emotion] ?? SLIDER_MIDPOINT, SLIDER_MIN, SLIDER_MAX, '#e11d48')}
+                        style={optionalSliderFill(value, '#e11d48')}
+                        aria-valuetext={value === undefined ? `${emotion}: not answered` : `${emotion}: ${value} out of 9`}
                         className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-rose-600"
                       />
                       <RangeScaleTicks min={SLIDER_MIN} max={SLIDER_MAX} />
                       <div className="flex justify-between text-xs text-slate-500">
                         <span>Not at all</span><span>Very strongly</span>
                       </div>
-                    </div>
-                  ))}
+                    </div>;
+                  })}
                 </div>
               </div>
             </div>
@@ -694,6 +721,7 @@ export function QuestionnaireForm() {
               rows={5}
               maxLength={2000}
               placeholder="Describe anything else you noticed about this product…"
+              aria-label="Additional comments about this product"
               value={formData.comments}
               onChange={(event) => setFormData(previous => ({ ...previous, comments: event.target.value }))}
             />
@@ -716,7 +744,7 @@ export function QuestionnaireForm() {
           </Card>
 
           {/* Review CATA */}
-          {configuredSections.includes('cata') && <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => jumpToStep('cata')}>
+          {configuredSections.includes('cata') && <Card className="cursor-pointer transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-700" {...reviewCardProps('cata', 'CATA attributes')}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2">
@@ -742,7 +770,7 @@ export function QuestionnaireForm() {
           </Card>}
 
           {/* Review Intensity */}
-          {configuredSections.includes('intensity') && <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => jumpToStep('intensity')}>
+          {configuredSections.includes('intensity') && <Card className="cursor-pointer transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-700" {...reviewCardProps('intensity', 'intensity ratings')}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2">
@@ -757,7 +785,9 @@ export function QuestionnaireForm() {
                 {formData.selectedCata.length > 0 ? formData.selectedCata.map(attr => (
                   <div key={attr} className="flex items-center justify-between text-sm">
                     <span className="text-slate-700">{attr}:</span>
-                    <span className="font-bold text-slate-900">{formData.intensityRatings[attr] ?? SLIDER_MIDPOINT}/9</span>
+                    <span className="font-bold text-slate-900">
+                      {formData.intensityRatings[attr] === undefined ? 'Not answered' : `${formData.intensityRatings[attr]}/9`}
+                    </span>
                   </div>
                 )) : (
                   <span className="text-sm text-slate-500 italic sm:col-span-2">No attributes rated</span>
@@ -767,7 +797,7 @@ export function QuestionnaireForm() {
           </Card>}
 
           {/* Review Hedonic */}
-          {configuredSections.includes('hedonic') && <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => jumpToStep('hedonic')}>
+          {configuredSections.includes('hedonic') && <Card className="cursor-pointer transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-700" {...reviewCardProps('hedonic', 'hedonic scores')}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2">
@@ -779,10 +809,12 @@ export function QuestionnaireForm() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {Object.entries(formData.hedonicScores).map(([aspect, value]) => (
+                {HEDONIC_ASPECTS.map(aspect => (
                   <div key={aspect} className="flex items-center justify-between text-sm">
                     <span className="text-slate-700 capitalize">{aspect.replace(/([A-Z])/g, ' $1').trim()}:</span>
-                    <span className="font-bold text-slate-900">{value}/9</span>
+                    <span className="font-bold text-slate-900">
+                      {formData.hedonicScores[aspect] === undefined ? 'Not answered' : `${formData.hedonicScores[aspect]}/9`}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -790,7 +822,7 @@ export function QuestionnaireForm() {
           </Card>}
 
           {/* Review Emotions */}
-          {configuredSections.includes('emotions') && <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => jumpToStep('emotions')}>
+          {configuredSections.includes('emotions') && <Card className="cursor-pointer transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-700" {...reviewCardProps('emotions', 'emotional response')}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2">
@@ -808,7 +840,7 @@ export function QuestionnaireForm() {
                     {SURVEY_EMOTIONS.positive
                       .map(emotion => (
                         <span key={emotion} className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-xs">
-                          {emotion} ({formData.emotions[emotion] ?? SLIDER_MIDPOINT})
+                          {emotion} ({formData.emotions[emotion] ?? 'not answered'})
                         </span>
                       ))}
                   </div>
@@ -819,7 +851,7 @@ export function QuestionnaireForm() {
                     {SURVEY_EMOTIONS.negative
                       .map(emotion => (
                         <span key={emotion} className="px-2 py-1 bg-rose-100 text-rose-700 rounded text-xs">
-                          {emotion} ({formData.emotions[emotion] ?? SLIDER_MIDPOINT})
+                          {emotion} ({formData.emotions[emotion] ?? 'not answered'})
                         </span>
                       ))}
                   </div>
@@ -829,7 +861,7 @@ export function QuestionnaireForm() {
           </Card>}
 
           {/* Open-ended comments */}
-          {configuredSections.includes('comments') && <Card className="cursor-pointer transition-colors hover:bg-slate-50" onClick={() => jumpToStep('comments')}>
+          {configuredSections.includes('comments') && <Card className="cursor-pointer transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-700" {...reviewCardProps('comments', 'additional comments')}>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <span className="w-8 h-8 rounded-full bg-slate-50 text-slate-700 flex items-center justify-center text-sm font-bold">{questionnaireSteps.indexOf('comments') + 1}</span>

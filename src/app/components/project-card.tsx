@@ -70,14 +70,14 @@ export function ProjectCard({ projectId, realProjectId, status, projectPath, onO
   };
 
   const completeStages = status.stages.filter(stage => stage.state === 'complete').length;
-  const activeStage = status.stages.find(stage => stage.state === 'current')
-    ?? status.stages.find(stage => stage.state === 'needs-review')
+  const activeStage = status.stages.find(stage => stage.state === 'needs-review')
+    ?? status.stages.find(stage => stage.state === 'current')
     ?? status.stages.find(stage => stage.state === 'available')
     ?? status.stages[status.stages.length - 1];
   const progressText = `${completeStages} of ${status.stages.length} stages complete`;
   const responsesText = status.responseTarget > 0
-    ? `${status.responseCompleted} / ${status.responseTarget} responses collected`
-    : 'No response target yet';
+    ? `${status.responseCompleted} of ${status.responseTarget} minimum sensory responses`
+    : 'No sensory response target yet';
   const evidenceText = status.issfScore !== null
     ? `ISSF ${status.issfScore.toFixed(0)} · ${status.confidence ?? 'Low'} confidence`
     : null;
@@ -178,7 +178,7 @@ export function ProjectCard({ projectId, realProjectId, status, projectPath, onO
           </section>
 
           <section className="space-y-2">
-            <p className="text-xs font-semibold text-slate-500">Evidence</p>
+            <p className="text-xs font-semibold text-slate-500">Sensory evidence</p>
             <p className="text-sm font-semibold text-slate-900">{responsesText}</p>
             {evidenceText && <p className="text-xs leading-5 text-slate-500">{evidenceText}</p>}
           </section>

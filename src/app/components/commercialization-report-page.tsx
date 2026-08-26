@@ -312,8 +312,13 @@ export function CommercializationReportPage() {
     );
   }
 
-  const approvalBlocker = snapshot.agentReview?.criticalBlockers?.[0]
-    ?? (usingDemoEvidence ? 'This version uses demo/reference evidence and cannot be released as a client deliverable.' : undefined);
+  const approvalBlockers = [...new Set([
+    ...(readiness?.approvalBlockers ?? ['Report readiness could not be verified.']),
+    ...(snapshot.agentReview?.criticalBlockers ?? []),
+    ...(usingDemoEvidence
+      ? ['This version uses demo/reference evidence and cannot be released as a client deliverable.']
+      : []),
+  ])];
 
   return (
     <div className="space-y-5">
@@ -393,7 +398,11 @@ export function CommercializationReportPage() {
         </section>
       )}
 
-      <ReportApprovalBar report={savedReport} blockedReason={approvalBlocker} />
+      <ReportApprovalBar
+        report={savedReport}
+        evidenceFingerprint={snapshot.decision.fingerprint}
+        blockedReasons={approvalBlockers}
+      />
 
       <Tabs value={workspaceTab} onValueChange={value => setWorkspaceTab(value as WorkspaceTab)}>
         <TabsList className="h-auto w-full justify-start overflow-x-auto rounded-md border border-slate-200 bg-slate-50 p-1">

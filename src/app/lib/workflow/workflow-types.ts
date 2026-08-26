@@ -52,6 +52,7 @@ export interface WorkflowNextAction {
 export interface WorkflowSummaryCounts {
   importedSamples: number;
   activeStudies: number;
+  studiesTotal: number;
   responsesCollected: number;
   decisionsRecorded: number;
   conceptsActive: number;

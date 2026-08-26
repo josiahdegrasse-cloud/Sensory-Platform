@@ -11,6 +11,7 @@ import {
   type DecisionType,
   type EvidenceBundle,
   type EvidenceRecord,
+  type InstrumentalParameterEvidence,
   type MissingDataIssue,
   type QualityWarning,
   type SampleEvidenceSummary,
@@ -30,7 +31,7 @@ export type {
   SampleEvidenceSummary,
 } from './report-evidence-types';
 
-const SCHEMA_VERSION = 'evidence-bundle.v1';
+const SCHEMA_VERSION = 'evidence-bundle.v2';
 const DEFAULT_WEIGHTS = { hedonic: 30, texture: 25, cata: 25, emotional: 15 };
 
 function stableStringify(value: unknown): string {
@@ -267,6 +268,23 @@ function createEvidenceRecords(
   return records;
 }
 
+function createInstrumentalParameterRecords(parameters: InstrumentalParameterEvidence[]): EvidenceRecord[] {
+  return parameters.map(parameter => toEvidence({
+    id: parameter.id,
+    evidenceType: 'metric',
+    title: parameter.label,
+    description: `${parameter.label} measured at ${parameter.mean}${parameter.unit ? ` ${parameter.unit}` : ''}${parameter.observationCount > 0 ? ` across ${parameter.observationCount} observation${parameter.observationCount === 1 ? '' : 's'}` : ''}.`,
+    value: parameter.mean,
+    unit: parameter.unit || null,
+    sourceType: parameter.source,
+    sourceId: parameter.key,
+    category: parameter.family,
+    sampleId: parameter.sampleId,
+    confidence: parameter.observationCount >= 3 ? 0.9 : parameter.observationCount > 0 ? 0.75 : 0.6,
+    isCritical: parameter.status === 'below_expected_range' || parameter.status === 'above_expected_range',
+  }));
+}
+
 function deriveCandidateDecision(decisions: GoStopTweakDecision[], missingData: MissingDataIssue[]): DecisionType {
   if (
     missingData.some(issue => issue.severity === 'critical') ||
@@ -483,6 +501,7 @@ export function buildEvidenceBundleFromProfiles(input: BuildEvidenceBundleInput)
     foodTypeSlug: input.foodTypeSlug,
     thresholds: input.thresholds,
     profiles: input.profiles,
+    instrumentalParameters: input.instrumentalParameters ?? [],
     convergenceData,
     validation: VALIDATION_DATASET,
   });
@@ -506,7 +525,10 @@ export function buildEvidenceBundleFromProfiles(input: BuildEvidenceBundleInput)
   const criticalAttributeResults: CriticalAttributeResult[] = decisions.flatMap(({ profile, decision }) =>
     decision.gates.map(gate => ({ sampleId: profile.sampleId, ...gate })),
   );
-  const evidence = createEvidenceRecords(decisions, missingData, qualityWarnings);
+  const evidence = [
+    ...createEvidenceRecords(decisions, missingData, qualityWarnings),
+    ...createInstrumentalParameterRecords(input.instrumentalParameters ?? []),
+  ];
   const usesCuratedReferenceEvidence = input.profiles.length > 0 && input.profiles.every(profile =>
     !profile.evidence || profile.evidence.provenance === 'reference'
   );
@@ -533,6 +555,7 @@ export function buildEvidenceBundleFromProfiles(input: BuildEvidenceBundleInput)
     decisionReasons: decisionReasons(candidate, decisionList, missingData, qualityWarnings),
     createdBy: input.createdBy,
     sensoryProfile: buildSensoryProfileEvidence(input.profiles, input.foodTypeSlug, decisionList[0]),
+    instrumentalParameters: input.instrumentalParameters ?? [],
     commercialProfile: getCommercializationProjectProfile(input.profiles[0]?.sampleId),
   };
 }

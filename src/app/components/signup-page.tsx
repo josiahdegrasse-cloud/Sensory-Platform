@@ -10,7 +10,7 @@ import { CURRENT_CONSENT_VERSION, emailDomainHasWorkspace } from '../lib/databas
 import type { LoginBranding } from './login-page';
 import { TenantOrNfiLogo } from './nfi-brand';
 import { brandThemeVariables } from '../lib/brand-theme';
-import { NFI_BRAND_COLOR, NFI_BRAND_COLOR_DARK } from '../lib/nfi-brand';
+import { resolveWorkspaceBrandIdentity } from '../lib/nfi-brand';
 import { getTenantSlug } from '../lib/tenant';
 
 interface Props {
@@ -19,11 +19,13 @@ interface Props {
 }
 
 export function SignupPage({ onBack, branding }: Props) {
-  const hasTenantBranding = Boolean(getTenantSlug());
-  const brandStyles = brandThemeVariables(hasTenantBranding ? branding : {
-    primaryColor: NFI_BRAND_COLOR,
-    accentColor: NFI_BRAND_COLOR_DARK,
-  }) as CSSProperties;
+  const tenantSlug = getTenantSlug();
+  const brandIdentity = resolveWorkspaceBrandIdentity({
+    ...branding,
+    organizationSlug: tenantSlug,
+  });
+  const hasTenantBranding = Boolean(tenantSlug) && !brandIdentity.usesNfiBrand;
+  const brandStyles = brandThemeVariables(brandIdentity) as CSSProperties;
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -154,8 +156,8 @@ export function SignupPage({ onBack, branding }: Props) {
             <div className="flex items-center gap-4">
               <div className="inline-flex min-h-12 min-w-12 items-center justify-center rounded-md bg-white px-2 ring-1 ring-[var(--brand-border)]">
                 <TenantOrNfiLogo
-                  logoUrl={branding?.logoUrl}
-                  organizationName={branding?.workspaceName}
+                  logoUrl={brandIdentity.logoUrl}
+                  organizationName={brandIdentity.organizationName}
                   tenant={hasTenantBranding}
                   logoClassName="h-9 max-w-36"
                   markSize={36}

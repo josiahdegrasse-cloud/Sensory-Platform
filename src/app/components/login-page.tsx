@@ -7,7 +7,7 @@ import { AlertCircle, ArrowLeft, CheckCircle2, ChevronRight } from 'lucide-react
 import { Alert, AlertDescription } from './ui/alert';
 import { NfiBrandMark, TenantOrNfiLogo } from './nfi-brand';
 import { brandThemeVariables } from '../lib/brand-theme';
-import { NFI_BRAND_COLOR, NFI_BRAND_COLOR_DARK } from '../lib/nfi-brand';
+import { resolveWorkspaceBrandIdentity } from '../lib/nfi-brand';
 import { getTenantSlug } from '../lib/tenant';
 
 export interface LoginBranding {
@@ -69,12 +69,14 @@ function mapLoginError(msg: string): string {
 const googleSignInEnabled = import.meta.env.VITE_ENABLE_GOOGLE_SIGNIN === 'true';
 
 export function LoginPage({ onSignup, branding }: Props) {
-  const hasTenantBranding = Boolean(getTenantSlug());
-  const brandName = hasTenantBranding ? (branding?.workspaceName || 'your') : 'NFI';
-  const brandStyles = brandThemeVariables(hasTenantBranding ? branding : {
-    primaryColor: NFI_BRAND_COLOR,
-    accentColor: NFI_BRAND_COLOR_DARK,
-  }) as CSSProperties;
+  const tenantSlug = getTenantSlug();
+  const brandIdentity = resolveWorkspaceBrandIdentity({
+    ...branding,
+    organizationSlug: tenantSlug,
+  });
+  const hasTenantBranding = Boolean(tenantSlug) && !brandIdentity.usesNfiBrand;
+  const brandName = hasTenantBranding ? (brandIdentity.workspaceName || 'your') : 'NFI';
+  const brandStyles = brandThemeVariables(brandIdentity) as CSSProperties;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -133,8 +135,8 @@ export function LoginPage({ onSignup, branding }: Props) {
           {hasTenantBranding ? (
             <div style={{ background: '#fff', borderRadius: 10, padding: '10px 14px', display: 'inline-flex', alignItems: 'center' }}>
               <TenantOrNfiLogo
-                logoUrl={branding?.logoUrl}
-                organizationName={branding?.workspaceName}
+                logoUrl={brandIdentity.logoUrl}
+                organizationName={brandIdentity.organizationName ?? brandIdentity.workspaceName}
                 tenant
                 markSize={44}
                 logoClassName="h-11 max-w-[200px]"
@@ -185,8 +187,8 @@ export function LoginPage({ onSignup, branding }: Props) {
             {hasTenantBranding ? (
               <div className="inline-flex items-center rounded-md bg-white px-3 py-2">
                 <TenantOrNfiLogo
-                  logoUrl={branding?.logoUrl}
-                  organizationName={branding?.workspaceName}
+                  logoUrl={brandIdentity.logoUrl}
+                  organizationName={brandIdentity.organizationName ?? brandIdentity.workspaceName}
                   tenant
                   markSize={30}
                   logoClassName="h-[30px] max-w-[170px]"

@@ -3,6 +3,7 @@ import type { ETongueMeasurement } from '../components/stage1-instrumental-data'
 import {
   buildInstrumentalParameterRadarModel,
   collectInstrumentalParameters,
+  formatInstrumentalValue,
   instrumentalAxisSupportsBuildChart,
   instrumentalPearsonCorrelation,
   instrumentalParameterChartKind,
@@ -10,6 +11,7 @@ import {
   learnInstrumentalParameterRelationships,
   orderInstrumentalAxesByBuildAvailability,
   orderInstrumentalAxesByRelationships,
+  rankInstrumentalDifferences,
   recommendInstrumentalChart,
   selectRecommendedBoxPlotAxes,
   summarizeInstrumentalDistribution,
@@ -124,6 +126,25 @@ describe('instrumental parameter radar model', () => {
     expect(model.axes[0].values['Prototype 1']?.deviationFromProjectMean).toBe(-50);
     expect(model.axes[0].values['Prototype 2']?.deviationFromProjectMean).toBe(0);
     expect(model.projectSampleCount).toBe(3);
+  });
+
+  it('ranks the largest project-relative differences and formats evidence without false precision', () => {
+    const model = buildInstrumentalParameterRadarModel({
+      samples,
+      selectedSampleIds: ['Cheddar ref', 'Mozza ref'],
+      selectedParameterKeys: ['fat', 'hardness-g', 'extension'],
+    });
+    const ranked = rankInstrumentalDifferences(model.axes, ['Cheddar ref', 'Mozza ref'], 2);
+
+    expect(ranked).toHaveLength(2);
+    expect(ranked.map(item => ({ parameterKey: item.parameterKey, sampleId: item.sampleId }))).toEqual([
+      { parameterKey: 'hardness-g', sampleId: 'Cheddar ref' },
+      { parameterKey: 'fat', sampleId: 'Cheddar ref' },
+    ]);
+    expect(ranked[0].deviationFromProjectMean).toBeCloseTo(33.333, 2);
+    expect(ranked.every(item => item.parameterKey !== 'extension')).toBe(true);
+    expect(formatInstrumentalValue(24.8333)).toBe('24.83');
+    expect(formatInstrumentalValue(0.12345)).toBe('0.123');
   });
 
   it('shows a constant positive measure at exactly the project average', () => {

@@ -3,6 +3,7 @@ import { dbError, fromJson, insertAuditEvent } from './shared';
 import { validateCompanyDomain } from '../company-email';
 import type { Database } from './database.types';
 import { tenantSignInUrl } from '../tenant';
+import { resolveWorkspaceBrandIdentity } from '../nfi-brand';
 
 type Tables = Database['public']['Tables'];
 
@@ -238,9 +239,19 @@ function toConceptBrandKit(value: unknown): ConceptBrandKit | null {
 }
 
 function toWorkspaceSettings(row: Tables['workspace_settings']['Row']): WorkspaceSettings {
+  const demoModeEnabled = Boolean(row.demo_mode_enabled ?? false);
+  const brandIdentity = resolveWorkspaceBrandIdentity({
+    workspaceName: row.workspace_name as string | null,
+    organizationName: row.organization_name as string | null,
+    demoModeEnabled,
+    logoUrl: row.logo_url as string | null,
+    primaryColor: row.primary_color as string | null,
+    accentColor: row.accent_color as string | null,
+  });
+
   return {
-    workspaceName: (row.workspace_name as string) ?? 'Sensory Analysis Workspace',
-    organizationName: (row.organization_name as string) ?? 'New Food Innovation',
+    workspaceName: brandIdentity.workspaceName ?? 'Sensory Analysis Workspace',
+    organizationName: brandIdentity.organizationName ?? 'New Food Innovation',
     adminContactEmail: (row.admin_contact_email as string) ?? '',
     defaultTimezone: (row.default_timezone as string) ?? 'America/New_York',
     dataRetentionMonths: Number(row.data_retention_months ?? 24),
@@ -259,7 +270,7 @@ function toWorkspaceSettings(row: Tables['workspace_settings']['Row']): Workspac
     requirePanelistId: Boolean(row.require_panelist_id ?? false),
     allowPanelistsViewHistory: Boolean(row.allow_panelists_view_history ?? false),
     inactivePanelistDays: Number(row.inactive_panelist_days ?? 90),
-    demoModeEnabled: Boolean(row.demo_mode_enabled ?? false),
+    demoModeEnabled,
     conceptImageGenerationEnabled: Boolean(row.concept_image_generation_enabled ?? true),
     conceptMaxGenerationsPerConcept: Number(row.concept_max_generations_per_concept ?? 12),
     conceptMonthlyBudgetCents: Number(row.concept_monthly_budget_cents ?? 2500),
@@ -277,9 +288,9 @@ function toWorkspaceSettings(row: Tables['workspace_settings']['Row']): Workspac
     notifyOnImport: Boolean(row.notify_on_import ?? true),
     notifyOnCompletionTarget: Boolean(row.notify_on_completion_target ?? true),
     notifyOnGenerationFailure: Boolean(row.notify_on_generation_failure ?? true),
-    logoUrl: (row.logo_url as string) ?? null,
-    primaryColor: (row.primary_color as string) ?? null,
-    accentColor: (row.accent_color as string) ?? null,
+    logoUrl: brandIdentity.logoUrl,
+    primaryColor: brandIdentity.primaryColor,
+    accentColor: brandIdentity.accentColor,
     // Cast: brand_kit lands with the concept_brand_kit migration and may not
     // be in the generated types yet (regenerate database.types.ts after it).
     brandKit: toConceptBrandKit((row as Record<string, unknown>).brand_kit),

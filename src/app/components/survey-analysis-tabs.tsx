@@ -35,6 +35,7 @@ interface HedonicDatum {
   category: string;
   score: number;
   sd: number;
+  n: number;
 }
 
 interface Emotions {
@@ -42,27 +43,28 @@ interface Emotions {
   negative: number;
 }
 
-// ─── Binomial significance threshold (one-tailed, p=0.5 null) ────────────────
-
-function binomProb(n: number, p: number): number {
-  return Math.pow(0.5, n) * (() => {
-    let c = 1;
-    for (let i = 0; i < Math.min(p, n - p); i++) c = c * (n - i) / (i + 1);
-    return c;
-  })();
+// Descriptive Wilson interval for a citation proportion. CATA has no universal
+// 50% chance-selection null, so this view deliberately avoids significance
+// claims unless a valid cross-product analysis is explicitly configured.
+export function cataPrevalenceInterval(count: number, n: number): [number, number] {
+  if (n <= 0) return [0, 0];
+  const z = 1.96;
+  const proportion = Math.max(0, Math.min(n, count)) / n;
+  const denominator = 1 + (z ** 2) / n;
+  const centre = (proportion + (z ** 2) / (2 * n)) / denominator;
+  const spread = z * Math.sqrt((proportion * (1 - proportion) + (z ** 2) / (4 * n)) / n) / denominator;
+  return [Math.max(0, centre - spread) * 100, Math.min(1, centre + spread) * 100];
 }
 
-function pValueOneTailed(count: number, n: number): number {
-  let p = 0;
-  for (let k = count; k <= n; k++) p += binomProb(n, k);
-  return p;
-}
-
-function sigLabel(count: number, n: number): string {
-  const p = pValueOneTailed(count, n);
-  if (p <= 0.01) return "**";
-  if (p <= 0.05) return "*";
-  return "";
+export function studentTCritical95(n: number): number {
+  const df = Math.max(1, Math.floor(n) - 1);
+  const criticalByDf = [
+    0, 12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306, 2.262,
+    2.228, 2.201, 2.179, 2.160, 2.145, 2.131, 2.120, 2.110, 2.101, 2.093,
+    2.086, 2.080, 2.074, 2.069, 2.064, 2.060, 2.056, 2.052, 2.048, 2.045,
+    2.042,
+  ];
+  return criticalByDf[df] ?? 1.96;
 }
 
 // ─── CATA Tab ────────────────────────────────────────────────────────────────
@@ -76,17 +78,9 @@ interface CATATabProps {
 }
 
 export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, activeSampleId, activeSampleName }: CATATabProps) {
-  const canShowSignificance = canShowInferentialStatistics(activePanelistN, !usingLiveData);
-  const critP05 = (() => {
-    for (let k = activePanelistN; k >= 0; k--) {
-      if (pValueOneTailed(k, activePanelistN) > 0.05) return k + 1;
-    }
-    return activePanelistN + 1;
-  })();
-
-  const dataWithSig = activeCataAttributes.map(a => ({
+  const chartData = activeCataAttributes.map(a => ({
     ...a,
-    sig: sigLabel(a.count, activePanelistN),
+    interval: cataPrevalenceInterval(a.count, activePanelistN),
   }));
 
   return (
@@ -101,21 +95,19 @@ export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, 
           </div>
           <p className="text-sm text-slate-700">
             Frequency of attribute selection across {activePanelistN} {usingLiveData ? 'panelists' : 'reference observations'}.
-            {canShowSignificance
-              ? ` Significance threshold: ≥${critP05}/${activePanelistN} (binomial, p=0.5, α=0.05).`
-              : ' Inferential significance is not shown for this evidence set.'}
+            {' '}Percentages and intervals are descriptive; they are not significance tests.
           </p>
           <SampleContext name={activeSampleName} id={activeSampleId} />
         </CardHeader>
         <CardContent>
           <div className="bg-white p-4 rounded-lg border-2 border-slate-200">
             <h3 className="font-bold text-slate-900 mb-3">
-              Top Attributes (CATA)
-              <span className="ml-2 text-xs font-normal text-slate-500">* p&lt;0.05 &nbsp; ** p&lt;0.01 &nbsp; (binomial test vs chance, n={activePanelistN})</span>
+              Descriptor citation prevalence
+              <span className="ml-2 text-xs font-normal text-slate-500">share of the panel selecting each term</span>
             </h3>
-            <ResponsiveContainer width="100%" height={Math.max(320, dataWithSig.length * 32)} key={`cata-chart-container-${activeSampleId}`}>
+            <ResponsiveContainer width="100%" height={Math.max(320, chartData.length * 32)} key={`cata-chart-container-${activeSampleId}`}>
               <BarChart
-                data={dataWithSig}
+                data={chartData}
                 layout="vertical"
                 margin={{ left: 8, right: 32 }}
                 id={`cata-chart-${activeSampleId}`}
@@ -133,15 +125,11 @@ export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, 
                   content={({ active, payload }) => {
                     if (active && payload && payload.length) {
                       const d = payload[0].payload;
-                      const p = pValueOneTailed(d.count, activePanelistN);
                       return (
                         <div className="bg-white p-3 shadow-lg rounded-lg border">
                           <p className="font-bold text-slate-900">{d.attribute}</p>
                           <p className="text-sm text-slate-700">Selected by {d.count}/{activePanelistN} ({d.percentage.toFixed(0)}%)</p>
-                          <p className="text-sm text-slate-700">
-                            p = {p < 0.001 ? "<0.001" : p.toFixed(3)}{" "}
-                            {d.sig ? <span className="font-bold text-emerald-700">{d.sig}</span> : "(n.s.)"}
-                          </p>
+                          <p className="text-sm text-slate-700">Descriptive 95% interval: {d.interval[0].toFixed(0)}%–{d.interval[1].toFixed(0)}%</p>
                         </div>
                       );
                     }
@@ -149,35 +137,33 @@ export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, 
                   }}
                 />
                 <Bar dataKey="count" fill={STATUS.info} isAnimationActive={false}>
-                  {dataWithSig.map((entry) => (
+                  {chartData.map((entry) => (
                     <Cell
                       key={`cell-${entry.id}`}
-                      fill={canShowSignificance && entry.sig === "**" ? STATUS.goDark : canShowSignificance && entry.sig === "*" ? STATUS.info : CHART_CHROME.muted}
+                      fill={entry.percentage >= 70 ? STATUS.goDark : entry.percentage >= 50 ? STATUS.info : CHART_CHROME.mutedDark}
                     />
                   ))}
                   <LabelList
-                    dataKey="sig"
+                    dataKey="percentage"
                     position="right"
-                    formatter={(value: string) => canShowSignificance ? value : ''}
-                    style={{ fontSize: 13, fontWeight: 700, fill: STATUS.goDark }}
+                    formatter={(value: number) => `${value.toFixed(0)}%`}
+                    style={{ fontSize: 12, fontWeight: 700, fill: CHART_CHROME.axis }}
                   />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
 
             <div className="mt-4 text-xs text-slate-500">
-              {canShowSignificance
-                ? 'Green bars are statistically significant above chance. Grey bars are not significant.'
-                : usingLiveData
-                  ? 'A minimum of 5 live responses is required before inferential significance is displayed.'
-                  : 'Reference/demo descriptor frequencies are descriptive only and must not be presented as client findings.'}
+              {usingLiveData
+                ? 'These are citation rates, not evidence that a descriptor is significant. Product comparisons require a matched CATA analysis and multiplicity control.'
+                : 'Reference/demo descriptor frequencies are descriptive only and must not be presented as client findings.'}
             </div>
 
             <div className="mt-6 grid gap-4 sm:grid-cols-3">
               <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-3 h-3 rounded-full bg-emerald-600"></div>
-                  <span className="text-sm font-semibold text-emerald-900">Strong Agreement (≥70%)</span>
+                  <span className="text-sm font-semibold text-emerald-900">Frequently selected (≥70%)</span>
                 </div>
                 <div className="text-xs text-emerald-700">
                   {activeCataAttributes.filter(a => a.count >= activePanelistN * 0.7).map(a => a.attribute).join(", ") || "None"}
@@ -186,7 +172,7 @@ export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, 
               <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-3 h-3 rounded-full bg-blue-600"></div>
-                  <span className="text-sm font-semibold text-blue-900">Moderate (50–70%)</span>
+                  <span className="text-sm font-semibold text-blue-900">Commonly selected (50–69%)</span>
                 </div>
                 <div className="text-xs text-blue-700">
                   {activeCataAttributes.filter(a => a.count >= activePanelistN * 0.5 && a.count < activePanelistN * 0.7).map(a => a.attribute).join(", ") || "None"}
@@ -195,7 +181,7 @@ export function CATATab({ activeCataAttributes, activePanelistN, usingLiveData, 
               <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-3 h-3 rounded-full bg-slate-600"></div>
-                  <span className="text-sm font-semibold text-slate-900">Not significant (&lt;50%)</span>
+                  <span className="text-sm font-semibold text-slate-900">Less frequently selected (&lt;50%)</span>
                 </div>
                 <div className="text-xs text-slate-700">
                   {activeCataAttributes.filter(a => a.count < activePanelistN * 0.5).map(a => a.attribute).join(", ") || "None"}
@@ -273,18 +259,23 @@ export function IntensityTab({
                 const label = attribute.replace(/([A-Z])/g, ' $1').trim();
                 const hi = 7;
                 const mid = 4;
-                const color = value >= hi ? "emerald" : value >= mid ? "blue" : "slate";
+                const badgeClass = value >= hi
+                  ? 'bg-emerald-700 text-white'
+                  : value >= mid
+                    ? 'bg-blue-700 text-white'
+                    : 'bg-slate-600 text-white';
+                const barClass = value >= hi ? 'bg-emerald-600' : value >= mid ? 'bg-blue-600' : 'bg-slate-600';
                 return (
                   <div key={attribute} className="space-y-1">
                     <div className="flex items-center justify-between text-sm">
                       <span className="capitalize font-medium text-slate-700">{label}</span>
-                      <Badge className={`bg-${color}-600 px-1.5 py-0 text-[11px] text-white`}>
+                      <Badge className={`${badgeClass} px-1.5 py-0 text-[11px]`}>
                         {value.toFixed(1)}/{INTENSITY_SCALE_MAX}
                       </Badge>
                     </div>
                     <div className="h-1.5 w-full rounded-full bg-slate-200">
                       <div
-                        className={`h-1.5 rounded-full bg-${color}-600 transition-all`}
+                        className={`h-1.5 rounded-full transition-all ${barClass}`}
                         style={{ width: `${intensityScalePercentage(value)}%` }}
                       ></div>
                     </div>
@@ -337,12 +328,24 @@ export function HedonicTab({
   activeSampleName,
 }: HedonicTabProps) {
   const n = activePanelistN;
-  const canShowIntervals = canShowInferentialStatistics(n, !usingLiveData);
+  if (activeHedonicData.length === 0) {
+    return (
+      <Card className="h-full">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Heart className="size-5 text-rose-600" />Overall liking scores (9-point scale)</CardTitle>
+          <p className="text-sm text-slate-700">No panelist supplied a liking score for this sample. Missing answers are not converted to zero or a neutral midpoint.</p>
+          <SampleContext name={activeSampleName} id={activeSampleId} />
+        </CardHeader>
+      </Card>
+    );
+  }
   const dataWithSem = activeHedonicData.map(d => ({
     ...d,
-    sem: d.sd / Math.sqrt(n),
-    ci95: 1.96 * d.sd / Math.sqrt(n),
+    sem: d.n > 0 ? d.sd / Math.sqrt(d.n) : 0,
+    ci95: canShowInferentialStatistics(d.n, !usingLiveData) ? studentTCritical95(d.n) * d.sd / Math.sqrt(d.n) : 0,
+    canShowInterval: canShowInferentialStatistics(d.n, !usingLiveData),
   }));
+  const intervalCount = dataWithSem.filter(datum => datum.canShowInterval).length;
 
   return (
       <Card className="h-full">
@@ -355,7 +358,7 @@ export function HedonicTab({
             <DataProvenanceBadge provenance={usingLiveData ? 'live' : 'reference'} n={n} />
           </div>
           <p className="text-sm text-slate-700">
-            Consumer acceptance ratings: 1 = Dislike Extremely, 9 = Like Extremely · n={n} panelists
+            Panel liking ratings: 1 = Dislike Extremely, 9 = Like Extremely. Valid n is shown per metric and may differ from the total panel n={n}.
           </p>
           <SampleContext name={activeSampleName} id={activeSampleId} />
         </CardHeader>
@@ -374,8 +377,11 @@ export function HedonicTab({
                         <p className="font-bold text-slate-900">{d.category}</p>
                         <p className="text-sm text-slate-700">Mean: {d.score.toFixed(2)} / 9</p>
                         <p className="text-sm text-slate-700">SD: ±{d.sd.toFixed(2)}</p>
-                        <p className="text-sm text-slate-700">SEM: ±{d.sem.toFixed(2)} (n={n})</p>
-                        <p className="text-sm text-emerald-700 font-medium">95% CI: {(d.score - d.ci95).toFixed(2)} – {(d.score + d.ci95).toFixed(2)}</p>
+                        <p className="text-sm text-slate-700">Valid responses: n={d.n}</p>
+                        {d.canShowInterval && <>
+                          <p className="text-sm text-slate-700">SEM: ±{d.sem.toFixed(2)}</p>
+                          <p className="text-sm text-emerald-700 font-medium">Approximate 95% CI: {(d.score - d.ci95).toFixed(2)} – {(d.score + d.ci95).toFixed(2)}</p>
+                        </>}
                       </div>
                     );
                   }
@@ -383,7 +389,7 @@ export function HedonicTab({
                 }}
               />
               <Bar dataKey="score" radius={[8, 8, 0, 0]}>
-                {canShowIntervals && <ErrorBar dataKey="ci95" width={4} strokeWidth={2} stroke={CHART_CHROME.axis} />}
+                {intervalCount > 0 && <ErrorBar dataKey="ci95" width={4} strokeWidth={2} stroke={CHART_CHROME.axis} />}
                 {dataWithSem.map((entry) => (
                   <Cell key={`hedonic-bar-${entry.id}`} fill={getHedonicColor(entry.score)} />
                 ))}
@@ -391,8 +397,8 @@ export function HedonicTab({
             </BarChart>
           </ResponsiveContainer>
           <p className="text-xs text-slate-500 mt-2 text-center">
-            {canShowIntervals
-              ? `Error bars show descriptive 95% confidence intervals (n=${n}). Confirm the study design before interpreting differences as meaningful.`
+            {intervalCount > 0
+              ? 'Error bars show approximate descriptive 95% confidence intervals for metrics with at least 5 valid live responses. Confirm the study design before interpreting differences as meaningful.'
               : usingLiveData
                 ? 'Confidence intervals are hidden until at least 5 live responses are available.'
                 : 'Reference/demo liking scores are shown for method orientation only.'}
@@ -400,17 +406,21 @@ export function HedonicTab({
 
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
             {activeHedonicData.map(item => {
-              const color = item.score >= 7 ? "emerald" : item.score >= 5 ? "amber" : "rose";
+              const tileClasses = item.score >= 7
+                ? { shell: 'border-emerald-200 bg-emerald-50', label: 'text-emerald-800', value: 'text-emerald-950', note: 'text-emerald-700' }
+                : item.score >= 5
+                  ? { shell: 'border-amber-200 bg-amber-50', label: 'text-amber-800', value: 'text-amber-950', note: 'text-amber-700' }
+                  : { shell: 'border-rose-200 bg-rose-50', label: 'text-rose-800', value: 'text-rose-950', note: 'text-rose-700' };
               const interpretation =
                 item.score >= 7 ? "Liked" :
                 item.score >= 5 ? "Neither like nor dislike" :
                 "Disliked";
 
               return (
-                <div key={item.category} className={`min-w-0 rounded-lg border border-${color}-200 bg-${color}-50 p-3`}>
-                  <div className={`text-xs text-${color}-700 mb-1`}>{item.category}</div>
-                  <div className={`text-3xl font-bold text-${color}-900`}>{item.score.toFixed(1)}</div>
-                  <div className={`text-xs text-${color}-600 mt-1`}>{interpretation}</div>
+                <div key={item.category} className={`min-w-0 rounded-lg border p-3 ${tileClasses.shell}`}>
+                  <div className={`mb-1 text-xs ${tileClasses.label}`}>{item.category} · n={item.n}</div>
+                  <div className={`text-3xl font-bold ${tileClasses.value}`}>{item.score.toFixed(1)}</div>
+                  <div className={`mt-1 text-xs ${tileClasses.note}`}>{interpretation}</div>
                 </div>
               );
             })}

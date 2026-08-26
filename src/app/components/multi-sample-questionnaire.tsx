@@ -19,6 +19,7 @@ import { queryClient } from '../lib/query-client';
 import { queryKeys } from '../lib/hooks';
 import { DEFAULT_SURVEY_SECTIONS } from '../lib/survey-sections';
 import { PanelistSubmissionSuccess, PanelistTaskLoading, PanelistTaskUnavailable } from './panelist-task-state';
+import { answeredNinePointValues } from '../lib/sensory-scales';
 
 function sliderFill(value: number, min: number, max: number, color: string): React.CSSProperties {
   const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
@@ -29,6 +30,13 @@ const SLIDER_MIN = 1;
 const SLIDER_MAX = 9;
 const SLIDER_MIDPOINT = 5;
 const PALATE_CLEANSE_SECONDS = 20;
+const HEDONIC_ASPECTS = ['overall', 'appearance', 'aroma', 'flavor', 'texture'] as const;
+
+function optionalSliderFill(value: number | undefined, color: string): React.CSSProperties {
+  return value === undefined
+    ? { background: '#e2e8f0' }
+    : sliderFill(value, SLIDER_MIN, SLIDER_MAX, color);
+}
 
 type Step = 'intro' | 'sample' | 'cleanse' | 'discrimination' | 'confirmation' | 'submitted';
 
@@ -54,7 +62,7 @@ interface MultiSampleDraft {
   sampleResponses: SampleResponse[];
   selectedCata: string[];
   intensityRatings: Record<string, number>;
-  hedonicScores: Record<string, number>;
+  hedonicScores: Partial<Record<(typeof HEDONIC_ASPECTS)[number], number>>;
   emotions: Record<string, number>;
   comments: string;
   differentSample: string;
@@ -97,13 +105,7 @@ export function MultiSampleQuestionnaire() {
   // Current sample form state
   const [selectedCata, setSelectedCata] = useState<string[]>([]);
   const [intensityRatings, setIntensityRatings] = useState<Record<string, number>>({});
-  const [hedonicScores, setHedonicScores] = useState({
-    overall: 5,
-    appearance: 5,
-    aroma: 5,
-    flavor: 5,
-    texture: 5
-  });
+  const [hedonicScores, setHedonicScores] = useState<Partial<Record<(typeof HEDONIC_ASPECTS)[number], number>>>({});
   const [emotions, setEmotions] = useState<Record<string, number>>({});
   const [comments, setComments] = useState('');
   
@@ -205,17 +207,19 @@ export function MultiSampleQuestionnaire() {
 
   const saveSampleResponse = () => {
     const completedIntensityRatings = configuredSections.includes('intensity')
-      ? Object.fromEntries(intensityAttributes.map(attr => [attr, intensityRatings[attr] ?? SLIDER_MIDPOINT]))
+      ? answeredNinePointValues(intensityAttributes, intensityRatings)
       : {};
     const completedEmotions = configuredSections.includes('emotions')
-      ? Object.fromEntries(emotionAttributes.map(emotion => [emotion, emotions[emotion] ?? SLIDER_MIDPOINT]))
+      ? answeredNinePointValues(emotionAttributes, emotions)
       : {};
     const response: SampleResponse = {
       sampleId: samples[currentSampleIndex].id,
       sampleCode: samples[currentSampleIndex].code,
       cataAttributes: configuredSections.includes('cata') ? selectedCata : [],
       intensityRatings: completedIntensityRatings,
-      hedonicScores: configuredSections.includes('hedonic') ? hedonicScores : {},
+      hedonicScores: configuredSections.includes('hedonic')
+        ? answeredNinePointValues(HEDONIC_ASPECTS, hedonicScores)
+        : {},
       emotions: completedEmotions,
       comments: configuredSections.includes('comments') ? comments : '',
     };
@@ -225,13 +229,7 @@ export function MultiSampleQuestionnaire() {
     // Reset form for next sample
     setSelectedCata([]);
     setIntensityRatings({});
-    setHedonicScores({
-      overall: 5,
-      appearance: 5,
-      aroma: 5,
-      flavor: 5,
-      texture: 5
-    });
+    setHedonicScores({});
     setEmotions({});
     setComments('');
   };
@@ -506,27 +504,31 @@ export function MultiSampleQuestionnaire() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {intensityAttributes.map(attr => (
-                <div key={attr} className="space-y-2">
+              {intensityAttributes.map(attr => {
+                const value = intensityRatings[attr];
+                const controlId = `multi-intensity-${currentSampleIndex}-${attr.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+                return <div key={attr} className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label>
+                    <Label htmlFor={controlId}>
                       <AttributeTooltip
                         term={attr}
                         definition={INTENSITY_DEFINITIONS[attr] || CATA_DEFINITIONS[attr] || 'Rate the intensity'}
                       />
                     </Label>
                     <span className="text-sm font-bold text-slate-900">
-                      {intensityRatings[attr] ?? SLIDER_MIDPOINT}
+                      {value ?? 'Not answered'}
                     </span>
                   </div>
                   <input
+                    id={controlId}
                     type="range"
                     min={SLIDER_MIN}
                     max={SLIDER_MAX}
                     step="1"
-                    value={intensityRatings[attr] ?? SLIDER_MIDPOINT}
+                    value={value ?? SLIDER_MIDPOINT}
                     onChange={(e) => handleIntensityChange(attr, parseInt(e.target.value))}
-                    style={sliderFill(intensityRatings[attr] ?? SLIDER_MIDPOINT, SLIDER_MIN, SLIDER_MAX, '#334155')}
+                    style={optionalSliderFill(value, '#334155')}
+                    aria-valuetext={value === undefined ? `${attr}: not answered` : `${attr}: ${value} out of 9`}
                     className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-slate-700"
                   />
                   <RangeScaleTicks min={SLIDER_MIN} max={SLIDER_MAX} />
@@ -535,8 +537,8 @@ export function MultiSampleQuestionnaire() {
                     <span>Moderate</span>
                     <span>Extremely intense</span>
                   </div>
-                </div>
-              ))}
+                </div>;
+              })}
             </div>
           </CardContent>
         </Card>}
@@ -551,25 +553,29 @@ export function MultiSampleQuestionnaire() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {Object.entries(hedonicScores).map(([aspect, value]) => (
-                <div key={aspect} className="space-y-2">
+              {HEDONIC_ASPECTS.map(aspect => {
+                const value = hedonicScores[aspect];
+                const controlId = `multi-hedonic-${currentSampleIndex}-${aspect}`;
+                return <div key={aspect} className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label className="capitalize">
+                    <Label htmlFor={controlId} className="capitalize">
                       <AttributeTooltip
                         term={aspect.replace(/([A-Z])/g, ' $1').trim()}
                         definition={HEDONIC_DEFINITIONS[aspect] || 'Rate your liking'}
                       />
                     </Label>
-                    <span className="text-sm font-bold text-slate-900">{value} / 9</span>
+                    <span className="text-sm font-bold text-slate-900">{value === undefined ? 'Not answered' : `${value} / 9`}</span>
                   </div>
                   <input
+                    id={controlId}
                     type="range"
                     min={SLIDER_MIN}
                     max={SLIDER_MAX}
                     step="1"
-                    value={value}
+                    value={value ?? SLIDER_MIDPOINT}
                     onChange={(e) => setHedonicScores(prev => ({ ...prev, [aspect]: parseInt(e.target.value) }))}
-                    style={sliderFill(value, SLIDER_MIN, SLIDER_MAX, '#334155')}
+                    style={optionalSliderFill(value, '#334155')}
+                    aria-valuetext={value === undefined ? `${aspect}: not answered` : `${aspect}: ${value} out of 9`}
                     className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-slate-700"
                   />
                   <RangeScaleTicks min={SLIDER_MIN} max={SLIDER_MAX} />
@@ -578,8 +584,8 @@ export function MultiSampleQuestionnaire() {
                     <span>Neither</span>
                     <span>Like extremely</span>
                   </div>
-                </div>
-              ))}
+                </div>;
+              })}
             </div>
           </CardContent>
         </Card>}
@@ -597,63 +603,71 @@ export function MultiSampleQuestionnaire() {
               <div>
                 <h4 className="font-bold text-emerald-700 mb-3">Positive Emotions</h4>
                 <div className="space-y-3">
-                  {SURVEY_EMOTIONS.positive.map(emotion => (
-                    <div key={emotion} className="space-y-1">
+                  {SURVEY_EMOTIONS.positive.map(emotion => {
+                    const value = emotions[emotion];
+                    const controlId = `multi-emotion-positive-${currentSampleIndex}-${emotion.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+                    return <div key={emotion} className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <Label className="text-sm">
+                        <Label htmlFor={controlId} className="text-sm">
                           <AttributeTooltip
                             term={emotion}
                             definition={EMOTION_DEFINITIONS[emotion] || emotion}
                           />
                         </Label>
                         <span className="text-xs font-bold text-emerald-600">
-                          {emotions[emotion] ?? SLIDER_MIDPOINT}
+                          {value ?? '—'}
                         </span>
                       </div>
                       <input
+                        id={controlId}
                         type="range"
                         min={SLIDER_MIN}
                         max={SLIDER_MAX}
                         step="1"
-                        value={emotions[emotion] ?? SLIDER_MIDPOINT}
+                        value={value ?? SLIDER_MIDPOINT}
                         onChange={(e) => handleEmotionChange(emotion, parseInt(e.target.value))}
-                        style={sliderFill(emotions[emotion] ?? SLIDER_MIDPOINT, SLIDER_MIN, SLIDER_MAX, '#059669')}
+                        style={optionalSliderFill(value, '#059669')}
+                        aria-valuetext={value === undefined ? `${emotion}: not answered` : `${emotion}: ${value} out of 9`}
                         className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-emerald-600"
                       />
                       <RangeScaleTicks min={SLIDER_MIN} max={SLIDER_MAX} />
-                    </div>
-                  ))}
+                    </div>;
+                  })}
                 </div>
               </div>
               <div>
                 <h4 className="font-bold text-rose-700 mb-3">Negative Emotions</h4>
                 <div className="space-y-3">
-                  {SURVEY_EMOTIONS.negative.map(emotion => (
-                    <div key={emotion} className="space-y-1">
+                  {SURVEY_EMOTIONS.negative.map(emotion => {
+                    const value = emotions[emotion];
+                    const controlId = `multi-emotion-negative-${currentSampleIndex}-${emotion.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+                    return <div key={emotion} className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <Label className="text-sm">
+                        <Label htmlFor={controlId} className="text-sm">
                           <AttributeTooltip
                             term={emotion}
                             definition={EMOTION_DEFINITIONS[emotion] || emotion}
                           />
                         </Label>
                         <span className="text-xs font-bold text-rose-600">
-                          {emotions[emotion] ?? SLIDER_MIDPOINT}
+                          {value ?? '—'}
                         </span>
                       </div>
                       <input
+                        id={controlId}
                         type="range"
                         min={SLIDER_MIN}
                         max={SLIDER_MAX}
                         step="1"
-                        value={emotions[emotion] ?? SLIDER_MIDPOINT}
+                        value={value ?? SLIDER_MIDPOINT}
                         onChange={(e) => handleEmotionChange(emotion, parseInt(e.target.value))}
-                        style={sliderFill(emotions[emotion] ?? SLIDER_MIDPOINT, SLIDER_MIN, SLIDER_MAX, '#e11d48')}
+                        style={optionalSliderFill(value, '#e11d48')}
+                        aria-valuetext={value === undefined ? `${emotion}: not answered` : `${emotion}: ${value} out of 9`}
                         className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-rose-600"
                       />
                       <RangeScaleTicks min={SLIDER_MIN} max={SLIDER_MAX} />
-                    </div>
-                  ))}
+                    </div>;
+                  })}
                 </div>
               </div>
             </div>

@@ -1508,7 +1508,7 @@ export function AdminConfig({
                         <div key={attr} className="flex items-center space-x-2 p-2 bg-slate-50 rounded border border-slate-200">
                           <Checkbox id={`attr-modal-${attr}`} checked disabled />
                           <Label htmlFor={`attr-modal-${attr}`} className="text-sm flex-1 font-medium text-slate-900">{attr}</Label>
-                          <button onClick={() => handleRemoveAttribute(attr)} className="text-rose-600 hover:text-rose-700"><Trash2 className="size-4" /></button>
+                          <button type="button" aria-label={`Remove ${attr}`} onClick={() => handleRemoveAttribute(attr)} className="inline-flex size-9 items-center justify-center text-rose-600 hover:text-rose-800"><Trash2 className="size-4" /></button>
                         </div>
                       ))}
                     </div>

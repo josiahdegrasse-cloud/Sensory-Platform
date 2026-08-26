@@ -150,12 +150,12 @@ export function PanelistDashboard() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <Link to={`/concept-survey/${test.id}`}>
-                    <Button className="w-full text-base py-6 bg-slate-900 hover:bg-slate-800 text-white">
+                  <Button asChild className="w-full text-base py-6 bg-slate-900 hover:bg-slate-800 text-white">
+                    <Link to={`/concept-survey/${test.id}`}>
                       <Megaphone className="size-5 mr-2" />
                       Begin Marketing Evaluation
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
                 </CardContent>
               </Card>
             ))}
@@ -228,12 +228,12 @@ export function PanelistDashboard() {
                         <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
                           <p className="text-xs text-slate-700">Submitting again creates a new run. This option locks at {new Date(repeatWindow.closesAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}, 30 minutes after your first submission.</p>
                         </div>
-                        <Link to={`/questionnaire/${product.id}`}>
-                          <Button variant="outline" className="w-full border-slate-200 text-slate-700 hover:bg-slate-50">
+                        <Button asChild variant="outline" className="w-full border-slate-200 text-slate-700 hover:bg-slate-50">
+                          <Link to={`/questionnaire/${product.id}`}>
                             <Edit2 className="size-4 mr-2" />
                             Add another run
-                          </Button>
-                        </Link>
+                          </Link>
+                        </Button>
                       </div>
                     ) : product.isMultiSample ? (
                       <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">

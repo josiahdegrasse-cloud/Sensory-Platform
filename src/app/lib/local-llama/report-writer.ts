@@ -117,6 +117,21 @@ export function buildLocalReportWriterPacket(
         benchmark: finding.benchmark.slice(0, 160),
         decisionEffect: finding.decisionEffect.slice(0, 180),
       })),
+      measuredParameters: context.instrumental.parameters.slice(0, 16).map(parameter => ({
+        label: parameter.label.slice(0, 120),
+        value: parameter.mean,
+        unit: parameter.unit.slice(0, 32),
+        observationCount: parameter.observationCount,
+        standardDeviation: parameter.standardDeviation ?? null,
+        range: parameter.minimum !== undefined && parameter.maximum !== undefined
+          ? [parameter.minimum, parameter.maximum]
+          : null,
+        expectedRange: parameter.metadata.expectedMinimum !== undefined || parameter.metadata.expectedMaximum !== undefined
+          ? [parameter.metadata.expectedMinimum ?? null, parameter.metadata.expectedMaximum ?? null]
+          : null,
+        status: parameter.status,
+      })),
+      totalParameterCount: context.instrumental.parameters.length,
     },
     concept: writer.concept,
     positioning: {
@@ -128,7 +143,7 @@ export function buildLocalReportWriterPacket(
       packagingHypothesis: context.conceptStrategy.packagingHypothesis.slice(0, 220),
     },
     approvedClaims: claims,
-    externalLiterature: evidenceCards.slice(0, 3).map(card => ({
+    externalLiterature: evidenceCards.slice(0, 5).map(card => ({
       citation: card.citationLabel ?? card.id,
       topic: card.topic.slice(0, 140),
       evidenceUse: card.evidenceUse,

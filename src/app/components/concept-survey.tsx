@@ -13,8 +13,7 @@ import { useConceptTest, useInsertConceptResponse } from '../lib/hooks';
 import { CheckCircle2, ChevronLeft, ChevronRight, Image as ImageIcon, AlertCircle, Megaphone } from 'lucide-react';
 import { useScrollToTop } from '../lib/use-scroll-to-top';
 import { PanelistTaskLoading, PanelistTaskUnavailable } from './panelist-task-state';
-
-const SCALE_MIDPOINT = 5;
+import { findUnansweredRequiredConceptQuestions } from '../lib/concept-response-validation';
 
 export function ConceptSurvey() {
   const { conceptId } = useParams();
@@ -43,12 +42,7 @@ export function ConceptSurvey() {
       return;
     }
     const completedAnswers = { ...answers };
-    test?.questions.forEach(question => {
-      if (question.type === 'scale' && completedAnswers[question.id] === undefined) {
-        completedAnswers[question.id] = SCALE_MIDPOINT;
-      }
-    });
-    const unanswered = test?.questions.filter(q => q.required && (completedAnswers[q.id] === undefined || completedAnswers[q.id] === null || (typeof completedAnswers[q.id] === 'string' && !(completedAnswers[q.id] as string).trim()) || (Array.isArray(completedAnswers[q.id]) && (completedAnswers[q.id] as string[]).length === 0)));
+    const unanswered = test ? findUnansweredRequiredConceptQuestions(test.questions, completedAnswers) : [];
     if (unanswered && unanswered.length > 0) {
       setError(`Please answer all required questions before submitting (${unanswered.length} remaining).`);
       return;
@@ -110,13 +104,13 @@ export function ConceptSurvey() {
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-12">
       {/* Header */}
-      <div className="bg-gradient-to-r from-orange-50 to-amber-50 p-6 rounded-xl border border-orange-200">
+      <div className="rounded-xl border border-orange-200 bg-orange-50 p-6">
         <div className="flex items-center gap-2 mb-3">
           <div className="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center">
             <Megaphone className="size-4 text-white" />
           </div>
           <div>
-            <Badge className="bg-orange-500 text-white text-xs">Marketing Evaluation</Badge>
+            <Badge className="bg-orange-700 text-white text-xs">Marketing Evaluation</Badge>
           </div>
           <Badge variant="outline" className="text-xs">{test.category}</Badge>
         </div>
@@ -155,6 +149,8 @@ export function ConceptSurvey() {
               {validImages.length > 1 && (
                 <>
                   <button
+                    type="button"
+                    aria-label="Previous concept visual"
                     onClick={() => setImageIndex(i => Math.max(0, i - 1))}
                     disabled={imageIndex === 0}
                     className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-2 shadow-md disabled:opacity-30 transition-opacity"
@@ -162,6 +158,8 @@ export function ConceptSurvey() {
                     <ChevronLeft className="size-5 text-slate-700" />
                   </button>
                   <button
+                    type="button"
+                    aria-label="Next concept visual"
                     onClick={() => setImageIndex(i => Math.min(validImages.length - 1, i + 1))}
                     disabled={imageIndex === validImages.length - 1}
                     className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-2 shadow-md disabled:opacity-30 transition-opacity"
@@ -179,6 +177,9 @@ export function ConceptSurvey() {
                 {validImages.map((url, i) => (
                   <button
                     key={i}
+                    type="button"
+                    aria-label={`Show concept visual ${i + 1}`}
+                    aria-pressed={i === imageIndex}
                     onClick={() => setImageIndex(i)}
                     className={`flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all ${
                       i === imageIndex ? 'border-orange-500 shadow-sm' : 'border-slate-200 hover:border-orange-300'
@@ -217,7 +218,7 @@ export function ConceptSurvey() {
         <Button
           onClick={handleSubmit}
           disabled={submitting}
-          className="w-full bg-orange-500 hover:bg-orange-600 text-white py-6 text-base font-semibold"
+          className="w-full bg-orange-700 py-6 text-base font-semibold text-white hover:bg-orange-800"
         >
           {submitting ? 'Submitting…' : 'Submit my feedback'}
         </Button>
@@ -240,6 +241,7 @@ function QuestionCard({
   onAnswer: (val: string | number | string[]) => void;
   images: string[];
 }) {
+  const questionLabelId = `concept-question-${question.id}`;
   return (
     <Card className="border border-slate-200 hover:border-orange-200 transition-colors">
       <CardContent className="pt-4 pb-4">
@@ -261,13 +263,13 @@ function QuestionCard({
               </div>
             )}
             <div className="flex items-start justify-between gap-2">
-              <p className="text-sm font-medium text-slate-900 leading-snug">{question.text}</p>
+              <p id={questionLabelId} className="text-sm font-medium text-slate-900 leading-snug">{question.text}</p>
               {question.required && (
                 <span className="text-[11px] text-rose-500 font-semibold flex-shrink-0">Required</span>
               )}
             </div>
             {question.type === 'scale' && (
-              <ScaleInput value={answer as number | undefined} onChange={onAnswer} />
+              <ScaleInput value={answer as number | undefined} onChange={onAnswer} labelledBy={questionLabelId} />
             )}
             {question.type === 'multiple_choice' && question.options && (
               <MultipleChoiceInput
@@ -275,6 +277,7 @@ function QuestionCard({
                 value={answer as string | string[] | undefined}
                 onChange={onAnswer}
                 multiSelect={question.text.toLowerCase().includes('select all')}
+                labelledBy={questionLabelId}
               />
             )}
             {question.type === 'open_text' && (
@@ -284,6 +287,7 @@ function QuestionCard({
                 placeholder="Your answer…"
                 rows={3}
                 className="resize-none"
+                aria-labelledby={questionLabelId}
               />
             )}
             {question.type === 'ranking' && question.options && (
@@ -291,6 +295,7 @@ function QuestionCard({
                 options={question.options}
                 value={answer as string[] | undefined}
                 onChange={onAnswer}
+                questionLabel={question.text}
               />
             )}
             {question.type === 'image_choice' && (
@@ -298,6 +303,7 @@ function QuestionCard({
                 images={images}
                 value={answer as string | undefined}
                 onChange={onAnswer}
+                labelledBy={questionLabelId}
               />
             )}
           </div>
@@ -307,24 +313,25 @@ function QuestionCard({
   );
 }
 
-function ScaleInput({ value, onChange }: { value: number | undefined; onChange: (v: number) => void }) {
-  const currentValue = value ?? SCALE_MIDPOINT;
+function ScaleInput({ value, onChange, labelledBy }: { value: number | undefined; onChange: (v: number) => void; labelledBy: string }) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" role="group" aria-labelledby={labelledBy}>
       <div className="flex justify-between text-xs text-slate-500">
         <span>1 — Not at all</span>
         <span>9 — Extremely</span>
       </div>
-      <div className="flex gap-1.5">
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-9">
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
           <button
             key={n}
             type="button"
             onClick={() => onChange(n)}
-            className={`flex-1 py-2 rounded-md text-sm font-bold border-2 transition-all ${
-              currentValue === n
-                ? 'bg-orange-500 border-orange-500 text-white shadow-sm'
-                : 'border-slate-200 text-slate-700 hover:border-orange-300 hover:text-orange-600'
+            aria-pressed={value === n}
+            aria-label={`${n} out of 9`}
+            className={`min-h-11 rounded-md border-2 py-2 text-sm font-bold transition-colors ${
+              value === n
+                ? 'border-orange-700 bg-orange-700 text-white'
+                : 'border-slate-200 text-slate-700 hover:border-orange-400 hover:text-orange-700'
             }`}
           >
             {n}
@@ -336,19 +343,20 @@ function ScaleInput({ value, onChange }: { value: number | undefined; onChange: 
 }
 
 function MultipleChoiceInput({
-  options, value, onChange, multiSelect,
+  options, value, onChange, multiSelect, labelledBy,
 }: {
   options: string[];
   value: string | string[] | undefined;
   onChange: (v: string | string[]) => void;
   multiSelect: boolean;
+  labelledBy: string;
 }) {
   if (multiSelect) {
     const selected = (value as string[]) ?? [];
     const toggle = (opt: string) =>
       onChange(selected.includes(opt) ? selected.filter(s => s !== opt) : [...selected, opt]);
     return (
-      <div className="space-y-2">
+      <div className="space-y-2" role="group" aria-labelledby={labelledBy}>
         {options.map(opt => (
           <label key={opt} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 rounded-md p-1.5 transition-colors">
             <input type="checkbox" checked={selected.includes(opt)} onChange={() => toggle(opt)} className="accent-orange-500" />
@@ -359,7 +367,7 @@ function MultipleChoiceInput({
     );
   }
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" role="radiogroup" aria-labelledby={labelledBy}>
       {options.map(opt => (
         <label key={opt} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 rounded-md p-1.5 transition-colors">
           <input
@@ -377,22 +385,25 @@ function MultipleChoiceInput({
 }
 
 function ImageChoiceInput({
-  images, value, onChange,
+  images, value, onChange, labelledBy,
 }: {
   images: string[];
   value: string | undefined;
   onChange: (v: string) => void;
+  labelledBy: string;
 }) {
   if (images.length === 0) {
     return <p className="text-xs text-slate-500 italic">No concept visuals to compare.</p>;
   }
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" role="group" aria-labelledby={labelledBy}>
       {images.map((url, i) => (
         <button
           key={`${url}-${i}`}
           type="button"
           onClick={() => onChange(url)}
+          aria-pressed={value === url}
+          aria-label={`Choose concept visual ${i + 1}`}
           className={`relative rounded-lg overflow-hidden border-2 transition-all ${
             value === url ? 'border-orange-500 shadow-md' : 'border-slate-200 hover:border-orange-300'
           }`}
@@ -413,11 +424,12 @@ function ImageChoiceInput({
 }
 
 function RankingInput({
-  options, value, onChange,
+  options, value, onChange, questionLabel,
 }: {
   options: string[];
   value: string[] | undefined;
   onChange: (v: string[]) => void;
+  questionLabel: string;
 }) {
   const ranked = value ?? [];
   const select = (pos: number, opt: string) => {
@@ -436,6 +448,7 @@ function RankingInput({
           <select
             value={ranked[i] ?? ''}
             onChange={e => select(i, e.target.value)}
+            aria-label={`${questionLabel}: rank ${i + 1}`}
             className="flex-1 text-sm border border-slate-200 rounded-md px-2 py-1.5 bg-white"
           >
             <option value="">— Select —</option>

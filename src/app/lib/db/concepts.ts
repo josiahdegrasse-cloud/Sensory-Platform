@@ -110,6 +110,10 @@ export interface CommercializationReportRecord {
   createdBy: string;
   approvedBy: string | null;
   approvedAt: string | null;
+  claimsApprovedBy?: string | null;
+  claimsApprovedAt?: string | null;
+  claimsScope?: string | null;
+  claimsEvidenceFingerprint?: string | null;
   createdAt: string;
   updatedAt: string;
   formulationVersionId?: string | null;
@@ -621,6 +625,10 @@ function toCommercializationReport(row: Tables['commercialization_reports']['Row
     createdBy: row.created_by,
     approvedBy: row.approved_by ?? null,
     approvedAt: row.approved_at ?? null,
+    claimsApprovedBy: row.claims_approved_by ?? null,
+    claimsApprovedAt: row.claims_approved_at ?? null,
+    claimsScope: row.claims_scope ?? null,
+    claimsEvidenceFingerprint: row.claims_evidence_fingerprint ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
     formulationVersionId: row.formulation_version_id ?? null,
@@ -765,6 +773,26 @@ export async function updateCommercializationReportStatus(input: {
     .update({ status: input.status, ...approval, updated_at: new Date().toISOString() })
     .eq('id', input.id);
   if (error) throw dbError(error);
+}
+
+export async function approveCommercializationReportClaims(input: {
+  id: string;
+  scope: string;
+  evidenceFingerprint: string;
+}): Promise<CommercializationReportRecord> {
+  const { data, error } = await supabase.rpc('approve_report_claims', {
+    target_report_id: input.id,
+    target_scope: input.scope,
+    target_evidence_fingerprint: input.evidenceFingerprint,
+  });
+  if (error) throw dbError(error);
+  return toCommercializationReport(data as Tables['commercialization_reports']['Row']);
+}
+
+export async function revokeCommercializationReportClaims(id: string): Promise<CommercializationReportRecord> {
+  const { data, error } = await supabase.rpc('revoke_report_claims', { target_report_id: id });
+  if (error) throw dbError(error);
+  return toCommercializationReport(data as Tables['commercialization_reports']['Row']);
 }
 
 function toConceptSettings(row: Tables['concept_generation_settings']['Row']): ConceptGenerationSettings {

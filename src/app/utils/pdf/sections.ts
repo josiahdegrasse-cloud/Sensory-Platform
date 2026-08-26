@@ -132,6 +132,20 @@ export interface ScientificContextData {
     decisionEffect: 'supports' | 'contradicts' | 'watch' | 'neutral';
     replicateCount: number | null;
   }>;
+  parameters: Array<{
+    id: string;
+    label: string;
+    family: string;
+    value: number;
+    unit: string;
+    observationCount: number;
+    standardDeviation: number | null;
+    minimum: number | null;
+    maximum: number | null;
+    status: string;
+  }>;
+  parameterCount: number;
+  benchmarkedParameterCount: number;
   guidance: Array<{
     title: string;
     guidance: string;
@@ -697,8 +711,28 @@ export function buildPerformanceDashboard(input: CommercializationReportPdfInput
 
 export function buildScientificContext(input: CommercializationReportPdfInput): ScientificContextData {
   const instrumental = input.reportContext?.instrumental;
-  const citations = (input.snapshot.literatureCitations ?? []).slice(0, 3);
+  const citations = (input.snapshot.literatureCitations ?? []).slice(0, 5);
   const safeGuidance = evidenceAssistGuidance(input);
+  const parameters = [...(instrumental?.parameters ?? [])]
+    .sort((left, right) => {
+      const leftOutside = left.status === 'below_expected_range' || left.status === 'above_expected_range';
+      const rightOutside = right.status === 'below_expected_range' || right.status === 'above_expected_range';
+      return Number(rightOutside) - Number(leftOutside)
+        || right.observationCount - left.observationCount
+        || left.label.localeCompare(right.label);
+    })
+    .map(parameter => ({
+      id: parameter.id,
+      label: parameter.label,
+      family: parameter.family,
+      value: parameter.mean,
+      unit: parameter.unit,
+      observationCount: parameter.observationCount,
+      standardDeviation: parameter.standardDeviation ?? null,
+      minimum: parameter.minimum ?? null,
+      maximum: parameter.maximum ?? null,
+      status: parameter.status,
+    }));
   return {
     instrumentalAvailable: Boolean(instrumental?.available),
     instrumentalIncludedInDecision: Boolean(instrumental?.includedInDecision),
@@ -715,6 +749,9 @@ export function buildScientificContext(input: CommercializationReportPdfInput): 
       decisionEffect: finding.decisionEffect,
       replicateCount: finding.replicateCount ?? null,
     })),
+    parameters,
+    parameterCount: parameters.length,
+    benchmarkedParameterCount: parameters.filter(parameter => parameter.status !== 'not_benchmarked').length,
     guidance: safeGuidance.length > 0 ? safeGuidance : literatureGuidance(citations),
     sources: citations.map(citation => ({ id: citation.id, ...literatureMetadata(citation) })),
   };
@@ -1304,6 +1341,9 @@ export function buildAppendix(input: CommercializationReportPdfInput): AppendixD
         : `Concept test n=${snapshot.evidence.responseCount}.`],
       ['Evidence provenance', ctx?.evidenceProvenance ?? 'Not documented.'],
       ['Instrumental evidence', ctx?.instrumental.absenceNote ?? (ctx?.instrumental.findings.map(item => `${item.source}: ${item.finding}`).join(' | ') || 'Not itemized.')],
+      ['Measured parameter register', ctx?.instrumental.parameters.length
+        ? ctx.instrumental.parameters.map(parameter => `${parameter.label}=${parameter.mean}${parameter.unit ? ` ${parameter.unit}` : ''} (${parameter.observationCount || 'unspecified'} observations; ${parameter.status.replace(/_/g, ' ')})`).join(' | ')
+        : 'No measured parameters attached.'],
       ['AI provenance', ctx?.imageProvenance.aiGenerated ? 'AI-generated concept visual labeled directional; prompt metadata retained with source project.' : 'No AI-generated report visual used.'],
       ['Conditions', ctx?.decision.conditions.join(' | ') ?? 'Not recorded.'],
       ['Approval status', input.status],

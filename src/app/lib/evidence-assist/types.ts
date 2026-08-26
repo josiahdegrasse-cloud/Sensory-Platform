@@ -166,6 +166,18 @@ export interface ReportWriterContext {
       benchmark: string;
       decisionEffect: string;
     }>;
+    parameters: Array<{
+      id: string;
+      label: string;
+      family: string;
+      value: number;
+      unit: string;
+      observationCount: number;
+      standardDeviation: number | null;
+      minimum: number | null;
+      maximum: number | null;
+      status: string;
+    }>;
   };
   concept: {
     responseCount: number;

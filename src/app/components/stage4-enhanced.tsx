@@ -32,6 +32,7 @@ import { WorkflowPageHeader } from "./workflow-page-header";
 import { ProjectReadinessSetupCard } from "./project-readiness-setup-card";
 import { FormulationContextStrip } from './formulation-context-strip';
 import { buildEvidenceBundleFromProfiles } from '../lib/report-evidence';
+import { collectReportInstrumentalParameters } from '../lib/report-instrumental-parameters';
 import type { DecisionOutcome } from "../utils/go-stop-tweak-engine";
 import { DecisionRagPreloader } from './decision-rag-preloader';
 import { WorkflowLoadingState, WorkflowQueryErrorState } from './workflow-loading-state';
@@ -485,6 +486,7 @@ export function Stage4Enhanced() {
               createdBy: user.id,
               thresholds: { go: goThreshold, stop: stopThreshold },
               minimumResponses,
+              instrumentalParameters: collectReportInstrumentalParameters(instrumentalDataset, selected.sampleId),
             });
             const evidenceBundle = await saveEvidenceBundle({
               projectId: selected.sampleId,

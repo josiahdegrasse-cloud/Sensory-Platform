@@ -97,6 +97,21 @@ describe('report literature grounding', () => {
     expect(grounding.literatureCitations).toEqual([]);
   });
 
+  it('keeps a concise set of up to five distinct approved literature sources', () => {
+    const cards = Array.from({ length: 7 }, (_, index) => card({
+      id: `literature-${index + 1}`,
+      citationLabel: `L${index + 1}`,
+      sourceTitle: `Source ${index + 1}.pdf`,
+      sourcePath: `/approved/source-${index + 1}.pdf`,
+      contentFingerprint: `sha256:source-${index + 1}`,
+    }));
+
+    const grounding = buildReportGrounding(result(cards));
+
+    expect(grounding.evidenceCards).toHaveLength(5);
+    expect(grounding.literatureCitations.map(item => item.id)).toEqual(['L1', 'L2', 'L3', 'L4', 'L5']);
+  });
+
   it('requests only bounded scientific, method, and validation guidance', async () => {
     fetchEvidenceAssist.mockResolvedValue(result([card()]));
     const controller = new AbortController();
@@ -107,8 +122,8 @@ describe('report literature grounding', () => {
       expect.objectContaining({
         productContext: expect.objectContaining({ intendedReportSection: 'commercialization_report' }),
         options: {
-          maxCards: 3,
-          minimumRelevance: 0.55,
+          maxCards: 8,
+          minimumRelevance: 0.45,
           evidenceUses: ['scientific_context', 'method_guidance', 'validation_guidance'],
         },
       }),

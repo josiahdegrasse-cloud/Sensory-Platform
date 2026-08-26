@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  answeredNinePointValues,
   intensityScalePercentage,
+  isAnsweredNinePointScale,
   toNinePointIntensity,
 } from './sensory-scales';
 
@@ -21,5 +23,14 @@ describe('sensory intensity scales', () => {
     expect(intensityScalePercentage(1)).toBe(0);
     expect(intensityScalePercentage(5)).toBe(50);
     expect(intensityScalePercentage(9)).toBe(100);
+  });
+
+  it('keeps unanswered scales missing instead of inventing a midpoint', () => {
+    expect(answeredNinePointValues(
+      ['saltiness', 'sweetness', 'sourness'],
+      { saltiness: 7, sweetness: undefined, sourness: 0 },
+    )).toEqual({ saltiness: 7 });
+    expect(isAnsweredNinePointScale(undefined)).toBe(false);
+    expect(isAnsweredNinePointScale(5)).toBe(true);
   });
 });

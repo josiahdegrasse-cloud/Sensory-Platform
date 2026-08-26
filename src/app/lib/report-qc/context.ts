@@ -17,7 +17,10 @@ import type {
   ReportLimitation,
   RiskItem,
 } from './types';
-import type { CommercializationProjectProfile } from '../report-evidence-types';
+import type {
+  CommercializationProjectProfile,
+  InstrumentalParameterEvidence,
+} from '../report-evidence-types';
 
 // ════════════════════════════════════════════════════════════════════════════
 // Builds the canonical ReportContext from the existing snapshot + live decision.
@@ -45,6 +48,7 @@ export interface SensoryAugmentation {
   foodTypeSlug?: string;
   /** Instrumental findings, when the decision snapshot includes them. */
   instrumentalFindings?: InstrumentalFinding[];
+  instrumentalParameters?: InstrumentalParameterEvidence[];
   instrumentSignal?: number | null;
   gatePenalty?: number;
   confidenceCalculation?: ReportContext['methodology']['confidenceCalculation'];
@@ -116,7 +120,10 @@ export function buildReportContext(input: BuildContextInput): ReportContext {
     confidenceCalculation: augmentation.confidenceCalculation ?? [],
   });
 
-  const instrumental = buildInstrumental(augmentation.instrumentalFindings ?? []);
+  const instrumental = buildInstrumental(
+    augmentation.instrumentalFindings ?? [],
+    augmentation.instrumentalParameters ?? [],
+  );
   const limitations = buildLimitations(snapshot, dimensions, validatedResponseCount, weakest, readiness, instrumental, input.commercialProfile);
   const claims = buildClaims(snapshot, augmentation.sourceEvidenceIds);
 
@@ -276,16 +283,28 @@ function buildConditions(dimensions: DimensionEvidence[], responseCount: number,
   return conditions;
 }
 
-function buildInstrumental(findings: InstrumentalFinding[]): InstrumentalEvidence {
-  if (findings.length === 0) {
+function buildInstrumental(
+  findings: InstrumentalFinding[],
+  parameters: InstrumentalParameterEvidence[],
+): InstrumentalEvidence {
+  if (findings.length === 0 && parameters.length === 0) {
     return {
       available: false,
       includedInDecision: false,
       findings: [],
-      absenceNote: 'No instrumental evidence was included in this decision snapshot. The recommendation is based on sensory evidence only; instrumental confirmation (e-tongue, GC-MS, GC-O) is a pilot-stage requirement.',
+      parameters: [],
+      absenceNote: 'No instrumental evidence was included in this decision snapshot, including arbitrary measured product parameters. The recommendation is based on sensory evidence only; fit-for-purpose instrumental confirmation is a pilot-stage requirement.',
     };
   }
-  return { available: true, includedInDecision: true, findings, absenceNote: null };
+  return {
+    available: true,
+    includedInDecision: findings.length > 0,
+    findings,
+    parameters,
+    absenceNote: findings.length > 0
+      ? null
+      : 'Measured product parameters are attached for technical context but were not inputs to the recorded decision.',
+  };
 }
 
 function buildLimitations(

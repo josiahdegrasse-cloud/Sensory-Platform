@@ -439,6 +439,7 @@ export function Stage1Instrumental() {
     radarData,
     compareRadarSeries,
     compareRadarChartData,
+    tasteDomainMax,
   } = useInstrumentalChartViewModel({
     filteredETongueData,
     gcmsData,
@@ -615,8 +616,8 @@ export function Stage1Instrumental() {
       )}
 
       <WorkflowPageHeader
-        title="Machine Testing"
-        description="Import machine and instrumental data for the active project."
+        title="Instrumental data"
+        description="Review imported measurements, compare samples, and identify the evidence that matters for this project."
         actions={(
           <>
           <input
@@ -708,7 +709,7 @@ export function Stage1Instrumental() {
         <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2">
           <AlertCircle className="size-4 text-rose-600 mt-0.5 shrink-0" />
           <span className="text-sm text-rose-700">{importError}</span>
-          <button onClick={() => setImportError(null)} className="ml-auto text-rose-400 hover:text-rose-700">
+          <button type="button" aria-label="Dismiss import error" onClick={() => setImportError(null)} className="ml-auto inline-flex size-11 items-center justify-center text-rose-600 hover:text-rose-800">
             <X className="size-4" />
           </button>
         </div>
@@ -720,8 +721,10 @@ export function Stage1Instrumental() {
           <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between">
             <span className="text-sm text-emerald-700 flex items-center gap-1"><Check className="size-3.5" />{importSuccess}</span>
             <button
+              type="button"
+              aria-label="Dismiss import confirmation"
               onClick={() => { setImportSuccess(null); setLastImportSummary(null); }}
-              className="text-emerald-400 hover:text-emerald-700"
+              className="inline-flex size-11 items-center justify-center text-emerald-700 hover:text-emerald-900"
             >
               <X className="size-4" />
             </button>
@@ -1205,6 +1208,7 @@ export function Stage1Instrumental() {
                         : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                     }`}
                     aria-expanded={aromaOpen}
+                    aria-controls="aroma-threshold-review"
                   >
                     <span className="block font-bold">
                       {aromaThresholdExceedances.length > 0
@@ -1218,7 +1222,12 @@ export function Stage1Instrumental() {
                     </span>
                   </button>
                   {aromaOpen && (
-                    <div className="absolute right-0 mt-2 w-[48rem] max-w-[calc(100vw-24rem)] overflow-hidden rounded-lg border border-rose-200 bg-white shadow-xl">
+                    <div
+                      id="aroma-threshold-review"
+                      role="region"
+                      aria-label="Aroma compounds and threshold review"
+                      className="fixed inset-x-4 top-20 z-50 max-h-[calc(100vh-6rem)] overflow-y-auto rounded-lg border border-rose-200 bg-white shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[min(48rem,calc(100vw-2rem))]"
+                    >
                       <div className="border-b border-rose-100 bg-rose-50 px-3 py-2">
                         <p className="text-xs font-bold text-rose-950">Aroma compounds and threshold review</p>
                         <p className="mt-0.5 text-[11px] text-rose-800">
@@ -1231,7 +1240,7 @@ export function Stage1Instrumental() {
                       </div>
                       {aromaFlaggedCompounds.length > 0 ? (
                         <>
-                          <div className="grid grid-cols-[1.5fr_2fr] gap-3 border-b border-slate-100 p-3">
+                          <div className="grid grid-cols-1 gap-3 border-b border-slate-100 p-3 md:grid-cols-[1.5fr_2fr]">
                             <div className="rounded-md border border-rose-100 bg-rose-50 px-3 py-2">
                               <p className="text-[11px] font-semibold uppercase text-rose-700">Primary aroma note</p>
                               <p className="mt-1 truncate text-sm font-bold text-rose-950">{primaryAromaCompound?.name ?? 'None'}</p>
@@ -1241,7 +1250,7 @@ export function Stage1Instrumental() {
                                   : 'No GC-O compound detected'}
                               </p>
                             </div>
-                            <div className="grid grid-cols-4 gap-2">
+                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                               <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2">
                                 <p className="text-[11px] font-semibold text-slate-500">Detected</p>
                                 <p className="text-lg font-bold text-slate-950">{selectedGCMSData.length}</p>
@@ -1260,8 +1269,8 @@ export function Stage1Instrumental() {
                               </div>
                             </div>
                           </div>
-                          <div className="max-h-80 overflow-y-auto">
-                            <div className="grid grid-cols-[minmax(10rem,1.35fr)_minmax(9rem,1fr)_5.5rem_5.5rem_4.75rem_5.75rem] gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase text-slate-500">
+                          <div className="max-h-80 overflow-auto">
+                            <div className="grid min-w-[45rem] grid-cols-[minmax(10rem,1.35fr)_minmax(9rem,1fr)_5.5rem_5.5rem_4.75rem_5.75rem] gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase text-slate-500">
                               <span>Compound</span>
                               <span>Aroma note</span>
                               <span className="text-right">Conc.</span>
@@ -1274,7 +1283,7 @@ export function Stage1Instrumental() {
                               const ratio = hasThreshold ? compound.concentration / compound.threshold : null;
                               const aboveThreshold = ratio !== null && ratio >= 1;
                               return (
-                                <div key={`${compound.name}-${idx}`} className="grid grid-cols-[minmax(10rem,1.35fr)_minmax(9rem,1fr)_5.5rem_5.5rem_4.75rem_5.75rem] gap-2 border-b border-slate-100 px-3 py-2.5 text-xs last:border-b-0">
+                                <div key={`${compound.name}-${idx}`} className="grid min-w-[45rem] grid-cols-[minmax(10rem,1.35fr)_minmax(9rem,1fr)_5.5rem_5.5rem_4.75rem_5.75rem] gap-2 border-b border-slate-100 px-3 py-2.5 text-xs last:border-b-0">
                                   <span className="min-w-0 truncate font-semibold text-slate-900">{compound.name}</span>
                                   <span className="min-w-0 truncate text-slate-600">{compound.aroma || 'Unspecified'}</span>
                                   <span className="text-right font-semibold text-slate-800">{compound.concentration.toFixed(1)} ppm</span>
@@ -1316,7 +1325,7 @@ export function Stage1Instrumental() {
                       tickSize={36}
                       tick={{ fill: CHART_CHROME.axis, fontSize: 13, fontWeight: 500 }}
                     />
-                    <PolarRadiusAxis angle={90} domain={[0, 5]} tick={{ fill: CHART_CHROME.muted, fontSize: 11 }} tickCount={6} />
+                    <PolarRadiusAxis angle={90} domain={[0, tasteDomainMax]} tick={{ fill: CHART_CHROME.mutedDark, fontSize: 11 }} tickCount={Math.min(tasteDomainMax + 1, 8)} />
                     {compareMode ? (
                       compareRadarSeries.map((series) => (
                         <Radar
@@ -1350,13 +1359,13 @@ export function Stage1Instrumental() {
                                 <div className="space-y-1 mt-1">
                                   {payload.map((entry: { stroke?: string; name?: unknown; value?: unknown }, idx: number) => (
                                     <p key={idx} className="font-semibold text-xs" style={{ color: entry.stroke }}>
-                                      {String(entry.name)}: {Number(entry.value).toFixed(2)} / 5.0
+                                      {String(entry.name)}: {Number(entry.value).toFixed(2)}
                                     </p>
                                   ))}
                                 </div>
                               ) : (
                                 <p className="font-semibold text-sm" style={{ color: selectedColor }}>
-                                  {data.value.toFixed(2)} / 5.0
+                                  {data.value.toFixed(2)}
                                 </p>
                               )}
                             </div>
@@ -1489,16 +1498,10 @@ export function Stage1Instrumental() {
       {pcaData.length > 0 && <Card className="border-2 border-slate-200 shadow-sm">
         <CardHeader className="bg-slate-50 border-b rounded-t-lg">
           <CardTitle className="text-lg flex items-center gap-2">
-            Taste Similarity Analysis (PCA)
+            Taste similarity map
           </CardTitle>
           <p className="text-xs text-slate-700 mt-1">
-            {foodType === 'all'
-              ? 'Principal component analysis across all sample types'
-              : foodType === 'bread'
-              ? 'E-Tongue principal component analysis across bread formulations'
-              : foodType === 'cheese'
-              ? 'Comparison of plant-based formulations against dairy reference standards'
-              : `E-Tongue principal component analysis across ${activeFoodTypeLabel} formulations`}
+            Weighted E-tongue taste map for {activeFoodTypeLabel}. Nearby points have more similar measured taste profiles; the axes are calculated comparison dimensions, not direct sensory scores.
           </p>
         </CardHeader>
         <CardContent className="pt-6">
@@ -1523,18 +1526,18 @@ export function Stage1Instrumental() {
                     <XAxis
                       type="number"
                       dataKey="pc1"
-                      name="Savory Dimension"
+                      name="Salt and umami relative to sourness"
                       domain={['auto', 'auto']}
                       tick={{ fill: CHART_CHROME.axis, fontSize: 12 }}
-                      label={{ value: "PC1 - Savory/Salt Dimension", position: "insideBottom", offset: -5, style: { fill: CHART_CHROME.axis, fontSize: 12, fontWeight: 500 } }}
+                      label={{ value: "Salt + umami ↔ sour", position: "insideBottom", offset: -5, style: { fill: CHART_CHROME.axis, fontSize: 12, fontWeight: 500 } }}
                     />
                     <YAxis
                       type="number"
                       dataKey="pc2"
-                      name="Bitter-Sour Dimension"
+                      name="Bitter and sour relative to sweetness"
                       domain={['auto', 'auto']}
                       tick={{ fill: CHART_CHROME.axis, fontSize: 12 }}
-                      label={{ value: "PC2 - Acid/Bitter Dimension", angle: -90, position: "insideLeft", offset: 5, style: { fill: CHART_CHROME.axis, fontSize: 12, fontWeight: 500 } }}
+                      label={{ value: "Bitter + sour ↔ sweet", angle: -90, position: "insideLeft", offset: 5, style: { fill: CHART_CHROME.axis, fontSize: 12, fontWeight: 500 } }}
                     />
                     <Tooltip
                       content={({ active, payload }) => {
@@ -1543,7 +1546,7 @@ export function Stage1Instrumental() {
                           return (
                             <div className="bg-white p-3 shadow-lg rounded-lg border border-slate-200">
                               <p className="font-semibold text-slate-900">{data.name}</p>
-                              <p className="text-xs text-slate-500 mt-1">PC1: {data.pc1} | PC2: {data.pc2}</p>
+                              <p className="text-xs text-slate-500 mt-1">Horizontal: {data.pc1} | Vertical: {data.pc2}</p>
                               <p className="text-xs text-slate-700 mt-1">{data.category}</p>
                             </div>
                           );

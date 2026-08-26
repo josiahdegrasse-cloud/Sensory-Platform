@@ -41,6 +41,8 @@ export interface QuestionnaireResponse {
   productId: string;
   timestamp: string;
   runNumber: number;
+  responseSessionId?: string;
+  sampleOrdinal?: number;
   cataAttributes: string[];
   intensityRatings: Record<string, number>;
   hedonicScores: Partial<HedonicReferenceScores>;

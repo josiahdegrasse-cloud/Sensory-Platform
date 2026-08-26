@@ -11,6 +11,8 @@ type ResponseRow = Pick<
   | 'product_id'
   | 'created_at'
   | 'run_number'
+  | 'response_session_id'
+  | 'sample_ordinal'
   | 'cata_attributes'
   | 'intensity_ratings'
   | 'hedonic_scores'
@@ -32,6 +34,8 @@ const RESPONSE_SELECT = [
   'product_id',
   'created_at',
   'run_number',
+  'response_session_id',
+  'sample_ordinal',
   'cata_attributes',
   'intensity_ratings',
   'hedonic_scores',
@@ -42,7 +46,7 @@ const RESPONSE_SELECT = [
   'different_sample',
   'ranking',
   'presentation_order',
-].join(',') as 'id,user_id,product_id,created_at,run_number,cata_attributes,intensity_ratings,hedonic_scores,emotional_profile,comments,session_type,sample_code,different_sample,ranking,presentation_order';
+].join(',') as 'id,user_id,product_id,created_at,run_number,response_session_id,sample_ordinal,cata_attributes,intensity_ratings,hedonic_scores,emotional_profile,comments,session_type,sample_code,different_sample,ranking,presentation_order';
 
 function toResponse(row: ResponseRow): QuestionnaireResponse {
   const rawComments = row.comments ?? '';
@@ -76,11 +80,11 @@ function toResponse(row: ResponseRow): QuestionnaireResponse {
     productId: row.product_id,
     timestamp: row.created_at as string,
     runNumber: row.run_number ?? 1,
+    responseSessionId: row.response_session_id,
+    sampleOrdinal: row.sample_ordinal,
     cataAttributes: fromJson<string[]>(row.cata_attributes) || [],
     intensityRatings: fromJson<Record<string, number>>(row.intensity_ratings) || {},
-    hedonicScores: fromJson<QuestionnaireResponse['hedonicScores']>(row.hedonic_scores) || {
-      overall: 5, appearance: 5, aroma: 5, flavor: 5, texture: 5,
-    },
+    hedonicScores: fromJson<QuestionnaireResponse['hedonicScores']>(row.hedonic_scores) || {},
     emotionalProfile: fromJson<Record<string, number>>(row.emotional_profile) || {},
     comments,
     sessionType,
@@ -193,13 +197,20 @@ export async function fetchUserResponseAtRun(
   return data ? toResponse(data) : null;
 }
 
-type NewQuestionnaireResponse = Omit<QuestionnaireResponse, 'id' | 'timestamp' | 'runNumber'>;
+type NewQuestionnaireResponse = Omit<QuestionnaireResponse, 'id' | 'timestamp' | 'runNumber' | 'responseSessionId' | 'sampleOrdinal'>;
 
-function toInsertPayload(response: NewQuestionnaireResponse, runNumber: number): ResponseInsert {
+function toInsertPayload(
+  response: NewQuestionnaireResponse,
+  runNumber: number,
+  responseSessionId: string,
+  sampleOrdinal: number,
+): ResponseInsert {
   return {
     user_id: response.userId,
     product_id: response.productId,
     run_number: runNumber,
+    response_session_id: responseSessionId,
+    sample_ordinal: sampleOrdinal,
     cata_attributes: response.cataAttributes,
     intensity_ratings: response.intensityRatings,
     hedonic_scores: response.hedonicScores,
@@ -221,6 +232,7 @@ export async function insertResponseBatch(
   if (responses.some(response => response.userId !== userId || response.productId !== productId)) {
     throw new Error('A response batch must belong to one panelist and one study.');
   }
+  const responseSessionId = crypto.randomUUID();
 
   // Retry loop handles the race condition where two concurrent submissions
   // read the same max run_number and both try to insert it.
@@ -238,7 +250,7 @@ export async function insertResponseBatch(
     const firstRunNumber =
       existing && existing.length > 0 ? (existing[0].run_number as number) + 1 : 1;
     const insertPayload = responses.map((response, index) =>
-      toInsertPayload(response, firstRunNumber + index));
+      toInsertPayload(response, firstRunNumber + index, responseSessionId, index + 1));
 
     const { data, error } = await supabase
       .from('responses')

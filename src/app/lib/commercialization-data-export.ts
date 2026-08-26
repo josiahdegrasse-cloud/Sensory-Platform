@@ -48,7 +48,7 @@ export const REPORT_DATA_SECTION_DEFINITIONS: ReportDataSectionDefinition[] = [
   { key: 'concept-results', group: 'Consumers', label: 'Concept results summary', description: 'Aggregated scores, selections, purchase intent, and comments.', sheetName: 'Concept Results' },
   { key: 'concept-responses', group: 'Consumers', label: 'Concept responses', description: 'One de-identified row per consumer response.', sheetName: 'Concept Responses' },
   { key: 'product-records', group: 'Food & science', label: 'Product records', description: 'Linked sensory-study and sample metadata.', sheetName: 'Product Records' },
-  { key: 'e-tongue', group: 'Food & science', label: 'E-tongue data', description: 'Taste-channel measurements and observation counts.', sheetName: 'E-Tongue' },
+  { key: 'e-tongue', group: 'Food & science', label: 'Instrumental parameters', description: 'All imported numeric parameters with units, replicate counts, variability, and ranges.', sheetName: 'Instrumental Parameters' },
   { key: 'gc-ms', group: 'Food & science', label: 'GC-MS compounds', description: 'Volatile compounds, concentrations, aromas, and thresholds.', sheetName: 'GC-MS' },
   { key: 'composition', group: 'Food & science', label: 'Composition data', description: 'Protein, fat, moisture, pH, salt, and calcium.', sheetName: 'Composition' },
   { key: 'formulation', group: 'Food & science', label: 'Formulation & ingredients', description: 'Saved formulation version and reviewed ingredient records.', sheetName: 'Formulation' },
@@ -329,12 +329,12 @@ function eTongue(input: CommercializationDataExportInput) {
   targetInstrumentalSamples(input).forEach(sample => {
     rows.push({
       'Sample ID': sample.sampleId, Sample: sample.sampleName ?? '', Category: sample.category ?? sample.type ?? '',
-      Measurement: 'Sourness', Value: sample.sourness, Unit: '', 'Observation count': null,
+      Measurement: 'Sourness', Value: sample.sourness, Unit: '', 'Observation count': null, 'Standard deviation': null, Minimum: null, Maximum: null,
     });
-    rows.push({ 'Sample ID': sample.sampleId, Sample: sample.sampleName ?? '', Category: sample.category ?? sample.type ?? '', Measurement: 'Bitterness', Value: sample.bitterness, Unit: '', 'Observation count': null });
-    rows.push({ 'Sample ID': sample.sampleId, Sample: sample.sampleName ?? '', Category: sample.category ?? sample.type ?? '', Measurement: 'Saltiness', Value: sample.saltiness, Unit: '', 'Observation count': null });
-    rows.push({ 'Sample ID': sample.sampleId, Sample: sample.sampleName ?? '', Category: sample.category ?? sample.type ?? '', Measurement: 'Umami', Value: sample.umami, Unit: '', 'Observation count': null });
-    rows.push({ 'Sample ID': sample.sampleId, Sample: sample.sampleName ?? '', Category: sample.category ?? sample.type ?? '', Measurement: 'Sweetness', Value: sample.sweetness, Unit: '', 'Observation count': null });
+    rows.push({ 'Sample ID': sample.sampleId, Sample: sample.sampleName ?? '', Category: sample.category ?? sample.type ?? '', Measurement: 'Bitterness', Value: sample.bitterness, Unit: '', 'Observation count': null, 'Standard deviation': null, Minimum: null, Maximum: null });
+    rows.push({ 'Sample ID': sample.sampleId, Sample: sample.sampleName ?? '', Category: sample.category ?? sample.type ?? '', Measurement: 'Saltiness', Value: sample.saltiness, Unit: '', 'Observation count': null, 'Standard deviation': null, Minimum: null, Maximum: null });
+    rows.push({ 'Sample ID': sample.sampleId, Sample: sample.sampleName ?? '', Category: sample.category ?? sample.type ?? '', Measurement: 'Umami', Value: sample.umami, Unit: '', 'Observation count': null, 'Standard deviation': null, Minimum: null, Maximum: null });
+    rows.push({ 'Sample ID': sample.sampleId, Sample: sample.sampleName ?? '', Category: sample.category ?? sample.type ?? '', Measurement: 'Sweetness', Value: sample.sweetness, Unit: '', 'Observation count': null, 'Standard deviation': null, Minimum: null, Maximum: null });
     (sample.measurements ?? []).forEach(measurement => rows.push({
       'Sample ID': sample.sampleId,
       Sample: sample.sampleName ?? '',
@@ -343,9 +343,12 @@ function eTongue(input: CommercializationDataExportInput) {
       Value: measurement.mean,
       Unit: measurement.unit,
       'Observation count': measurement.observationCount,
+      'Standard deviation': measurement.standardDeviation ?? null,
+      Minimum: measurement.minimum ?? null,
+      Maximum: measurement.maximum ?? null,
     }));
   });
-  return sheet('e-tongue', ['Sample ID', 'Sample', 'Category', 'Measurement', 'Value', 'Unit', 'Observation count'], rows);
+  return sheet('e-tongue', ['Sample ID', 'Sample', 'Category', 'Measurement', 'Value', 'Unit', 'Observation count', 'Standard deviation', 'Minimum', 'Maximum'], rows);
 }
 
 function gcMs(input: CommercializationDataExportInput) {

@@ -9,8 +9,13 @@ import {
   validateImportedDataset,
 } from './stage1-instrumental-data';
 import { applyImportMappings, inferImportMappings } from '../lib/csv-import-mapping';
+import { tasteRadarDomainMax } from './stage1-instrumental-hooks';
 
 describe('CSV import workflow intelligence', () => {
+  it('expands the taste radar domain instead of clipping values above five', () => {
+    expect(tasteRadarDomainMax([1.2, 5.8, 5.4])).toBe(6);
+    expect(tasteRadarDomainMax([1.2, 4.8])).toBe(5);
+  });
   it('labels item-specific retest and reformulation imports clearly', () => {
     expect(buildRetestBatchName({
       sampleId: 'S5',

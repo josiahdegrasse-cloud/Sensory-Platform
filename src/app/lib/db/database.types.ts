@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   graphql_public: {
     Tables: {
@@ -152,6 +152,10 @@ export type Database = {
         Row: {
           approved_at: string | null
           approved_by: string | null
+          claims_approved_at: string | null
+          claims_approved_by: string | null
+          claims_evidence_fingerprint: string | null
+          claims_scope: string | null
           concept_test_id: string
           cover_image_id: string | null
           created_at: string
@@ -172,6 +176,10 @@ export type Database = {
         Insert: {
           approved_at?: string | null
           approved_by?: string | null
+          claims_approved_at?: string | null
+          claims_approved_by?: string | null
+          claims_evidence_fingerprint?: string | null
+          claims_scope?: string | null
           concept_test_id: string
           cover_image_id?: string | null
           created_at?: string
@@ -192,6 +200,10 @@ export type Database = {
         Update: {
           approved_at?: string | null
           approved_by?: string | null
+          claims_approved_at?: string | null
+          claims_approved_by?: string | null
+          claims_evidence_fingerprint?: string | null
+          claims_scope?: string | null
           concept_test_id?: string
           cover_image_id?: string | null
           created_at?: string
@@ -213,6 +225,13 @@ export type Database = {
           {
             foreignKeyName: "commercialization_reports_approved_by_fkey"
             columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commercialization_reports_claims_approved_by_fkey"
+            columns: ["claims_approved_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -3335,8 +3354,10 @@ export type Database = {
           presentation_order: string[] | null
           product_id: string
           ranking: string[] | null
+          response_session_id: string
           run_number: number
           sample_code: string | null
+          sample_ordinal: number
           session_type: string | null
           user_id: string
         }
@@ -3353,8 +3374,10 @@ export type Database = {
           presentation_order?: string[] | null
           product_id: string
           ranking?: string[] | null
+          response_session_id?: string
           run_number?: number
           sample_code?: string | null
+          sample_ordinal?: number
           session_type?: string | null
           user_id: string
         }
@@ -3371,8 +3394,10 @@ export type Database = {
           presentation_order?: string[] | null
           product_id?: string
           ranking?: string[] | null
+          response_session_id?: string
           run_number?: number
           sample_code?: string | null
+          sample_ordinal?: number
           session_type?: string | null
           user_id?: string
         }
@@ -3787,6 +3812,43 @@ export type Database = {
         }
         Returns: undefined
       }
+      approve_report_claims: {
+        Args: {
+          target_evidence_fingerprint: string
+          target_report_id: string
+          target_scope: string
+        }
+        Returns: {
+          approved_at: string | null
+          approved_by: string | null
+          claims_approved_at: string | null
+          claims_approved_by: string | null
+          claims_evidence_fingerprint: string | null
+          claims_scope: string | null
+          concept_test_id: string
+          cover_image_id: string | null
+          created_at: string
+          created_by: string
+          decision_record_id: string
+          evidence_bundle_id: string | null
+          formulation_version_id: string | null
+          id: string
+          org_id: string | null
+          packaging_image_id: string | null
+          project_id: string | null
+          report_snapshot: Json
+          status: string
+          title: string
+          updated_at: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "commercialization_reports"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       claim_panelist_kit: {
         Args: { p_manual_code?: string; p_token?: string }
         Returns: {
@@ -3894,6 +3956,10 @@ export type Database = {
         Returns: {
           approved_at: string | null
           approved_by: string | null
+          claims_approved_at: string | null
+          claims_approved_by: string | null
+          claims_evidence_fingerprint: string | null
+          claims_scope: string | null
           concept_test_id: string
           cover_image_id: string | null
           created_at: string
@@ -4549,6 +4615,39 @@ export type Database = {
       review_formulation_version: {
         Args: { target_status: string; target_version_id: string }
         Returns: undefined
+      }
+      revoke_report_claims: {
+        Args: { target_report_id: string }
+        Returns: {
+          approved_at: string | null
+          approved_by: string | null
+          claims_approved_at: string | null
+          claims_approved_by: string | null
+          claims_evidence_fingerprint: string | null
+          claims_scope: string | null
+          concept_test_id: string
+          cover_image_id: string | null
+          created_at: string
+          created_by: string
+          decision_record_id: string
+          evidence_bundle_id: string | null
+          formulation_version_id: string | null
+          id: string
+          org_id: string | null
+          packaging_image_id: string | null
+          project_id: string | null
+          report_snapshot: Json
+          status: string
+          title: string
+          updated_at: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "commercialization_reports"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       save_formulation_experiment_learning: {
         Args: {

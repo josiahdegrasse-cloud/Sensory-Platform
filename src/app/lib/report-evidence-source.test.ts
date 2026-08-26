@@ -31,7 +31,7 @@ describe('buildEvidenceBundle', () => {
   it('builds a deterministic bundle from a reference sample profile', async () => {
     const bundle = await buildEvidenceBundle('S4', 'tester');
     expect(bundle.projectId).toBe('S4');
-    expect(bundle.schemaVersion).toBe('evidence-bundle.v1');
+    expect(bundle.schemaVersion).toBe('evidence-bundle.v2');
     expect(bundle.sampleSummaries.length).toBe(1);
     // Deterministic source-data version is stable across builds of the same data.
     const again = await buildEvidenceBundle('S4', 'tester');

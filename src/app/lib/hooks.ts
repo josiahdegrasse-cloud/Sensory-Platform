@@ -8,6 +8,7 @@ import {
   fetchConceptResponsesForTests,
   fetchConceptResponseCounts,
   fetchCommercializationReports, createCommercializationReport, updateCommercializationReportStatus,
+  approveCommercializationReportClaims, revokeCommercializationReportClaims,
   fetchEvidenceBundles, saveEvidenceBundle, generateReportNarrative, type ReportNarrativeRequest,
   fetchConceptTest, fetchConceptGenerationSettings, updateConceptGenerationSettings,
   fetchConceptImageUsage,
@@ -65,8 +66,10 @@ import {
   reviewLibraryDocuments,
   reviewLibraryDocument,
   scanLibrary,
+  applyLibraryReviewToDocuments,
   type LibraryDocumentReview,
   type LibraryBulkReview,
+  type LibraryDocumentsResponse,
   type LibraryRequest,
 } from './nfi-library'
 
@@ -466,10 +469,22 @@ export function useReviewLibraryDocument() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (review: LibraryDocumentReview) => reviewLibraryDocument(review),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.libraryDocuments })
-      qc.invalidateQueries({ queryKey: queryKeys.libraryStatus })
-      qc.invalidateQueries({ queryKey: queryKeys.tweakDiagnoses })
+    onMutate: async review => {
+      await qc.cancelQueries({ queryKey: queryKeys.libraryDocuments })
+      const previousDocuments = qc.getQueryData<LibraryDocumentsResponse>(queryKeys.libraryDocuments)
+      qc.setQueryData<LibraryDocumentsResponse>(queryKeys.libraryDocuments, current => (
+        current ? applyLibraryReviewToDocuments(current, review) : current
+      ))
+      return { previousDocuments }
+    },
+    onError: (_error, _review, context) => {
+      if (context?.previousDocuments) {
+        qc.setQueryData(queryKeys.libraryDocuments, context.previousDocuments)
+      }
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.libraryDocuments })
+      void qc.invalidateQueries({ queryKey: queryKeys.tweakDiagnoses, refetchType: 'none' })
     },
   })
 }
@@ -478,10 +493,22 @@ export function useReviewLibraryDocuments() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (review: LibraryBulkReview) => reviewLibraryDocuments(review),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.libraryDocuments })
-      qc.invalidateQueries({ queryKey: queryKeys.libraryStatus })
-      qc.invalidateQueries({ queryKey: queryKeys.tweakDiagnoses })
+    onMutate: async review => {
+      await qc.cancelQueries({ queryKey: queryKeys.libraryDocuments })
+      const previousDocuments = qc.getQueryData<LibraryDocumentsResponse>(queryKeys.libraryDocuments)
+      qc.setQueryData<LibraryDocumentsResponse>(queryKeys.libraryDocuments, current => (
+        current ? applyLibraryReviewToDocuments(current, review) : current
+      ))
+      return { previousDocuments }
+    },
+    onError: (_error, _review, context) => {
+      if (context?.previousDocuments) {
+        qc.setQueryData(queryKeys.libraryDocuments, context.previousDocuments)
+      }
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.libraryDocuments })
+      void qc.invalidateQueries({ queryKey: queryKeys.tweakDiagnoses, refetchType: 'none' })
     },
   })
 }
@@ -669,6 +696,22 @@ export function useUpdateCommercializationReportStatus() {
   return useMutation({
     mutationFn: (input: { id: string; status: CommercializationReportRecord['status']; actorId: string }) =>
       updateCommercializationReportStatus(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.commercializationReports }),
+  })
+}
+
+export function useApproveCommercializationReportClaims() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: approveCommercializationReportClaims,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.commercializationReports }),
+  })
+}
+
+export function useRevokeCommercializationReportClaims() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: revokeCommercializationReportClaims,
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.commercializationReports }),
   })
 }

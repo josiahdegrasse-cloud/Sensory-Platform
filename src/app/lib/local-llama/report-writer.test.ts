@@ -30,6 +30,50 @@ describe('local Llama report writer', () => {
     expect(packet.prohibitedLanguage).toContain('ready for launch');
   });
 
+  it('passes generic measured parameters to the writer with their uncertainty and benchmark boundary', () => {
+    const context = coconutCheddarContext();
+    context.instrumental.parameters = [{
+      id: 'instrumental.s4.hardness',
+      sampleId: 'S4',
+      sampleName: context.sampleName,
+      key: 'hardness',
+      label: 'Hardness',
+      family: 'texture_rheology',
+      source: 'imported_parameter',
+      unit: 'g',
+      mean: 1240,
+      observationCount: 4,
+      standardDeviation: 84,
+      minimum: 1110,
+      maximum: 1360,
+      replicateValues: [1110, 1220, 1270, 1360],
+      metadata: {
+        dataType: 'continuous',
+        scaleType: 'ratio',
+        zeroMeaningful: true,
+        direction: 'lower',
+        expectedMinimum: 1000,
+        expectedMaximum: 1300,
+        source: 'declared',
+      },
+      chartPreference: 'box',
+      status: 'within_expected_range',
+    }];
+
+    const packet = buildLocalReportWriterPacket(context);
+
+    expect(packet.instrumental.totalParameterCount).toBe(1);
+    expect(packet.instrumental.measuredParameters).toEqual([expect.objectContaining({
+      label: 'Hardness',
+      value: 1240,
+      unit: 'g',
+      observationCount: 4,
+      standardDeviation: 84,
+      range: [1110, 1360],
+      expectedRange: [1000, 1300],
+    })]);
+  });
+
   it('gives Llama the verified packet and explicit human-writing constraints', () => {
     const prompt = buildLocalReportWriterPrompt(coconutCheddarContext());
 

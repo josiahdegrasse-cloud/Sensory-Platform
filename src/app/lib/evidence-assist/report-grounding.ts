@@ -21,6 +21,8 @@ const REPORT_SOURCE_TYPES = new Set([
   'claims_guidance',
 ]);
 
+const REPORT_SOURCE_LIMIT = 5;
+
 export type ReportGroundingStatus = 'included' | 'no_match';
 
 export interface ReportGrounding {
@@ -70,14 +72,18 @@ function reportEligible(card: EvidenceCard) {
 export function buildReportGrounding(result: EvidenceAssistResult): ReportGrounding {
   const selected: Array<{ source: EvidenceCard; safe: ReportSafeEvidenceCard }> = [];
   const fingerprints = new Set<string>();
+  const sourceFingerprints = new Set<string>();
 
   for (const card of result.cards) {
     if (!reportEligible(card) || fingerprints.has(card.contentFingerprint)) continue;
+    const sourceFingerprint = `${card.sourceType}:${card.sourcePath || card.sourceTitle}`.trim().toLowerCase();
+    if (sourceFingerprints.has(sourceFingerprint)) continue;
     const safe = toReportSafeEvidenceCard(card);
     if (!safe) continue;
     fingerprints.add(card.contentFingerprint);
+    sourceFingerprints.add(sourceFingerprint);
     selected.push({ source: card, safe });
-    if (selected.length >= 3) break;
+    if (selected.length >= REPORT_SOURCE_LIMIT) break;
   }
 
   const usedIds = new Set<string>();
@@ -116,8 +122,10 @@ export async function fetchReportGrounding(
 ): Promise<ReportGrounding> {
   const request = buildEvidenceAssistRequest(context, 'commercialization_report');
   request.options = {
-    maxCards: 3,
-    minimumRelevance: 0.55,
+    // Retrieve a wider candidate set so governance and source-diversity
+    // filters can still produce a balanced, concise final evidence map.
+    maxCards: 8,
+    minimumRelevance: 0.45,
     evidenceUses: ['scientific_context', 'method_guidance', 'validation_guidance'],
   };
   const result = await fetchEvidenceAssist(request, {

@@ -158,6 +158,7 @@ function evidenceBundleToAugmentation(
     intensity: sp?.intensity,
     foodTypeSlug: sp?.foodTypeSlug ?? fallbackFoodType,
     instrumentalFindings: sp?.instrumentalFindings,
+    instrumentalParameters: bundle?.instrumentalParameters ?? [],
     instrumentSignal: sp?.instrumentSignal,
     gatePenalty: sp?.gatePenalty,
     confidenceCalculation: sp?.confidenceCalculation,
@@ -271,6 +272,10 @@ export async function buildReportContextFromRecords(input: {
     snapshot,
     decision: liveDecision,
     approvalStatus: approvalStatus(input.report.status),
+    claimsApproved: Boolean(
+      input.report.claimsApprovedAt
+      && input.report.claimsEvidenceFingerprint === snapshot.decision.fingerprint
+    ),
     reportVersion: input.report.version,
     readinessThreshold: 60,
     augmentation: evidenceBundleToAugmentation(input.evidenceBundle, snapshot.product.foodType),
@@ -324,6 +329,10 @@ export function buildReportContextForWorkspace(input: {
     snapshot: input.snapshot,
     decision: liveDecision,
     approvalStatus: approvalStatus(input.report.status),
+    claimsApproved: Boolean(
+      input.report.claimsApprovedAt
+      && input.report.claimsEvidenceFingerprint === input.snapshot.decision.fingerprint
+    ),
     reportVersion: input.report.version,
     readinessThreshold: 60,
     augmentation: evidenceBundleToAugmentation(input.evidenceBundle, input.snapshot.product.foodType),

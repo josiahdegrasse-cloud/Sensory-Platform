@@ -9,3 +9,9 @@ export const queryClient = new QueryClient({
     },
   },
 })
+
+/** Cancel in-flight tenant reads and remove every cached private result. */
+export async function clearPrivateQueryState() {
+  await queryClient.cancelQueries()
+  queryClient.clear()
+}

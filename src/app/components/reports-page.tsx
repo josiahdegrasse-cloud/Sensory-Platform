@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { workflowStagePath } from '../lib/project-journey-routes';
 import {
@@ -137,6 +137,9 @@ export function ReportsPage() {
   const [readinessLoading, setReadinessLoading] = useState<Record<string, boolean>>({});
   const [readinessByReportId, setReadinessByReportId] = useState<Record<string, ReportReadiness>>({});
   const [error, setError] = useState('');
+  const mountedRef = useRef(true);
+  const readinessInFlightRef = useRef(new Map<string, string>());
+  const readinessResolvedVersionRef = useRef(new Map<string, string>());
 
   const scopedDecisions = useMemo(
     () => routeProjectId ? decisions.filter(decision => decision.projectId === routeProjectId) : decisions,
@@ -162,26 +165,38 @@ export function ReportsPage() {
     () => buildReportLibrary(scopedReports, scopedDecisions, scopedConcepts),
     [scopedConcepts, scopedDecisions, scopedReports],
   );
-  const reportIdsToCheck = useMemo(
-    () => baseEntries.map(entry => entry.latest.id).join('|'),
+  const reportVersionsToCheck = useMemo(
+    () => baseEntries.map(entry => `${entry.latest.id}:${entry.latest.updatedAt}`).join('|'),
     [baseEntries],
   );
 
   useEffect(() => {
-    let active = true;
-    const ids = baseEntries
-      .map(entry => entry.latest.id)
-      .filter(id => !readinessByReportId[id] && !readinessLoading[id]);
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
-    ids.forEach(id => {
+  useEffect(() => {
+    const reportsToCheck = baseEntries
+      .map(entry => ({ id: entry.latest.id, version: entry.latest.updatedAt }))
+      .filter(({ id, version }) => (
+        readinessResolvedVersionRef.current.get(id) !== version
+        && readinessInFlightRef.current.get(id) !== version
+      ));
+
+    reportsToCheck.forEach(({ id, version }) => {
+      readinessInFlightRef.current.set(id, version);
       setReadinessLoading(current => ({ ...current, [id]: true }));
       buildSavedReportExportContext(id)
         .then(result => {
-          if (!active) return;
+          if (readinessInFlightRef.current.get(id) !== version) return;
+          readinessResolvedVersionRef.current.set(id, version);
+          if (!mountedRef.current) return;
           setReadinessByReportId(current => ({ ...current, [id]: result.readiness }));
         })
         .catch(() => {
-          if (!active) return;
+          if (readinessInFlightRef.current.get(id) !== version) return;
+          readinessResolvedVersionRef.current.set(id, version);
+          if (!mountedRef.current) return;
           setReadinessByReportId(current => ({
             ...current,
             [id]: {
@@ -203,12 +218,12 @@ export function ReportsPage() {
           }));
         })
         .finally(() => {
-          if (active) setReadinessLoading(current => ({ ...current, [id]: false }));
+          if (readinessInFlightRef.current.get(id) !== version) return;
+          readinessInFlightRef.current.delete(id);
+          if (mountedRef.current) setReadinessLoading(current => ({ ...current, [id]: false }));
         });
     });
-
-    return () => { active = false; };
-  }, [baseEntries, readinessByReportId, readinessLoading, reportIdsToCheck]);
+  }, [baseEntries, reportVersionsToCheck]);
 
   const entries = useMemo(
     () => buildReportLibrary(scopedReports, scopedDecisions, scopedConcepts, readinessByReportId),

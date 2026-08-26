@@ -205,6 +205,8 @@ describe('report context builder', () => {
     expect(result.pdfInput.reportContext.sampleId).toBe('S4');
     expect(result.readiness.exportReady).toBe(true);
     expect(result.readiness.evidenceProvenance.sensory).toBe('live');
+    expect(result.readiness.approvalReady).toBe(false);
+    expect(result.readiness.approvalBlockers.join(' ')).toMatch(/claims\/legal review is not approved/i);
   });
 
   it('returns structured blockers instead of throwing when saved report context is missing', async () => {
@@ -220,6 +222,28 @@ describe('report context builder', () => {
     if (result.ok) throw new Error('expected missing context blockers');
     expect(result.readiness.exportReady).toBe(false);
     expect(result.blockers[0]).toMatch(/evidence bundle is missing/i);
+  });
+
+  it('accepts a persisted claims approval only for the current evidence fingerprint', async () => {
+    const savedSnapshot = snapshot();
+    const result = await buildReportContextFromRecords({
+      report: report(savedSnapshot, {
+        status: 'review',
+        claimsApprovedBy: 'user-1',
+        claimsApprovedAt: '2026-08-24T12:00:00.000Z',
+        claimsScope: 'UK packaging and product claims reviewed for external distribution.',
+        claimsEvidenceFingerprint: savedSnapshot.decision.fingerprint,
+      }),
+      decisionRecord: decisionRecord(),
+      evidenceBundle: evidenceBundle(),
+      evidenceBundleStatus: 'linked',
+      settings,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected valid report context');
+    expect(result.reportContext.gates.find(gate => gate.id === 'claims.legal-approval')?.status).toBe('pass');
+    expect(result.readiness.approvalBlockers.join(' ')).not.toMatch(/claims\/legal review is not approved/i);
   });
 
   it('reports readiness blockers for missing concept evidence', async () => {

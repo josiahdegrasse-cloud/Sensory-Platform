@@ -371,10 +371,37 @@ export function renderProductPerformancePage(ctx: PdfContext, data: ClientReport
   y += 15;
   const half = (ctx.contentWidth - 14) / 2;
   panel(ctx, ctx.margin, y, half, 128, { fill: lighten(REPORT_BLUE, 0.93), border: lighten(REPORT_BLUE, 0.7) });
-  statusMark(ctx, ctx.margin + 15, y + 22, 'Instrumental context', REPORT_BLUE);
-  field(ctx, '', scientific.instrumentalAvailable ? 'Project evidence attached' : 'No project dataset attached', ctx.margin + 15, y + 39, half - 30, { valueSize: 9.4, maxLines: 2 });
-  let instrumentalY = y + 78;
-  if (scientific.findings.length) {
+  statusMark(ctx, ctx.margin + 15, y + 22, 'Measured product parameters', REPORT_BLUE);
+  field(
+    ctx,
+    '',
+    scientific.parameterCount > 0
+      ? `${scientific.parameterCount} parameter${scientific.parameterCount === 1 ? '' : 's'} attached · ${scientific.benchmarkedParameterCount} benchmarked`
+      : scientific.instrumentalAvailable ? 'Technical evidence attached' : 'No project dataset attached',
+    ctx.margin + 15,
+    y + 39,
+    half - 30,
+    { valueSize: 8.7, maxLines: 2 },
+  );
+  let instrumentalY = y + 75;
+  if (scientific.parameters.length) {
+    scientific.parameters.slice(0, 3).forEach(parameter => {
+      const value = `${parameter.value.toLocaleString(undefined, { maximumFractionDigits: 3 })}${parameter.unit ? ` ${parameter.unit}` : ''}`;
+      const observations = parameter.observationCount > 0 ? ` · n=${parameter.observationCount}` : '';
+      instrumentalY = bullet(
+        ctx,
+        `${parameter.label}: ${value}${observations} · ${parameter.status.replace(/_/g, ' ')}`,
+        ctx.margin + 15,
+        instrumentalY,
+        half - 30,
+        /below|above/.test(parameter.status) ? REPORT_ORANGE : REPORT_BLUE,
+      ) + 2;
+    });
+    if (scientific.parameterCount > 3) {
+      setText(ctx.doc, REPORT_MUTED, 6.2, 'bold');
+      ctx.doc.text(`+${scientific.parameterCount - 3} additional parameter${scientific.parameterCount - 3 === 1 ? '' : 's'} retained in the evidence record`, ctx.margin + 15, y + 116);
+    }
+  } else if (scientific.findings.length) {
     scientific.findings.slice(0, 2).forEach(finding => {
       instrumentalY = bullet(ctx, `${finding.source}: ${finding.finding}`, ctx.margin + 15, instrumentalY, half - 30, statusTone(finding.decisionEffect)) + 3;
     });
@@ -558,25 +585,24 @@ export function renderScientificLiteraturePage(ctx: PdfContext, data: ClientRepo
     paragraph(ctx.doc, 'The product decision remains based on project evidence. Add reviewed literature only when it improves interpretation or study design; never use an external source as substitute proof for this product.', ctx.margin + 17, y + 75, ctx.contentWidth - 34, { color: REPORT_INK, size: 9, lineHeight: 12.5 });
     y += 194;
   } else {
-    scientific.sources.slice(0, 3).forEach((source, index) => {
-      const rowHeight = 96;
+    scientific.sources.slice(0, 5).forEach((source, index) => {
+      const rowHeight = 58;
       ctx.doc.setFillColor(...(index % 2 ? WHITE : lighten(REPORT_BLUE, 0.965)));
       ctx.doc.rect(ctx.margin, y, ctx.contentWidth, rowHeight, 'F');
       ctx.doc.setDrawColor(...REPORT_LINE);
       ctx.doc.line(ctx.margin, y + rowHeight, ctx.margin + ctx.contentWidth, y + rowHeight);
-      setDisplayText(ctx.doc, REPORT_BLUE, 14, 'bold');
-      ctx.doc.text(`[${source.id}]`, ctx.margin + 12, y + 25);
-      setText(ctx.doc, REPORT_INK, 9, 'bold');
-      ctx.doc.text((ctx.doc.splitTextToSize(source.title, 260) as string[]).slice(0, 2), ctx.margin + 54, y + 22, { lineHeightFactor: 1.12 });
-      setText(ctx.doc, REPORT_MUTED, 6.7);
+      setDisplayText(ctx.doc, REPORT_BLUE, 11, 'bold');
+      ctx.doc.text(`[${source.id}]`, ctx.margin + 10, y + 20);
+      setText(ctx.doc, REPORT_INK, 7.8, 'bold');
+      ctx.doc.text((ctx.doc.splitTextToSize(source.title, 265) as string[]).slice(0, 2), ctx.margin + 48, y + 18, { lineHeightFactor: 1.08 });
+      setText(ctx.doc, REPORT_MUTED, 5.8);
       const authorYear = [
         source.authors === 'Not captured' ? null : source.authors,
         source.year === 'Not captured' ? null : `(${source.year})`,
       ].filter(Boolean).join(' ') || 'Author and year metadata not captured';
-      ctx.doc.text(authorYear, ctx.margin + 54, y + 54);
-      ctx.doc.text(source.doi === 'Not captured' ? 'DOI not captured' : `DOI ${source.doi}`, ctx.margin + 54, y + 69);
-      field(ctx, 'Study type', source.studyType, ctx.margin + 330, y + 20, 90, { color: REPORT_BLUE, valueSize: 7.4, maxLines: 3 });
-      field(ctx, 'Evidence role', source.evidenceRole, ctx.margin + 426, y + 20, ctx.contentWidth - 438, { color: REPORT_LEAF, valueSize: 7.2, maxLines: 4 });
+      ctx.doc.text(`${authorYear} · ${source.doi === 'Not captured' ? 'DOI not captured' : `DOI ${source.doi}`}`, ctx.margin + 48, y + 48);
+      field(ctx, 'Study type', source.studyType, ctx.margin + 330, y + 17, 90, { color: REPORT_BLUE, valueSize: 6.5, maxLines: 2 });
+      field(ctx, 'Evidence role', source.evidenceRole, ctx.margin + 426, y + 17, ctx.contentWidth - 438, { color: REPORT_LEAF, valueSize: 6.3, maxLines: 3 });
       y += rowHeight;
     });
   }

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { acceptPanelistConsent, CURRENT_CONSENT_VERSION, requestAdminAccess } from '../lib/database';
 import { PANELIST_PROFILE_DRAFT_STORAGE_PREFIX } from '../lib/panelist-profile-draft';
 import { checkTenantAccess, tenantAuthRedirectUrl } from '../lib/tenant';
+import { clearPrivateQueryState } from '../lib/query-client';
 
 export interface User {
   id: string;
@@ -156,17 +157,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const isPasswordRecoveryRef = useRef(false);
+  const sessionSubjectRef = useRef<string | null | undefined>(undefined);
 
   // Step 1: listen for auth changes — sync only, no async db calls inside handler
   useEffect(() => {
+    const applySessionUser = (nextUser: SupabaseUser | null) => {
+      const nextSubject = nextUser?.id ?? null;
+      if (sessionSubjectRef.current !== undefined && sessionSubjectRef.current !== nextSubject) {
+        setUser(null);
+        clearBrowserSessionArtifacts();
+        void clearPrivateQueryState();
+      }
+      sessionSubjectRef.current = nextSubject;
+      setSessionUser(nextUser);
+    };
+
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSessionUser(session?.user ?? null);
+      applySessionUser(session?.user ?? null);
     }).catch(() => {
-      setSessionUser(null);
+      applySessionUser(null);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setSessionUser(session?.user ?? null);
+      applySessionUser(session?.user ?? null);
       if (!session?.user) setUser(null);
       if (event === 'TOKEN_REFRESHED' && !session) supabase.auth.signOut();
       if (event === 'PASSWORD_RECOVERY') {
@@ -190,7 +203,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
+    let cancelled = false;
+    setLoading(true);
     loadProfile(sessionUser).then(({ profile, blockedMessage }) => {
+      if (cancelled) return;
       if (!profile) {
         setUser(null);
         if (blockedMessage) setAuthNotice(blockedMessage);
@@ -200,11 +216,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setLoading(false);
     }).catch(() => {
+      if (cancelled) return;
       setUser(null);
       setAuthNotice('Your workspace could not be verified. Please sign in again.');
       void supabase.auth.signOut();
       setLoading(false);
     });
+    return () => { cancelled = true; };
   }, [sessionUser]);
 
   const login = async (email: string, password: string): Promise<string | null> => {
@@ -236,6 +254,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     clearBrowserSessionArtifacts();
+    await clearPrivateQueryState();
     await supabase.auth.signOut();
     setUser(null);
   };
@@ -245,6 +264,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) return error.message;
       setIsPasswordRecovery(false);
+      clearBrowserSessionArtifacts();
+      await clearPrivateQueryState();
       await supabase.auth.signOut();
       return null;
     } catch (err) {

@@ -1,4 +1,5 @@
 import {
+  formatInstrumentalValue,
   summarizeInstrumentalDistribution,
   type InstrumentalParameterAxis,
 } from '../lib/instrumental-parameter-chart';
@@ -10,7 +11,7 @@ interface SeriesDefinition {
 }
 
 function formatMeasurement(value: number) {
-  return value.toLocaleString(undefined, { maximumFractionDigits: 3 });
+  return formatInstrumentalValue(value);
 }
 
 function withUnit(value: number, unit: string) {
@@ -58,13 +59,13 @@ export function InstrumentalBoxPlots({ axes, series, omittedCount = 0 }: {
           ))}
         </div>
       </div>
-      <div className="mt-4 max-h-[38rem] overflow-y-auto border-y border-slate-200 [scrollbar-gutter:stable]">
+      <div className="mt-4 max-h-[38rem] overflow-auto border-y border-slate-200 [scrollbar-gutter:stable]">
         <div className="min-w-[38rem] divide-y divide-slate-200">
           {rows.map(({ axis, summaries, domainMinimum, domainMaximum, position }) => (
             <div key={axis.key} className="grid grid-cols-[11rem_minmax(0,1fr)] gap-4 px-3 py-4">
               <div className="min-w-0">
                 <h4 className="break-words text-sm font-semibold leading-5 text-slate-900">{axis.label}</h4>
-                <p className="mt-0.5 text-xs text-slate-500">{axis.unit || 'No unit supplied'}</p>
+                <p className="mt-0.5 text-xs text-slate-500">{axis.unit || 'Unitless'}</p>
               </div>
               <div className="min-w-0 space-y-2">
                 {summaries.map(item => (

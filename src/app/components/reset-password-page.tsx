@@ -5,7 +5,7 @@ import { Label } from './ui/label';
 import { Alert, AlertDescription } from './ui/alert';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../contexts/auth-context';
-import { NFI_BRAND_COLOR, NFI_BRAND_COLOR_DARK } from '../lib/nfi-brand';
+import { resolveWorkspaceBrandIdentity } from '../lib/nfi-brand';
 import { TenantOrNfiLogo } from './nfi-brand';
 import type { LoginBranding } from './login-page';
 import { brandThemeVariables } from '../lib/brand-theme';
@@ -13,11 +13,13 @@ import { getTenantSlug } from '../lib/tenant';
 
 export function ResetPasswordPage({ branding }: { branding?: LoginBranding }) {
   const { updatePassword } = useAuth();
-  const hasTenantBranding = Boolean(getTenantSlug());
-  const brandStyles = brandThemeVariables(hasTenantBranding ? branding : {
-    primaryColor: NFI_BRAND_COLOR,
-    accentColor: NFI_BRAND_COLOR_DARK,
-  }) as CSSProperties;
+  const tenantSlug = getTenantSlug();
+  const brandIdentity = resolveWorkspaceBrandIdentity({
+    ...branding,
+    organizationSlug: tenantSlug,
+  });
+  const hasTenantBranding = Boolean(tenantSlug) && !brandIdentity.usesNfiBrand;
+  const brandStyles = brandThemeVariables(brandIdentity) as CSSProperties;
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
@@ -41,8 +43,8 @@ export function ResetPasswordPage({ branding }: { branding?: LoginBranding }) {
       <div className="tenant-auth-panel hidden flex-col justify-between border-r border-white/15 p-12 text-white lg:flex lg:w-[46%]">
         <div className="inline-flex w-fit rounded-md bg-white px-3 py-2">
           <TenantOrNfiLogo
-            logoUrl={branding?.logoUrl}
-            organizationName={branding?.workspaceName}
+            logoUrl={brandIdentity.logoUrl}
+            organizationName={brandIdentity.organizationName}
             tenant={hasTenantBranding}
             markSize={44}
           />
@@ -62,8 +64,8 @@ export function ResetPasswordPage({ branding }: { branding?: LoginBranding }) {
       <div className="flex-1 flex flex-col justify-center px-8 sm:px-16 bg-white">
         <div className="lg:hidden mb-8">
           <TenantOrNfiLogo
-            logoUrl={branding?.logoUrl}
-            organizationName={branding?.workspaceName}
+            logoUrl={brandIdentity.logoUrl}
+            organizationName={brandIdentity.organizationName}
             tenant={hasTenantBranding}
             markSize={36}
           />
