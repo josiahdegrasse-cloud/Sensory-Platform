@@ -2,6 +2,13 @@ import { defineConfig } from 'vitest/config'
 import path from 'path'
 
 export default defineConfig({
+  // Unit tests mock every Supabase operation they exercise. Provide inert,
+  // non-secret values so importing the shared client works in a clean clone
+  // without relying on a developer's ignored .env file.
+  define: {
+    'import.meta.env.VITE_SUPABASE_URL': JSON.stringify('http://127.0.0.1:54321'),
+    'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify('test-anon-key'),
+  },
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
