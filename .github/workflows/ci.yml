@@ -74,7 +74,7 @@ jobs:
             --retry 3 --retry-all-errors \
             --header "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/types/typescript?included_schemas=public%2Cgraphql_public" \
-            | jq --raw-output --exit-status '.types' > "${generated_types}"
+            | jq --join-output --exit-status '.types' > "${generated_types}"
 
           if ! cmp --silent "${generated_types}" src/app/lib/db/database.types.ts; then
             echo "::error::database.types.ts is out of date with the live schema."
