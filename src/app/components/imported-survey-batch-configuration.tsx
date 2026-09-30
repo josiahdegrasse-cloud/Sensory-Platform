@@ -26,11 +26,12 @@ export function ImportedSurveyBatchConfiguration({
   onAssigned: () => void;
 }) {
   const productIds = products.map(product => product.id);
+  const [isEditingAllergens, setIsEditingAllergens] = useState(false);
   const declarationsQuery = useSampleAllergenDeclarationsForProducts(productIds);
   const verifiedIds = new Set((declarationsQuery.data ?? [])
     .filter(declaration => declaration.status === 'verified' && declaration.productId)
     .map(declaration => declaration.productId as string));
-  const allVerified = products.length > 0 && products.every(product => verifiedIds.has(product.id));
+  const allVerified = !isEditingAllergens && products.length > 0 && products.every(product => verifiedIds.has(product.id));
   const eligibleQuery = useEligiblePanelistsForProducts(productIds, allVerified);
   const assignPanelists = useUpdateProductAssignments();
   const [selectedPanelistIds, setSelectedPanelistIds] = useState<string[]>([]);
@@ -70,7 +71,7 @@ export function ImportedSurveyBatchConfiguration({
         <div className="min-h-0 space-y-7 overflow-y-auto px-6 py-5">
           <section aria-labelledby="batch-allergens-heading">
             <h2 id="batch-allergens-heading" className="sr-only">Shared allergen declaration</h2>
-            <BatchSampleAllergenDeclarationEditor productIds={productIds} sampleName={batchName} />
+            <BatchSampleAllergenDeclarationEditor productIds={productIds} sampleName={batchName} onEditingChange={setIsEditingAllergens} />
           </section>
 
           <section className="border-t border-slate-200 pt-6" aria-labelledby="batch-panel-heading">

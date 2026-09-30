@@ -42,6 +42,12 @@ the evidence and limitations behind them.
 | **Concept** | Turn confirmed GO products into evidence-derived concepts and targeted validation studies. |
 | **Report** | Assemble evidence, decisions, concept results, risks, and next actions into a branded, versioned commercialization report. |
 
+Verified allergen declarations collapse into a locked summary. In batch setup,
+every survey must have a saved verified declaration before that summary appears.
+Use **Edit declaration** to reopen the review; batch assignment pauses during
+editing and resumes after verification or cancellation. Saving a draft requires
+verification before assignment can continue.
+
 ## Product in action
 
 <table>

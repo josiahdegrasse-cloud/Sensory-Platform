@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { CheckCircle2, FlaskConical, ShieldCheck } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { CheckCircle2, FlaskConical, LockKeyhole, ShieldCheck } from 'lucide-react';
 import { ALLERGEN_OPTIONS, ALLERGEN_LABELS, splitOtherAvoidances, type AllergenCode } from '../lib/allergen-eligibility';
 import {
   useSampleAllergenDeclaration,
@@ -35,7 +35,7 @@ export function SampleAllergenDeclarationEditor({
   }
   return (
     <SampleAllergenDeclarationForm
-      key={declaration?.id ?? `new-${target.productId ?? target.formulationVersionId}`}
+      key={`${declaration?.id ?? `new-${target.productId ?? target.formulationVersionId}`}-${declaration?.version}-${declaration?.status}`}
       sampleName={sampleName}
       sourceIngredientStatement={sourceIngredientStatement}
       suggestedAllergens={suggestedAllergens}
@@ -51,9 +51,11 @@ export function SampleAllergenDeclarationEditor({
 export function BatchSampleAllergenDeclarationEditor({
   productIds,
   sampleName,
+  onEditingChange,
 }: {
   productIds: string[];
   sampleName: string;
+  onEditingChange?: (editing: boolean) => void;
 }) {
   const { data: declarations = [], isLoading } = useSampleAllergenDeclarationsForProducts(productIds);
   const saveDeclarations = useSaveSampleAllergenDeclarationsForProducts(productIds);
@@ -69,14 +71,21 @@ export function BatchSampleAllergenDeclarationEditor({
 
   return (
     <SampleAllergenDeclarationForm
-      key={`${declaration?.id ?? 'new-batch'}-${productIds.join('-')}`}
+      key={`${productIds.join('-')}-${declarations.map(item => `${item.id}:${item.version}:${item.status}`).join('-')}`}
       sampleName={sampleName}
       sourceIngredientStatement=""
       suggestedAllergens={[]}
       compact
+      onEditingChange={onEditingChange}
       declaration={declaration}
       formId={`batch-${productIds[0] ?? 'sample'}`}
       title="Allergen check for this sample"
+      verifiedLabel={`Verified for all ${productIds.length} survey${productIds.length === 1 ? '' : 's'}`}
+      verifiedSummary={[...new Set(declarations.flatMap(item => [
+        ...item.containsAllergens.map(code => ALLERGEN_LABELS[code]),
+        ...item.mayContainAllergens.map(code => `${ALLERGEN_LABELS[code]} (may contain)`),
+        ...item.otherAllergens,
+      ]))].join(' · ')}
       description={`Check the imported sample once. This declaration will be applied to all ${productIds.length} survey${productIds.length === 1 ? '' : 's'} created from it.`}
       draftLabel="Save for all surveys"
       verifyLabel="Verify for all surveys"
@@ -103,12 +112,15 @@ function SampleAllergenDeclarationForm({
   declaration,
   formId,
   title = 'Exact-sample allergen declaration',
+  verifiedLabel = 'Allergen declaration verified',
+  verifiedSummary,
   description,
   draftLabel = 'Save draft',
   verifyLabel = 'Verify declaration',
   successMessage,
   saveDeclaration,
   isSaving,
+  onEditingChange,
 }: {
   sampleName: string;
   sourceIngredientStatement: string;
@@ -117,12 +129,15 @@ function SampleAllergenDeclarationForm({
   declaration: SampleAllergenDeclaration | null | undefined;
   formId: string;
   title?: string;
+  verifiedLabel?: string;
+  verifiedSummary?: string;
   description?: string;
   draftLabel?: string;
   verifyLabel?: string;
   successMessage?: string;
   saveDeclaration: (input: AllergenDeclarationInput) => Promise<unknown>;
   isSaving: boolean;
+  onEditingChange?: (editing: boolean) => void;
 }) {
   const [contains, setContains] = useState<AllergenCode[]>(declaration?.containsAllergens ?? suggestedAllergens);
   const [mayContain, setMayContain] = useState<AllergenCode[]>(declaration?.mayContainAllergens ?? []);
@@ -131,6 +146,13 @@ function SampleAllergenDeclarationForm({
   const [reviewed, setReviewed] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [savedVerified, setSavedVerified] = useState<boolean | null>(null);
+  const isVerified = savedVerified ?? declaration?.status === 'verified';
+  useEffect(() => {
+    onEditingChange?.(isEditing);
+    return () => onEditingChange?.(false);
+  }, [isEditing, onEditingChange]);
 
   const selectedCount = contains.length + mayContain.length + splitOtherAvoidances(other).length;
   const declarationSummary = useMemo(() => [
@@ -167,11 +189,32 @@ function SampleAllergenDeclarationForm({
         verify,
       });
       setReviewed(false);
+      setSavedVerified(verify);
+      setIsEditing(false);
       setMessage(verify ? (successMessage ?? 'Declaration verified. The eligible panel has been recalculated.') : 'Draft declaration saved.');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to save the declaration.');
     }
   };
+
+  if (isVerified && !isEditing) {
+    const summary = savedVerified === true ? declarationSummary.join(' · ') : (verifiedSummary ?? declarationSummary.join(' · '));
+    return (
+      <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-4" aria-label={title}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3" role="status">
+            <LockKeyhole className="mt-0.5 size-5 shrink-0 text-emerald-700" aria-hidden />
+            <div>
+              <h3 className="text-sm font-semibold text-emerald-950">{verifiedLabel}</h3>
+              <p className="mt-1 text-sm text-emerald-900">{summary || 'No declared allergens.'}</p>
+              <p className="mt-1 text-xs text-emerald-800">Review complete. Continue to panelist assignment.</p>
+            </div>
+          </div>
+          <Button type="button" variant="outline" className="shrink-0 bg-white" onClick={() => { setIsEditing(true); setReviewed(false); setMessage(''); }}>Edit declaration</Button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-4" aria-labelledby={`allergen-declaration-${formId}`}>
@@ -183,13 +226,10 @@ function SampleAllergenDeclarationForm({
           </div>
           <p className="mt-1 text-sm leading-6 text-slate-600">{description ?? <>Record the label or recipe used for <strong className="font-semibold text-slate-800">{sampleName}</strong>. Eligibility is calculated only from a verified declaration.</>}</p>
         </div>
-        {declaration?.status === 'verified' ? (
-          <Badge className="w-fit border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-50"><ShieldCheck className="mr-1 size-3.5" aria-hidden />Verified v{declaration.version}</Badge>
-        ) : (
-          <Badge className="w-fit border border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-50">Review required</Badge>
-        )}
+        <Badge className="w-fit border border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-50">Review required</Badge>
       </div>
 
+      <fieldset disabled={isSaving} className="min-w-0 space-y-4">
       {!compact && (
         <div className="space-y-1.5">
           <Label htmlFor={`ingredient-statement-${formId}`}>Ingredient or label statement</Label>
@@ -235,9 +275,19 @@ function SampleAllergenDeclarationForm({
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       {message && <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"><CheckCircle2 className="size-4 shrink-0" aria-hidden />{message}</div>}
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        {isEditing && isVerified && <Button type="button" variant="ghost" onClick={() => {
+          setContains(declaration?.containsAllergens ?? suggestedAllergens);
+          setMayContain(declaration?.mayContainAllergens ?? []);
+          setOther(declaration?.otherAllergens.join(', ') ?? '');
+          setIngredientStatement(declaration?.ingredientStatement ?? sourceIngredientStatement);
+          setReviewed(false);
+          setError('');
+          setIsEditing(false);
+        }}>Cancel edit</Button>}
         <Button type="button" variant="outline" onClick={() => save(false)} disabled={isSaving}>{draftLabel}</Button>
         <Button type="button" onClick={() => save(true)} disabled={isSaving} className="bg-slate-900 hover:bg-slate-800"><ShieldCheck className="size-4" aria-hidden />{isSaving ? 'Saving…' : verifyLabel}</Button>
       </div>
+      </fieldset>
     </section>
   );
 }
