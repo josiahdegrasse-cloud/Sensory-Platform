@@ -48,6 +48,12 @@ Use **Edit declaration** to reopen the review; batch assignment pauses during
 editing and resumes after verification or cancellation. Saving a draft requires
 verification before assignment can continue.
 
+Imported survey batches use five screens: choose sections, verify allergens,
+select eligible panelists, review each survey's sections, and send. The final
+send rechecks eligibility, saves sections and assignments, then activates the
+surveys. Partial launches show progress and can retry the remaining surveys
+within the same setup session. Email notifications are best-effort.
+
 ## Product in action
 
 <table>
