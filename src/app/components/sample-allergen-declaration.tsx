@@ -243,18 +243,31 @@ function SampleAllergenDeclarationForm({
         </div>
       )}
 
-      <div>
-        <div className="grid grid-cols-[minmax(0,1fr)_84px_100px] gap-2 border-b border-slate-200 pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-          <span>Regulated allergen</span><span className="text-center">Contains</span><span className="text-center">May contain</span>
+      <div className="space-y-3">
+        <div>
+          <h4 className="text-sm font-semibold text-slate-900">Select the allergens that apply</h4>
+          <p className="mt-1 text-sm text-slate-600">All 14 options are shown below. Select “Contains” or “May contain” for each relevant allergen. If none apply, leave them unselected and confirm your review below.</p>
         </div>
-        <div className="divide-y divide-slate-100">
-          {ALLERGEN_OPTIONS.map(option => (
-            <div key={option.code} className="grid grid-cols-[minmax(0,1fr)_84px_100px] items-center gap-2 py-2.5">
-              <span className="min-w-0 text-sm text-slate-800"><strong className="font-medium">{option.label}</strong>{'detail' in option && option.detail && <span className="mt-0.5 block text-xs leading-4 text-slate-500">{option.detail}</span>}</span>
-              <span className="flex justify-center"><Checkbox checked={contains.includes(option.code)} onCheckedChange={() => toggle(option.code, 'contains')} aria-label={`${option.label}: contains`} /></span>
-              <span className="flex justify-center"><Checkbox checked={mayContain.includes(option.code)} onCheckedChange={() => toggle(option.code, 'mayContain')} aria-label={`${option.label}: may contain`} /></span>
-            </div>
-          ))}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {ALLERGEN_OPTIONS.map(option => {
+            const selected = contains.includes(option.code) || mayContain.includes(option.code);
+            return (
+              <div key={option.code} className={`flex flex-col justify-between gap-3 rounded-xl border p-4 ${selected ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+                <div>
+                  <h5 className="text-sm font-semibold text-slate-900">{option.label}</h5>
+                  {'detail' in option && <p className="mt-1 text-xs leading-5 text-slate-500">{option.detail}</p>}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(['contains', 'mayContain'] as const).map(field => (
+                    <label key={field} className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700">
+                      <Checkbox checked={(field === 'contains' ? contains : mayContain).includes(option.code)} onCheckedChange={() => toggle(option.code, field)} aria-label={`${option.label}: ${field === 'contains' ? 'contains' : 'may contain'}`} />
+                      {field === 'contains' ? 'Contains' : 'May contain'}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

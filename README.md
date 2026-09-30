@@ -42,14 +42,17 @@ the evidence and limitations behind them.
 | **Concept** | Turn confirmed GO products into evidence-derived concepts and targeted validation studies. |
 | **Report** | Assemble evidence, decisions, concept results, risks, and next actions into a branded, versioned commercialization report. |
 
-Verified allergen declarations collapse into a locked summary. In batch setup,
+Allergen review displays all 14 options as selectable cards with separate Contains
+and May contain choices. Verified declarations collapse into a locked summary. In batch setup,
 every survey must have a saved verified declaration before that summary appears.
 Use **Edit declaration** to reopen the review; batch assignment pauses during
 editing and resumes after verification or cancellation. Saving a draft requires
 verification before assignment can continue.
 
 Imported survey batches use five screens: choose sections, verify allergens,
-select eligible panelists, review each survey's sections, and send. The final
+select eligible panelists, review each survey's sections, and send. Review shows
+survey and panelist counts, verification status, shared sections, and expandable
+per-survey previews with attribute chips. The final
 send rechecks eligibility, saves sections and assignments, then activates the
 surveys. Partial launches show progress and can retry the remaining surveys
 within the same setup session. Email notifications are best-effort.

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Send, Users } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronDown, ClipboardList, Send, ShieldCheck, Users } from 'lucide-react';
 import { getDefaultCataAttributes, type Product } from '../data/survey-domain';
 import { notifyPanelistsOfSurveys } from '../lib/database';
 import { launchSurveyBatch } from '../lib/launch-survey-batch';
@@ -177,17 +177,39 @@ export function ImportedSurveyBatchConfiguration({
             {allVerified && <div className="mt-4"><EligiblePanelSummary panelists={eligiblePanelists} selectedIds={safeSelectedIds} /></div>}
           </section>
 
-          {step === 3 && <section className="space-y-4" aria-labelledby="batch-review-heading">
-            <h2 id="batch-review-heading" className="font-semibold text-slate-950">Review your surveys</h2>
-            <p className="text-sm text-slate-600">{safeSelectedIds.length} eligible panelists selected. Review the section preview for each survey below. Use Back to change recipients or sections.</p>
-            <p className="text-sm text-slate-700">{eligiblePanelists.filter(panelist => safeSelectedIds.includes(panelist.id)).map(panelist => panelist.name).join(', ')}</p>
-            {products.map(product => <details key={product.id} className="rounded-lg border border-slate-200 p-4">
-              <summary className="cursor-pointer font-medium">{product.name} — survey preview</summary>
-              <ol className="mt-4 space-y-4">{sections.map(section => <li key={section} className="rounded-md bg-slate-50 p-3">
-                <h3 className="text-sm font-semibold">{SURVEY_SECTION_LABELS[section]}</h3>
-                <p className="mt-1 text-sm text-slate-600">{section === 'cata' ? `Check all that apply: ${(product.customAttributes ?? getDefaultCataAttributes(product.category)).join(', ')}` : section === 'intensity' ? 'Rate the intensity of the attributes selected in CATA.' : section === 'hedonic' ? 'Rate overall liking, appearance, aroma, flavor, and texture.' : section === 'emotions' ? 'Rate the emotions experienced while tasting the sample.' : 'Add any other comments about the sample.'}</p>
-              </li>)}</ol>
-            </details>)}
+          {step === 3 && <section className="space-y-6" aria-labelledby="batch-review-heading">
+            <div>
+              <h2 id="batch-review-heading" className="text-xl font-semibold text-slate-950">Review your studies</h2>
+              <p className="mt-1 text-sm text-slate-600">Check the content and recipients before sending. Nothing is sent until the final step.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><ClipboardList className="mb-2 size-5 text-blue-700" aria-hidden /><p className="text-2xl font-semibold text-slate-950">{products.length}</p><p className="text-sm text-slate-600">Surveys to send</p></div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><Users className="mb-2 size-5 text-blue-700" aria-hidden /><p className="text-2xl font-semibold text-slate-950">{safeSelectedIds.length}</p><p className="text-sm text-slate-600">Panelists per survey</p></div>
+              <div className={`rounded-xl border p-4 ${allVerified ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}><ShieldCheck className="mb-2 size-5" aria-hidden /><p className="font-semibold">{allVerified ? 'Allergens verified' : 'Review required'}</p><p className="mt-1 text-sm">{allVerified ? 'Declarations saved for every survey' : 'Return to the allergen step'}</p></div>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-4">
+              <h3 className="text-sm font-semibold text-slate-900">Included in every survey</h3>
+              <div className="mt-3 flex flex-wrap gap-2">{sections.map(section => <span key={section} className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-800">{SURVEY_SECTION_LABELS[section]}</span>)}</div>
+              <details className="group mt-4 border-t border-slate-100 pt-3">
+                <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium text-slate-700">View selected panelists ({safeSelectedIds.length})<ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden /></summary>
+                <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{eligiblePanelists.filter(panelist => safeSelectedIds.includes(panelist.id)).map(panelist => <li key={panelist.id} className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">{panelist.name}</li>)}</ul>
+              </details>
+            </div>
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-slate-900">Survey previews</h3>
+              {products.map((product, index) => <details key={product.id} className="group overflow-hidden rounded-xl border border-slate-200 bg-white">
+                <summary className="flex cursor-pointer list-none items-center gap-3 p-4 hover:bg-slate-50">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-sm font-semibold text-slate-600">{index + 1}</span>
+                  <span className="min-w-0 flex-1"><span className="block break-words text-sm font-semibold text-slate-900">{product.name}</span><span className="mt-1 block text-xs text-slate-500">{sections.length} sections · {safeSelectedIds.length} panelists</span></span>
+                  <ChevronDown className="size-4 shrink-0 text-slate-400 transition-transform group-open:rotate-180" aria-hidden />
+                </summary>
+                <ol className="grid gap-3 border-t border-slate-100 bg-slate-50 p-4 sm:grid-cols-2">{sections.map((section, sectionIndex) => <li key={section} className="rounded-lg border border-slate-200 bg-white p-4">
+                  <h4 className="text-sm font-semibold text-slate-900"><span className="mr-2 text-slate-400">{sectionIndex + 1}.</span>{SURVEY_SECTION_LABELS[section]}</h4>
+                  {section === 'cata' ? <><p className="mt-2 text-xs text-slate-500">Panelists select all attributes that apply.</p><div className="mt-3 flex flex-wrap gap-1.5">{(product.customAttributes ?? getDefaultCataAttributes(product.category)).map(attribute => <span key={attribute} className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-700">{attribute}</span>)}</div></> : <p className="mt-2 text-sm leading-6 text-slate-600">{section === 'intensity' ? 'Rate the intensity of the attributes selected in CATA.' : section === 'hedonic' ? 'Rate overall liking, appearance, aroma, flavor, and texture.' : section === 'emotions' ? 'Rate the emotions experienced while tasting the sample.' : 'Add any other comments about the sample.'}</p>}
+                </li>)}</ol>
+              </details>)}
+            </div>
+            <p className="text-xs text-slate-500">Use Back to change panelists, allergens or survey sections.</p>
             {!panelReady && <p role="alert" className="text-sm text-amber-800">Return to allergen verification or panelist selection before continuing.</p>}
           </section>}
 
