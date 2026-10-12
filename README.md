@@ -120,6 +120,8 @@ model.
 
 ## Architecture
 
+See the [architecture diagram and trust-boundary walkthrough](docs/architecture.md) for the request flow between the browser, tenant-scoped data, hosted research service, approved literature, and local report writer.
+
 | Layer | Technology |
 | --- | --- |
 | Frontend | React 18, TypeScript, Vite, React Router, TanStack Query, Tailwind CSS, and Radix UI |
